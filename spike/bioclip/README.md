@@ -71,8 +71,6 @@ Feeding BioCLIP through the production post-LLM steps **as-is drops it to
 
 ## The fix: Strategy F (confidence-gated tiering)
 
-Two changes, then a gate:
-
 - **Keep top-K (K=15), not a fixed floor.** Preserves the true species even
   when its absolute score is low.
 - **Confidence gate:** if BioCLIP's #1 dominates (score - #2 >= 0.5), TRUST the
@@ -91,6 +89,46 @@ Two changes, then a gate:
 
 The gate is stable: domMargin 0.45-0.70 all yield 87/96 (bimodal separation
 between "confident" and "ambiguous" images), so it's not overfit.
+
+## Range-data bug found: single-neighbor lookup misses coastal cells
+
+While investigating why confident-but-correct coastal birds were flagged
+out-of-range, we found a latent bug in the **production** range lookup
+(`functions/lib/range-filter.ts` / `nearestNeighborCell` in `range-adjust.js`),
+not just the spike:
+
+**`nearestNeighborCell` only checks ONE neighbor** - the single closest edge
+(left OR right OR top OR bottom, whichever the point is nearest). It never
+checks diagonals or the other three edges. For a point near a coastline or
+range boundary, the species' range cell is often a diagonal or a non-nearest
+edge, so the lookup wrongly returns out-of-range.
+
+Proof (species that ARE present nearby):
+
+| species @ location | 1-neighbor (current) | 8-neighbor (fixed) |
+|---|---|---|
+| Great Blue Heron @ Drayton Harbor | out-of-range (bug) | near-range (fixed) |
+| Belted Kingfisher @ Carkeek Park | present | present |
+| Tufted Puffin @ Smith Island | out-of-range | out-of-range (true data gap) |
+
+The fix (`lookupRangeExpanded` in the experiment): scan the full 3x3 ring (all
+8 neighbors), first hit => near-range. This is a real correctness improvement
+that **also benefits the current GPT pipeline** (coastal/edge IDs were being
+spuriously demoted there too).
+
+Caveats:
+- On this 27-image set the aggregate top-1/top-5 doesn't change, because the
+  confidence gate was already rescuing the two coastal cases (BioCLIP was very\n  confident). The expanded lookup fixes it at the *data* layer instead of
+  relying on the gate, which matters when the model is less confident about an
+  edge-of-range bird.
+- Tufted Puffin @ Smith Island is a genuine BirdLife data gap (its small
+  pelagic breeding range isn't in the coarse 27km raster anywhere within a
+  5x5 window), not a lookup bug. Only the confidence gate saves that one.
+- Cost: up to 8 cell reads instead of 1-2 per lookup. Trivial locally; on R2 a
+  few more Class B ops; for offline bundles it's already all local.
+
+**Recommended follow-up (independent of BioCLIP):** port `lookupRangeExpanded`
+into `functions/lib/range-filter.ts` to fix coastal false-negatives in prod.
 
 ## Remaining misses (2 of 23, both unfixable by range)
 

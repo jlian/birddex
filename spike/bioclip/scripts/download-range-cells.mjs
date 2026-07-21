@@ -46,7 +46,9 @@ const LOCS = [
 const cells = new Set()
 for (const [lat,lon] of LOCS) {
   const c = latLonToCell(lat,lon); if (!c) continue
-  cells.add(`${c.row}-${c.col}`)
+  // pull the full 3x3 ring so the expanded (8-neighbor) range lookup has all
+  // adjacent cells available, not just the single closest edge.
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) cells.add(`${c.row+dr}-${c.col+dc}`)
   const {x,y} = lonLatToEqualEarth(lon,lat)
   const n = nearestNeighborCell(x,y,c.row,c.col)
   if (n) cells.add(`${n.row}-${n.col}`)

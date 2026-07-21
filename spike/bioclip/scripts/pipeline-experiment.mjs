@@ -68,6 +68,37 @@ function lookupRange(lat, lon, codes) {
   return out
 }
 
+// Expanded neighbor lookup: check the full 3x3 ring (all 8 neighbors), not
+// just the single closest edge. Recovers coastal/edge points where the
+// species' range cell is diagonal or on a non-nearest edge (e.g. Great Blue
+// Heron @ Drayton Harbor: present in adjacent E/S cells, missed by 1-neighbor).
+function lookupRangeExpanded(lat, lon, codes) {
+  const out = new Map()
+  if (!RANGE_AVAILABLE || codes.length === 0) return out
+  const { x, y } = eeProj(lon, lat)
+  const cell = xyToCell(x, y)
+  if (!cell) { for (const c of codes) out.set(c, { status: 'no-data' }); return out }
+  const self = loadBlob(cell.row, cell.col)
+  if (!self) { for (const c of codes) out.set(c, { status: 'no-data' }); return out }
+  const sm = parseCellBlob(self, new Set(codes)); const oor = []
+  for (const c of codes) { const a = sm.get(c); if (a) out.set(c, { status: 'present', ...a }); else oor.push(c) }
+  if (oor.length) {
+    const remaining = new Set(oor)
+    // scan the 8 surrounding cells; first hit => near-range
+    for (let dr = -1; dr <= 1 && remaining.size; dr++) {
+      for (let dc = -1; dc <= 1 && remaining.size; dc++) {
+        if (dr === 0 && dc === 0) continue
+        const nd = loadBlob(cell.row + dr, cell.col + dc)
+        if (!nd) continue
+        const nm = parseCellBlob(nd, remaining)
+        for (const c of [...remaining]) { const a = nm.get(c); if (a) { out.set(c, { status: 'near-range', ...a }); remaining.delete(c) } }
+      }
+    }
+    for (const c of remaining) out.set(c, { status: 'out-of-range' })
+  }
+  return out
+}
+
 // ── Ground candidates to taxonomy (keep ALL, carry raw score) ──
 function ground(fx) {
   const seen = new Set()
@@ -123,11 +154,13 @@ function rangeMult(range, month, lat, opts = {}) {
 // This matches how a birder reasons: eliminate impossible species first,
 // then rank the plausible ones by visual similarity.
 const TIER = { 'present': 0, 'near-range': 1, 'no-data': 2, 'out-of-range': 3 }
+let TIERED_EXPANDED = false
 function stratTiered(fx, K = 15) {
   const ctx = fx.context || {}
+  const rangeLookup = TIERED_EXPANDED ? lookupRangeExpanded : lookupRange
   let c = ground(fx).sort((a, b) => b.score - a.score).slice(0, K)
   if (ctx.lat != null && ctx.lon != null) {
-    const pr = lookupRange(ctx.lat, ctx.lon, c.map(x => x.ebirdCode).filter(Boolean))
+    const pr = rangeLookup(ctx.lat, ctx.lon, c.map(x => x.ebirdCode).filter(Boolean))
     c = c.map(x => {
       const r = pr.get(x.ebirdCode) || { status: 'no-data' }
       // seasonal/presence still nudge within-tier via adjustConfidence
@@ -164,13 +197,14 @@ function stratTieredSoft(fx, K = 15) {
 // hard OOR-demotion to let range priors break the tie.
 function stratGated(fx, K = 15, opts = {}) {
   const domMargin = opts.domMargin ?? 0.5
+  const rangeLookup = opts.expanded ? lookupRangeExpanded : lookupRange
   let c = ground(fx).sort((a, b) => b.score - a.score).slice(0, K)
   const ctx = fx.context || {}
   const dominant = c.length >= 1 && (c[0].score - (c[1]?.score ?? 0)) >= domMargin
   if (dominant || ctx.lat == null || ctx.lon == null) {
     return c.slice(0, 5).map(x => x.commonName)
   }
-  const pr = lookupRange(ctx.lat, ctx.lon, c.map(x => x.ebirdCode).filter(Boolean))
+  const pr = rangeLookup(ctx.lat, ctx.lon, c.map(x => x.ebirdCode).filter(Boolean))
   c = c.map(x => {
     const r = pr.get(x.ebirdCode) || { status: 'no-data' }
     const layered = adjustConfidence(x.score, { ...r, status: r.status === 'out-of-range' ? 'present' : r.status }, ctx.month, ctx.lat)
@@ -190,10 +224,10 @@ const fxDir = args.includes('--fixtures') ? args[args.indexOf('--fixtures') + 1]
 
 const strategies = {
   'A_production(0.2 floor,slice5,range)': fx => stratProd(fx),
-  'D_tiered_hardOOR_K15': fx => stratTiered(fx, 15),
-  'F_gated_dom0.4_K15': fx => stratGated(fx, 15, { domMargin: 0.4 }),
-  'F_gated_dom0.5_K15': fx => stratGated(fx, 15, { domMargin: 0.5 }),
-  'F_gated_dom0.6_K15': fx => stratGated(fx, 15, { domMargin: 0.6 }),
+  'D_tiered_nogate_1neighbor': fx => { TIERED_EXPANDED = false; return stratTiered(fx, 15) },
+  'D_tiered_nogate_8neighbor': fx => { TIERED_EXPANDED = true; return stratTiered(fx, 15) },
+  'F_gated_dom0.5_1neighbor': fx => stratGated(fx, 15, { domMargin: 0.5 }),
+  'G_gated_dom0.5_8neighbor': fx => stratGated(fx, 15, { domMargin: 0.5, expanded: true }),
 }
 
 const results = {}
@@ -216,8 +250,8 @@ for (const file of readdirSync(fxDir).filter(f => f.endsWith('.json'))) {
   perImage.push(row)
 }
 
-const mainStrat = 'F_gated_dom0.5_K15'
-console.log(`${'image'.padEnd(46)} ${'truth'.padEnd(22)}  A  F`)
+const mainStrat = 'G_gated_dom0.5_8neighbor'
+console.log(`${'image'.padEnd(46)} ${'truth'.padEnd(22)}  A  G`)
 for (const r of perImage) console.log(`${r.base.slice(0, 46).padEnd(46)} ${r.gt.slice(0, 22).padEnd(22)}  ${r['A_production(0.2 floor,slice5,range)']}  ${r[mainStrat]}`)
 console.log('-'.repeat(80))
 for (const [name, s] of Object.entries(results)) {
