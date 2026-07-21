@@ -91,6 +91,18 @@ def fetch_species(taxon_id, want, sleep):
         if not results:
             break
         for obs in results:
+            # GPS: iNat returns "location" as "lat,lon" (obscured/randomized for
+            # threatened taxa; absent when the observer withheld it). Captured so
+            # range priors can be used as a training-time signal.
+            lat = lon = None
+            loc = obs.get("location")
+            if loc and "," in loc:
+                try:
+                    lat_s, lon_s = loc.split(",", 1)
+                    lat, lon = float(lat_s), float(lon_s)
+                except ValueError:
+                    lat = lon = None
+            geoprivacy = obs.get("geoprivacy") or obs.get("taxon_geoprivacy")
             for photo in obs.get("photos", []):
                 lic = (photo.get("license_code") or "").lower()
                 if lic not in OPEN_LICENSES:
@@ -105,6 +117,9 @@ def fetch_species(taxon_id, want, sleep):
                     "attribution": photo.get("attribution"),
                     "observation_id": obs.get("id"),
                     "observed_on": obs.get("observed_on"),
+                    "lat": lat,
+                    "lon": lon,
+                    "geoprivacy": geoprivacy,
                 }
                 collected += 1
                 if collected >= want:
