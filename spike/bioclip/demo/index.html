@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WingDex on-device bird ID — adaptive router demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 860px; margin: 0 auto; padding: 20px; line-height: 1.5; }
+  h1 { font-size: 1.4rem; }
+  .card { border: 1px solid #8884; border-radius: 10px; padding: 16px; margin: 14px 0; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #8886; background: #6cf3; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .bar { height: 10px; background: #8883; border-radius: 5px; overflow: hidden; margin: 8px 0; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg,#4a9,#6cf); width: 0; transition: width .2s; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .8rem; border: 1px solid #8886; }
+  .pill.bioclip { background: #4a94; }
+  .pill.gpt { background: #c844; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  td, th { text-align: left; padding: 4px 8px; border-bottom: 1px solid #8883; }
+  .muted { color: #8889; font-size: .85rem; }
+  code { background: #8882; padding: 1px 5px; border-radius: 4px; }
+  #log { font-family: ui-monospace, monospace; font-size: .8rem; white-space: pre-wrap; max-height: 220px; overflow: auto; background: #8881; padding: 10px; border-radius: 8px; }
+  img.thumb { max-width: 260px; max-height: 260px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>🐦 WingDex on-device bird ID — adaptive router demo</h1>
+<p class="muted">
+  Runs <b>BioCLIP-2 (ViT-L int8, 307&nbsp;MB)</b> fully in your browser via onnxruntime-web + WebGPU.
+  Demonstrates the adaptive router: it measures download speed, prefetches the model in the
+  background, and falls back to the server (GPT) when the model isn't ready. One shared
+  post-processing pipeline (taxonomy + range + confidence gate) regardless of which model runs.
+</p>
+
+<div class="card">
+  <div class="row">
+    <button id="prefetch">Start background prefetch</button>
+    <span id="net" class="muted"></span>
+  </div>
+  <div class="bar"><i id="dlbar"></i></div>
+  <div id="dlstatus" class="muted">Model not loaded.</div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <input type="file" id="file" accept="image/*">
+    <button id="run" disabled>Identify</button>
+    <span id="route"></span>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <img id="thumb" class="thumb" hidden>
+    <div id="result" style="flex:1; min-width:260px"></div>
+  </div>
+</div>
+
+<div class="card">
+  <b>Event log</b>
+  <div id="log"></div>
+</div>
+
+<script type="module" src="./router.js"></script>
+</body>
+</html>

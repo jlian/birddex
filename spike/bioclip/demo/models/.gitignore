@@ -1,0 +1,4 @@
+# on-device demo model assets (large, regenerate via scripts/)
+*.onnx
+*.bin
+species.json
