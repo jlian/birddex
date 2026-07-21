@@ -19,6 +19,47 @@ ViT-B loses 17 pts top-1 / 22 pts top-5 and falls **below GPT** on both. The
 on-device model that's worse than the GPT call we already have. **Only ViT-L is
 worth shipping**, because it's the only variant that beats GPT.
 
+## 4-bit quantization: doesn't help (tested)
+
+Hoping to roughly halve the 307 MB int8 model, we tried ONNX 4-bit weight
+quantization (`MatMulNBitsQuantizer`, block_size 32 and 128):
+
+| Model | Download | top-1 | top-5 |
+|---|---|---|---|
+| ViT-L int8 | 307 MB | **87%** | **96%** |
+| ViT-L q4 (bs32) | 280 MB | 78% | 87% |
+| ViT-L q4 (bs128) | 254 MB | ~78% | ~87% |
+| gpt-5.4-mini | 0 (API) | 83% | 87% |
+
+Both outcomes are disqualifying:
+1. **Size barely moves.** 254-280 MB vs int8's 307 MB (~10-17% smaller), nowhere
+   near the ~151 MB the weight math implies (1212 MB of the 1216 MB total is 2D
+   matmul weight). ONNX 4-bit MatMul carries per-block scale/zero-point overhead
+   and doesn't convert every op in this ViT export.
+2. **Accuracy drops to GPT's level (78/87).** 4-bit rounding erodes the
+   fine-grained margins between similar species that are BioCLIP's whole edge.
+
+So q4 is a slightly-smaller, meaningfully-worse model. **int8 (307 MB, 87/96)
+remains the only variant worth shipping.**
+
+## Conclusion: the accuracy is inseparable from ~307 MB
+
+We chased both levers for a viable web download and both failed:
+- **ViT-B/16 (86 MB):** 70/74, too weak.
+- **ViT-L q4 (254-280 MB):** 78/87, barely smaller and too weak.
+- **ViT-L int8 (307 MB):** 87/96, the only good one.
+
+There is no free lunch here: the accuracy that beats GPT requires ~307 MB.
+The only path to "small AND accurate" is **knowledge distillation** (train a
+small student on bird data to mimic ViT-L), which is a multi-day training
+project, not a spike. Flagged, not attempted.
+
+**Final recommendation:**
+- **iOS: ship ViT-L int8 via Core ML** (307 MB bundled is fine; strong play).
+- **Web: keep GPT**, optionally add a background-prefetch + cached-int8 hybrid
+  later (on-device when warm, GPT when cold). Not a spike-sized change and
+  rough on cold mobile, so lower priority than iOS.
+
 ## Model download size (image encoder only)
 
 BioCLIP-2 is a CLIP **ViT-L/14** (~300M params). Exported image encoder:
