@@ -60,6 +60,36 @@ Run the student through the **same** gated+range pipeline
 (`../scripts/pipeline-experiment.mjs`) on the 27-image set + a larger held-out
 set. Compare top-1/top-5 vs GPT (83/87) and ViT-L (87/96). Go/no-go.
 
+**Eval anchors (decided 2026-07-21):**
+- **NABirds** (HF mirror `zguo0525/nabirds-dataset`, ~48K imgs / 555 NA species,
+  expert labels + boxes) - primary labeled accuracy anchor, NA-focused like our
+  users. Downloadable today; pull at eval time (don't compete with the resolve).
+- **CUB-200-2011** (HF `syedashfaq/CUB_200_2011`, 11,788 imgs / 200 species) -
+  quick FGVR sanity eval.
+- **RealBirdID** (arXiv 2603.27033, CVPR'26, MIT) - *headline* abstention-aware
+  benchmark, scored on BOTH species accuracy AND calibrated abstention (our
+  softmax-confidence gate gives us an abstention lever GPT lacks). NOT RELEASED
+  yet as of 2026-07-21 (HF `cvl-umass/RealBirdID` usedStorage=0, quickstart
+  notebook is `# TODO`). Watched by cron `realbirdid-release-watch` (daily 9am);
+  wire in when data lands.
+- Automated in-pipeline eval stays: student vs GPT (83/87) vs BioCLIP-2 ViT-L
+  (87/96) on the shared gated+range pipeline.
+
+## Teacher (decided 2026-07-21)
+
+**Teacher = BioCLIP-2 ViT-L/14** (open_clip `hf-hub:imageomics/bioclip-2`). It's
+the only BioCLIP-2 variant that exists (built on LAION-2B CLIP ViT-L/14, MIT
+license), and the SOTA open bird encoder (RealBirdID: 41% genus / 76% species).
+No larger ViT-H/bigG release to chase. Teacher size is a training-time cost
+only; the shipped student is unaffected.
+
+**Ensemble / multi-teacher = deferred improvement pass.** First student is
+single-teacher (BioCLIP-2, free/local) to get a baseline + confusion matrix.
+Then targeted multi-teacher: GPT-5.4-mini-label ONLY the confused hard pairs
+(GPT API cost, so subset not full corpus), blend BioCLIP+GPT distributions
+(KL) + BioCLIP embedding (cosine), use range/co-occurrence as a training-time
+sampling weight. Range stays external at inference (model-agnostic, updatable).
+
 ## Working location
 
 Heavy work runs on **tomahawk** (RTX 3080) under the existing spike venv
