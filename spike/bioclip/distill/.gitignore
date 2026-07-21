@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+corpus/
+manifest.jsonl
+inat_resolved.jsonl
+species.json
+*.log
