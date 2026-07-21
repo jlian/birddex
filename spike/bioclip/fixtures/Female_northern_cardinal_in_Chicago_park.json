@@ -1,0 +1,317 @@
+{
+ "imageFile": "Female_northern_cardinal_in_Chicago_park.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Northern Cardinal",
+    "scientificName": "Cardinalis cardinalis",
+    "confidence": 0.9762,
+    "plumage": null
+   },
+   {
+    "commonName": "Pyrrhuloxia",
+    "scientificName": "Cardinalis sinuatus",
+    "confidence": 0.0063,
+    "plumage": null
+   },
+   {
+    "commonName": "Vermilion Cardinal",
+    "scientificName": "Cardinalis phoeniceus",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Thrasher",
+    "scientificName": "Toxostoma rufum",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Warbler",
+    "scientificName": "Cardellina rubra",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Cacholote",
+    "scientificName": "Pseudoseisura lophotes",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous Cacholote",
+    "scientificName": "Pseudoseisura unirufa",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Wren",
+    "scientificName": "Thryothorus ludovicianus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "House Finch",
+    "scientificName": "Haemorhous mexicanus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Field Sparrow",
+    "scientificName": "Spizella pusilla",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Caatinga Cacholote",
+    "scientificName": "Pseudoseisura cristata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Crested Flycatcher",
+    "scientificName": "Myiarchus crinitus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Waxwing",
+    "scientificName": "Bombycilla japonica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-crested Cardinal",
+    "scientificName": "Paroaria coronata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Summer Tanager",
+    "scientificName": "Piranga rubra",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Towhee",
+    "scientificName": "Pipilo erythrophthalmus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-headed Bluebill",
+    "scientificName": "Spermophaga ruficapilla",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Hepatic Tanager",
+    "scientificName": "Piranga flava",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-crowned Sparrow",
+    "scientificName": "Aimophila ruficeps",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty-cheeked Scimitar-Babbler",
+    "scientificName": "Erythrogenys erythrogenys",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Cardinal Lory",
+    "scientificName": "Chalcopsitta cardinalis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Jay",
+    "scientificName": "Cyanocitta stelleri",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Flicker",
+    "scientificName": "Colaptes auratus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Crimson Finch",
+    "scientificName": "Neochmia phaeton",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Baltimore Oriole",
+    "scientificName": "Icterus galbula",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Avadavat",
+    "scientificName": "Amandava amandava",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "American Robin",
+    "scientificName": "Turdus migratorius",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Vermilion Flycatcher",
+    "scientificName": "Pyrocephalus rubinus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "American Woodcock",
+    "scientificName": "Scolopax minor",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Abert's Towhee",
+    "scientificName": "Melozone aberti",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Painted Bunting",
+    "scientificName": "Passerina ciris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Hermit Thrush",
+    "scientificName": "Catharus guttatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Italian Sparrow",
+    "scientificName": "Passer italiae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Bluebird",
+    "scientificName": "Sialia sialis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rose-breasted Grosbeak",
+    "scientificName": "Pheucticus ludovicianus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-bellied Woodpecker",
+    "scientificName": "Melanerpes carolinus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Waxbill",
+    "scientificName": "Estrilda astrild",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Cardinal Quelea",
+    "scientificName": "Quelea cardinalis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Przevalski's Pinktail",
+    "scientificName": "Urocynchramus pylzowi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous Hummingbird",
+    "scientificName": "Selasphorus rufus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Antillean Bullfinch",
+    "scientificName": "Melopyrrha violacea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden Pheasant",
+    "scientificName": "Chrysolophus pictus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Bohemian Waxwing",
+    "scientificName": "Bombycilla garrulus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Weaver",
+    "scientificName": "Anaplectes jubaensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Horned Owl",
+    "scientificName": "Bubo virginianus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Finch",
+    "scientificName": "Haemorhous purpureus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Freckle-breasted Thornbird",
+    "scientificName": "Phacellodomus striaticollis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Phoebe",
+    "scientificName": "Sayornis phoebe",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Jay",
+    "scientificName": "Cyanocitta cristata",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

@@ -1,0 +1,317 @@
+{
+ "imageFile": "Common_kingfisher_at_Taipei_Zoo.jpeg",
+ "context": {
+  "lat": 24.998,
+  "lon": 121.581,
+  "month": 11,
+  "locationName": "Taipei Zoo, Taiwan"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Blyth's Kingfisher",
+    "scientificName": "Alcedo hercules",
+    "confidence": 0.5688,
+    "plumage": null
+   },
+   {
+    "commonName": "Javan Blue-banded Kingfisher",
+    "scientificName": "Alcedo euryzona",
+    "confidence": 0.1204,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Kingfisher",
+    "scientificName": "Alcedo atthis",
+    "confidence": 0.0828,
+    "plumage": null
+   },
+   {
+    "commonName": "Half-collared Kingfisher",
+    "scientificName": "Alcedo semitorquata",
+    "confidence": 0.0622,
+    "plumage": null
+   },
+   {
+    "commonName": "Malaysian Blue-banded Kingfisher",
+    "scientificName": "Alcedo peninsulae",
+    "confidence": 0.0295,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-and-rufous Kingfisher",
+    "scientificName": "Chloroceryle inda",
+    "confidence": 0.0265,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-eared Kingfisher",
+    "scientificName": "Alcedo meninting",
+    "confidence": 0.0193,
+    "plumage": null
+   },
+   {
+    "commonName": "Indigo-banded Kingfisher",
+    "scientificName": "Ceyx cyanopectus",
+    "confidence": 0.0134,
+    "plumage": null
+   },
+   {
+    "commonName": "Malagasy Kingfisher",
+    "scientificName": "Corythornis vintsioides",
+    "confidence": 0.0076,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-capped Kingfisher",
+    "scientificName": "Actenoides hombroni",
+    "confidence": 0.0075,
+    "plumage": null
+   },
+   {
+    "commonName": "American Pygmy Kingfisher",
+    "scientificName": "Chloroceryle aenea",
+    "confidence": 0.0073,
+    "plumage": null
+   },
+   {
+    "commonName": "Vanuatu Kingfisher",
+    "scientificName": "Todiramphus farquhari",
+    "confidence": 0.0064,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Kingfisher",
+    "scientificName": "Actenoides lindsayi",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-breasted Kingfisher",
+    "scientificName": "Halcyon gularis",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Sula Dwarf-Kingfisher",
+    "scientificName": "Ceyx wallacii",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Philippine Dwarf-Kingfisher",
+    "scientificName": "Ceyx melanurus",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Moluccan Dwarf-Kingfisher",
+    "scientificName": "Ceyx lepidus",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Sangihe Dwarf-Kingfisher",
+    "scientificName": "Ceyx sangirensis",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Shining-blue Kingfisher",
+    "scientificName": "Alcedo quadribrachys",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Kingfisher",
+    "scientificName": "Halcyon smyrnensis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Silvery-Kingfisher",
+    "scientificName": "Ceyx flumenicola",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Talaud Kingfisher",
+    "scientificName": "Todiramphus enigma",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Javan Kingfisher",
+    "scientificName": "Halcyon cyanoventris",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Manus Dwarf-Kingfisher",
+    "scientificName": "Ceyx dispar",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "African Pygmy Kingfisher",
+    "scientificName": "Ispidina picta",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Blue Kingfisher",
+    "scientificName": "Alcedo coerulescens",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-winged Kingfisher",
+    "scientificName": "Pelargopsis amauroptera",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Silvery-Kingfisher",
+    "scientificName": "Ceyx argentatus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Kingfisher",
+    "scientificName": "Todiramphus sacer",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Buru Dwarf-Kingfisher",
+    "scientificName": "Ceyx cajeli",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-breasted Kingfisher",
+    "scientificName": "Halcyon malimbica",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Bismarck Kingfisher",
+    "scientificName": "Ceyx websteri",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Madagascar Pygmy Kingfisher",
+    "scientificName": "Corythornis madagascariensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "New Ireland Dwarf-Kingfisher",
+    "scientificName": "Ceyx mulcatus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "New Britain Dwarf-Kingfisher",
+    "scientificName": "Ceyx sacerdotis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Chocolate-backed Kingfisher",
+    "scientificName": "Halcyon badia",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Mariana Kingfisher",
+    "scientificName": "Todiramphus albicilla",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-headed Kingfisher",
+    "scientificName": "Halcyon leucocephala",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Flat-billed Kingfisher",
+    "scientificName": "Todiramphus recurvirostris",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Dusky-backed Jacamar",
+    "scientificName": "Brachygalba salmoni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Kingfisher",
+    "scientificName": "Todiramphus diops",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Kingfisher",
+    "scientificName": "Syma torotoro",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Melanesian Kingfisher",
+    "scientificName": "Todiramphus tristrami",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Stork-billed Kingfisher",
+    "scientificName": "Pelargopsis capensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pohnpei Kingfisher",
+    "scientificName": "Todiramphus reichenbachii",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Mewing Kingfisher",
+    "scientificName": "Todiramphus ruficollaris",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Guadalcanal Dwarf-Kingfisher",
+    "scientificName": "Ceyx nigromaxilla",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-tailed Jacamar",
+    "scientificName": "Galbula ruficauda",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-chinned Jacamar",
+    "scientificName": "Galbula tombacea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Palau Kingfisher",
+    "scientificName": "Todiramphus pelewensis",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

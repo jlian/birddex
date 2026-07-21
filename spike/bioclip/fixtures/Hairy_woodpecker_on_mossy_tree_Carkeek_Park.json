@@ -1,0 +1,317 @@
+{
+ "imageFile": "Hairy_woodpecker_on_mossy_tree_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 6,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Hairy Woodpecker",
+    "scientificName": "Leuconotopicus villosus",
+    "confidence": 0.9882,
+    "plumage": null
+   },
+   {
+    "commonName": "American Three-toed Woodpecker",
+    "scientificName": "Picoides dorsalis",
+    "confidence": 0.0074,
+    "plumage": null
+   },
+   {
+    "commonName": "Downy Woodpecker",
+    "scientificName": "Dryobates pubescens",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "White-headed Woodpecker",
+    "scientificName": "Leuconotopicus albolarvatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Strickland's Woodpecker",
+    "scientificName": "Leuconotopicus stricklandi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-cockaded Woodpecker",
+    "scientificName": "Leuconotopicus borealis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-naped Sapsucker",
+    "scientificName": "Sphyrapicus nuchalis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Woodpecker",
+    "scientificName": "Dendrocopos leucopterus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-backed Woodpecker",
+    "scientificName": "Picoides arcticus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Williamson's Sapsucker",
+    "scientificName": "Sphyrapicus thyroideus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Smoky-brown Woodpecker",
+    "scientificName": "Leuconotopicus fumigatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Lewis's Woodpecker",
+    "scientificName": "Melanerpes lewis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Nuthatch",
+    "scientificName": "Sitta canadensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Arizona Woodpecker",
+    "scientificName": "Leuconotopicus arizonae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Three-toed Woodpecker",
+    "scientificName": "Picoides tridactylus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Powerful Woodpecker",
+    "scientificName": "Campephilus pollens",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Sapsucker",
+    "scientificName": "Sphyrapicus ruber",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-bellied Sapsucker",
+    "scientificName": "Sphyrapicus varius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Nuttall's Woodpecker",
+    "scientificName": "Dryobates nuttallii",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Spotted Woodpecker",
+    "scientificName": "Dendrocopos major",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Syrian Woodpecker",
+    "scientificName": "Dendrocopos syriacus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Clark's Nutcracker",
+    "scientificName": "Nucifraga columbiana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Evening Grosbeak",
+    "scientificName": "Hesperiphona vespertina",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Darjeeling Woodpecker",
+    "scientificName": "Dendrocopos darjellensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pileated Woodpecker",
+    "scientificName": "Dryocopus pileatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Jay",
+    "scientificName": "Cyanocitta stelleri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Ladder-backed Woodpecker",
+    "scientificName": "Dryobates scalaris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-breasted Woodpecker",
+    "scientificName": "Dendrocopos atratus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Woodcock",
+    "scientificName": "Scolopax minor",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-backed Woodpecker",
+    "scientificName": "Dendrocopos leucotos",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Canada Jay",
+    "scientificName": "Perisoreus canadensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Acorn Woodpecker",
+    "scientificName": "Melanerpes formicivorus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-breasted Nuthatch",
+    "scientificName": "Sitta carolinensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Himalayan Woodpecker",
+    "scientificName": "Dendrocopos himalayensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Creeper",
+    "scientificName": "Certhia americana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Gray Woodpecker",
+    "scientificName": "Dendropicos spodocephalus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-spotted Woodpecker",
+    "scientificName": "Veniliornis spilogaster",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Flicker",
+    "scientificName": "Colaptes auratus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Jay",
+    "scientificName": "Cyanocorax dickeyi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Grouse",
+    "scientificName": "Dendragapus fuliginosus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-billed Magpie",
+    "scientificName": "Pica hudsonia",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Woodpecker",
+    "scientificName": "Picus awokera",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Saw-whet Owl",
+    "scientificName": "Aegolius acadicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Aztec Thrush",
+    "scientificName": "Ridgwayia pinicola",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Puerto Rican Woodpecker",
+    "scientificName": "Melanerpes portoricensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rose-breasted Grosbeak",
+    "scientificName": "Pheucticus ludovicianus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Nuthatch",
+    "scientificName": "Sitta pygmaea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Nutcracker",
+    "scientificName": "Nucifraga caryocatactes",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Dusky Grouse",
+    "scientificName": "Dendragapus obscurus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Freckle-breasted Woodpecker",
+    "scientificName": "Dendrocopos analis",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

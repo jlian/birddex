@@ -1,0 +1,317 @@
+{
+ "imageFile": "Dark-eyed_junco_in_foliage_Seattle_Arboretum.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.2958,
+  "month": 10,
+  "locationName": "Washington Park Arboretum, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Dark-eyed Junco",
+    "scientificName": "Junco hyemalis",
+    "confidence": 0.8961,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-eyed Junco",
+    "scientificName": "Junco phaeonotus",
+    "confidence": 0.0117,
+    "plumage": null
+   },
+   {
+    "commonName": "Guadalupe Junco",
+    "scientificName": "Junco insularis",
+    "confidence": 0.0116,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Bunting",
+    "scientificName": "Emberiza variabilis",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Bunting",
+    "scientificName": "Emberiza spodocephala",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "African Chaffinch",
+    "scientificName": "Fringilla spodiogenys",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Forktail",
+    "scientificName": "Enicurus scouleri",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Baird's Junco",
+    "scientificName": "Junco bairdi",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Volcano Junco",
+    "scientificName": "Junco vulcani",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Parrot-billed Seedeater",
+    "scientificName": "Sporophila peruviana",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "White-cheeked Starling",
+    "scientificName": "Spodiopsar cineraceus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Gran Canaria Blue Chaffinch",
+    "scientificName": "Fringilla polatzeki",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-chinned Sparrow",
+    "scientificName": "Spizella atrogularis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Spanish Sparrow",
+    "scientificName": "Passer hispaniolensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Sierra Finch",
+    "scientificName": "Idiopsar erythronotus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "European Greenfinch",
+    "scientificName": "Chloris chloris",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-rumped Seedeater",
+    "scientificName": "Crithagra tristriata",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-rumped Seedeater",
+    "scientificName": "Crithagra leucopygia",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Sparrow",
+    "scientificName": "Amphispiza bilineata",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Canary",
+    "scientificName": "Crithagra atrogularis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Bunting",
+    "scientificName": "Emberiza siemsseni",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Blue Warbler",
+    "scientificName": "Setophaga caerulescens",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-crowned Sparrow",
+    "scientificName": "Aimophila ruficeps",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-rumped Swift",
+    "scientificName": "Apus caffer",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Thrush",
+    "scientificName": "Turdus atrogularis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Wagtail",
+    "scientificName": "Motacilla grandis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain-colored Seedeater",
+    "scientificName": "Catamenia inornata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Towhee",
+    "scientificName": "Pipilo erythrophthalmus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Grassquit",
+    "scientificName": "Melanospiza bicolor",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Band-tailed Sierra Finch",
+    "scientificName": "Rhopospina alaudina",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-breasted Warbling Finch",
+    "scientificName": "Poospiza rubecula",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Fox Sparrow",
+    "scientificName": "Passerella iliaca",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Twite",
+    "scientificName": "Linaria flavirostris",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Towhee",
+    "scientificName": "Pipilo maculatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriole Finch",
+    "scientificName": "Linurgus olivaceus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Lawrence's Goldfinch",
+    "scientificName": "Spinus lawrencei",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Boulder Finch",
+    "scientificName": "Idiopsar brachyurus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Island Canary",
+    "scientificName": "Serinus canaria",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Finch",
+    "scientificName": "Haemorhous purpureus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Field Sparrow",
+    "scientificName": "Spizella pusilla",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-chested Sparrow",
+    "scientificName": "Peucaea humeralis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-capped Redstart",
+    "scientificName": "Phoenicurus coeruleocephala",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Chaffinch",
+    "scientificName": "Fringilla coelebs",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Greenfinch",
+    "scientificName": "Chloris sinica",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Redstart",
+    "scientificName": "Phoenicurus erythrogastrus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-gray Robin",
+    "scientificName": "Melanodryas cyanus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Bullfinch",
+    "scientificName": "Pyrrhula nipalensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Snowfinch",
+    "scientificName": "Montifringilla nivalis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Greenfinch",
+    "scientificName": "Chloris ambigua",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pine Bunting",
+    "scientificName": "Emberiza leucocephalos",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

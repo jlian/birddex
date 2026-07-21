@@ -1,0 +1,317 @@
+{
+ "imageFile": "Black-throated_blue_warbler_in_Chicago_park.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Montrose Point, Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Black-throated Blue Warbler",
+    "scientificName": "Setophaga caerulescens",
+    "confidence": 0.9504,
+    "plumage": null
+   },
+   {
+    "commonName": "Cerulean Warbler",
+    "scientificName": "Setophaga cerulea",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-blue Flycatcher",
+    "scientificName": "Ficedula tricolor",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Flycatcher",
+    "scientificName": "Cyanoptila cyanomelana",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "White-backed Black-Tit",
+    "scientificName": "Melaniparus leuconotus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-throated Flycatcher",
+    "scientificName": "Cyornis rubeculoides",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Ultramarine Flycatcher",
+    "scientificName": "Ficedula superciliaris",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Elfin-woods Warbler",
+    "scientificName": "Setophaga angelae",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-backed Forktail",
+    "scientificName": "Enicurus schistaceus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "American Redstart",
+    "scientificName": "Setophaga ruticilla",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Warbler",
+    "scientificName": "Geothlypis philadelphia",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Fire-breasted Flowerpecker",
+    "scientificName": "Dicaeum ignipectus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-backed Flycatcher",
+    "scientificName": "Ficedula elisae",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-fronted Tit",
+    "scientificName": "Sittiparus semilarvatus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Pied Flycatcher",
+    "scientificName": "Ficedula westermanni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Steel-blue Flycatcher",
+    "scientificName": "Myiagra ferrocyanea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "White-tailed Warbler",
+    "scientificName": "Poliolais lopezi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Siberian Blue Robin",
+    "scientificName": "Larvivora cyane",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Warbler",
+    "scientificName": "Xenoligea montana",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumbeous Warbler",
+    "scientificName": "Setophaga plumbea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Blue Flycatcher",
+    "scientificName": "Cyornis pallidipes",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-backed Flowerpecker",
+    "scientificName": "Pachyglossa everetti",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Tit",
+    "scientificName": "Melaniparus albiventris",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Sunda Forktail",
+    "scientificName": "Enicurus velatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Fan-tailed Warbler",
+    "scientificName": "Euthlypis lachrymosa",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-billed Flycatcher",
+    "scientificName": "Aphanotriccus audax",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-tailed Robin",
+    "scientificName": "Myiomela leucura",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-banded Flowerpecker",
+    "scientificName": "Dicaeum eximium",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Cryptic Flycatcher",
+    "scientificName": "Ficedula crypta",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Sholakili",
+    "scientificName": "Sholicola albiventris",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "West African Wattle-eye",
+    "scientificName": "Dyaphorophyia hormophora",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Okinawa Robin",
+    "scientificName": "Larvivora namiyei",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Speirops",
+    "scientificName": "Zosterops lugubris",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Flycatcher",
+    "scientificName": "Ficedula hodgsoni",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Indigo Flycatcher",
+    "scientificName": "Eumyias indigo",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Satin Berrypecker",
+    "scientificName": "Melanocharis citreola",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Hummingbird",
+    "scientificName": "Leucochloris albicollis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Zappey's Flycatcher",
+    "scientificName": "Cyanoptila cumatilis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Biak Whistler",
+    "scientificName": "Pachycephala melanorhyncha",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-chested Jungle Flycatcher",
+    "scientificName": "Cyornis umbratilis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Dapple-throat",
+    "scientificName": "Arcanator orostruthus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-banded Swallow",
+    "scientificName": "Atticora fasciata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Philippine Magpie-Robin",
+    "scientificName": "Copsychus mindanensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-headed Crested Flycatcher",
+    "scientificName": "Trochocercus nitens",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-sided Flowerpecker",
+    "scientificName": "Dicaeum monticolum",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-headed Vireo",
+    "scientificName": "Vireo solitarius",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Parula",
+    "scientificName": "Setophaga americana",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy-breasted Flycatcher",
+    "scientificName": "Muscicapa randi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-rumped Flycatcher",
+    "scientificName": "Ficedula zanthopygia",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-breasted Forest Robin",
+    "scientificName": "Stiphrornis mabirae",
+    "confidence": 0.0002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

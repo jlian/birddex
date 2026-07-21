@@ -1,0 +1,317 @@
+{
+ "imageFile": "Belted_kingfisher_above_Puget_Sound_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.9452,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Kingfisher",
+    "scientificName": "Megaceryle lugubris",
+    "confidence": 0.0232,
+    "plumage": null
+   },
+   {
+    "commonName": "Ringed Kingfisher",
+    "scientificName": "Megaceryle torquata",
+    "confidence": 0.0085,
+    "plumage": null
+   },
+   {
+    "commonName": "Amazon Kingfisher",
+    "scientificName": "Chloroceryle amazona",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "Giant Kingfisher",
+    "scientificName": "Megaceryle maxima",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Bismarck Kingfisher",
+    "scientificName": "Ceyx websteri",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Kingfisher",
+    "scientificName": "Chloroceryle americana",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Kingfisher",
+    "scientificName": "Ceryle rudis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "New Britain Kingfisher",
+    "scientificName": "Todiramphus albonotatus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Blue Kingfisher",
+    "scientificName": "Alcedo coerulescens",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Heron",
+    "scientificName": "Butorides virescens",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Half-collared Kingfisher",
+    "scientificName": "Alcedo semitorquata",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Bluebird",
+    "scientificName": "Sialia sialis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blyth's Kingfisher",
+    "scientificName": "Alcedo hercules",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Mariana Kingfisher",
+    "scientificName": "Todiramphus albicilla",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Kingfisher",
+    "scientificName": "Alcedo atthis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Kingfisher",
+    "scientificName": "Halcyon pileata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Hook-billed Kingfisher",
+    "scientificName": "Melidora macrorrhina",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-capped Kingfisher",
+    "scientificName": "Actenoides hombroni",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Kingfisher",
+    "scientificName": "Todiramphus diops",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Kingfisher",
+    "scientificName": "Pelargopsis melanorhyncha",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Merganser",
+    "scientificName": "Lophodytes cucullatus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Kingfisher",
+    "scientificName": "Todiramphus sacer",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Mangrove Kingfisher",
+    "scientificName": "Halcyon senegaloides",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-headed Kingfisher",
+    "scientificName": "Halcyon leucocephala",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Manus Dwarf-Kingfisher",
+    "scientificName": "Ceyx dispar",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Beach Kingfisher",
+    "scientificName": "Todiramphus saurophagus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Torresian Kingfisher",
+    "scientificName": "Todiramphus sordidus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Silvery-Kingfisher",
+    "scientificName": "Ceyx flumenicola",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure Kingfisher",
+    "scientificName": "Ceyx azureus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Swallow-winged Puffbird",
+    "scientificName": "Chelidoptera tenebrosa",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "American Dipper",
+    "scientificName": "Cinclus mexicanus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Canada Jay",
+    "scientificName": "Perisoreus canadensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Kingfisher",
+    "scientificName": "Actenoides lindsayi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Kingfisher",
+    "scientificName": "Ceyx pusillus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly-sided Merganser",
+    "scientificName": "Mergus squamatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Lewis's Woodpecker",
+    "scientificName": "Melanerpes lewis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Talaud Kingfisher",
+    "scientificName": "Todiramphus enigma",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Bonaparte's Gull",
+    "scientificName": "Chroicocephalus philadelphia",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-gray Robin",
+    "scientificName": "Melanodryas cyanus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Kingbird",
+    "scientificName": "Tyrannus tyrannus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Silvery-Kingfisher",
+    "scientificName": "Ceyx argentatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-breasted Puffbird",
+    "scientificName": "Notharchus pectoralis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Barred Hawk",
+    "scientificName": "Morphnarchus princeps",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Shining-blue Kingfisher",
+    "scientificName": "Alcedo quadribrachys",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Vanuatu Kingfisher",
+    "scientificName": "Todiramphus farquhari",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Tuamotu Kingfisher",
+    "scientificName": "Todiramphus gambieri",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Indigo-banded Kingfisher",
+    "scientificName": "Ceyx cyanopectus",
+    "confidence": 0.0001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

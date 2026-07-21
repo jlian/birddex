@@ -1,0 +1,317 @@
+{
+ "imageFile": "Common_goldeneye_at_Discovery_Park_Seattle.jpeg",
+ "context": {
+  "lat": 47.66,
+  "lon": -122.4287,
+  "month": 0,
+  "locationName": "Discovery Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Barrow's Goldeneye",
+    "scientificName": "Bucephala islandica",
+    "confidence": 0.4258,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Goldeneye",
+    "scientificName": "Bucephala clangula",
+    "confidence": 0.0898,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Scoter",
+    "scientificName": "Melanitta deglandi",
+    "confidence": 0.0305,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous-winged Gull",
+    "scientificName": "Larus glaucescens",
+    "confidence": 0.0304,
+    "plumage": null
+   },
+   {
+    "commonName": "Iceland Gull",
+    "scientificName": "Larus glaucoides",
+    "confidence": 0.0253,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous Gull",
+    "scientificName": "Larus hyperboreus",
+    "confidence": 0.0236,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-billed Gull",
+    "scientificName": "Larus brachyrhynchus",
+    "confidence": 0.0233,
+    "plumage": null
+   },
+   {
+    "commonName": "Smew",
+    "scientificName": "Mergellus albellus",
+    "confidence": 0.0228,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Duck",
+    "scientificName": "Clangula hyemalis",
+    "confidence": 0.0227,
+    "plumage": null
+   },
+   {
+    "commonName": "California Gull",
+    "scientificName": "Larus californicus",
+    "confidence": 0.0196,
+    "plumage": null
+   },
+   {
+    "commonName": "Vega Gull",
+    "scientificName": "Larus vegae",
+    "confidence": 0.0166,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-backed Gull",
+    "scientificName": "Larus schistisagus",
+    "confidence": 0.0157,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0141,
+    "plumage": null
+   },
+   {
+    "commonName": "Franklin's Gull",
+    "scientificName": "Leucophaeus pipixcan",
+    "confidence": 0.0135,
+    "plumage": null
+   },
+   {
+    "commonName": "Mongolian Gull",
+    "scientificName": "Larus mongolicus",
+    "confidence": 0.0112,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Duck",
+    "scientificName": "Aythya fuligula",
+    "confidence": 0.0108,
+    "plumage": null
+   },
+   {
+    "commonName": "Armenian Gull",
+    "scientificName": "Larus armenicus",
+    "confidence": 0.0107,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0086,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Gull",
+    "scientificName": "Larus occidentalis",
+    "confidence": 0.0084,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0079,
+    "plumage": null
+   },
+   {
+    "commonName": "Canvasback",
+    "scientificName": "Aythya valisineria",
+    "confidence": 0.0075,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.0074,
+    "plumage": null
+   },
+   {
+    "commonName": "Velvet Scoter",
+    "scientificName": "Melanitta fusca",
+    "confidence": 0.0073,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Scoter",
+    "scientificName": "Melanitta nigra",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-footed Gull",
+    "scientificName": "Larus livens",
+    "confidence": 0.0056,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Shelduck",
+    "scientificName": "Tadorna tadorna",
+    "confidence": 0.0054,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Pochard",
+    "scientificName": "Aythya ferina",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Gull",
+    "scientificName": "Ichthyaetus ichthyaetus",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "American Herring Gull",
+    "scientificName": "Larus smithsonianus",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Oystercatcher",
+    "scientificName": "Haematopus ostralegus",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Wigeon",
+    "scientificName": "Mareca penelope",
+    "confidence": 0.0044,
+    "plumage": null
+   },
+   {
+    "commonName": "Razorbill",
+    "scientificName": "Alca torda",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Gull",
+    "scientificName": "Chroicocephalus ridibundus",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy Shelduck",
+    "scientificName": "Tadorna ferruginea",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Ferruginous Duck",
+    "scientificName": "Aythya nyroca",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Caspian Gull",
+    "scientificName": "Larus cachinnans",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Bonaparte's Gull",
+    "scientificName": "Chroicocephalus philadelphia",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Black-backed Gull",
+    "scientificName": "Larus fuscus",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Eider",
+    "scientificName": "Somateria mollissima",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "European Herring Gull",
+    "scientificName": "Larus argentatus",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Dovekie",
+    "scientificName": "Alle alle",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Bufflehead",
+    "scientificName": "Bucephala albeola",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "American Black Duck",
+    "scientificName": "Anas rubripes",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Ring-necked Duck",
+    "scientificName": "Aythya collaris",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Ring-billed Gull",
+    "scientificName": "Larus delawarensis",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Murre",
+    "scientificName": "Uria aalge",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Heermann's Gull",
+    "scientificName": "Larus heermanni",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Gull",
+    "scientificName": "Hydrocoloeus minutus",
+    "confidence": 0.0017,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}
