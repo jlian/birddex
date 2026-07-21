@@ -1,0 +1,317 @@
+{
+ "imageFile": "Sanderling_foraging_Lake_Michigan_Chicago.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Lake Michigan, Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Sanderling",
+    "scientificName": "Calidris alba",
+    "confidence": 0.9714,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-bellied Plover",
+    "scientificName": "Pluvialis squatarola",
+    "confidence": 0.0247,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Sandpiper",
+    "scientificName": "Calidris mauri",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-necked Stint",
+    "scientificName": "Calidris ruficollis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Stint",
+    "scientificName": "Calidris minuta",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Knot",
+    "scientificName": "Calidris canutus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Knot",
+    "scientificName": "Calidris tenuirostris",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Golden-Plover",
+    "scientificName": "Pluvialis fulva",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Dunlin",
+    "scientificName": "Calidris alpina",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruff",
+    "scientificName": "Calidris pugnax",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Semipalmated Sandpiper",
+    "scientificName": "Calidris pusilla",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Sandpiper",
+    "scientificName": "Calidris minutilla",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Phalarope",
+    "scientificName": "Phalaropus fulicarius",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Baird's Sandpiper",
+    "scientificName": "Calidris bairdii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Stilt Sandpiper",
+    "scientificName": "Calidris himantopus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy Turnstone",
+    "scientificName": "Arenaria interpres",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "American Golden-Plover",
+    "scientificName": "Pluvialis dominica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-necked Phalarope",
+    "scientificName": "Phalaropus lobatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "European Golden-Plover",
+    "scientificName": "Pluvialis apricaria",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-breasted Sandpiper",
+    "scientificName": "Calidris subruficollis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Gull",
+    "scientificName": "Hydrocoloeus minutus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Temminck's Stint",
+    "scientificName": "Calidris temminckii",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-rumped Sandpiper",
+    "scientificName": "Calidris fuscicollis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Stilt",
+    "scientificName": "Himantopus leucocephalus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Marsh Sandpiper",
+    "scientificName": "Tringa stagnatilis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Curlew Sandpiper",
+    "scientificName": "Calidris ferruginea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Sandpiper",
+    "scientificName": "Calidris maritima",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Broad-billed Sandpiper",
+    "scientificName": "Calidris falcinellus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Sharp-tailed Sandpiper",
+    "scientificName": "Calidris acuminata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Greenshank",
+    "scientificName": "Tringa nebularia",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Kiritimati Sandpiper",
+    "scientificName": "Prosobonia cancellata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Wood Sandpiper",
+    "scientificName": "Tringa glareola",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Turnstone",
+    "scientificName": "Arenaria melanocephala",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Yellowlegs",
+    "scientificName": "Tringa melanoleuca",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-billed Dowitcher",
+    "scientificName": "Limnodromus griseus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Willet",
+    "scientificName": "Tringa semipalmata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Wilson's Phalarope",
+    "scientificName": "Phalaropus tricolor",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Tern",
+    "scientificName": "Chlidonias niger",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Tern",
+    "scientificName": "Sternula antillarum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Ring-billed Gull",
+    "scientificName": "Larus delawarensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Tern",
+    "scientificName": "Chlidonias leucopterus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Avocet",
+    "scientificName": "Recurvirostra avosetta",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Black-backed Gull",
+    "scientificName": "Larus marinus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Avocet",
+    "scientificName": "Recurvirostra americana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-toed Stint",
+    "scientificName": "Calidris subminuta",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-legged Kittiwake",
+    "scientificName": "Rissa tridactyla",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Eider",
+    "scientificName": "Polysticta stelleri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Piping Plover",
+    "scientificName": "Charadrius melodus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mediterranean Gull",
+    "scientificName": "Ichthyaetus melanocephalus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pintail",
+    "scientificName": "Anas acuta",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

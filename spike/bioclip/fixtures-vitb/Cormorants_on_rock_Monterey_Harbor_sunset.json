@@ -1,0 +1,317 @@
+{
+ "imageFile": "Cormorants_on_rock_Monterey_Harbor_sunset.jpg",
+ "context": {
+  "lat": 36.6002,
+  "lon": -121.8947,
+  "month": 8,
+  "locationName": "Monterey Harbor, CA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Cape Cormorant",
+    "scientificName": "Phalacrocorax capensis",
+    "confidence": 0.5704,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Cormorant",
+    "scientificName": "Phalacrocorax carbo",
+    "confidence": 0.0732,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0492,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0406,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.0321,
+    "plumage": null
+   },
+   {
+    "commonName": "Reed Cormorant",
+    "scientificName": "Microcarbo africanus",
+    "confidence": 0.0235,
+    "plumage": null
+   },
+   {
+    "commonName": "Crowned Cormorant",
+    "scientificName": "Microcarbo coronatus",
+    "confidence": 0.0233,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Shag",
+    "scientificName": "Phalacrocorax punctatus",
+    "confidence": 0.0217,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Cormorant",
+    "scientificName": "Microcarbo pygmaeus",
+    "confidence": 0.0191,
+    "plumage": null
+   },
+   {
+    "commonName": "Harlequin Duck",
+    "scientificName": "Histrionicus histrionicus",
+    "confidence": 0.0184,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Eider",
+    "scientificName": "Somateria mollissima",
+    "confidence": 0.0172,
+    "plumage": null
+   },
+   {
+    "commonName": "Gadwall",
+    "scientificName": "Mareca strepera",
+    "confidence": 0.0095,
+    "plumage": null
+   },
+   {
+    "commonName": "European Shag",
+    "scientificName": "Gulosus aristotelis",
+    "confidence": 0.0087,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Black Cormorant",
+    "scientificName": "Phalacrocorax sulcirostris",
+    "confidence": 0.0065,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Cormorant",
+    "scientificName": "Phalacrocorax neglectus",
+    "confidence": 0.0057,
+    "plumage": null
+   },
+   {
+    "commonName": "Mexican Duck",
+    "scientificName": "Anas diazi",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Graylag Goose",
+    "scientificName": "Anser anser",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Imperial Cormorant",
+    "scientificName": "Leucocarbo atriceps",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Cormorant",
+    "scientificName": "Phalacrocorax varius",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Mallard",
+    "scientificName": "Anas platyrhynchos",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Cormorant",
+    "scientificName": "Phalacrocorax capillatus",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Scaup",
+    "scientificName": "Aythya novaeseelandiae",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Scoter",
+    "scientificName": "Melanitta americana",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Pelican",
+    "scientificName": "Pelecanus thagus",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Heermann's Gull",
+    "scientificName": "Larus heermanni",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "American Black Duck",
+    "scientificName": "Anas rubripes",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Black Duck",
+    "scientificName": "Anas superciliosa",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Gull",
+    "scientificName": "Larus occidentalis",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Ridgway's Rail",
+    "scientificName": "Rallus obsoletus",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Hardhead",
+    "scientificName": "Aythya australis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Murre",
+    "scientificName": "Uria aalge",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-necked Grebe",
+    "scientificName": "Podiceps grisegena",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Australian Shelduck",
+    "scientificName": "Tadorna tadornoides",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Mottled Duck",
+    "scientificName": "Anas fulvigula",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-crested Pochard",
+    "scientificName": "Netta rufina",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Double-crested Cormorant",
+    "scientificName": "Nannopterum auritum",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-gartered Coot",
+    "scientificName": "Fulica armillata",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Coot",
+    "scientificName": "Fulica atra",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Merganser",
+    "scientificName": "Lophodytes cucullatus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-headed Blackbird",
+    "scientificName": "Xanthocephalus xanthocephalus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Canada Goose",
+    "scientificName": "Branta canadensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Australasian Darter",
+    "scientificName": "Anhinga novaehollandiae",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Slate-colored Coot",
+    "scientificName": "Fulica ardesiaca",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Swan Goose",
+    "scientificName": "Anser cygnoides",
+    "confidence": 0.0006,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

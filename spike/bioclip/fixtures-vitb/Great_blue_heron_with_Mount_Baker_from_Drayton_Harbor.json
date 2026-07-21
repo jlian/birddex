@@ -1,0 +1,317 @@
+{
+ "imageFile": "Great_blue_heron_with_Mount_Baker_from_Drayton_Harbor.jpg",
+ "context": {
+  "lat": 48.9784,
+  "lon": -122.7913,
+  "month": 9,
+  "locationName": "Drayton Harbor, Blaine, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.898,
+    "plumage": null
+   },
+   {
+    "commonName": "Tricolored Heron",
+    "scientificName": "Egretta tricolor",
+    "confidence": 0.0386,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Heron",
+    "scientificName": "Ardea purpurea",
+    "confidence": 0.0086,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocoi Heron",
+    "scientificName": "Ardea cocoi",
+    "confidence": 0.0085,
+    "plumage": null
+   },
+   {
+    "commonName": "American Bittern",
+    "scientificName": "Botaurus lentiginosus",
+    "confidence": 0.0074,
+    "plumage": null
+   },
+   {
+    "commonName": "Whistling Heron",
+    "scientificName": "Syrigma sibilatrix",
+    "confidence": 0.0071,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Egret",
+    "scientificName": "Ardea alba",
+    "confidence": 0.0061,
+    "plumage": null
+   },
+   {
+    "commonName": "Reddish Egret",
+    "scientificName": "Egretta rufescens",
+    "confidence": 0.0048,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-necked Grebe",
+    "scientificName": "Podiceps grisegena",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Grebe",
+    "scientificName": "Podiceps major",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Crested Grebe",
+    "scientificName": "Podiceps cristatus",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Heron",
+    "scientificName": "Ardea pacifica",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Grebe",
+    "scientificName": "Aechmophorus occidentalis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Anhinga",
+    "scientificName": "Anhinga anhinga",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Trumpeter Swan",
+    "scientificName": "Cygnus buccinator",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-backed Bittern",
+    "scientificName": "Botaurus involucris",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Clark's Grebe",
+    "scientificName": "Aechmophorus clarkii",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Harrier",
+    "scientificName": "Circus hudsonius",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Heron",
+    "scientificName": "Ardea cinerea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Marbled Godwit",
+    "scientificName": "Limosa fedoa",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pinnated Bittern",
+    "scientificName": "Botaurus pinnatus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Heron",
+    "scientificName": "Butorides virescens",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Bittern",
+    "scientificName": "Botaurus exilis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Hudsonian Godwit",
+    "scientificName": "Limosa haemastica",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Goliath Heron",
+    "scientificName": "Ardea goliath",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Heron",
+    "scientificName": "Ardea sumatrana",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Whooper Swan",
+    "scientificName": "Cygnus cygnus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Loon",
+    "scientificName": "Gavia immer",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Egret",
+    "scientificName": "Egretta vinaceigula",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Storm's Stork",
+    "scientificName": "Ciconia stormi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-crowned Night Heron",
+    "scientificName": "Nycticorax nycticorax",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Heron",
+    "scientificName": "Ardea insignis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Blue Heron",
+    "scientificName": "Egretta caerulea",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Boat-billed Heron",
+    "scientificName": "Cochlearius cochlearius",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-faced Heron",
+    "scientificName": "Egretta novaehollandiae",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Bittern",
+    "scientificName": "Botaurus stellaris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Egret",
+    "scientificName": "Ardea brachyrhyncha",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Flamingo",
+    "scientificName": "Phoenicopterus ruber",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Swan",
+    "scientificName": "Cygnus atratus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Avocet",
+    "scientificName": "Recurvirostra americana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied-billed Grebe",
+    "scientificName": "Podilymbus podiceps",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-backed Bittern",
+    "scientificName": "Botaurus dubius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Bare-throated Tiger-Heron",
+    "scientificName": "Tigrisoma mexicanum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Loon",
+    "scientificName": "Gavia pacifica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Reef-Heron",
+    "scientificName": "Egretta sacra",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Hen Harrier",
+    "scientificName": "Circus cyaneus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Bald Eagle",
+    "scientificName": "Haliaeetus leucocephalus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

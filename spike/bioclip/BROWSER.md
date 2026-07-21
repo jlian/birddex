@@ -3,6 +3,22 @@
 Measured 2026-07-20. Answers "how much does the browser download, and how fast
 does it run?" for the in-browser (transformers.js / onnxruntime-web) path.
 
+## ViT-B/16 vs ViT-L/14: the smaller model is too weak
+
+We benchmarked the smaller original BioCLIP (ViT-B/16, ~86M params, ~86 MB
+int8) against ViT-L/14 on the same 27 images, same gated pipeline:
+
+| Model | Download (int8) | top-1 | top-5 |
+|---|---|---|---|
+| BioCLIP-2 ViT-L/14 + gated | ~307 MB | **87%** | **96%** |
+| BioCLIP ViT-B/16 + gated | ~86 MB | 70% | 74% |
+| gpt-5.4-mini (reference) | 0 (API) | 83% | 87% |
+
+ViT-B loses 17 pts top-1 / 22 pts top-5 and falls **below GPT** on both. The
+4x-smaller download costs the entire advantage: there is no point shipping an
+on-device model that's worse than the GPT call we already have. **Only ViT-L is
+worth shipping**, because it's the only variant that beats GPT.
+
 ## Model download size (image encoder only)
 
 BioCLIP-2 is a CLIP **ViT-L/14** (~300M params). Exported image encoder:
@@ -45,21 +61,29 @@ ONNX CPU on an 8-core Ryzen (browser numbers will differ):
 
 ## Verdict / options
 
-307 MB is the headline problem for the web app. Options, roughly:
+307 MB is the headline problem for the **web** app. But ViT-B (86 MB) is too
+weak (70/74, below GPT), so the download can't simply be shrunk away. That
+collapses the decision:
 
-1. **Ship ViT-L int8 (307 MB), cache aggressively.** Best accuracy (the 87/96
-   we measured). Painful first load; fine for a returning-user PWA, rough for
-   first impressions. Consider lazy-loading only when the user first hits the
-   ID flow, with a clear progress UI.
-2. **Use the smaller original BioCLIP (ViT-B/16, ~86M).** ~86 MB int8, ~4x
-   smaller download and faster, but lower accuracy (needs its own benchmark
-   run; ViT-B was not tested here). Likely the pragmatic web default.
-3. **Distill / prune** a smaller student from ViT-L on bird data. Best of both,
-   but real work.
-4. **Web stays on GPT; on-device is iOS-only (Core ML).** The 307 MB is a
-   non-issue as a bundled app asset on iOS (Neural Engine runs ViT-L fine).
-   Web keeps the current GPT path. This sidesteps the download problem
-   entirely and may be the cleanest split.
+- **iOS: ship ViT-L via Core ML.** On-device, offline, free, beats GPT
+  (87/96). 307 MB is a non-issue as a bundled app asset; the Neural Engine
+  runs ViT-L fine. **This is the strong play.**
+- **Web: keep GPT.** A 307 MB first-visit download is a bad experience, ViT-B
+  is too weak to replace GPT, and a BioCLIP *server* has no advantage over the
+  GPT call already wired (see below). So web stays as-is.
+- **Cloudflare Workers AI: no.** Fixed catalog, only generic CLIP (the base
+  model BioCLIP was retrained from) - weaker than GPT at fine-grained bird ID.
+  No bring-your-own-weights for a 307 MB custom ONNX.
+
+### Why not a BioCLIP inference server?
+
+Moving BioCLIP to a server (Cloudflare Containers, Modal, Replicate, a VPS)
+removes its entire reason to exist. On-device it's free/offline/private; on a
+server it's just another hosted model competing with GPT - and GPT wins on
+server deployment (zero infra, zero cold starts, already integrated, comparable
+accuracy). Only build a server path if you specifically need identical
+web+iOS results without a 300 MB web download, a niche GPT-on-web already
+covers.
 
 ## Next steps
 

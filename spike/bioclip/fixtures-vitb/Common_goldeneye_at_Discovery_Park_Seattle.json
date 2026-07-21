@@ -1,0 +1,317 @@
+{
+ "imageFile": "Common_goldeneye_at_Discovery_Park_Seattle.jpeg",
+ "context": {
+  "lat": 47.66,
+  "lon": -122.4287,
+  "month": 0,
+  "locationName": "Discovery Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Barrow's Goldeneye",
+    "scientificName": "Bucephala islandica",
+    "confidence": 0.2237,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.1567,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.1343,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.1019,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Scoter",
+    "scientificName": "Melanitta nigra",
+    "confidence": 0.0952,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Goldeneye",
+    "scientificName": "Bucephala clangula",
+    "confidence": 0.049,
+    "plumage": null
+   },
+   {
+    "commonName": "Redhead",
+    "scientificName": "Aythya americana",
+    "confidence": 0.0476,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0338,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Scoter",
+    "scientificName": "Melanitta deglandi",
+    "confidence": 0.0226,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0201,
+    "plumage": null
+   },
+   {
+    "commonName": "Marbled Murrelet",
+    "scientificName": "Brachyramphus marmoratus",
+    "confidence": 0.0157,
+    "plumage": null
+   },
+   {
+    "commonName": "Velvet Scoter",
+    "scientificName": "Melanitta fusca",
+    "confidence": 0.0139,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Scoter",
+    "scientificName": "Melanitta americana",
+    "confidence": 0.0122,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Eider",
+    "scientificName": "Polysticta stelleri",
+    "confidence": 0.0112,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Pochard",
+    "scientificName": "Aythya ferina",
+    "confidence": 0.0097,
+    "plumage": null
+   },
+   {
+    "commonName": "Ferruginous Duck",
+    "scientificName": "Aythya nyroca",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Ring-necked Duck",
+    "scientificName": "Aythya collaris",
+    "confidence": 0.0065,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Guillemot",
+    "scientificName": "Cepphus grylle",
+    "confidence": 0.0064,
+    "plumage": null
+   },
+   {
+    "commonName": "King Eider",
+    "scientificName": "Somateria spectabilis",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-winged Teal",
+    "scientificName": "Anas crecca",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Eider",
+    "scientificName": "Somateria mollissima",
+    "confidence": 0.0033,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Wigeon",
+    "scientificName": "Mareca penelope",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Smew",
+    "scientificName": "Mergellus albellus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Duck",
+    "scientificName": "Aythya fuligula",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Horned Grebe",
+    "scientificName": "Podiceps auritus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Loon",
+    "scientificName": "Gavia immer",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Grebe",
+    "scientificName": "Tachybaptus ruficollis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Eider",
+    "scientificName": "Somateria fischeri",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Grebe",
+    "scientificName": "Tachybaptus dominicus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Shoveler",
+    "scientificName": "Spatula clypeata",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Stejneger's Scoter",
+    "scientificName": "Melanitta stejnegeri",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-gartered Coot",
+    "scientificName": "Fulica armillata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Brazilian Merganser",
+    "scientificName": "Mergus octosetaceus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied-billed Grebe",
+    "scientificName": "Podilymbus podiceps",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Flying Steamer-Duck",
+    "scientificName": "Tachyeres patachonicus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Colombian Grebe",
+    "scientificName": "Podiceps andinus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Razorbill",
+    "scientificName": "Alca torda",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Coot",
+    "scientificName": "Fulica atra",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Canvasback",
+    "scientificName": "Aythya valisineria",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Scaup",
+    "scientificName": "Aythya novaeseelandiae",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Amsterdam Duck",
+    "scientificName": "Mareca marecula",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Falkland Steamer-Duck",
+    "scientificName": "Tachyeres brachypterus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Duck",
+    "scientificName": "Hymenolaimus malacorhynchos",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Baer's Pochard",
+    "scientificName": "Aythya baeri",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-headed Steamer-Duck",
+    "scientificName": "Tachyeres leucocephalus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Gadwall",
+    "scientificName": "Mareca strepera",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Mallard",
+    "scientificName": "Anas platyrhynchos",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Fulmar",
+    "scientificName": "Fulmarus glacialis",
+    "confidence": 0.0001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

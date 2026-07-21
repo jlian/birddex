@@ -1,0 +1,317 @@
+{
+ "imageFile": "Female_northern_cardinal_in_Chicago_park.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Northern Cardinal",
+    "scientificName": "Cardinalis cardinalis",
+    "confidence": 0.8763,
+    "plumage": null
+   },
+   {
+    "commonName": "House Finch",
+    "scientificName": "Haemorhous mexicanus",
+    "confidence": 0.0593,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Finch",
+    "scientificName": "Haemorhous purpureus",
+    "confidence": 0.0379,
+    "plumage": null
+   },
+   {
+    "commonName": "Harris's Sparrow",
+    "scientificName": "Zonotrichia querula",
+    "confidence": 0.0064,
+    "plumage": null
+   },
+   {
+    "commonName": "Pyrrhuloxia",
+    "scientificName": "Cardinalis sinuatus",
+    "confidence": 0.0062,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Rosefinch",
+    "scientificName": "Carpodacus erythrinus",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Redpoll",
+    "scientificName": "Acanthis flammea",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Fox Sparrow",
+    "scientificName": "Passerella iliaca",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Towhee",
+    "scientificName": "Pipilo erythrophthalmus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Waxwing",
+    "scientificName": "Bombycilla japonica",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Cassin's Finch",
+    "scientificName": "Haemorhous cassinii",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-crowned Sparrow",
+    "scientificName": "Zonotrichia leucophrys",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Pine Grosbeak",
+    "scientificName": "Pinicola enucleator",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rose-breasted Grosbeak",
+    "scientificName": "Pheucticus ludovicianus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Bohemian Waxwing",
+    "scientificName": "Bombycilla garrulus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Tree Sparrow",
+    "scientificName": "Spizelloides arborea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Rosefinch",
+    "scientificName": "Carpodacus sibiricus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Pewee",
+    "scientificName": "Contopus pertinax",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Italian Sparrow",
+    "scientificName": "Passer italiae",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Summer Tanager",
+    "scientificName": "Piranga rubra",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "California Towhee",
+    "scientificName": "Melozone crissalis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Song Sparrow",
+    "scientificName": "Melospiza melodia",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Hepatic Tanager",
+    "scientificName": "Piranga flava",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Wood Thrush",
+    "scientificName": "Hylocichla mustelina",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Sapsucker",
+    "scientificName": "Sphyrapicus ruber",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Tanager",
+    "scientificName": "Piranga ludoviciana",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Guira Cuckoo",
+    "scientificName": "Guira guira",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Hawfinch",
+    "scientificName": "Coccothraustes coccothraustes",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-crowned Sparrow",
+    "scientificName": "Aimophila ruficeps",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Wren",
+    "scientificName": "Thryothorus ludovicianus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Cirl Bunting",
+    "scientificName": "Emberiza cirlus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Ovenbird",
+    "scientificName": "Seiurus aurocapilla",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "House Sparrow",
+    "scientificName": "Passer domesticus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Flame-colored Tanager",
+    "scientificName": "Piranga bidentata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Beardless-Tyrannulet",
+    "scientificName": "Camptostoma imberbe",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Dickcissel",
+    "scientificName": "Spiza americana",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellowhammer",
+    "scientificName": "Emberiza citrinella",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Palm Warbler",
+    "scientificName": "Setophaga palmarum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Field Sparrow",
+    "scientificName": "Spizella pusilla",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Vinaceous Rosefinch",
+    "scientificName": "Carpodacus vinaceus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Middle Spotted Woodpecker",
+    "scientificName": "Dendrocoptes medius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Oak Titmouse",
+    "scientificName": "Baeolophus inornatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaled Quail",
+    "scientificName": "Callipepla squamata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Goldfinch",
+    "scientificName": "Spinus tristis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Cuckoo",
+    "scientificName": "Coccyzus americanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Crossbill",
+    "scientificName": "Loxia curvirostra",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Chestnut-sided Warbler",
+    "scientificName": "Setophaga pensylvanica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Dove",
+    "scientificName": "Zenaida macroura",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Screech-Owl",
+    "scientificName": "Megascops asio",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

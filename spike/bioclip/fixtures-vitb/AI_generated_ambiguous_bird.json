@@ -1,0 +1,317 @@
+{
+ "imageFile": "AI_generated_ambiguous_bird.png",
+ "context": {
+  "lat": 40,
+  "lon": -100,
+  "month": 5,
+  "locationName": "Unknown (AI-generated test image)"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Gray Flycatcher",
+    "scientificName": "Empidonax wrightii",
+    "confidence": 0.5741,
+    "plumage": null
+   },
+   {
+    "commonName": "Hammond's Flycatcher",
+    "scientificName": "Empidonax hammondii",
+    "confidence": 0.1247,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Flycatcher",
+    "scientificName": "Empidonax difficilis",
+    "confidence": 0.0473,
+    "plumage": null
+   },
+   {
+    "commonName": "Hispaniolan Elaenia",
+    "scientificName": "Elaenia cherriei",
+    "confidence": 0.0404,
+    "plumage": null
+   },
+   {
+    "commonName": "Alder Flycatcher",
+    "scientificName": "Empidonax alnorum",
+    "confidence": 0.037,
+    "plumage": null
+   },
+   {
+    "commonName": "Caribbean Elaenia",
+    "scientificName": "Elaenia martinica",
+    "confidence": 0.0361,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive-sided Flycatcher",
+    "scientificName": "Contopus cooperi",
+    "confidence": 0.0284,
+    "plumage": null
+   },
+   {
+    "commonName": "Dusky Flycatcher",
+    "scientificName": "Empidonax oberholseri",
+    "confidence": 0.024,
+    "plumage": null
+   },
+   {
+    "commonName": "Large Elaenia",
+    "scientificName": "Elaenia spectabilis",
+    "confidence": 0.0065,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Elaenia",
+    "scientificName": "Elaenia chiriquensis",
+    "confidence": 0.0064,
+    "plumage": null
+   },
+   {
+    "commonName": "Sumba Brown Flycatcher",
+    "scientificName": "Muscicapa segregata",
+    "confidence": 0.0063,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Flycatcher",
+    "scientificName": "Empidonax albigularis",
+    "confidence": 0.0061,
+    "plumage": null
+   },
+   {
+    "commonName": "Hudson's Black-Tyrant",
+    "scientificName": "Knipolegus hudsoni",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Willow Flycatcher",
+    "scientificName": "Empidonax traillii",
+    "confidence": 0.0054,
+    "plumage": null
+   },
+   {
+    "commonName": "Vermilion Flycatcher",
+    "scientificName": "Pyrocephalus rubinus",
+    "confidence": 0.0054,
+    "plumage": null
+   },
+   {
+    "commonName": "Sierran Elaenia",
+    "scientificName": "Elaenia pallatangae",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Wood-Pewee",
+    "scientificName": "Contopus sordidulus",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Phoebe",
+    "scientificName": "Sayornis phoebe",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Cinereous Tyrant",
+    "scientificName": "Knipolegus striaticeps",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-streaked Flycatcher",
+    "scientificName": "Muscicapa griseisticta",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Bran-colored Flycatcher",
+    "scientificName": "Myiophobus fasciatus",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Miner",
+    "scientificName": "Geositta cunicularia",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-capped Robin",
+    "scientificName": "Petroica goodenovii",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Chapada Flycatcher",
+    "scientificName": "Guyramemua affine",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Olivaceous Elaenia",
+    "scientificName": "Elaenia mesoleuca",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "European Pied Flycatcher",
+    "scientificName": "Ficedula hypoleuca",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Nendo Whistler",
+    "scientificName": "Pachycephala ornata",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Flycatcher",
+    "scientificName": "Empidonax minimus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-capped Flycatcher",
+    "scientificName": "Leptopogon superciliaris",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "African Dusky Flycatcher",
+    "scientificName": "Muscicapa adusta",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Tyrannulet",
+    "scientificName": "Zimmerius improbus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumbeous Vireo",
+    "scientificName": "Vireo plumbeus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Phoebe",
+    "scientificName": "Sayornis nigricans",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Ash-throated Flycatcher",
+    "scientificName": "Myiarchus cinerascens",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Flycatcher",
+    "scientificName": "Muscicapa striata",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Tepui Elaenia",
+    "scientificName": "Elaenia olivina",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Flycatcher",
+    "scientificName": "Muscicapa epulata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Warbling Vireo",
+    "scientificName": "Vireo swainsoni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Small-billed Elaenia",
+    "scientificName": "Elaenia parvirostris",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-bellied Elaenia",
+    "scientificName": "Elaenia flavogaster",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Townsend's Solitaire",
+    "scientificName": "Myadestes townsendi",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Elaenia",
+    "scientificName": "Elaenia strepera",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy-breasted Flycatcher",
+    "scientificName": "Muscicapa randi",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Noronha Elaenia",
+    "scientificName": "Elaenia ridleyana",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Becard",
+    "scientificName": "Pachyramphus polychopterus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Streaked Shearwater",
+    "scientificName": "Calonectris leucomelas",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumbeous Black-Tyrant",
+    "scientificName": "Knipolegus cabanisi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Hispaniolan Pewee",
+    "scientificName": "Contopus hispaniolensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Polynesian Triller",
+    "scientificName": "Lalage maculosa",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Pincoya Storm-Petrel",
+    "scientificName": "Oceanites pincoyae",
+    "confidence": 0.0001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

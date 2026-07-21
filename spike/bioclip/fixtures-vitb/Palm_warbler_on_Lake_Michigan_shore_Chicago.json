@@ -1,0 +1,317 @@
+{
+ "imageFile": "Palm_warbler_on_Lake_Michigan_shore_Chicago.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Lake Michigan shore, Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Common Chiffchaff",
+    "scientificName": "Phylloscopus collybita",
+    "confidence": 0.8463,
+    "plumage": null
+   },
+   {
+    "commonName": "Thrush Nightingale",
+    "scientificName": "Luscinia luscinia",
+    "confidence": 0.025,
+    "plumage": null
+   },
+   {
+    "commonName": "Creamy-rumped Miner",
+    "scientificName": "Geositta isabellina",
+    "confidence": 0.0145,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Chiffchaff",
+    "scientificName": "Phylloscopus sindianus",
+    "confidence": 0.0111,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-banded Miner",
+    "scientificName": "Geositta rufipennis",
+    "confidence": 0.011,
+    "plumage": null
+   },
+   {
+    "commonName": "European Robin",
+    "scientificName": "Erithacus rubecula",
+    "confidence": 0.0096,
+    "plumage": null
+   },
+   {
+    "commonName": "Booted Warbler",
+    "scientificName": "Iduna caligata",
+    "confidence": 0.0092,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern House Wren",
+    "scientificName": "Troglodytes musculus",
+    "confidence": 0.0063,
+    "plumage": null
+   },
+   {
+    "commonName": "Isabelline Wheatear",
+    "scientificName": "Oenanthe isabellina",
+    "confidence": 0.0051,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-flanked Bluetail",
+    "scientificName": "Tarsiger cyanurus",
+    "confidence": 0.0051,
+    "plumage": null
+   },
+   {
+    "commonName": "Bluethroat",
+    "scientificName": "Luscinia svecica",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Fuerteventura Stonechat",
+    "scientificName": "Saxicola dacotiae",
+    "confidence": 0.0046,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Bushchat",
+    "scientificName": "Saxicola caprata",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Wren",
+    "scientificName": "Troglodytes troglodytes",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Victorin's Warbler",
+    "scientificName": "Cryptillas victorini",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous Hornero",
+    "scientificName": "Furnarius rufus",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Flycatcher",
+    "scientificName": "Ficedula parva",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Canary Islands Chiffchaff",
+    "scientificName": "Phylloscopus canariensis",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Redstart",
+    "scientificName": "Phoenicurus phoenicurus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Miner",
+    "scientificName": "Geositta cunicularia",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Siberian Stonechat",
+    "scientificName": "Saxicola maurus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Isabelline Shrike",
+    "scientificName": "Lanius isabellinus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Blyth's Pipit",
+    "scientificName": "Anthus godlewskii",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "European Stonechat",
+    "scientificName": "Saxicola rubicola",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Bonelli's Warbler",
+    "scientificName": "Phylloscopus bonelli",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Fan-tailed Grassbird",
+    "scientificName": "Catriscus brevirostris",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-cheeked Thrush",
+    "scientificName": "Catharus minimus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Russet-mantled Foliage-gleaner",
+    "scientificName": "Syndactyla dimidiata",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-tailed Babbler",
+    "scientificName": "Moupinia poecilotis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Clarion Wren",
+    "scientificName": "Troglodytes tanneri",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Savi's Warbler",
+    "scientificName": "Locustella luscinioides",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Willow Warbler",
+    "scientificName": "Phylloscopus trochilus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Tawny Antpitta",
+    "scientificName": "Grallaria quitensis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Reed Warbler",
+    "scientificName": "Acrocephalus scirpaceus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Streak-backed Canastero",
+    "scientificName": "Asthenes wyatti",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Thick-billed Warbler",
+    "scientificName": "Arundinax aedon",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-fronted Redstart",
+    "scientificName": "Phoenicurus frontalis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Blunt-winged Warbler",
+    "scientificName": "Acrocephalus concinens",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-toed Stint",
+    "scientificName": "Calidris subminuta",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Friendly Bush Warbler",
+    "scientificName": "Locustella accentor",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Grass Wren",
+    "scientificName": "Cistothorus platensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blyth's Reed Warbler",
+    "scientificName": "Acrocephalus dumetorum",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Whinchat",
+    "scientificName": "Saxicola rubetra",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Linnet",
+    "scientificName": "Linaria cannabina",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Reunion Stonechat",
+    "scientificName": "Saxicola tectes",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern House Wren",
+    "scientificName": "Troglodytes aedon",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Veery",
+    "scientificName": "Catharus fuscescens",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-black Grassquit",
+    "scientificName": "Volatinia jacarina",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Daurian Redstart",
+    "scientificName": "Phoenicurus auroreus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Thick-billed Miner",
+    "scientificName": "Geositta crassirostris",
+    "confidence": 0.0002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}
