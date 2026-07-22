@@ -78,29 +78,46 @@ Done 2026-07-22: 366 shards, ~2.644M embeddings, full corpus coverage.
 
 ### Phase 3 - student train + export (in progress)
 
-**Student arch = MobileCLIP** (Apple, open_clip `MobileCLIP-S2`/`datacompdr`),
-CoreML-ready for iOS and ONNX/WebGPU-ready for browser from one set of weights.
-The MobileCLIP visual tower -> linear projection into the teacher's 768-d space,
-trained with **cosine loss** against the cached teacher embeddings (feature
-distillation, DataCompDR-style). Because the student is trained INTO the teacher
-embedding space, the existing BioCLIP-2 text classifier works on it unchanged.
-Then int8 (maybe int4) + ONNX + Core ML export. Target <25 MB encoder (stretch),
-<86 MB fallback.
+**Student arch (tuning): ViT-B/16** (open_clip `ViT-B-16`/`laion2b_s34b_b88k`).
+**Shipping arch (final): MobileCLIP-S2** (Apple, CoreML/ONNX-ready, ~15-20 MB).
+
+Why two arches (decided 2026-07-22 after benchmarking on the RTX 3080):
+MobileCLIP's FastViT backbone uses MobileOne-style *train-time
+overparameterization* (parallel depthwise-conv branches that only fuse at
+inference via `reparameterize_model()`). Those branches are architecturally
+slow to TRAIN on a desktop Ampere GPU: ~17s/step (batch 64), vs 0.2s/step for a
+plain ViT-B/16 (~85x). Verified it's the arch, not the environment: same ~17s on
+native Windows CUDA (not a WSL issue), channels_last made it worse (FastViT
+fights NHWC), torch.compile reduce-overhead got it to ~6s (still too slow to
+iterate). This is expected: FastViT is fast at *inference on the iPhone Neural
+Engine* after reparameterization, not fast to train on a dGPU; Apple trained it
+on clusters. Apple Silicon/MPS would be slower, not faster, for training.
+
+Plan: **tune the whole recipe on ViT-B/16** (fast iteration: loss, LR, epochs,
+aug, the range/co-occurrence weighting, does the student hit teacher accuracy)
+since distillation-preserves-accuracy is arch-agnostic. Then run the **final
+production model on MobileCLIP-S2** once, via `torch.compile` (~6s/step, one-time
+cost, no sweeping) or a rented A100/H100. Expect a light LR/schedule re-tune when
+switching arches; the big findings transfer.
+
+Method (both arches): visual tower -> linear projection into the teacher's 768-d
+space, **cosine loss** against cached teacher embeddings (feature distillation,
+DataCompDR-style). Because the student trains INTO the teacher embedding space,
+the BioCLIP-2 text classifier works on it unchanged. Then int8 + ONNX + CoreML.
+Size: ViT-B/16 ~86 MB fp16 / ~45 MB int8 (fallback target); MobileCLIP-S2
+~15-20 MB (stretch target, shipping arch).
 
 Script:
-- `train_student.py` - the distillation trainer. Loads teacher embeddings by
-  `photo_id`, streams corpus images through the MobileCLIP student, cosine loss,
-  AdamW + cosine LR schedule, AMP. **Pilot-first**: `--pilot-species 500`
-  trains on the top-N most-photographed species (fail fast) before the full
-  7,555 (`--pilot-species 0`). `--smoke` runs a 3-species / 2-step end-to-end
-  self-test. Checkpoints to `--out` (`last.pt`).
+- `train_student.py` - the distillation trainer. `--arch` selects the backbone
+  (default `ViT-B-16`). Loads teacher embeddings by `photo_id`, streams corpus
+  images through the student, cosine loss, AdamW + cosine LR, AMP, tf32 +
+  cudnn.benchmark. **Pilot-first**: `--pilot-species 500` trains the top-N
+  most-photographed species (fail fast) before the full 7,555
+  (`--pilot-species 0`). `--smoke` runs a 3-species / 2-step self-test.
+  Checkpoints to `--out` (`last.pt`).
 
-Two proven add-ons planned once the baseline works: (A) MobileCLIP arch for
-deploy-readiness [in], (B) range/co-occurrence hard-example loss weighting via
-`build_cooccurrence.py` output.
-
-Status 2026-07-22: `train_student.py` written + smoke-tested on the 3080;
-500-species pilot next.
+Status 2026-07-22: trainer written + validated on ViT-B/16; 500-species pilot
+launched on the 3080 (~0.2s/step).
 
 ### Phase 4 - benchmark + writeup
 

@@ -71,6 +71,13 @@ class BirdDistillDataset(Dataset):
         self.corpus_dir = corpus_dir
         self.emb = emb_table
         self.preprocess = preprocess
+        # derive the preprocess output HxW so the corrupt-image fallback matches
+        # (ViT-B/16=224, MobileCLIP-S2=256, etc.) and won't break torch.stack.
+        try:
+            probe = preprocess(Image.new("RGB", (64, 64)))
+            self._chw = tuple(probe.shape)
+        except Exception:
+            self._chw = (3, 224, 224)
         # keep only rows we have both an image path AND a teacher embedding for
         self.rows = []
         for pid, tid, ext in rows:
@@ -91,8 +98,8 @@ class BirdDistillDataset(Dataset):
             x = self.preprocess(img)
         except Exception:
             # missing/corrupt image (e.g. one of the 404 gaps): return a zero
-            # sample flagged with an all-zero target so the collate can drop it.
-            x = torch.zeros(3, 256, 256)
+            # sample flagged so the collate can drop it (shape matches preprocess).
+            x = torch.zeros(*self._chw)
             return x, torch.zeros(768, dtype=torch.float32), False
         t = torch.from_numpy(self.emb[pid].astype(np.float32))
         return x, t, True
@@ -116,15 +123,12 @@ class Student(nn.Module):
         )
         self.visual = model.visual
         self.preprocess = preprocess
-        # discover the student's native image embed dim with a dry forward
+        # discover the student's native image embed dim with a dry forward,
+        # using the preprocess's own output size (authoritative for this arch:
+        # ViT-B/16->224, MobileCLIP-S2->256) so we never feed a wrong shape.
         with torch.no_grad():
-            dummy = torch.zeros(1, 3, model.visual.image_size[0]
-                                if hasattr(model.visual, "image_size") else 256,
-                                256)
-            try:
-                feat = self.visual(dummy)
-            except Exception:
-                feat = self.visual(torch.zeros(1, 3, 256, 256))
+            probe = preprocess(Image.new("RGB", (64, 64))).unsqueeze(0)
+            feat = self.visual(probe)
         self.student_dim = feat.shape[-1]
         self.proj = (nn.Identity() if self.student_dim == teacher_dim
                      else nn.Linear(self.student_dim, teacher_dim))
@@ -161,8 +165,8 @@ def main():
     ap.add_argument("--train-manifest", default="train_manifest.parquet")
     ap.add_argument("--embeddings-dir", default="embeddings")
     ap.add_argument("--corpus", default="corpus")
-    ap.add_argument("--arch", default="MobileCLIP-S2")
-    ap.add_argument("--pretrained", default="datacompdr")
+    ap.add_argument("--arch", default="ViT-B-16")
+    ap.add_argument("--pretrained", default="laion2b_s34b_b88k")
     ap.add_argument("--pilot-species", type=int, default=500,
                     help="0 = full corpus; else top-N most-photographed species")
     ap.add_argument("--epochs", type=int, default=30)
@@ -184,6 +188,10 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
+    if dev == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.backends.cudnn.benchmark = True
     log(f"device={dev} arch={args.arch}/{args.pretrained} "
         f"pilot_species={args.pilot_species} epochs={args.epochs} batch={args.batch}")
 
