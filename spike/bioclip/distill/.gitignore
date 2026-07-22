@@ -1,7 +1,27 @@
+# Python
 __pycache__/
 *.pyc
+
+# Corpus + large data artifacts (live on tomahawk, never committed)
 corpus/
+embeddings/
+inat-metadata/
+*.parquet
+*.duckdb
+*.npz
+*.npy
+
+# Generated manifests / audits / logs
 manifest.jsonl
+download_manifest.jsonl
 inat_resolved.jsonl
 species.json
+target_taxa.csv
+attributions.csv
+manifest_stats.txt
+*.csv
 *.log
+
+# Training run outputs (checkpoints)
+runs/
+*.pt

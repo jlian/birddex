@@ -10,49 +10,97 @@ established:
 
 ## Definition of done (from the issue)
 
-- [ ] iNat bird image corpus assembled + preprocessed
-- [ ] Teacher soft-target generation pipeline
+- [x] iNat bird image corpus assembled + preprocessed
+- [x] Teacher soft-target generation pipeline (cached 768-d embeddings)
 - [ ] Distilled student trained + quantized + ONNX/Core ML export
 - [ ] Benchmarked vs GPT and ViT-L on the shared gated+range pipeline
 - [ ] Go/no-go writeup: does a <25 MB (or <86 MB) student beat GPT?
 
 ## Phase plan
 
-### Phase 1 - corpus (in progress)
+### Phase 1 - corpus (done)
 
 Assemble an openly-licensed iNaturalist bird image corpus, keyed to WingDex's
 own taxonomy (`src/lib/taxonomy.json`, 11,167 species) so student class indices
 line up with the app.
 
-Scripts:
-- `select_species.py` - pick the target species set (start: N most-photographed
-  / app-relevant; the long tail can be added later). Emits `species.json`
-  (`[{idx, common, scientific, inat_taxon_id, photo_count}]`).
-- `download_inat.py` - resumable, rate-limited iNat downloader. Research-grade,
-  CC-licensed photos only. Writes `corpus/<taxon_id>/<photo_id>.jpg` + a
-  `manifest.jsonl` row per image (license, observer, obs id, photo url) for the
-  license audit.
+**Approach (pivoted 2026-07-21): iNaturalist AWS Open Data, not the rate-limited
+iNat API.** The public S3 bucket (`inaturalist-open-data`) ships taxa /
+observations / photos as `csv.gz` metadata dumps plus static photo objects, so
+we join in DuckDB and pull images over plain parallel HTTPS (no 60 req/min API
+cap). This is why the corpus landed in hours, not days.
+
+Pipeline scripts (run in order, all live here + on tomahawk):
+- `fetch_metadata.py` - resumable HTTPS pull of the iNat Open Data
+  taxa/observations/photos `csv.gz` dumps.
+- `build_manifest.py` - DuckDB join (photos -> observations -> taxa), filter to
+  target bird taxa + open licenses, apply per-species floor/cap, emit
+  `manifest.parquet` + `target_taxa.csv` + `manifest_stats.txt`.
+- `pull_images.py` - parallel S3 image fetch (32 workers, resumable: skips
+  files already on disk, re-run to retry gaps). Writes
+  `corpus/<inat_taxon_id>/<photo_id>.<ext>` + `download_manifest.jsonl`
+  (license/observer/GPS per image, for the license audit) + `failures.log`.
+- `build_cooccurrence.py` - grid-cell species co-occurrence from corpus GPS,
+  for training-time hard-example weighting on confusable+co-occurring pairs.
+- `prep_training_set.py` - emit `train_manifest.parquet` (ShareAlike EXCLUDED by
+  default for the MIT weight release; `--keep-sharealike` for a research
+  variant) + `ATTRIBUTIONS.md` + `attributions.csv` (CC-BY attribution).
+- `select_species.py`, `download_inat.py`, `lic_query.py` - earlier
+  API-era / license-exploration helpers, kept for reference.
+
+Final corpus (2026-07-22): floor=50 / cap=500 -> 7,555 species, 2,646,057
+manifest rows, ~2.645M images on disk (~262 GB); the ~272 misses are
+iNat-deleted 404s. 2,503,107 images kept after ShareAlike exclusion.
 
 Design constraints:
-- **Respect iNat API limits**: <=60 req/min, target well under 10k req/day.
-  `--sleep` between calls, resumable via on-disk manifest so we can run in
-  chunks across days without re-fetching.
-- **License audit ready**: every downloaded image records its license +
-  attribution so the eventual open-weight release can be cleared.
+- **Resumable everywhere**: every stage skips completed work via on-disk state,
+  safe to re-run to fill gaps.
+- **License audit ready**: every image records its license + attribution so the
+  open-weight release can be cleared.
 
-### Phase 2 - teacher soft targets
+### Phase 2 - teacher soft targets (done)
 
 Reuse the exact BioCLIP-2 teacher setup from `../scripts/spike-zeroshot.py`
 (open_clip `hf-hub:imageomics/bioclip-2`). For each corpus image, cache the
-ViT-L image embedding (768-d) and/or the softmax-over-target-species
-distribution. Embedding caching = distill on the CLIP embedding (recommended:
-model-agnostic, lets us swap the student head later).
+ViT-L image embedding (768-d). Embedding caching = distill on the CLIP embedding
+(model-agnostic, lets us swap the student head later).
 
-### Phase 3 - student train + export
+Scripts:
+- `precompute_embeddings.py` - batched GPU forward of the frozen teacher over
+  on-disk corpus images, writes `embeddings/shard_*.npz` (keys: `photo_ids`
+  int64, `embeddings` float16 [N,768], L2-normalized). Catch-up mode: skips
+  already-embedded ids, so it overlaps the download.
+- `embed_loop.sh` - self-relaunching bash loop that runs `precompute_embeddings`
+  back-to-back so the GPU stays busy catching up with the pull; self-exits once
+  the pull is done AND a pass adds no new embeddings.
 
-MobileNetV3 / EfficientNet-lite image encoder -> project to 768-d, cosine/KL
-distill against cached teacher embeddings. Then int8 (maybe int4) + ONNX +
-Core ML export. Target <25 MB encoder (stretch), <86 MB fallback.
+Done 2026-07-22: 366 shards, ~2.644M embeddings, full corpus coverage.
+
+### Phase 3 - student train + export (in progress)
+
+**Student arch = MobileCLIP** (Apple, open_clip `MobileCLIP-S2`/`datacompdr`),
+CoreML-ready for iOS and ONNX/WebGPU-ready for browser from one set of weights.
+The MobileCLIP visual tower -> linear projection into the teacher's 768-d space,
+trained with **cosine loss** against the cached teacher embeddings (feature
+distillation, DataCompDR-style). Because the student is trained INTO the teacher
+embedding space, the existing BioCLIP-2 text classifier works on it unchanged.
+Then int8 (maybe int4) + ONNX + Core ML export. Target <25 MB encoder (stretch),
+<86 MB fallback.
+
+Script:
+- `train_student.py` - the distillation trainer. Loads teacher embeddings by
+  `photo_id`, streams corpus images through the MobileCLIP student, cosine loss,
+  AdamW + cosine LR schedule, AMP. **Pilot-first**: `--pilot-species 500`
+  trains on the top-N most-photographed species (fail fast) before the full
+  7,555 (`--pilot-species 0`). `--smoke` runs a 3-species / 2-step end-to-end
+  self-test. Checkpoints to `--out` (`last.pt`).
+
+Two proven add-ons planned once the baseline works: (A) MobileCLIP arch for
+deploy-readiness [in], (B) range/co-occurrence hard-example loss weighting via
+`build_cooccurrence.py` output.
+
+Status 2026-07-22: `train_student.py` written + smoke-tested on the 3080;
+500-species pilot next.
 
 ### Phase 4 - benchmark + writeup
 
@@ -93,6 +141,13 @@ sampling weight. Range stays external at inference (model-agnostic, updatable).
 ## Working location
 
 Heavy work runs on **tomahawk** (RTX 3080) under the existing spike venv
-`~/spikes/bioclip-birdid/.venv` (torch 2.6.0+cu124, open_clip 3.3.0). Scripts
-live here in-repo; corpus/artifacts stay on tomahawk (too large to commit).
+`~/spikes/bioclip-birdid/.venv` (torch 2.6.0+cu124, open_clip 3.3.0).
+
+**SSOT (single source of truth):** this repo dir (`spike/bioclip/distill/` on
+branch `spike/bioclip-distill`) holds the pipeline code. The runtime working
+copy is `~/spikes/bioclip-birdid/distill/` on tomahawk. Edit here, then sync to
+tomahawk (`tar`/`scp`). Corpus, embeddings, manifests, logs, and checkpoints
+stay OFF git (see `.gitignore`) - they're too large and are regenerable.
+History note: scripts were briefly split across `spike/bioclip-birdid` and
+`spike/bioclip-distill`; consolidated onto `spike/bioclip-distill` 2026-07-22.
 </content>
