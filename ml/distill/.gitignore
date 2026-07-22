@@ -25,3 +25,12 @@ manifest_stats.txt
 # Training run outputs (checkpoints)
 runs/
 *.pt
+
+# Eval datasets (downloaded on tomahawk, regenerable)
+nabirds/
+nabirds_meta/
+cub/
+*.zip
+eval_*_results.json
+# but DO keep the small generated label maps
+!nabirds_to_taxo.json
