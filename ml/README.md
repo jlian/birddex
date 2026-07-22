@@ -1,7 +1,7 @@
 # Spike: On-device bird ID with BioCLIP-2
 
 **Status:** exploratory spike (not wired into production)
-**Branch:** `spike/bioclip-birdid`
+**Branch:** `bioclip-birdid`
 **Date:** 2026-07-20
 **Question:** Can WingDex replace the GPT-5.4-mini vision call with an on-device
 model (for in-browser + Core ML / offline use), without losing accuracy?
@@ -40,7 +40,7 @@ on our 27-image benchmark set, fully on-device, offline, zero API cost.
    scoring image embedding vs text embeddings of all **11,167** species in
    `src/lib/taxonomy.json` (one matmul, ~19ms/image on an RTX 3080).
 2. Emitted top-50 candidates per image in our fixture shape
-   (`spike/bioclip/fixtures/*.json`), so the real post-LLM pipeline logic runs
+   (`ml/fixtures/*.json`), so the real post-LLM pipeline logic runs
    on them unchanged.
 3. Pulled the **26** range-prior cells covering the benchmark locations from
    prod R2 into `.tmp/range-priors/cells/` (a few KB; not the full store).
@@ -49,10 +49,10 @@ on our 27-image benchmark set, fully on-device, offline, zero API cost.
 
 Reproduce:
 ```bash
-node spike/bioclip/scripts/download-range-cells.mjs      # needs R2 creds in .dev.vars
-node spike/bioclip/scripts/pipeline-experiment.mjs --sweep
+node ml/scripts/download-range-cells.mjs      # needs R2 creds in .dev.vars
+node ml/scripts/pipeline-experiment.mjs --sweep
 ```
-(Regenerating the BioCLIP fixtures needs a GPU box: `spike/bioclip/scripts/`.)
+(Regenerating the BioCLIP fixtures needs a GPU box: `ml/scripts/`.)
 
 ## The key finding: our pipeline is shaped for GPT, not for a classifier
 
@@ -166,9 +166,9 @@ into `functions/lib/range-filter.ts` to fix coastal false-negatives in prod.
 
 ## Files
 
-- `spike/bioclip/scripts/pipeline-experiment.mjs` - strategy comparison + sweep
-- `spike/bioclip/scripts/download-range-cells.mjs` - pull only the needed cells
-- `spike/bioclip/scripts/spike-zeroshot.py` - raw zero-shot run (GPU)
-- `spike/bioclip/scripts/emit-bioclip-fixtures.py` - top-50 fixture generator (GPU)
-- `spike/bioclip/fixtures/*.json` - BioCLIP candidates per image
-- `spike/bioclip/truth.json` - ground-truth species per image
+- `ml/scripts/pipeline-experiment.mjs` - strategy comparison + sweep
+- `ml/scripts/download-range-cells.mjs` - pull only the needed cells
+- `ml/scripts/spike-zeroshot.py` - raw zero-shot run (GPU)
+- `ml/scripts/emit-bioclip-fixtures.py` - top-50 fixture generator (GPU)
+- `ml/fixtures/*.json` - BioCLIP candidates per image
+- `ml/truth.json` - ground-truth species per image

@@ -215,12 +215,12 @@ function stratGated(fx, K = 15, opts = {}) {
 }
 
 // ── scoring ──
-const truth = JSON.parse(readFileSync(join(ROOT, 'spike/bioclip/truth.json'), 'utf8'))
+const truth = JSON.parse(readFileSync(join(ROOT, 'ml/truth.json'), 'utf8'))
 const baseTruth = {}; for (const [k, v] of Object.entries(truth)) baseTruth[k.replace(/\.[^.]+$/, '')] = v
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
 
 const args = process.argv.slice(2)
-const fxDir = args.includes('--fixtures') ? args[args.indexOf('--fixtures') + 1] : join(ROOT, 'spike/bioclip/fixtures')
+const fxDir = args.includes('--fixtures') ? args[args.indexOf('--fixtures') + 1] : join(ROOT, 'ml/fixtures')
 
 const strategies = {
   'A_production(0.2 floor,slice5,range)': fx => stratProd(fx),

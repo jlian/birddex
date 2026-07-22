@@ -142,4 +142,4 @@ covers.
 `~/spikes/bioclip-birdid/onnx-export/`:
 - `bioclip2_visual_{fp32,fp16,int8}.onnx`
 - `text_embeds_{fp32,int8}.npy`, `text_embeds_scale.npy`
-Export script: `spike/bioclip/scripts/export-onnx.py`
+Export script: `ml/scripts/export-onnx.py`

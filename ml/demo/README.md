@@ -30,10 +30,10 @@ otherwise), so there's **no divergent per-platform pipeline**.
 
 ```bash
 # regenerate model + text assets (needs GPU box):
-#   spike/bioclip/scripts/export-onnx.py       -> bioclip2_visual_int8.onnx
-#   spike/bioclip/scripts/gen-demo-assets.py   -> text_embeds_int8.bin, _scale.bin, species.json
-# place all four in spike/bioclip/demo/models/, then:
-node spike/bioclip/demo/serve.mjs spike/bioclip/demo 8770
+#   ml/scripts/export-onnx.py       -> bioclip2_visual_int8.onnx
+#   ml/scripts/gen-demo-assets.py   -> text_embeds_int8.bin, _scale.bin, species.json
+# place all four in ml/demo/models/, then:
+node ml/demo/serve.mjs ml/demo 8770
 # open http://localhost:8770 in Chrome/Edge (WebGPU), click "Start background prefetch"
 ```
 

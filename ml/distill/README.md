@@ -143,11 +143,11 @@ sampling weight. Range stays external at inference (model-agnostic, updatable).
 Heavy work runs on **tomahawk** (RTX 3080) under the existing spike venv
 `~/spikes/bioclip-birdid/.venv` (torch 2.6.0+cu124, open_clip 3.3.0).
 
-**SSOT (single source of truth):** this repo dir (`spike/bioclip/distill/` on
-branch `spike/bioclip-distill`) holds the pipeline code. The runtime working
+**SSOT (single source of truth):** this repo dir (`ml/distill/` on
+branch `bioclip-distill`) holds the pipeline code. The runtime working
 copy is `~/spikes/bioclip-birdid/distill/` on tomahawk. Edit here, then sync to
 tomahawk (`tar`/`scp`). Corpus, embeddings, manifests, logs, and checkpoints
 stay OFF git (see `.gitignore`) - they're too large and are regenerable.
-History note: scripts were briefly split across `spike/bioclip-birdid` and
-`spike/bioclip-distill`; consolidated onto `spike/bioclip-distill` 2026-07-22.
+History note: scripts were briefly split across `bioclip-birdid` and
+`bioclip-distill`; consolidated onto `bioclip-distill` 2026-07-22.
 </content>
