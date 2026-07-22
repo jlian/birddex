@@ -235,10 +235,12 @@ def main():
 
     log(f"train={len(train_ds):,} val={len(val_ds):,} steps/epoch={len(train_dl)}")
     gstep = 0
+    LOG_EVERY = 50
     for ep in range(args.epochs):
         t0 = time.time()
         run_loss, seen = 0.0, 0
-        for x, t in train_dl:
+        tstep = time.time()
+        for bi, (x, t) in enumerate(train_dl):
             if x.numel() == 0:
                 continue
             x, t = x.to(dev, non_blocking=True), t.to(dev, non_blocking=True)
@@ -248,12 +250,23 @@ def main():
                 loss = (1 - (p * t).sum(-1)).mean()
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
+            prev_scale = scaler.get_scale()
             scaler.step(opt)
             scaler.update()
-            sched.step()
+            # only advance the LR schedule when the optimizer actually stepped
+            # (AMP skips the step on inf/nan grads, notably the very first step)
+            if scaler.get_scale() >= prev_scale:
+                sched.step()
             run_loss += loss.item() * x.shape[0]
             seen += x.shape[0]
             gstep += 1
+            if gstep % LOG_EVERY == 0:
+                dt = time.time() - tstep
+                ips = (LOG_EVERY * x.shape[0]) / max(1e-6, dt)
+                log(f"  ep{ep+1} step {bi+1}/{len(train_dl)} "
+                    f"loss={loss.item():.4f} cos={1-loss.item():.4f} "
+                    f"{ips:.0f} img/s")
+                tstep = time.time()
             if args.smoke and gstep >= 2:
                 log(f"SMOKE ok: 2 steps ran, last loss={loss.item():.4f}, "
                     f"cos_sim={1-loss.item():.4f}")
