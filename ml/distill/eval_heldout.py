@@ -107,6 +107,9 @@ def main():
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--train-manifest", default="train_manifest.parquet")
     ap.add_argument("--corpus", default="corpus")
+    ap.add_argument("--embeddings-dir", default="embeddings",
+                    help="cached teacher embedding shards (shard_*.npz); avoids "
+                         "re-running the teacher image encoder")
     ap.add_argument("--taxonomy", default="taxonomy.json")
     ap.add_argument("--pilot-species", type=int, default=500)
     ap.add_argument("--limit", type=int, default=4000)
@@ -121,28 +124,28 @@ def main():
     taxo = json.load(open(args.taxonomy))
     text_feats, teacher = build_text_classifier(taxo, dev)
     student, student_pp = load_student(args.checkpoint, dev)
-    _, _, teacher_pp = open_clip.create_model_and_transforms(TEACHER)
 
     val = pick_heldout_rows(args.train_manifest, args.corpus, taxo, args.pilot_species)
     if args.limit:
         val = val[:args.limit]
     log(f"held-out val samples: {len(val)}")
 
-    def run(pp, embed_fn, tag):
-        embs, labs, buf, blab = [], [], [], []
-        for pid, tid, ext, lab in val:
-            path = os.path.join(args.corpus, str(tid), f"{pid}.{ext}")
-            try:
-                x = pp(Image.open(path).convert("RGB"))
-            except Exception:
-                continue
-            buf.append(x); blab.append(lab)
-            if len(buf) == args.batch:
-                embs.append(embed_fn(torch.stack(buf).to(dev)).cpu()); labs += blab
-                buf, blab = [], []
-        if buf:
-            embs.append(embed_fn(torch.stack(buf).to(dev)).cpu()); labs += blab
-        E = torch.cat(embs).to(dev)
+    # ---- teacher: use CACHED embeddings (lookup by photo_id), no teacher fwd ----
+    import glob
+    want_ids = {pid for pid, _, _, _ in val}
+    cache = {}
+    shards = sorted(glob.glob(os.path.join(args.embeddings_dir, "shard_*.npz")))
+    for s in shards:
+        d = np.load(s)
+        ids, embs = d["photo_ids"], d["embeddings"]
+        mask = np.isin(ids, list(want_ids))
+        for pid, e in zip(ids[mask].tolist(), embs[mask]):
+            cache[pid] = e
+    log(f"cached teacher embeddings found: {len(cache)}/{len(want_ids)}")
+
+    def score_arr(E, labs, tag):
+        E = torch.from_numpy(np.stack(E)).float().to(dev)
+        E = F.normalize(E, dim=-1)
         sims = E @ text_feats.T
         conf = (sims * 100).softmax(-1).max(-1).values.cpu().numpy()
         top5 = sims.topk(5, -1).indices.cpu().numpy()
@@ -158,11 +161,43 @@ def main():
                 "top1": round(100 * ok1.mean(), 2), "top5": round(100 * ok5.mean(), 2),
                 "abstention": gated}
 
-    log("scoring teacher...")
-    rt = run(teacher_pp, lambda x: F.normalize(teacher.encode_image(x).float(), dim=-1),
-             "bioclip-2-teacher")
+    @torch.no_grad()
+    def run_student():
+        embs, labs, buf, blab = [], [], [], []
+        for pid, tid, ext, lab in val:
+            path = os.path.join(args.corpus, str(tid), f"{pid}.{ext}")
+            try:
+                x = student_pp(Image.open(path).convert("RGB"))
+            except Exception:
+                continue
+            buf.append(x); blab.append(lab)
+            if len(buf) == args.batch:
+                embs.append(student(torch.stack(buf).to(dev)).cpu()); labs += blab
+                buf, blab = [], []
+        if buf:
+            embs.append(student(torch.stack(buf).to(dev)).cpu()); labs += blab
+        E = torch.cat(embs).to(dev)
+        sims = E @ text_feats.T
+        conf = (sims * 100).softmax(-1).max(-1).values.cpu().numpy()
+        top5 = sims.topk(5, -1).indices.cpu().numpy()
+        lab = np.array(labs)
+        ok1 = top5[:, 0] == lab
+        ok5 = (top5 == lab[:, None]).any(1)
+        gated = []
+        for thr in [0.0, 0.3, 0.5, 0.7, 0.9]:
+            keep = conf >= thr
+            gated.append({"thr": thr, "coverage": round(100 * keep.mean(), 1),
+                          "acc_on_kept": round(100 * ok1[keep].mean(), 2) if keep.any() else 0.0})
+        return {"model": "student", "n": int(len(lab)),
+                "top1": round(100 * ok1.mean(), 2), "top5": round(100 * ok5.mean(), 2),
+                "abstention": gated}
+
+    log("scoring teacher (from cache)...")
+    t_emb = [cache[pid] for pid, _, _, _ in val if pid in cache]
+    t_lab = [lab for pid, _, _, lab in val if pid in cache]
+    rt = score_arr(t_emb, t_lab, "bioclip-2-teacher")
     log("scoring student...")
-    rs = run(student_pp, lambda x: student(x), "student")
+    rs = run_student()
     ret1 = round(100 * rs["top1"] / max(1e-9, rt["top1"]), 1)
     ret5 = round(100 * rs["top5"] / max(1e-9, rt["top5"]), 1)
     rep = {"checkpoint": args.checkpoint, "eval": "heldout-corpus-val",

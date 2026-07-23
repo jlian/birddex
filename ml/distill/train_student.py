@@ -175,6 +175,8 @@ def main():
     ap.add_argument("--wd", type=float, default=0.1)
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--val-frac", type=float, default=0.02)
+    ap.add_argument("--patience", type=int, default=3,
+                    help="early-stop after N epochs w/o val_cos_sim improvement; 0 disables")
     ap.add_argument("--out", default="runs/pilot")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny end-to-end validation: 3 species, 2 steps")
@@ -244,6 +246,8 @@ def main():
     log(f"train={len(train_ds):,} val={len(val_ds):,} steps/epoch={len(train_dl)}")
     gstep = 0
     LOG_EVERY = 50
+    best_val = -1.0
+    epochs_since_best = 0
     for ep in range(args.epochs):
         t0 = time.time()
         run_loss, seen = 0.0, 0
@@ -289,10 +293,23 @@ def main():
         dt = time.time() - t0
         log(f"epoch {ep+1}/{args.epochs}  train_loss={tr:.4f}  "
             f"val_cos_sim={val:.4f}  {dt:.0f}s")
-        torch.save({"model": student.state_dict(), "args": vars(args), "epoch": ep + 1,
-                    "val_cos_sim": val},
-                   os.path.join(args.out, "last.pt"))
-    log(f"done. checkpoints in {args.out}")
+        ckpt = {"model": student.state_dict(), "args": vars(args),
+                "epoch": ep + 1, "val_cos_sim": val}
+        torch.save(ckpt, os.path.join(args.out, "last.pt"))
+        # keep the best-generalizing checkpoint (peak val_cos_sim), not just last
+        if val > best_val:
+            best_val = val
+            epochs_since_best = 0
+            torch.save(ckpt, os.path.join(args.out, "best.pt"))
+            log(f"  new best val_cos_sim={val:.4f} -> best.pt")
+        else:
+            epochs_since_best += 1
+            # early stop: val stopped improving for `patience` epochs (overfitting)
+            if args.patience > 0 and epochs_since_best >= args.patience:
+                log(f"early stop: no val improvement for {args.patience} epochs "
+                    f"(best={best_val:.4f} at epoch {ep+1-epochs_since_best})")
+                break
+    log(f"done. best val_cos_sim={best_val:.4f}. checkpoints in {args.out}")
 
 
 if __name__ == "__main__":
