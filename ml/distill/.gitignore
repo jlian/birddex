@@ -12,6 +12,7 @@ inat-metadata/
 *.npy
 
 # Generated manifests / audits / logs
+ATTRIBUTIONS.md
 manifest.jsonl
 download_manifest.jsonl
 inat_resolved.jsonl

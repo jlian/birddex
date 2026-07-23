@@ -1,0 +1,32 @@
+# ml/ scratch + large-artifact guard (defensive; see ml/distill/.gitignore for the
+# per-stage rules). These cover spike/scratch leftovers that map to ml/ top level
+# when the tomahawk working dir is consolidated into the repo.
+
+# Python envs / caches
+.venv/
+__pycache__/
+*.pyc
+
+# ONNX / Core ML / weight exports (regenerable, large)
+onnx-export/
+*.onnx
+*.mlpackage/
+*.mlmodel
+*.ort
+
+# Archives + big scratch blobs
+*.tgz
+*.tar.gz
+*.zip
+
+# Cloned upstream repos used as scratch (e.g. Apple ml-mobileclip)
+ml-mobileclip/
+
+# Logs
+*.log
+
+# Model checkpoints / caches that might land at ml/ level
+*.pt
+*.npz
+*.npy
+*.duckdb
