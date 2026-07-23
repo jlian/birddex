@@ -29,6 +29,7 @@ training on the RTX 3080.
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
   - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness
+  - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
 - [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
 - [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats)
@@ -144,6 +145,18 @@ Cloudflare Workers AI → no (fixed catalog, only generic CLIP, no BYO 307 MB ON
 
 ---
 
+## Input resolutions (teacher 224 / ViT-B 224 / MobileCLIP-S2 256; source 500px)
+
+Storage res and model-input res are DIFFERENT things, don't conflate them:
+
+- **On disk:** iNat `medium` JPEGs = longest edge 500px (`pull_images.py --size medium`). e.g. 500×334, 500×500. This is just the raw file we keep; we never train at 500px.
+- **Teacher (BioCLIP-2): native 224.** `precompute_embeddings.py` ran each 500px JPEG through open_clip's BioCLIP-2 `preprocess` (resize 224 + center-crop) then embedded it. So teacher resize 500→224 was **done ONCE at precompute** and baked into the cached embeddings; teacher never runs at train time.
+- **Tuning student (ViT-B/16): native 224**, resized **live** in the dataloader per step (its own open_clip `preprocess`).
+- **Shipping student (MobileCLIP-S2 / FastViT): native 256** (confirmed via open_clip config: MobileCLIP S0/S1/S2/S3/S4 + MobileCLIP2 S-series are all 256; only B/L are 224). It trains at **256** live. Different input res from the 224 teacher is fine, both towers land in the same 768-d embedding space; the student just gets a bit more spatial detail at its native op point. 500px source comfortably supports both downscales (no upscaling).
+- The `256` zero-tensor in `train_student.py` is only a decode-failure fallback for the CURRENT ViT-B run; it is NOT the ViT-B input res (that's 224). MobileCLIP-S2's 256 is a real native-arch fact, separate from that fallback.
+
+**Higher-res lever for the ground-truth fine-tune:** ViT-B/16 can accept 256/336 via interpolated position embeddings, and our 500px source supports it. During *distillation* it barely helps (ceiling = teacher's 224-res embedding). During the *ground-truth fine-tune* (optimizing true labels, not teacher-matching) training at higher res on the 500px images could genuinely help — test it in the fine-tune sweep.
+
 ## The approach: feature distillation into the teacher's embedding space
 
 Standard KD copies a teacher's *output logits*. We do **feature (embedding)
@@ -212,6 +225,17 @@ same ~17s (not a WSL issue); channels_last made it worse; torch.compile got ~6s.
 FastViT is fast at iPhone Neural Engine *inference* after reparameterization, not
 dGPU *training*; Apple trained on clusters; Apple Silicon/MPS would be slower for
 training.
+
+**Batch size: the 96 limit is ViT-B-specific, do NOT carry it to FastViT.** The
+batch-128→96 fix was for the ViT-B/16 tuning arch (~86M-param transformer, 224px:
+batch 128 hit the 10GB VRAM wall → thrash 48 img/s; 96 fit → 314 img/s).
+MobileCLIP-S2 is a much smaller model (~35M params) at 256px, so a LARGER batch
+(256, maybe 512) may well fit 10GB — but FastViT's overparameterized training
+branches make its train-time memory heavier than its param count / inference
+footprint suggests, and it runs at 256px (more activations than ViT-B's 224). So
+neither "96" nor "256/512" is assumed: **the FastViT re-benchmark above picks the
+batch size by measuring**, per the Jul-22 lesson (don't assert VRAM/throughput
+without measuring).
 
 ---
 
