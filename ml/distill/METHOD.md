@@ -77,15 +77,26 @@ thousands of GPU-hours on billions of images).
 - **Tuning arch: ViT-B/16.** Trains fast on a desktop GPU (~316 img/s, batch 96
   on a 3080). Used to develop/validate the recipe.
 - **Shipping arch: MobileCLIP-S2 (Apple, FastViT backbone).** ~15-20MB,
-  CoreML/ONNX-ready, hits the <25MB stretch target. But FastViT's train-time
-  overparameterization (MobileOne-style parallel depthwise-conv branches) makes
-  it ~17s/step to *train* on desktop Ampere (verified: not a WSL/env issue;
-  native Windows identical; channels_last worse; torch.compile ~6s). FastViT is
-  fast at *iPhone inference* after reparameterization, not dGPU training. Apple
-  trained it on clusters.
+  CoreML/ONNX-ready, hits the <25MB stretch target. FastViT's train-time
+  overparameterization (MobileOne-style parallel depthwise-conv branches) made it
+  ~17s/step to *train* on the 3080 in the 2026-07-22 tests.
+  **CAVEAT (unverified): that ~17s figure is SUSPECT.** All FastViT timings that
+  day were at batch 64 during a session where the GPU was thrashing and several
+  numbers were misread (the ViT-B "48 img/s ceiling" turned out to be a batch-128
+  VRAM-wall artifact; batch 96 ran 6x faster at 314 img/s). FastViT at batch 64
+  may have been partly hitting the same 10GB VRAM wall. We never did a clean
+  batch-swept re-measure (fresh GPU context, batch 96/48/32). **TODO: re-benchmark
+  FastViT properly AFTER the full ViT-B run frees the GPU** before concluding it
+  needs cloud. It's possible the MobileCLIP-S2 "stretch" model also trains fine on
+  the 3080.
 - **Plan:** tune the recipe on ViT-B/16 (distillation-preserves-accuracy is
-  arch-agnostic), then do the final MobileCLIP-S2 run once via torch.compile or a
-  rented cloud GPU. Expect a light LR/schedule re-tune when switching arches.
+  arch-agnostic), then do the final MobileCLIP-S2 run, on the 3080 if the
+  re-benchmark shows it's viable, else via torch.compile or a rented cloud GPU.
+  Expect a light LR/schedule re-tune when switching arches.
+- **Note:** the ViT-B/16 student is ITSELF shippable (~86MB fp16 / ~45MB int8),
+  hitting the <86MB *fallback* target. If ~45MB int8 is acceptable for the app,
+  one ViT-B run + export could be the production model with no MobileCLIP needed.
+  MobileCLIP-S2 is only required to hit the <25MB *stretch* target.
 
 ## Training recipe (as of the pilot)
 
