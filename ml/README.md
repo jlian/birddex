@@ -286,6 +286,33 @@ CLIP teacher's image AND text embeddings, global batch 8192 on 8×4 GPUs, lr 1e-
 Note: open_clip patch pins are in `ml-mobileclip/training/README.md`
 (`open_clip_v2.patch` @ commit 7260a46; v1 @ cf86ee7 for older API).
 
+### Image resolution + JPEG decode in the tar (don't pre-optimize)
+
+The per-step dataloader cost per image is: read bytes → **decode JPEG** → resize →
+crop → normalize. The JPEG **decode** is usually the heaviest CPU op (scales with
+the encoded pixel count), NOT the resize. Three levers, in order of preference
+(measure before applying each — the WHOLE point of WebDataset is fixing
+random-small-file I/O, which may already saturate the GPU at full res):
+
+1. **Sequential tar reads (free, do first).** Pack shards at **500px original** and
+   benchmark. The win is sequential-vs-2.6M-random-opens, not smaller files; this
+   alone may saturate the GPU. Keeps 500px → all future options open.
+2. **Faster decoder (no downside, do if still CPU-bound).** Fixes decode without
+   touching resolution, so it foreclosures nothing:
+   - libjpeg-turbo / Pillow-SIMD backing PIL (drop-in, multi-x faster decode)
+   - **GPU JPEG decode** (`torchvision.io.decode_jpeg` on CUDA / nvJPEG) — decode on
+     the 3080, relieves the CPU dataloader entirely. WebDataset + GPU decode is a
+     known-fast combo.
+   - more `--workers` (tomahawk has cores to spare; we run 10)
+3. **Pre-resize (LAST resort, permanently discards data).** Only if still
+   decode-bound after 1+2. Resize to **~320-384px headroom, NEVER 256**: keeps
+   random-resized-crop augmentation room, preserves the higher-res fine-tune lever
+   (up to ~336), and avoids baking in a center-crop. Resizing to exactly 256 would
+   lock the student input res forever and kill the fine-tune/aug headroom — an
+   annoying bake-in to undo (would need re-packing from the 500px corpus, which by
+   then may have moved to the NAS). Teacher embeddings are already cached at 224,
+   so pre-resize only affects the student input, not target correctness.
+
 ## Training recipe (as of the pilot)
 
 - Cosine loss on L2-normalized embeddings; AdamW (lr 1e-4, wd 0.1); cosine LR
