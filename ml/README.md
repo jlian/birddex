@@ -32,7 +32,7 @@ training on the RTX 3080.
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
 - [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
-- [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats)
+- [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats). Harness ready: `ml/distill/bench_fastvit.py` (warmup, cudnn.benchmark, AMP, batch sweep 64→512, channels_last both ways). RUN ONLY WHEN GPU IS FREE.
 - [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU)
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
@@ -221,7 +221,10 @@ ViT-B "48 img/s ceiling" was a batch-128 VRAM-wall artifact; batch 96 ran 6× fa
 at 314 img/s). FastViT at batch 64 may have hit the same 10GB wall. Never did a
 clean batch-swept re-measure. **Re-benchmark FastViT (fresh GPU context, batch
 96/48/32) AFTER the full ViT-B run frees the GPU.** Native Windows CUDA gave the
-same ~17s (not a WSL issue); channels_last made it worse; torch.compile got ~6s.
+same ~17s (not a WSL issue); channels_last made it worse (UNVERIFIED — our
+Jul-22 synthetic test showed channels_last slower, which contradicts the
+NHWC-faster-on-Ampere textbook expectation; `bench_fastvit.py` tests it both ways);
+torch.compile got ~6s.
 FastViT is fast at iPhone Neural Engine *inference* after reparameterization, not
 dGPU *training*; Apple trained on clusters; Apple Silicon/MPS would be slower for
 training.
