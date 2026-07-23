@@ -51,6 +51,13 @@ something more flexible, **feature (embedding) distillation**:
 - **License-clean.** Corpus is openly-licensed iNaturalist (AWS Open Data);
   ShareAlike images are excluded from the training manifest so the student
   weights can be released MIT. Full attribution retained.
+- **Trained on a single consumer GPU (RTX 3080, 10GB).** No cluster, no cloud.
+  The whole point of feature distillation from cached embeddings is that it makes
+  CLIP-scale student training tractable on hobbyist hardware: the pilot (500
+  species) took ~3h and the full 7,555-species run ~1.5 days on one 3080. By
+  contrast the teacher-class models were trained on 8-176x A100/H100 nodes
+  (thousands of GPU-hours). Caching the teacher's embeddings once + starting from
+  LAION-pretrained weights is what collapses that into a single-desktop-GPU job.
 
 ### Transfer learning: we do NOT start from random weights
 
