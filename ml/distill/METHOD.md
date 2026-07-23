@@ -104,6 +104,14 @@ thousands of GPU-hours on billions of images).
   schedule; AMP (fp16 autocast); tf32 + cudnn.benchmark.
 - Batch 96 (the 3080's sweet spot; batch 128 hits the 10GB VRAM wall and thrashes
   to ~48 img/s, batch 96 runs ~316 img/s).
+- **LR was NOT retuned when batch dropped 128->96 (both pilot + full run use
+  lr 1e-4).** Batch/LR are coupled (change one, retune the other), but: the
+  change was only 0.75x (minor), AdamW is adaptive (forgiving of base-LR error),
+  and distillation-to-fixed-targets is smooth/robust, so the pilot still hit 99%
+  retention. Still, it's UNTUNED: a slightly lower LR (~5-7e-5, matching the 0.75
+  batch ratio) might improve the val plateau / reduce the mild overfit drift we
+  saw (val peaked ~epoch 11 then declined, a classic slightly-high-LR symptom).
+  TODO in the tuning sweep: batch 96 x lr {5e-5, 7e-5, 1e-4}.
 - 2% held-out val split (seeded); `val_cos_sim` (student-vs-teacher cosine on val)
   is the training signal. Early stopping (patience 3) + best-checkpoint saving:
   val plateaus then mildly overfits, so we keep the peak.
