@@ -32,7 +32,8 @@ training on the RTX 3080.
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
 - [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
-- [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats). Harness ready: `ml/distill/bench_fastvit.py` (warmup, cudnn.benchmark, AMP, batch sweep 64→512, channels_last both ways). RUN ONLY WHEN GPU IS FREE.
+- [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats). Harness ready: `ml/distill/bench_fastvit.py` (warmup, cudnn.benchmark, AMP, batch sweep 64→512, channels_last both ways in synthetic mode, `--real` reuses the actual train_student dataloader for end-to-end img/s). RUN ONLY WHEN GPU IS FREE.
+- [ ] **Adopt Apple's WebDataset + open_clip_train dataloader (option A), keep our image-only cosine loss** — see "Adopt upstream training path" below. Prime suspect for both the ViT-B 314 img/s and FastViT slowness is our random-small-file dataloader; Apple's tar-sharded path is built to saturate the GPU. Do before the final MobileCLIP-S2 run.
 - [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU)
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
@@ -241,6 +242,49 @@ batch size by measuring**, per the Jul-22 lesson (don't assert VRAM/throughput
 without measuring).
 
 ---
+
+## Adopt upstream training path (option A, decided 2026-07-23)
+
+Our `train_student.py` is hand-rolled: a simple loop + a Dataset that opens 2.6M
+individual `corpus/<taxon>/<photo>.jpg` files at random. That random-small-file
+I/O is the prime suspect for both the ViT-B "only 314 img/s" and the FastViT
+slowness — not the arch. Per the standing rule (adopt proven prior art, don't
+hand-roll), route the FINAL runs through Apple's tuned path instead.
+
+**Apple `ml-mobileclip` reality (cloned at `~/spikes/bioclip-birdid/ml-mobileclip`):**
+their DataCompDR training uses `open_clip_train.main` with `--dataset-type
+webdataset` over `.tar` shards, `--precision amp`, `--grad-checkpointing`, and a
+`dr/` loader that pulls per-sample teacher *reinforcements* (embeddings) straight
+out of the tar. Fast sequential reads, GPU-saturating. BUT their recipe is full
+CLIP **contrastive** training (image+text towers, synthetic captions, a general
+CLIP teacher's image AND text embeddings, global batch 8192 on 8×4 GPUs, lr 1e-3).
+
+**Two ways to use it:**
+- **Option A (CHOSEN): adopt their data FORMAT + dataloader, keep our loss.**
+  Repackage corpus + cached BioCLIP-2 embeddings into WebDataset `.tar` shards
+  (each sample = image bytes + our 768-d teacher embedding + app taxon idx), use
+  open_clip's webdataset dataloader (or adapt Apple's `dr/` loader, which already
+  knows how to read an embedding tensor from the tar), but keep our **image-only
+  cosine feature-distillation** loss. Gets the big dataloader speedup + a
+  better-tuned loop (`--grad-checkpointing --precision amp`) WITHOUT swallowing
+  the contrastive recipe or training a text tower.
+- Option B (REJECTED): fully adopt DataCompDR contrastive training. Would require
+  generating synthetic captions + caching a text-capable teacher, i.e. changing
+  our whole method. Wrong for us: our thesis is image-only distillation from
+  BioCLIP-2 (the bird expert), and we REUSE BioCLIP-2's text tower zero-shot at
+  inference — we don't want to retrain a text tower.
+
+**Steps (all AFTER the current run frees the GPU):**
+1. Repackaging script: `corpus/*.jpg` + `embeddings/shard_*.npz` → WebDataset
+   `.tar` shards (image bytes + 768-d embedding + taxon idx per sample).
+2. Wire our cosine loss into open_clip's webdataset dataloader (small patch, or
+   adapt Apple's `dr/`).
+3. Re-benchmark FastViT AND ViT-B through THAT path (true apples-to-apples; expect
+   a large img/s jump for both). This supersedes the synthetic bench.
+4. Run the final MobileCLIP-S2 on the winning batch/recipe.
+
+Note: open_clip patch pins are in `ml-mobileclip/training/README.md`
+(`open_clip_v2.patch` @ commit 7260a46; v1 @ cf86ee7 for older API).
 
 ## Training recipe (as of the pilot)
 
