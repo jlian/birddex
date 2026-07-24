@@ -725,6 +725,15 @@ The `ml/demo/` WebGPU router currently loads BioCLIP ViT-L at 307MB (rude); swap
 own 45/22MB model makes the flex actually pleasant. Priorities: **iOS = real product
 (accuracy matters); web = engineering flex (shipping it at all is the payoff).**
 
+**WHERE THE 25MB NUMBER COMES FROM (confirmed 2026-07-23):** it's the **Cloudflare Pages
+per-asset limit = 25 MiB** (26.2 MB decimal), from CF's own docs. ≤ that → free static
+asset served off the CDN, ships with the site, zero extra infra. > that → CF forces you to
+R2 (object storage), a separate service with setup + a cost dimension (storage + Class
+A/B ops; egress free, decent free tier). So it's a real mechanical reason to prefer int4
+(~22MB, clears 25MiB) over int8 (~45MB, would force the R2 path) FOR WEB. Not accuracy,
+not iOS — purely "free Pages asset vs provisioned R2 bucket." (int4 ~22MB clears it
+comfortably; the MiB-vs-MB gives a hair more headroom but not enough to fit 45MB.)
+
 The pipeline that sidesteps ALL the Apple/MobileCLIP licensing drama:
 1. Take the current LAION-init ViT-B/16, distill BioCLIP-2 bird knowledge in, THEN
    WiSE-FT ground-truth fine-tune to make the **int8 as good as possible** (goal: match
