@@ -24,7 +24,9 @@ training on the RTX 3080.
 - [x] Phase 1 — corpus assembled (iNat AWS Open Data, 7,555 sp, 2.65M imgs / 262 GB)
 - [x] Phase 2 — teacher embeddings cached (366 shards, ~2.644M × 768-d)
 - [x] Pilot: 500-species ViT-B/16 (val_cos 0.946; 99% OOD retention on NABirds)
-- [ ] **Full 7,555-species ViT-B/16 baseline run** ← *in progress* (epoch ~7, val_cos ~0.9505)
+- [ ] **Full 7,555-species ViT-B/16 baseline run** ← *in progress* (epoch ~10, val_cos ~0.9573)
+- [ ] **Leakage check (do early):** re-run val split grouped by `observation_uuid`; if val_cos drops, regroup ALL splits by observation before trusting accuracy numbers. NABirds/CUB/RealBirdID evals are immune (foreign datasets).
+- [ ] **Dedup for variety:** cap per-observation (≤2-3 photos/obs) or sample the 500-cap to maximize distinct observations/observers — same count, more variety. (build_manifest.py change.)
 - [ ] **Pilot experimentation stage (500 sp) — BOTH recipes locked here:**
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
   - [ ] adopt from MobileCLIP papers (see "What MobileCLIP's papers say"): strong aug (RandomResizedCrop [0.08,1.0]+RandAugment), multi-augmentation embedding caching, AdamW β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0
@@ -531,6 +533,32 @@ models" (WiSE-FT, CVPR 2022, arXiv 2109.01903)** — READ IN FULL 2026-07-23:
 **Prereq not built yet:** a sampler script (alongside `download_inat.py`) that
 pulls research-grade photos EXCLUDING observation_uuids already in our manifest
 (~100/species by observation) → the leak-free held-out ground-truth set.
+
+## Observation-level leakage + dedup (verify early; two sides of one issue)
+
+iNat groups multiple photos per **observation** (one encounter with one bird: burst
+frames, same perch/light, near-duplicates). Our manifest carries `observation_uuid`
+per photo. This creates two related problems:
+
+**(A) EVAL leakage — could be inflating our numbers (SCARY, verify early):** the 2%
+val split in `train_student.py` splits **by photo** (`randperm` over images). If burst
+photos of one observation land on BOTH sides, the model trains on a bird then is
+"tested" on near-identical frames of the SAME bird = leakage → optimistic val_cos and
+retention. Fix: split **by observation_uuid** (all photos of an obs go entirely to
+train OR val). CHECK: query manifest for obs-with-multiple-photos + val images with
+train-set siblings; re-run the split grouped by observation and see if val_cos drops.
+If it barely moves, negligible; if it drops, we've over-reported and must regroup all
+splits by observation. NOTE: **NABirds/CUB/RealBirdID evals are IMMUNE** — they're
+foreign datasets (no shared photos with our iNat training), which is exactly why they
+are the trustworthy OOD anchors. Leakage risk is ONLY the internal iNat split.
+
+**(B) TRAINING variety — the cap wastes budget on near-dups (real improvement):**
+`build_manifest.py` caps at 500 photos/species via `ORDER BY photo_id` (arbitrary),
+with NO observation grouping. A species can fill its 500 cap from a few
+heavily-bursted observations, starving variety. Since we cap anyway, spend the budget
+on DIVERSITY: cap per observation too (e.g. ≤2-3 photos/obs), or sample the 500 to
+maximize distinct observations/observers/locations. Same image count, far more
+variety = better generalization. Same `group-by-observation` logic as (A).
 
 ---
 
