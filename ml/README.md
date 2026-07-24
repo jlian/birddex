@@ -29,7 +29,7 @@ training on the RTX 3080.
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
   - [ ] adopt from MobileCLIP papers (see "What MobileCLIP's papers say"): strong aug (RandomResizedCrop [0.08,1.0]+RandAugment), multi-augmentation embedding caching, AdamW β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
-  - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness
+  - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, α≈0.5) to keep OOD robustness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
 - [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
@@ -495,6 +495,38 @@ too data-hungry for 7,555 fine-grained classes at 50–500 imgs each, overfits t
 iNat quirks, worse OOD, loses open-vocab + license-clean properties. Distill first
 (robust general embedding + OOD generalization + open vocab), THEN ground-truth
 fine-tune.
+
+**This fine-tune is a WingDex extension, NOT prescribed by MobileCLIP** (confirmed
+2026-07-23 by reading both papers). MobileCLIP v1 reports all metrics "without any
+fine-tuning" — their paradigm is distill → zero-shot, done. MobileCLIP2's fine-tuning
+is about their CoCa *captioner* teacher, not the CLIP student; the only student
+fine-tuning is (a) a one-line acknowledgment that CLIP encoders can be specialized
+via linear-probe / full fine-tune (citing Wortsman et al. 2022) and (b) dense-
+prediction downstream evals (detection/segmentation), not classification accuracy.
+So "distill a bird CLIP then supervised-fine-tune on species labels to beat the
+teacher" is our own bet. The closest PUBLISHED handbook for it is the CLIP
+fine-tuning literature, esp. **Wortsman et al. "Robust fine-tuning of zero-shot
+models" (WiSE-FT, CVPR 2022, arXiv 2109.01903)** — READ IN FULL 2026-07-23:
+
+- **Problem it solves:** naive fine-tuning raises in-distribution accuracy but
+  DEGRADES OOD robustness (exactly our risk: fine-tune on iNat → better on iNat,
+  worse on real field photos). Validated on WILDS-iWildCam (wildlife recognition),
+  directly analogous to birds.
+- **Method, 2 steps:** (1) standard fine-tune the zero-shot model on target data
+  (cross-entropy + weight decay; end-to-end OR linear-probe-only); (2) **weight-space
+  ensemble**: `θ = (1−α)·θ_zeroshot + α·θ_finetuned` — element-wise average of the two
+  models' WEIGHTS (not outputs). A few lines of PyTorch, zero extra train/infer cost.
+- **α = 0.5** recommended with no domain knowledge; near-optimal across experiments
+  (they sweep α ∈ {0, 0.05, ..., 1}). Gains: +4-6pp OOD vs prior work, +1.6pp
+  ImageNet; WILDS-iWildCam +6.2pp OOD at ≤0.3pp reference cost.
+- **CRITICAL nuance for us:** WiSE-FT interpolates a fine-tuned model with ITS OWN
+  zero-shot start (they must share an optimization basin; interpolating unrelated
+  nets fails). Our "zero-shot start" is the DISTILLED STUDENT. So (a) fine-tune FROM
+  the distilled checkpoint (never reinit), and (b) ensemble = distilled-student ↔
+  its-fine-tuned-version. Keeps the teacher-embedding geometry (BioCLIP-2 text
+  classifier still works) while gaining ground-truth accuracy.
+- Cited by MobileCLIP2 as THE reference for specializing CLIP encoders → right
+  handbook, not a tangent.
 
 **Prereq not built yet:** a sampler script (alongside `download_inat.py`) that
 pulls research-grade photos EXCLUDING observation_uuids already in our manifest
