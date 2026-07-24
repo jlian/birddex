@@ -35,6 +35,7 @@ training on the RTX 3080.
 - [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
 - [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats). Harness ready: `ml/distill/bench_fastvit.py` (warmup, cudnn.benchmark, AMP, batch sweep 64→512, channels_last both ways in synthetic mode, `--real` reuses the actual train_student dataloader for end-to-end img/s). RUN ONLY WHEN GPU IS FREE.
+- [ ] **Map the cosine→accuracy curve:** eval NABirds top-1/5 at epoch 1/5/10/final checkpoints. Answers "is early already usable?" and "minimum epochs needed" — could cut the expensive final MobileCLIP run short. (Needs per-epoch checkpoints saved; add to future runs.)
 - [ ] **Adopt Apple's WebDataset + open_clip_train dataloader (option A), keep our image-only cosine loss** — see "Adopt upstream training path" below. Prime suspect for both the ViT-B 314 img/s and FastViT slowness is our random-small-file dataloader; Apple's tar-sharded path is built to saturate the GPU. Do before the final MobileCLIP-S2 run.
 - [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU — see "Cloud GPU rental", ~$10-20 fallback)
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
@@ -428,6 +429,25 @@ caching, (b) strong aug [0.08,1.0]+RandAugment, (c) optimizer/schedule toward Ad
 - 2% held-out val split (seeded). ⚠️ `val_cos_sim` measures **student-vs-teacher
   cosine**, i.e. "how well did we copy the teacher," NOT species accuracy against
   ground truth. Early stopping (patience 3) + best-checkpoint saving.
+
+### Cosine vs retention: don't confuse the two (they mean very different things)
+
+- **`val_cos_sim` is NOT "% as good as the teacher."** It's the geometric alignment of
+  768-d unit embeddings, and its relation to accuracy is nonlinear/saturating. Read the
+  RESIDUAL `(1-cos)`, not cos itself: pilot final 0.9464 → residual 0.054; full-run ep1
+  0.9313 → 0.069, ep10 0.9573 → 0.043. So ep1→ep10 = ~38% embedding-error reduction (not
+  "2.8% better"); pilot-peak 0.9472→0.9573 = ~19% error reduction. Congeneric species sit
+  <0.02 apart in text-embedding space, so the last hundredths of cosine are where
+  fine-grained species discrimination is won/lost.
+- **RETENTION IS a real "% as good as the teacher"** — it's a ratio of measured
+  accuracies. Pilot NABirds: teacher 91.5 top-1, student 90.8 → 90.8/91.5 = **99.2%
+  retention** (top-5: 97.2/99.7 = 97.5%). Caveats: it's retention OF the teacher (teacher
+  itself ~91.5% correct, so student ~90.8% absolute), and the pilot number was only 282
+  NABirds imgs (full run → much bigger intersection, tighter number).
+- **Mental model:** cosine = fuzzy training-progress proxy; retention (on clean OOD
+  NABirds) = the trustworthy ship metric. "Is epoch-1 already usable?" is UNANSWERABLE
+  from cosine — only the accuracy eval answers it (see multi-checkpoint experiment in
+  queue).
 
 ---
 
