@@ -27,6 +27,7 @@ training on the RTX 3080.
 - [ ] **Full 7,555-species ViT-B/16 baseline run** ← *in progress* (epoch ~7, val_cos ~0.9505)
 - [ ] **Pilot experimentation stage (500 sp) — BOTH recipes locked here:**
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
+  - [ ] adopt from MobileCLIP papers (see "What MobileCLIP's papers say"): strong aug (RandomResizedCrop [0.08,1.0]+RandAugment), multi-augmentation embedding caching, AdamW β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
   - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
@@ -350,6 +351,67 @@ random-small-file I/O, which may already saturate the GPU at full res):
    annoying bake-in to undo (would need re-packing from the 500px corpus, which by
    then may have moved to the NAS). Teacher embeddings are already cached at 224,
    so pre-resize only affects the student input, not target correctness.
+
+## What MobileCLIP's papers say (recipe we can borrow), read 2026-07-23
+
+Read both papers directly (MobileCLIP CVPR'24 arXiv 2311.17049; MobileCLIP2 TMLR'25
+arXiv 2508.20691). Their full method is multi-modal *contrastive* (image+text), which
+we DON'T do, but the dataset-reinforcement + aug + optimizer backbone transfers
+directly to our image-only cosine distillation.
+
+**Their loss (for context, NOT what we use):** `L = (1-λ)·L_CLIP + λ·L_Distill`, where
+L_Distill is **KL between the teacher's and student's b×b image-text affinity matrix**
+(row-wise softmax of `U·Vᵀ/τ`), averaged over I2T + T2I, over a K-model teacher
+ensemble. λ ablation (P1 Tab.3b): **λ=1.0 optimal for ImageNet (pure distillation, no
+contrastive), λ=0.7 best for retrieval**; they used λ=0.75 for MobileCLIP-B, **λ=1.0 for
+the small variants (S0/S1/S2)**. MobileCLIP2 keeps leaning on pure distillation. Takeaway:
+**our λ=1.0 image-only cosine setup is the validated regime for small models** — our
+per-sample cosine is the unimodal analog of their affinity-KL. We are not missing the
+contrastive term for our use case.
+
+**What we SHOULD adopt (transfers to image-only):**
+1. **Cache teacher embeddings once in BF16 + lossless compression** (P1 §5); verified no
+   accuracy loss vs fp32. We already cache (fp16 npz) — confirms the approach.
+2. **Store multiple augmented-view embeddings per image, with reproducible aug params**
+   (store the RandomResizedCrop/RandAugment params, replay the exact crop so the student
+   input matches the cached teacher target). **Perf saturates ~5 augmentations** (P1
+   Tab.4a); DataCompDR-12M used up to 30 (for reuse across many epochs), DataCompDR-1B
+   used 10. **This is our biggest current gap:** we cache ONE 224 embedding per image, so
+   our student can't learn augmentation invariance against matching teacher targets. To
+   adopt: during precompute, generate N augmented views per image, embed each, store
+   (aug_params, embedding) pairs; at train time replay a stored view.
+3. **STRONG augmentation in distillation** (the counterintuitive one): RandomResizedCrop
+   scale **[0.08, 1.0]** + RandAugment. P1 Tab.13: **+4.8% IN-val vs vanilla CLIP's weak
+   aug.** Weak aug is only needed when image-text alignment matters; in distillation the
+   teacher sees the same crop, so strong aug is safe and helps. Our current pipeline uses
+   open_clip's default (light) preprocess — switch to strong aug for the sweep.
+4. **Optimizer:** AdamW, **β=(0.9, 0.95)**, cosine LR **1e-3 → 1e-6**, **warmup ~2k iters**,
+   **weight decay 0.2**, BF16, **grad-clip norm 1.0** (MobileCLIP2). Note their LR 1e-3 is
+   for from-scratch training at global batch 8192; we FINE-TUNE from LAION weights at
+   batch 96, so our 1e-4 is reasonable, but the sweep should test toward their schedule
+   shape (proper warmup + cosine-to-near-zero, β₂=0.95, wd 0.2, grad-clip 1.0).
+5. Training scale (their ablation setup): global batch **8192**, **30-45k iters (~20-30
+   epochs / ~0.24-0.4B seen samples)** on the 12.8M-pair DataCompDR-12M. Ours: 2.5M imgs,
+   ~20 epochs — comparable epoch count, far smaller data.
+
+**What we DROP (multi-modal, inapplicable to single-teacher image-only):** the CLIP
+contrastive term, synthetic CoCa captions, text-embedding caching, the K=2 teacher
+ensemble (DataCompDR used ViT-L/14 `datacomp_xl_s13b_b90k` + `openai`, 1536-d = 2×768
+concat), and per-teacher temperature tuning.
+
+**MobileCLIP2 (2025) deltas vs v1:** better CLIP teacher ensembles trained on **DFN** (→
+DFNDR dataset), improved DFN-trained CoCa captioners fine-tuned for caption diversity,
+the finding that **contrastive-KD temperature tuning matters**, combining captions from
+multiple generators, and new **S3/S4** architectures. +2.2% IN-1k for MobileCLIP2-B vs
+MobileCLIP-B. Nearly all of this is on the multi-modal/caption/ensemble side we don't use
+— the one transferable meta-lesson is "a better teacher → a better student," which for us
+reinforces keeping BioCLIP-2 (SOTA bird encoder) as teacher, and is the same logic behind
+the deferred multi-teacher improvement pass.
+
+**Queue impact (fold into pilot experimentation stage):** (a) multi-augmentation embedding
+caching, (b) strong aug [0.08,1.0]+RandAugment, (c) optimizer/schedule toward AdamW
+β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0. All cheap to test on the
+500-sp pilot.
 
 ## Training recipe (as of the pilot)
 
