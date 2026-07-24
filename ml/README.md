@@ -687,6 +687,31 @@ checkpoint for other uses — we don't, we only want birds. So "build LAION Mobi
 and "train FastViT-from-random for birds" collapse into ~the same expensive job, and the
 latter is more direct. Neither is worth it unless <25MB is non-negotiable.
 
+### Open-weights small-arch scout (2026-07-23) + quantization reality
+
+**Quantization can't rescue a big model for web.** Measured on BioCLIP-2 ViT-L: fp32
+1217MB → fp16 609MB → int8 307MB (accuracy preserved) → int4 254-280MB but accuracy
+COLLAPSED to 78/87 (GPT-level; 4-bit rounding erased fine-grained species margins).
+int8 is the sweet spot; int4 breaks bird ID AND only gives ~1.2x beyond int8. Web needs
+307→25MB = 12x; quantization is only 2-4x. So size is an ARCHITECTURE (param-count)
+problem — quantize a SMALL model to get tiny, can't quantize a big one down.
+
+**Scouted open_clip registry for small archs with NON-Apple open weights** (visual
+encoder params, measured):
+- ViT-B/16 (our current, LAION): 86.2M, ~45MB int8 (real export) — the <86MB fallback.
+- ViT-B/32 (LAION/DataComp): 87.8M — same size, bigger patch, weaker. No win.
+- convnext_base_w (LAION): 88.2M — same ballpark. No win.
+- **RN50 (OpenAI): 38.3M, ~38MB int8** — the ONLY off-the-shelf option meaningfully
+  smaller than ViT-B WITH clean weights. Older CNN, likely weaker at fine-grained; less
+  training data than LAION. Legit clean candidate worth a distillation test if we want
+  <45MB clean.
+- SigLIP/SigLIP2: only SO400M (400M, huge) or B-size — no small variants. No help.
+
+**Verdict: there is NO open-weights CLIP <25MB.** Everything genuinely tiny
+(MobileCLIP-S0/S1/S2, ~15-20MB) is Apple-only (license question). The open ecosystem's
+floor is RN50 (~38MB). So for a CLEAN <45MB web model: RN50 is the candidate; for <25MB:
+Apple weights (non-commercial question) or train-from-scratch, no way around it.
+
 ## Teacher + future improvement passes
 
 **Teacher = BioCLIP-2 ViT-L/14** (`hf-hub:imageomics/bioclip-2`) — only variant
