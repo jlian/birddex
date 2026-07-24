@@ -554,16 +554,29 @@ scored on the same set). **VERDICT: not scary for go/no-go, but treat val_cos as
 loose upper bound. The ground-truth held-out eval (which COULD drive go/no-go) MUST be
 split by observation_uuid** — already specified in the sampler prereq above.
 
-**(B) TRAINING variety — MEASURED 2026-07-23: dedup NOT worth it, corpus already diverse.**
-Original worry: the 500-cap wastes budget on burst near-dups. Measured: FALSE. Only
-**11 of 7,555 species** actually hit the 500 cap; avg species has **269 photos from 210
-distinct observations** (avg 1.58 photos/obs). We're photo-LIMITED, not cap-limited —
-the cap almost never binds, so there's no burst pool crowding out variety. Applying a
-per-observation cap would just DELETE 10-19% of training data (cap-3 → 89.5% kept, cap-2
-→ 81.3%) for ~zero diversity gain, and would disproportionately hurt the 1,132 rare
-species stuck at 50-99 photos. **DECISION: do NOT dedup-for-variety.** (Observation
-grouping still matters for the eval split — see (A) — but that's a correctness fix, not
-data reduction.)
+**(B) TRAINING variety — MEASURED 2026-07-23 (corrected). Cheap dedup not worth it;
+backfill dedup is a real-but-costly option for common species.** Three numbers to keep
+straight: (1) ~**52M** research-grade photos AVAILABLE on iNat; (2) **2,646,057
+DOWNLOADED** (`manifest.parquet`), where **3,871 / 7,555 species (51%) hit the 500
+cap**; (3) **2,503,107 TRAINED** (`train_manifest.parquet`, after ShareAlike
+exclusion), where only 11 remain at exactly 500 — SA-removal shaved the capped species
+below 500, so "11 at cap" is a post-SA artifact and MISLEADING about whether the cap
+binds. At download time the cap bound for HALF the species.
+
+But even the 3,871 capped species are already observation-diverse: avg **323 distinct
+observations** (min 78) at **1.58 photos/obs**. Of their 1.94M photos, **82.3% are
+already within 2/obs; only 17.7% (343K) are burst-excess** (3rd+ from one obs).
+Implications:
+- **Cheap reselection dedup: NOT worth it.** Dropping burst-excess just shrinks capped
+  species 500→~460 avg (loses data) without adding observations, and hits the 1,132
+  rare 50-99-photo species if applied globally. 323 obs/species is already diverse.
+- **Backfill dedup (real option, COSTLY):** for the 3,871 capped species, drop the
+  17.7% burst-excess AND download+embed fresh distinct observations to refill to 500.
+  This genuinely raises observation diversity, but needs NEW downloads + GPU embedding
+  (those species already hit the cap, so the replacement photos aren't on disk).
+  Consider ONLY if the pilot shows common (capped) species underperforming.
+
+(Observation grouping still matters for the eval split — see (A) — independent of this.)
 
 ---
 
