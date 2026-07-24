@@ -43,7 +43,7 @@ training on the RTX 3080.
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
 - [ ] Export: int8 + ONNX + Core ML; demo page real WebGPU numbers
 - [ ] **Test int4 on the FINE-TUNED ViT-B for web (~22MB, <25MB target):** measure golden-set + NABirds; bar is "useful (~GPT-level ok)," not "matches BioCLIP." Fine-tune int8 to ship-quality FIRST, then quantize. Levers if it drops too far: mixed precision, better calibration.
-- [ ] Move 262GB corpus to NAS (keep ~4GB embeddings + checkpoints); clean up tomahawk code copies
+- [ ] **Consolidate to ONE code checkout on tomahawk + delete the Pi copy** (decided 2026-07-24; see "Where things live"). Then move 262GB corpus to NAS (keep ~4GB embeddings + checkpoints).
 
 **Definition of done (from #260):** distilled student trained + quantized +
 ONNX/Core ML export; benchmarked vs GPT and ViT-L on the shared gated+range
@@ -887,21 +887,40 @@ license-audit ready (every image records license + attribution).
 Heavy work runs on **tomahawk** (RTX 3080) under the spike venv
 `~/spikes/bioclip-birdid/.venv` (torch 2.6.0+cu124, open_clip 3.3.0).
 
-1. **Pi `~/wingdex/ml/`** — git repo, branch `bioclip-distill`. **SOURCE OF TRUTH
-   for code + docs. Edit here.**
-2. **Tomahawk `~/wingdex`** — a real git checkout too, but **stale** (`3c82604`,
-   behind origin) and **unused**. Training does NOT run from here.
+**SSOT of record = GitHub `jlian/wingdex` @ `bioclip-distill`.** Commit + push
+there; that's the durable copy (readable even when tomahawk is asleep). Local
+checkouts are just working copies of it.
+
+Current copies (2026-07-24, all now at the same commit after the reconciliation):
+1. **Pi `~/wingdex/ml/`** — git checkout. Convenient for my native edit tools but
+   it is the root cause of repeated "edited the wrong copy" confusion. **Slated
+   for deletion** (see below).
+2. **Tomahawk `~/wingdex`** — git checkout (was stale at `3c82604`, reset to
+   origin 2026-07-24). Not currently where training runs.
 3. **Tomahawk `~/spikes/bioclip-birdid/`** — **non-git loose scratch dir where
    training ACTUALLY runs** (path `distill/`, no `ml/`). Scripts hand-synced from
-   the repo (rsync/tar) → drift risk. Corpus, `runs/`, `embeddings/`, manifests,
-   logs, checkpoints live here — all OFF git (`.gitignore`), too large + regenerable.
+   the repo → drift risk. Corpus, `runs/`, `embeddings/`, manifests, logs,
+   checkpoints live here — all OFF git (`.gitignore`), too large + regenerable.
 
-**Cleanup (AFTER current run finishes):** consolidate onto ONE tomahawk checkout —
-make `~/spikes/bioclip-birdid` a real `git clone` (or reuse `~/wingdex`), data
-gitignored, so the path matches the repo (`ml/distill/`) and scripts never drift.
-Then move the 262GB corpus to the NAS (keep the ~4GB embeddings + checkpoints; raw
-JPEGs only needed during precompute).
+**Cleanup — DECIDED 2026-07-24, collapse to ONE checkout on tomahawk (AFTER the
+current run finishes):**
+1. Make tomahawk `~/wingdex` the single working checkout. Point training at
+   `~/wingdex/ml/distill/` — either move the scratch data (`corpus/`,
+   `embeddings/`, `runs/`) under it or symlink them in (they stay gitignored).
+2. Retire `~/spikes/bioclip-birdid/distill` as a code location (keep only as a
+   data dir if symlinking, else migrate its data).
+3. **Delete the Pi `~/wingdex` checkout entirely.** The Pi has no data/GPU anchor;
+   its only purpose was edit convenience, which caused the drift. I edit the
+   tomahawk copy over the node and read from GitHub when tomahawk is asleep.
+4. Then move the 262GB corpus to the NAS (keep the ~4GB embeddings + checkpoints;
+   raw JPEGs only needed during precompute).
+
+Why one copy on tomahawk (not the Pi): the corpus + embeddings + GPU physically
+live on tomahawk and can't move, so training must run there; the Pi copy is pure
+redundancy. rsync between two live-edited copies never worked because both sides
+get edited — the fix is deleting the second copy, not a smarter sync.
 
 History note: scripts were briefly split across `bioclip-birdid` and
 `bioclip-distill` branches; consolidated onto `bioclip-distill` 2026-07-22. The
-5 separate ml docs were merged into this file 2026-07-23.
+5 separate ml docs were merged into this file 2026-07-23. `--resume` (true
+full-state training resume) added 2026-07-24 (`19fc190`).
