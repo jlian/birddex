@@ -42,6 +42,7 @@ training on the RTX 3080.
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
 - [ ] Export: int8 + ONNX + Core ML; demo page real WebGPU numbers
+- [ ] **Test int4 on the FINE-TUNED ViT-B for web (~22MB, <25MB target):** measure golden-set + NABirds; bar is "useful (~GPT-level ok)," not "matches BioCLIP." Fine-tune int8 to ship-quality FIRST, then quantize. Levers if it drops too far: mixed precision, better calibration.
 - [ ] Move 262GB corpus to NAS (keep ~4GB embeddings + checkpoints); clean up tomahawk code copies
 
 **Definition of done (from #260):** distilled student trained + quantized +
@@ -711,6 +712,31 @@ encoder params, measured):
 (MobileCLIP-S0/S1/S2, ~15-20MB) is Apple-only (license question). The open ecosystem's
 floor is RN50 (~38MB). So for a CLEAN <45MB web model: RN50 is the candidate; for <25MB:
 Apple weights (non-commercial question) or train-from-scratch, no way around it.
+
+### THE LIKELY ANSWER: one clean ViT-B, int8 for iOS, int4 for web (2026-07-23)
+
+The pipeline that sidesteps ALL the Apple/MobileCLIP licensing drama:
+1. Take the current LAION-init ViT-B/16, distill BioCLIP-2 bird knowledge in, THEN
+   WiSE-FT ground-truth fine-tune to make the **int8 as good as possible** (goal: match
+   or beat teacher on real bird accuracy).
+2. **iOS: ship that int8 (~45MB).** Clean, fast on Neural Engine, size irrelevant. Solid.
+3. **Web: quantize the SAME fine-tuned model to int4 (~22MB).** Clean, hits <25MB.
+
+**Reframe on the int4 accuracy risk (John, 2026-07-23):** the int4 "collapse" I kept
+citing was BioCLIP-2 ViT-L dropping 87→78 on OUR 27-img golden set, i.e. **down to ~GPT
+(gpt-5.4-mini = 83/87) level.** But GPT-level accuracy that runs INSTANT + OFFLINE +
+FREE + 22MB is a genuinely GOOD product — the on-device motivation was speed/offline/free,
+NOT beating GPT on accuracy. So the acceptance bar for the web int4 model is **"useful
+(~GPT-level is fine)," NOT "matches BioCLIP."** Do the fine-tune-int8-first-THEN-quantize
+order so int4 falls from a higher starting point.
+
+**Still worth MEASURING (not assuming):** how far int4 drops OUR fine-tuned ViT-B
+(smaller models can quantize worse than the ViT-L we tested; fine-tuning may add
+robustness). Levers if naive int4 disappoints: mixed precision (int8 sensitive layers +
+int4 rest), better calibration. But even a meaningful drop likely lands in "still useful,"
+not "broken." Worst realistic case: web = GPT-level-but-instant/offline/free. Best case:
+near-teacher at 22MB. Either way web is served from our OWN clean model — no Apple, no
+MobileCLIP, no from-scratch training.
 
 ## Teacher + future improvement passes
 
