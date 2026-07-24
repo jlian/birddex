@@ -38,7 +38,7 @@ training on the RTX 3080.
 - [ ] **Map the cosine→accuracy curve:** eval NABirds top-1/5 at epoch 1/5/10/final checkpoints. Answers "is early already usable?" and "minimum epochs needed" — could cut the expensive final MobileCLIP run short. (Needs per-epoch checkpoints saved; add to future runs.)
 - [ ] **Measure STOCK MobileCLIP-S2 on our bird benchmark (baseline floor):** download Apple's weights, zero-shot with ITS OWN text tower on the 27-img golden set + NABirds. We've been ASSERTING "stock is bird-blind" — measure it. Gives the clean before/after (stock → our distilled student, same arch) = pure bird-knowledge delta for the writeup. Inference-only, needs GPU (when free) or slow CPU.
 - [ ] **Adopt Apple's WebDataset + open_clip_train dataloader (option A), keep our image-only cosine loss** — see "Adopt upstream training path" below. Prime suspect for both the ViT-B 314 img/s and FastViT slowness is our random-small-file dataloader; Apple's tar-sharded path is built to saturate the GPU. Do before the final MobileCLIP-S2 run.
-- [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU — see "Cloud GPU rental", ~$10-20 fallback)
+- [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU — see "Cloud GPU rental", ~$10-20 fallback). ⚠️ **LICENSE GATE:** only Apple `datacompdr` weights exist for MobileCLIP-S2 (research-only, confirmed 2026-07-23). Commercial ship requires training FastViT from RANDOM init (costly) OR an open-weights small arch OR shipping the LAION ViT-B/16 (~45MB, clean). See Licensing section.
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
 - [ ] Export: int8 + ONNX + Core ML; demo page real WebGPU numbers
@@ -600,6 +600,61 @@ Implications:
 (Observation grouping still matters for the eval split — see (A) — independent of this.)
 
 ---
+
+## Licensing (SHIP GATE — read before commercial release)
+
+Three components, each with its own license. Two are clean; ONE (Apple's MobileCLIP
+weights) blocks commercial shipping and our current config uses it.
+
+**1. BioCLIP-2 teacher — CLEAN (MIT).** BioCLIP-2 is a ViT-L/14 CLIP **pre-trained on
+LAION-2B**, then trained on TreeOfLife-200M (with LAION-2B experience replay). MIT
+licensed. Distilling its *knowledge* (embeddings as targets) and redistributing is
+fine with attribution. ✅
+
+**2. Training data — CLEAN (handled).** Corpus is openly-licensed iNaturalist;
+ShareAlike images EXCLUDED from `train_manifest.parquet` for MIT weight release;
+ATTRIBUTIONS.md bundled at release for CC-BY. ✅
+
+**3. MobileCLIP-S2 — THE PROBLEM. Apple ships 3 separate licenses:**
+- **Architecture / code** (`LICENSE`): **MIT** — using the FastViT/MobileCLIP-S2
+  *architecture* is fine commercially. ✅
+- **Pretrained weights** (`LICENSE_MODELS`): **RESEARCH-ONLY, non-commercial.** Verbatim:
+  license is "exclusively for Research Purposes" which "does not include any commercial
+  exploitation, product development or use in any commercial product or service." AND
+  "Model Derivatives" explicitly includes "any retraining, fine-tuning" — so a student
+  INITIALIZED from Apple's weights is a derivative and inherits the non-commercial
+  restriction. ❌
+- Data (`LICENSE_DATA`): CC-BY-NC-ND (DataCompDR; not relevant to us).
+
+**⚠️ CURRENT CONFIG BUG:** `train_student.py` defaults to
+`--arch MobileCLIP-S2 --pretrained datacompdr` — `datacompdr` IS Apple's research-only
+weights. A shipping run as-configured would produce a NON-COMMERCIAL derivative. The
+current ViT-B/16 run is NOT affected (it uses `--pretrained laion2b_s34b_b88k`, LAION,
+clean).
+
+**CONFIRMED 2026-07-23: NO non-Apple MobileCLIP-S2 checkpoint exists.** Queried
+open_clip registry: `MobileCLIP-S2 -> ['datacompdr']`, `MobileCLIP2-S2 -> ['dfndr2b']`,
+S1/B same, all Apple. The architecture is MIT but ONLY Apple has ever trained weights
+for it. So "init MobileCLIP-S2 from LAION" is not an option off-the-shelf.
+
+**Paths to a commercially-clean small model:**
+1. **Train MobileCLIP-S2 (FastViT) from RANDOM init ourselves.** Architecture is MIT, so
+   a from-scratch FastViT + our bird distillation is clean. COST: no LAION head-start →
+   distillation must teach general vision AND bird specialization from noise → far more
+   data/epochs, and FastViT is already slow to train. Expensive (likely > the ~$10-20
+   cloud estimate; real from-scratch CLIP-scale training).
+2. **Use a different small arch WITH open pretrained weights** (smarter play): small ViT
+   (ViT-S/16, ViT-B/32) or other mobile arch with LAION/open init. Lose FastViT's
+   specific Neural-Engine speed edge, but keep the LAION head-start (easy distillation,
+   like our current run) AND stay clean.
+3. **Ship the ViT-B/16 we're training NOW** (~45MB int8, LAION-init, MIT-clean). Misses
+   the <25MB stretch but hits the <86MB fallback with ZERO licensing issue.
+
+**Strategic read:** MobileCLIP-S2 is the ONLY component with a licensing problem, and
+it's pulled in ONLY by the <25MB stretch target. So: if ~45MB (clean LAION ViT-B) is
+acceptable → ship it, done. If <25MB is essential → train FastViT from scratch (costly)
+or pick another small open-weights arch. The license constraint argues AGAINST
+MobileCLIP-S2 as the shipping arch unless the size win justifies from-scratch training.
 
 ## Teacher + future improvement passes
 
