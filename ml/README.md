@@ -601,60 +601,61 @@ Implications:
 
 ---
 
-## Licensing (SHIP GATE — read before commercial release)
+## Licensing (SHIP GATE — read before release)
 
-Three components, each with its own license. Two are clean; ONE (Apple's MobileCLIP
-weights) blocks commercial shipping and our current config uses it.
+**CONTEXT THAT CHANGES EVERYTHING (2026-07-23):** (1) The <25MB target is a **WEB**
+constraint (Cloudflare static asset the browser downloads), NOT iOS. iOS bundle size is
+a non-issue (apps are routinely 100s of MB); iOS only cares about SPEED, and BioCLIP-2
+ViT-L int8 (307MB) already **runs fine on the iPhone Neural Engine** (prior finding). So
+iOS is essentially solved with clean weights (ship BioCLIP-2 or the LAION ViT-B) — the
+small model is fundamentally a WEB play. (2) **WingDex is non-commercial** (no sales/ads/
+subs, zero revenue), which may or may not clear Apple's "Research Purposes" terms — see
+below.
 
-**1. BioCLIP-2 teacher — CLEAN (MIT).** BioCLIP-2 is a ViT-L/14 CLIP **pre-trained on
-LAION-2B**, then trained on TreeOfLife-200M (with LAION-2B experience replay). MIT
-licensed. Distilling its *knowledge* (embeddings as targets) and redistributing is
-fine with attribution. ✅
+Three components, each its own license:
 
-**2. Training data — CLEAN (handled).** Corpus is openly-licensed iNaturalist;
-ShareAlike images EXCLUDED from `train_manifest.parquet` for MIT weight release;
-ATTRIBUTIONS.md bundled at release for CC-BY. ✅
+**1. BioCLIP-2 teacher — CLEAN (MIT).** ViT-L/14 pre-trained on LAION-2B, then
+TreeOfLife-200M. Distilling its knowledge + redistributing is fine w/ attribution. ✅
 
-**3. MobileCLIP-S2 — THE PROBLEM. Apple ships 3 separate licenses:**
-- **Architecture / code** (`LICENSE`): **MIT** — using the FastViT/MobileCLIP-S2
-  *architecture* is fine commercially. ✅
-- **Pretrained weights** (`LICENSE_MODELS`): **RESEARCH-ONLY, non-commercial.** Verbatim:
-  license is "exclusively for Research Purposes" which "does not include any commercial
-  exploitation, product development or use in any commercial product or service." AND
-  "Model Derivatives" explicitly includes "any retraining, fine-tuning" — so a student
-  INITIALIZED from Apple's weights is a derivative and inherits the non-commercial
-  restriction. ❌
-- Data (`LICENSE_DATA`): CC-BY-NC-ND (DataCompDR; not relevant to us).
+**2. Training data — CLEAN (handled).** Openly-licensed iNat; ShareAlike excluded for MIT
+release; ATTRIBUTIONS.md bundled at release. ✅
 
-**⚠️ CURRENT CONFIG BUG:** `train_student.py` defaults to
-`--arch MobileCLIP-S2 --pretrained datacompdr` — `datacompdr` IS Apple's research-only
-weights. A shipping run as-configured would produce a NON-COMMERCIAL derivative. The
-current ViT-B/16 run is NOT affected (it uses `--pretrained laion2b_s34b_b88k`, LAION,
-clean).
+**3. MobileCLIP-S2 — the only issue, and only for the WEB small-model:**
+- Architecture/code (`LICENSE`): **MIT** — the arch is fine. ✅
+- Pretrained weights (`LICENSE_MODELS`): **"Research Purposes" only**, defined as
+  "non-commercial scientific research... does not include any commercial exploitation,
+  product development or use in any commercial product or service." "Model Derivatives"
+  includes retraining/fine-tuning → a student init'd from Apple weights inherits this.
+- `datacompdr` = Apple's pretrained MobileCLIP-S2 weights (the restricted init).
+- **CONFIRMED: no non-Apple MobileCLIP-S2 checkpoint exists** (open_clip registry:
+  `MobileCLIP-S2->['datacompdr']`, `MobileCLIP2-S2->['dfndr2b']`, all Apple).
 
-**CONFIRMED 2026-07-23: NO non-Apple MobileCLIP-S2 checkpoint exists.** Queried
-open_clip registry: `MobileCLIP-S2 -> ['datacompdr']`, `MobileCLIP2-S2 -> ['dfndr2b']`,
-S1/B same, all Apple. The architecture is MIT but ONLY Apple has ever trained weights
-for it. So "init MobileCLIP-S2 from LAION" is not an option off-the-shelf.
+**Does WingDex's non-commercial status clear Apple's terms? AMBIGUOUS — don't assume.**
+- FOR: no money made → arguably not "commercial exploitation" / not a "commercial product
+  or service."
+- AGAINST: the terms ALSO exclude "product development" and "use in any... product"
+  (listed separately from "commercial"). A shipped App Store app — free or not — with a
+  trademark (WingDex®) reads like "product use," not the papers/experiments the
+  "Research Purposes" language seems aimed at.
+- This is a genuine legal-interpretation call, NOT resolvable by vibes. (Written by an AI
+  reading a license, not a lawyer.) DE-RISK: email Apple ML re: a commercial/product-use
+  path (these research licenses sometimes have a "contact us" clause) before depending
+  on it.
 
-**Paths to a commercially-clean small model:**
-1. **Train MobileCLIP-S2 (FastViT) from RANDOM init ourselves.** Architecture is MIT, so
-   a from-scratch FastViT + our bird distillation is clean. COST: no LAION head-start →
-   distillation must teach general vision AND bird specialization from noise → far more
-   data/epochs, and FastViT is already slow to train. Expensive (likely > the ~$10-20
-   cloud estimate; real from-scratch CLIP-scale training).
-2. **Use a different small arch WITH open pretrained weights** (smarter play): small ViT
-   (ViT-S/16, ViT-B/32) or other mobile arch with LAION/open init. Lose FastViT's
-   specific Neural-Engine speed edge, but keep the LAION head-start (easy distillation,
-   like our current run) AND stay clean.
-3. **Ship the ViT-B/16 we're training NOW** (~45MB int8, LAION-init, MIT-clean). Misses
-   the <25MB stretch but hits the <86MB fallback with ZERO licensing issue.
+**⚠️ CONFIG NOTE:** `train_student.py` defaults to `--pretrained datacompdr` (Apple's
+restricted weights). FINE for research/measurement experiments (e.g. the stock-MobileCLIP
+baseline), but the SHIPPING config must not use it unless the non-commercial question is
+resolved in our favor. Current ViT-B run is clean (`laion2b_s34b_b88k`).
 
-**Strategic read:** MobileCLIP-S2 is the ONLY component with a licensing problem, and
-it's pulled in ONLY by the <25MB stretch target. So: if ~45MB (clean LAION ViT-B) is
-acceptable → ship it, done. If <25MB is essential → train FastViT from scratch (costly)
-or pick another small open-weights arch. The license constraint argues AGAINST
-MobileCLIP-S2 as the shipping arch unless the size win justifies from-scratch training.
+**Decision tree:**
+- **iOS:** ship BioCLIP-2 ViT-L int8 or the clean LAION ViT-B — CLEAN, size irrelevant,
+  Neural Engine handles it. No Apple-weights question at all.
+- **Web, if we even need a small on-device model:** the ORIGINAL plan was **"web keeps
+  GPT"** — if that holds, the whole MobileCLIP-S2 question is OPTIONAL/future, not
+  blocking. If we DO want on-device web: (a) resolve the non-commercial question with
+  Apple, OR (b) train FastViT from random init (costly, ~$200-500 + data pipeline), OR
+  (c) use a small open-weights arch (unscouted — see below), OR (d) ship the LAION ViT-B
+  (~45MB, clean, misses <25MB but works).
 
 ### What it takes to build a LAION MobileCLIP-S2 ourselves (analysis 2026-07-23)
 
