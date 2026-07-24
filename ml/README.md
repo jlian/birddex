@@ -715,6 +715,16 @@ Apple weights (non-commercial question) or train-from-scratch, no way around it.
 
 ### THE LIKELY ANSWER: one clean ViT-B, int8 for iOS, int4 for web (2026-07-23)
 
+**Web is a FUN FLEX, not a product requirement (John, 2026-07-23):** nobody uses the web
+app; the point is to say "we did WebGPU/WASM on-device CLIP inference client-side" vs just
+calling GPT. So the <25MB target is NOT sacred and web accuracy barely matters. Don't
+over-engineer int4. Options are both fine: ship the int8 ViT-B (~45MB) to web too (still a
+legit "runs in your browser, no server" flex), OR do int4 (~22MB) because getting a tiny
+CLIP running in WASM/WebGPU is itself the fun part (accuracy drop = who cares, it's a demo).
+The `ml/demo/` WebGPU router currently loads BioCLIP ViT-L at 307MB (rude); swapping in our
+own 45/22MB model makes the flex actually pleasant. Priorities: **iOS = real product
+(accuracy matters); web = engineering flex (shipping it at all is the payoff).**
+
 The pipeline that sidesteps ALL the Apple/MobileCLIP licensing drama:
 1. Take the current LAION-init ViT-B/16, distill BioCLIP-2 bird knowledge in, THEN
    WiSE-FT ground-truth fine-tune to make the **int8 as good as possible** (goal: match
