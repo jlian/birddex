@@ -277,11 +277,35 @@ CLIP teacher's image AND text embeddings, global batch 8192 on 8×4 GPUs, lr 1e-
 **Steps (all AFTER the current run frees the GPU):**
 1. Repackaging script: `corpus/*.jpg` + `embeddings/shard_*.npz` → WebDataset
    `.tar` shards (image bytes + 768-d embedding + taxon idx per sample).
+   **Write shards DIRECTLY TO THE NAS** to avoid a 2x local-disk peak (V: vhdx is
+   cramped; a naive convert-in-place keeping both copies needs ~524GB). The corpus
+   is NAS-bound anyway, so this produces the durable artifact where it's headed.
+   Alternative if writing local: shard-and-delete incrementally (pack → verify →
+   delete source, ~1-2GB peak overhead) AFTER the corpus is backed up to the NAS.
 2. Wire our cosine loss into open_clip's webdataset dataloader (small patch, or
    adapt Apple's `dr/`).
 3. Re-benchmark FastViT AND ViT-B through THAT path (true apples-to-apples; expect
-   a large img/s jump for both). This supersedes the synthetic bench.
+   a large img/s jump for both). This supersedes the synthetic bench. **Also verify
+   NAS read throughput feeds the GPU** (see below).
 4. Run the final MobileCLIP-S2 on the winning batch/recipe.
+
+### Training reads shards from the NAS (verify, don't assume)
+
+Plan: train by STREAMING tar shards from the NAS over 10GbE, keeping only the tiny
+~4GB teacher-embeddings + checkpoints local. Clean division: heavy-but-cold JPEGs
+on the NAS, light-but-hot artifacts local. This is exactly what WebDataset is for
+(sequential shard streaming, same as training off S3).
+
+- **Bandwidth is a non-issue on paper:** ~300 img/s × ~100KB/img ≈ ~30MB/s of raw
+  JPEG — trivial for 10GbE (~600MB-1GB/s real) + sequential RAID5 HDD reads.
+- **Real risk is latency/contention/seeks, NOT bandwidth:** UNAS Pro is spinning
+  rust (4×14TB Exos RAID5). A 20-epoch run reads 262GB×20 ≈ 5TB over the wire.
+  WebDataset stays sequential-ish (shard order + shuffle buffer), HDD-friendly, but
+  other NAS load (Stash, backups) or a bad shuffle could stall + starve the GPU.
+- **The `--real` bench (step 3) MUST measure img/s reading shards from the NAS**
+  before committing. If it feeds the GPU: train off the NAS, never copy 262GB
+  locally again. If it stalls: fallback = keep a resized/subset of shards on local
+  disk (the ~4GB embeddings are already local regardless).
 
 Note: open_clip patch pins are in `ml-mobileclip/training/README.md`
 (`open_clip_v2.patch` @ commit 7260a46; v1 @ cf86ee7 for older API).
