@@ -178,6 +178,10 @@ def main():
     ap.add_argument("--patience", type=int, default=3,
                     help="early-stop after N epochs w/o val_cos_sim improvement; 0 disables")
     ap.add_argument("--out", default="runs/pilot")
+    ap.add_argument("--resume", default="",
+                    help="path to a checkpoint (last.pt) to resume from: restores "
+                         "model+optimizer+scheduler+scaler+epoch so training "
+                         "continues the SAME LR trajectory (not a warm restart)")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny end-to-end validation: 3 species, 2 steps")
     args = ap.parse_args()
@@ -227,6 +231,37 @@ def main():
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps)
     scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
 
+    # --- resume: restore full training state so we continue the SAME schedule ---
+    start_epoch = 0
+    best_val = -1.0
+    epochs_since_best = 0
+    gstep = 0
+    if args.resume:
+        if not os.path.exists(args.resume):
+            raise SystemExit(f"--resume path not found: {args.resume}")
+        ck = torch.load(args.resume, map_location=dev)
+        student.load_state_dict(ck["model"])
+        if "epochs" in ck and ck.get("epochs") != args.epochs:
+            log(f"WARNING: checkpoint was for epochs={ck.get('epochs')} but "
+                f"--epochs={args.epochs}; the cosine T_max differs, so the LR "
+                f"trajectory will only match if you pass the SAME --epochs.")
+        if "opt" in ck and ck["opt"] is not None:
+            opt.load_state_dict(ck["opt"])
+            sched.load_state_dict(ck["sched"])
+            scaler.load_state_dict(ck["scaler"])
+            start_epoch = ck.get("epoch", 0)
+            best_val = ck.get("best_val", ck.get("val_cos_sim", -1.0))
+            epochs_since_best = ck.get("epochs_since_best", 0)
+            gstep = ck.get("gstep", start_epoch * len(train_dl))
+            log(f"resumed FULL state from {args.resume}: start_epoch={start_epoch} "
+                f"best_val={best_val:.4f} gstep={gstep} "
+                f"lr={sched.get_last_lr()[0]:.2e}")
+        else:
+            # legacy checkpoint (weights only) -> warm restart, fresh opt/sched
+            log(f"WARNING: {args.resume} has no optimizer/scheduler state (legacy "
+                f"checkpoint). Loaded WEIGHTS ONLY -> this is a WARM RESTART with a "
+                f"fresh LR schedule, not a true resume.")
+
     def run_val():
         student.eval()
         sims, n = 0.0, 0
@@ -244,11 +279,8 @@ def main():
         return sims / max(1, n)
 
     log(f"train={len(train_ds):,} val={len(val_ds):,} steps/epoch={len(train_dl)}")
-    gstep = 0
     LOG_EVERY = 50
-    best_val = -1.0
-    epochs_since_best = 0
-    for ep in range(args.epochs):
+    for ep in range(start_epoch, args.epochs):
         t0 = time.time()
         run_loss, seen = 0.0, 0
         tstep = time.time()
@@ -293,17 +325,26 @@ def main():
         dt = time.time() - t0
         log(f"epoch {ep+1}/{args.epochs}  train_loss={tr:.4f}  "
             f"val_cos_sim={val:.4f}  {dt:.0f}s")
-        ckpt = {"model": student.state_dict(), "args": vars(args),
-                "epoch": ep + 1, "val_cos_sim": val}
-        torch.save(ckpt, os.path.join(args.out, "last.pt"))
-        # keep the best-generalizing checkpoint (peak val_cos_sim), not just last
-        if val > best_val:
+        # update best-val bookkeeping BEFORE checkpointing so last.pt captures the
+        # post-comparison state (a resume from last.pt keeps correct best tracking)
+        improved = val > best_val
+        if improved:
             best_val = val
             epochs_since_best = 0
+        else:
+            epochs_since_best += 1
+        # save FULL training state so --resume continues the exact same trajectory
+        ckpt = {"model": student.state_dict(), "args": vars(args),
+                "epoch": ep + 1, "epochs": args.epochs, "val_cos_sim": val,
+                "opt": opt.state_dict(), "sched": sched.state_dict(),
+                "scaler": scaler.state_dict(), "gstep": gstep,
+                "best_val": best_val, "epochs_since_best": epochs_since_best}
+        torch.save(ckpt, os.path.join(args.out, "last.pt"))
+        # keep the best-generalizing checkpoint (peak val_cos_sim), not just last
+        if improved:
             torch.save(ckpt, os.path.join(args.out, "best.pt"))
             log(f"  new best val_cos_sim={val:.4f} -> best.pt")
         else:
-            epochs_since_best += 1
             # early stop: val stopped improving for `patience` epochs (overfitting)
             if args.patience > 0 and epochs_since_best >= args.patience:
                 log(f"early stop: no val improvement for {args.patience} epochs "
