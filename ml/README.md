@@ -737,6 +737,16 @@ a plain free static asset (no R2 hop) which is a slightly cleaner flex," NOT a r
 requirement. Could just serve the better-accuracy 45MB int8 from R2 everywhere and skip
 int4 entirely.
 
+**BUT there IS one real reason to still want <25MiB (John, 2026-07-23): abuse-proof free
+serving.** Workers static assets are "free and unlimited" (no per-request, no storage
+cost) — structurally impossible to bill, even if a bad actor hammers millions of
+downloads. R2 reads are METERED (Class B, $0.36/M after 10M/mo free) — free at normal
+traffic, but a malicious download-flood COULD push past the free tier into real charges.
+So <25MiB (int4 as a Workers static asset) removes an attack-surface cost vector: "can't
+be griefed into a bill" beats "won't bill under normal use." For a hobby project you don't
+want to babysit, that's a legit reason to hit the target. (Both paths are $0 at normal
+scale; the difference is only under abuse.)
+
 The pipeline that sidesteps ALL the Apple/MobileCLIP licensing drama:
 1. Take the current LAION-init ViT-B/16, distill BioCLIP-2 bird knowledge in, THEN
    WiSE-FT ground-truth fine-tune to make the **int8 as good as possible** (goal: match
