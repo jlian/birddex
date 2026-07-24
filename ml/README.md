@@ -656,6 +656,36 @@ acceptable → ship it, done. If <25MB is essential → train FastViT from scrat
 or pick another small open-weights arch. The license constraint argues AGAINST
 MobileCLIP-S2 as the shipping arch unless the size win justifies from-scratch training.
 
+### What it takes to build a LAION MobileCLIP-S2 ourselves (analysis 2026-07-23)
+
+"Reproduce Apple's MobileCLIP-S2 pretraining on open data so the weights are
+commercially clean." Real research-scale effort, NOT a quick job:
+
+- **Compute:** Apple's efficient recipe (DataCompDR-12M) = 8×A100-80GB × 30-45k iters
+  (~20-30 epochs), roughly ~1 A100-week-equivalent per model. On rented cloud (8×A100 ~
+  $10-15/hr) that's **low hundreds of dollars ($200-500 ballpark)** per run, not the
+  $10-20 casual figure. Their SOTA recipe (DataCompDR-1B, 256×A100 × 200k iters) is
+  cluster-scale, out of reach.
+- **Data pipeline is the real burden, not just GPU:** to match MobileCLIP-S2 quality you
+  need EITHER (a) plain LAION CLIP training — simpler but Apple showed plain training is
+  **10-1000× less sample-efficient**, so far more seen samples / much longer/costlier; OR
+  (b) reproduce DataCompDR-on-LAION — build the reinforced dataset first: generate
+  synthetic captions (CoCa over millions of imgs) + cache 2×ViT-L teacher-ensemble
+  embeddings over the whole set. That's GPU-DAYS of preprocessing BEFORE training. Apple
+  open-sourced the code (`ml-mobileclip-dr`) but the compute is on us.
+- **Data volume:** multi-TB LAION subset (12M pairs min, ideally more) — dwarfs our 262GB
+  bird corpus. Download + storage + management overhead.
+
+**KEY INSIGHT — don't build a general LAION MobileCLIP-S2 as a separate step.** If we're
+spending that compute training a FastViT from random init anyway, fold the BIRD
+distillation INTO that run: train FastViT from random directly toward BioCLIP-2's bird
+embeddings (= option 1 above), skipping the general-LAION-pretraining stage entirely.
+Same cost bucket, ONE run instead of two, yields a bird model directly. Building a
+*general* LAION MobileCLIP-S2 first only makes sense if we wanted a reusable general
+checkpoint for other uses — we don't, we only want birds. So "build LAION MobileCLIP-S2"
+and "train FastViT-from-random for birds" collapse into ~the same expensive job, and the
+latter is more direct. Neither is worth it unless <25MB is non-negotiable.
+
 ## Teacher + future improvement passes
 
 **Teacher = BioCLIP-2 ViT-L/14** (`hf-hub:imageomics/bioclip-2`) — only variant
