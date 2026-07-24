@@ -725,14 +725,17 @@ The `ml/demo/` WebGPU router currently loads BioCLIP ViT-L at 307MB (rude); swap
 own 45/22MB model makes the flex actually pleasant. Priorities: **iOS = real product
 (accuracy matters); web = engineering flex (shipping it at all is the payoff).**
 
-**WHERE THE 25MB NUMBER COMES FROM (confirmed 2026-07-23):** it's the **Cloudflare Pages
-per-asset limit = 25 MiB** (26.2 MB decimal), from CF's own docs. ≤ that → free static
-asset served off the CDN, ships with the site, zero extra infra. > that → CF forces you to
-R2 (object storage), a separate service with setup + a cost dimension (storage + Class
-A/B ops; egress free, decent free tier). So it's a real mechanical reason to prefer int4
-(~22MB, clears 25MiB) over int8 (~45MB, would force the R2 path) FOR WEB. Not accuracy,
-not iOS — purely "free Pages asset vs provisioned R2 bucket." (int4 ~22MB clears it
-comfortably; the MiB-vs-MB gives a hair more headroom but not enough to fit 45MB.)
+**WHERE THE 25MB NUMBER COMES FROM (updated 2026-07-23):** it's the **Cloudflare 25 MiB
+per-asset limit** (26.2 MB decimal) — applies to BOTH Pages AND Workers Static Assets
+(CF's Sep-2025 change raised asset COUNT, not the per-file 25 MiB, which "remains
+unchanged for all customers"). WingDex migrated Pages→Workers (for free observability), but
+the per-file limit is identical. **HOWEVER the constraint is now basically MOOT:** WingDex
+already uses **R2**, so ">25MB forces you to R2" is a non-issue — R2 is already in the stack,
+egress is free, no new setup/cost. So a 45MB int8 model served from R2 to both web+iOS is
+totally fine. **The <25MB target is therefore OPTIONAL** — purely "a sub-25MiB int4 can be
+a plain free static asset (no R2 hop) which is a slightly cleaner flex," NOT a real
+requirement. Could just serve the better-accuracy 45MB int8 from R2 everywhere and skip
+int4 entirely.
 
 The pipeline that sidesteps ALL the Apple/MobileCLIP licensing drama:
 1. Take the current LAION-init ViT-B/16, distill BioCLIP-2 bird knowledge in, THEN
