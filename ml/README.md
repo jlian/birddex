@@ -25,7 +25,7 @@ training on the RTX 3080.
 - [x] Phase 2 — teacher embeddings cached (366 shards, ~2.644M × 768-d)
 - [x] Pilot: 500-species ViT-B/16 (val_cos 0.946; 99% OOD retention on NABirds)
 - [ ] **Full 7,555-species ViT-B/16 baseline run** ← *in progress* (epoch ~10, val_cos ~0.9573)
-- [ ] **Leakage check (do early):** re-run val split grouped by `observation_uuid`; if val_cos drops, regroup ALL splits by observation before trusting accuracy numbers. NABirds/CUB/RealBirdID evals are immune (foreign datasets).
+- [ ] **Leakage check (MEASURED 2026-07-23: avg 1.58 photos/obs, 54% from multi-photo obs, no big bursts):** val_cos is ~54%-leakage-biased but that's just a progress monitor; ship metric NABirds is immune. Only hard requirement: split the ground-truth held-out eval by `observation_uuid`.
 - [ ] **Dedup for variety:** cap per-observation (≤2-3 photos/obs) or sample the 500-cap to maximize distinct observations/observers — same count, more variety. (build_manifest.py change.)
 - [ ] **Pilot experimentation stage (500 sp) — BOTH recipes locked here:**
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
@@ -540,17 +540,20 @@ iNat groups multiple photos per **observation** (one encounter with one bird: bu
 frames, same perch/light, near-duplicates). Our manifest carries `observation_uuid`
 per photo. This creates two related problems:
 
-**(A) EVAL leakage — could be inflating our numbers (SCARY, verify early):** the 2%
-val split in `train_student.py` splits **by photo** (`randperm` over images). If burst
-photos of one observation land on BOTH sides, the model trains on a bird then is
-"tested" on near-identical frames of the SAME bird = leakage → optimistic val_cos and
-retention. Fix: split **by observation_uuid** (all photos of an obs go entirely to
-train OR val). CHECK: query manifest for obs-with-multiple-photos + val images with
-train-set siblings; re-run the split grouped by observation and see if val_cos drops.
-If it barely moves, negligible; if it drops, we've over-reported and must regroup all
-splits by observation. NOTE: **NABirds/CUB/RealBirdID evals are IMMUNE** — they're
-foreign datasets (no shared photos with our iNat training), which is exactly why they
-are the trustworthy OOD anchors. Leakage risk is ONLY the internal iNat split.
+**(A) EVAL leakage — MEASURED 2026-07-23, real but bounded (NOT the ship metric):** the
+2% val split in `train_student.py` splits **by photo**. Measured on the 2.5M manifest:
+2,503,107 photos / 1,588,150 observations = **avg 1.58 photos/obs**. 45.6% are
+singletons (no leakage possible); 54.4% are from multi-photo obs. Distribution: 1.14M
+obs×1, 240K×2, 106K×3, 69K×4-5, 26K×6-10, only 5,350 (0.3%)×>10, max 165. So NO huge
+bursts — typical obs is 1-2 photos. BUT with random by-photo split, ~every multi-photo
+val image has a train sibling (~98% each), so **~54% of val photos are "leaked" →
+val_cos_sim is optimistically biased.** Impact is limited because: (1) the SHIP metric
+is NABirds/CUB/RealBirdID (foreign datasets, zero shared photos, leakage-IMMUNE — the
+pilot's 99.2% retention was clean); (2) val_cos is just a training-progress monitor,
+not ship accuracy; (3) for retention the bias partly cancels (teacher+student both
+scored on the same set). **VERDICT: not scary for go/no-go, but treat val_cos as a
+loose upper bound. The ground-truth held-out eval (which COULD drive go/no-go) MUST be
+split by observation_uuid** — already specified in the sampler prereq above.
 
 **(B) TRAINING variety — the cap wastes budget on near-dups (real improvement):**
 `build_manifest.py` caps at 500 photos/species via `ORDER BY photo_id` (arbitrary),
