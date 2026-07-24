@@ -34,7 +34,7 @@ training on the RTX 3080.
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
 - [ ] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect — see caveats). Harness ready: `ml/distill/bench_fastvit.py` (warmup, cudnn.benchmark, AMP, batch sweep 64→512, channels_last both ways in synthetic mode, `--real` reuses the actual train_student dataloader for end-to-end img/s). RUN ONLY WHEN GPU IS FREE.
 - [ ] **Adopt Apple's WebDataset + open_clip_train dataloader (option A), keep our image-only cosine loss** — see "Adopt upstream training path" below. Prime suspect for both the ViT-B 314 img/s and FastViT slowness is our random-small-file dataloader; Apple's tar-sharded path is built to saturate the GPU. Do before the final MobileCLIP-S2 run.
-- [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU)
+- [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU — see "Cloud GPU rental", ~$10-20 fallback)
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
 - [ ] Export: int8 + ONNX + Core ML; demo page real WebGPU numbers
@@ -242,6 +242,20 @@ batch size by measuring**, per the Jul-22 lesson (don't assert VRAM/throughput
 without measuring).
 
 ---
+
+### Cloud GPU rental (fallback only, if the 3080 can't do the final run)
+
+**Almost certainly NOT needed** — the "need cloud" conclusion rests on the suspect
+17s/step number; fix the dataloader (WebDataset + GPU decode) and re-bench on the
+3080 first. Renting to mask a dataloader bottleneck would be wrong. Only the single
+final MobileCLIP-S2 run is even a candidate; everything else stays on the 3080.
+
+If we do rent, it's a **sub-$20 afternoon, one GPU, not a cluster:**
+- **RunPod** — clean UX, per-second billing, Community (cheap) vs Secure (datacenter). Good default for a one-off.
+- **Vast.ai** — cheapest (marketplace, supply/demand), slightly more variable.
+- **Lambda** — pricier datacenter; **AWS/GCP** — 3-5x, don't bother.
+- Rough mid-2026 on-demand: RTX 4090 24GB ~$0.30-0.70/hr; A100 80GB ~$0.67-1.99/hr; H100 80GB ~$1.50-3.29/hr. Spot/interruptible −30-50% if you checkpoint.
+- Sizing: full run is ~30h on the 3080; an A100 is ~3-4x faster → ~8-10h → **~$10-20 total** (A100) or ~$3-8 (4090). Rent one GPU for an afternoon, done.
 
 ## Adopt upstream training path (option A, decided 2026-07-23)
 
