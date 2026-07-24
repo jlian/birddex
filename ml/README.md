@@ -26,7 +26,6 @@ training on the RTX 3080.
 - [x] Pilot: 500-species ViT-B/16 (val_cos 0.946; 99% OOD retention on NABirds)
 - [ ] **Full 7,555-species ViT-B/16 baseline run** ← *in progress* (epoch ~10, val_cos ~0.9573)
 - [ ] **Leakage check (MEASURED 2026-07-23: avg 1.58 photos/obs, 54% from multi-photo obs, no big bursts):** val_cos is ~54%-leakage-biased but that's just a progress monitor; ship metric NABirds is immune. Only hard requirement: split the ground-truth held-out eval by `observation_uuid`.
-- [ ] **Dedup for variety:** cap per-observation (≤2-3 photos/obs) or sample the 500-cap to maximize distinct observations/observers — same count, more variety. (build_manifest.py change.)
 - [ ] **Pilot experimentation stage (500 sp) — BOTH recipes locked here:**
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
   - [ ] adopt from MobileCLIP papers (see "What MobileCLIP's papers say"): strong aug (RandomResizedCrop [0.08,1.0]+RandAugment), multi-augmentation embedding caching, AdamW β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0
@@ -555,13 +554,16 @@ scored on the same set). **VERDICT: not scary for go/no-go, but treat val_cos as
 loose upper bound. The ground-truth held-out eval (which COULD drive go/no-go) MUST be
 split by observation_uuid** — already specified in the sampler prereq above.
 
-**(B) TRAINING variety — the cap wastes budget on near-dups (real improvement):**
-`build_manifest.py` caps at 500 photos/species via `ORDER BY photo_id` (arbitrary),
-with NO observation grouping. A species can fill its 500 cap from a few
-heavily-bursted observations, starving variety. Since we cap anyway, spend the budget
-on DIVERSITY: cap per observation too (e.g. ≤2-3 photos/obs), or sample the 500 to
-maximize distinct observations/observers/locations. Same image count, far more
-variety = better generalization. Same `group-by-observation` logic as (A).
+**(B) TRAINING variety — MEASURED 2026-07-23: dedup NOT worth it, corpus already diverse.**
+Original worry: the 500-cap wastes budget on burst near-dups. Measured: FALSE. Only
+**11 of 7,555 species** actually hit the 500 cap; avg species has **269 photos from 210
+distinct observations** (avg 1.58 photos/obs). We're photo-LIMITED, not cap-limited —
+the cap almost never binds, so there's no burst pool crowding out variety. Applying a
+per-observation cap would just DELETE 10-19% of training data (cap-3 → 89.5% kept, cap-2
+→ 81.3%) for ~zero diversity gain, and would disproportionately hurt the 1,132 rare
+species stuck at 50-99 photos. **DECISION: do NOT dedup-for-variety.** (Observation
+grouping still matters for the eval split — see (A) — but that's a correctness fix, not
+data reduction.)
 
 ---
 
