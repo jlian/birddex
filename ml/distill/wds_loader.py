@@ -70,7 +70,14 @@ def make_wds_loader(urls, preprocess, batch_size, workers,
     ds = ds.batched(batch_size, partial=not is_train)
 
     if epoch_samples:
-        ds = ds.with_epoch(epoch_samples // max(1, batch_size))
+        # NOTE: with_epoch() is applied AFTER .batched(), so each item is a BATCH,
+        # hence nbatches= (passing a batch count as nsamples silently fails to cap
+        # the epoch). ALSO: each DataLoader worker runs its own copy of the
+        # pipeline and yields nbatches, so divide by the worker count or the loop
+        # overruns steps/epoch by exactly `workers`x.
+        total_batches = max(1, epoch_samples // max(1, batch_size))
+        per_worker = max(1, total_batches // max(1, workers))
+        ds = ds.with_epoch(nbatches=per_worker)
 
     loader = wds.WebLoader(
         ds,

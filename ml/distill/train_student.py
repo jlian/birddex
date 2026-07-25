@@ -182,6 +182,20 @@ def main():
                     help="path to a checkpoint (last.pt) to resume from: restores "
                          "model+optimizer+scheduler+scaler+epoch so training "
                          "continues the SAME LR trajectory (not a warm restart)")
+    ap.add_argument("--wds", default="",
+                    help="WebDataset mode: shard glob/brace pattern, e.g. "
+                         "'/mnt/nas/WingDex-Distill/wds/shard-{00000..00249}.tar'. "
+                         "Streams tar shards sequentially instead of opening "
+                         "millions of individual corpus files at random.")
+    ap.add_argument("--wds-val", default="",
+                    help="shard pattern held out for validation (default: last shard)")
+    ap.add_argument("--wds-epoch-samples", type=int, default=0,
+                    help="samples per epoch in --wds mode (REQUIRED with --wds: an "
+                         "IterableDataset has no len(), and the cosine LR schedule "
+                         "needs steps/epoch)")
+    ap.add_argument("--wds-shuffle", type=int, default=10000,
+                    help="within-shard shuffle buffer; shards are packed in taxon "
+                         "order so a small buffer gives taxon-correlated batches")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny end-to-end validation: 3 species, 2 steps")
     args = ap.parse_args()
@@ -201,33 +215,66 @@ def main():
     log(f"device={dev} arch={args.arch}/{args.pretrained} "
         f"pilot_species={args.pilot_species} epochs={args.epochs} batch={args.batch}")
 
-    rows, nsp = pick_rows(args.train_manifest, args.pilot_species)
-    log(f"selected {len(rows):,} images across {nsp} species")
+    if args.wds:
+        # ---- WebDataset path: stream .tar shards (no per-file random opens) ----
+        from wds_loader import make_wds_loader
+        if not args.wds_epoch_samples:
+            raise SystemExit("--wds requires --wds-epoch-samples (IterableDataset "
+                             "has no len(), and the cosine LR schedule needs "
+                             "steps/epoch)")
+        student = Student(args.arch, args.pretrained).to(dev)
+        if args.wds_val:
+            train_urls, val_urls = args.wds, args.wds_val
+        else:
+            # hold out the LAST shard for validation so train/val don't overlap
+            all_shards = sorted(glob.glob(args.wds)) if "*" in args.wds else [args.wds]
+            if len(all_shards) > 1:
+                train_urls, val_urls = all_shards[:-1], all_shards[-1:]
+                log(f"wds: holding out {os.path.basename(val_urls[0])} for val")
+            else:
+                train_urls = val_urls = all_shards
+                log("wds: WARNING only one shard -> train/val OVERLAP (smoke only)")
+        train_dl = make_wds_loader(train_urls, student.preprocess, args.batch,
+                                   args.workers, shuffle=args.wds_shuffle,
+                                   is_train=True,
+                                   epoch_samples=args.wds_epoch_samples)
+        val_samples = max(args.batch, args.wds_epoch_samples // 50)
+        val_dl = make_wds_loader(val_urls, student.preprocess, args.batch,
+                                 max(1, args.workers // 2), shuffle=0,
+                                 is_train=False, epoch_samples=val_samples)
+        steps_per_epoch = max(1, args.wds_epoch_samples // args.batch)
+        log(f"wds mode: {args.wds_epoch_samples:,} samples/epoch -> "
+            f"{steps_per_epoch:,} steps/epoch, val~{val_samples:,} samples")
+    else:
+        rows, nsp = pick_rows(args.train_manifest, args.pilot_species)
+        log(f"selected {len(rows):,} images across {nsp} species")
 
-    wanted = {r[0] for r in rows} if (args.pilot_species and args.pilot_species > 0) else None
-    emb = load_teacher_embeddings(args.embeddings_dir, wanted)
+        wanted = {r[0] for r in rows} if (args.pilot_species and args.pilot_species > 0) else None
+        emb = load_teacher_embeddings(args.embeddings_dir, wanted)
 
-    student = Student(args.arch, args.pretrained).to(dev)
-    ds = BirdDistillDataset(rows, args.corpus, emb, student.preprocess)
-    log(f"dataset usable (img+embedding present): {len(ds):,}")
+        student = Student(args.arch, args.pretrained).to(dev)
+        ds = BirdDistillDataset(rows, args.corpus, emb, student.preprocess)
+        log(f"dataset usable (img+embedding present): {len(ds):,}")
 
-    n_val = max(1, int(len(ds) * args.val_frac))
-    g = torch.Generator().manual_seed(42)
-    perm = torch.randperm(len(ds), generator=g).tolist()
-    val_idx, train_idx = set(perm[:n_val]), perm[n_val:]
-    if args.smoke:
-        train_idx = train_idx[:64]
-    train_ds = torch.utils.data.Subset(ds, train_idx)
-    val_ds = torch.utils.data.Subset(ds, sorted(val_idx))
+        n_val = max(1, int(len(ds) * args.val_frac))
+        g = torch.Generator().manual_seed(42)
+        perm = torch.randperm(len(ds), generator=g).tolist()
+        val_idx, train_idx = set(perm[:n_val]), perm[n_val:]
+        if args.smoke:
+            train_idx = train_idx[:64]
+        train_ds = torch.utils.data.Subset(ds, train_idx)
+        val_ds = torch.utils.data.Subset(ds, sorted(val_idx))
 
-    train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True,
-                          num_workers=args.workers, collate_fn=collate,
-                          pin_memory=True, drop_last=True, persistent_workers=args.workers > 0)
-    val_dl = DataLoader(val_ds, batch_size=args.batch, shuffle=False,
-                        num_workers=args.workers, collate_fn=collate, pin_memory=True)
+        train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True,
+                              num_workers=args.workers, collate_fn=collate,
+                              pin_memory=True, drop_last=True, persistent_workers=args.workers > 0)
+        val_dl = DataLoader(val_ds, batch_size=args.batch, shuffle=False,
+                            num_workers=args.workers, collate_fn=collate, pin_memory=True)
+        steps_per_epoch = len(train_dl)
+        log(f"train={len(train_ds):,} val={len(val_ds):,}")
 
     opt = torch.optim.AdamW(student.parameters(), lr=args.lr, weight_decay=args.wd)
-    steps = max(1, len(train_dl) * args.epochs)
+    steps = max(1, steps_per_epoch * args.epochs)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps)
     scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
 
@@ -252,7 +299,7 @@ def main():
             start_epoch = ck.get("epoch", 0)
             best_val = ck.get("best_val", ck.get("val_cos_sim", -1.0))
             epochs_since_best = ck.get("epochs_since_best", 0)
-            gstep = ck.get("gstep", start_epoch * len(train_dl))
+            gstep = ck.get("gstep", start_epoch * steps_per_epoch)
             log(f"resumed FULL state from {args.resume}: start_epoch={start_epoch} "
                 f"best_val={best_val:.4f} gstep={gstep} "
                 f"lr={sched.get_last_lr()[0]:.2e}")
@@ -278,7 +325,7 @@ def main():
         student.train()
         return sims / max(1, n)
 
-    log(f"train={len(train_ds):,} val={len(val_ds):,} steps/epoch={len(train_dl)}")
+    log(f"steps/epoch={steps_per_epoch:,}")
     LOG_EVERY = 50
     for ep in range(start_epoch, args.epochs):
         t0 = time.time()
@@ -307,7 +354,7 @@ def main():
             if gstep % LOG_EVERY == 0:
                 dt = time.time() - tstep
                 ips = (LOG_EVERY * x.shape[0]) / max(1e-6, dt)
-                log(f"  ep{ep+1} step {bi+1}/{len(train_dl)} "
+                log(f"  ep{ep+1} step {bi+1}/{steps_per_epoch} "
                     f"loss={loss.item():.4f} cos={1-loss.item():.4f} "
                     f"{ips:.0f} img/s")
                 tstep = time.time()
