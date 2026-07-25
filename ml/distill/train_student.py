@@ -113,6 +113,45 @@ def collate(batch):
     return xs[oks], ts[oks]
 
 
+def build_train_preprocess(eval_preprocess, mode):
+    """Train-time transform.
+
+    'none' -> the eval transform (Resize+CenterCrop), i.e. EXACTLY the view the
+    teacher was embedded from, so the cached target matches the student input.
+
+    'light' -> RandomResizedCrop(scale 0.65-1.0) + horizontal flip. Deliberately
+    milder than MobileCLIP's [0.08, 1.0]: their strong aug is only sound because
+    they cache a teacher embedding PER AUGMENTED VIEW. We cache one center-crop
+    embedding per image, so an aggressive crop would ask the student to reproduce
+    an embedding of content it can no longer see. 0.65 keeps most of the frame.
+    """
+    from torchvision import transforms as T
+
+    if mode == "none":
+        return eval_preprocess
+
+    # reuse the arch's own size + normalization from the eval pipeline
+    size, normalize = None, None
+    for t in getattr(eval_preprocess, "transforms", []):
+        if isinstance(t, T.CenterCrop):
+            size = t.size if isinstance(t.size, (tuple, list)) else (t.size, t.size)
+        if isinstance(t, T.Normalize):
+            normalize = t
+    if size is None:
+        size = (224, 224)
+    if normalize is None:
+        raise SystemExit("could not find Normalize in the eval preprocess")
+
+    return T.Compose([
+        T.RandomResizedCrop(size, scale=(0.65, 1.0), ratio=(0.85, 1.18),
+                            interpolation=T.InterpolationMode.BICUBIC),
+        T.RandomHorizontalFlip(),
+        T.Lambda(lambda im: im.convert("RGB")),
+        T.ToTensor(),
+        normalize,
+    ])
+
+
 class Student(nn.Module):
     """MobileCLIP visual tower + projection into the teacher's 768-d space."""
 
@@ -173,6 +212,29 @@ def main():
     ap.add_argument("--batch", type=int, default=256)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--wd", type=float, default=0.1)
+    ap.add_argument("--beta2", type=float, default=0.999,
+                    help="AdamW beta2. MobileCLIP2 uses 0.95 (faster adaptation, "
+                         "standard for large-scale CLIP/distillation training)")
+    ap.add_argument("--warmup", type=int, default=0,
+                    help="linear LR warmup steps (MobileCLIP2 uses ~2k iters). "
+                         "0 disables. Prevents the large early updates that a "
+                         "cold optimizer + full LR produce")
+    ap.add_argument("--grad-clip", type=float, default=0.0,
+                    help="clip grad-norm to this value (MobileCLIP2 uses 1.0). "
+                         "0 disables")
+    ap.add_argument("--min-lr", type=float, default=0.0,
+                    help="cosine schedule floor (MobileCLIP2 anneals 1e-3 -> 1e-6, "
+                         "i.e. min_lr = lr/1000). 0 = anneal to zero")
+    ap.add_argument("--aug", default="none", choices=["none", "light"],
+                    help="train-time augmentation. 'none' = the same center-crop "
+                         "view the teacher was embedded from (target-matched). "
+                         "'light' = RandomResizedCrop(scale 0.65-1.0) + hflip, "
+                         "which stays close enough to the cached target to be "
+                         "safe. STRONG aug (RRC 0.08-1.0 + RandAugment) is NOT "
+                         "offered: our teacher cache has ONE center-crop embedding "
+                         "per image, so an aggressive crop would train against a "
+                         "target describing content the student cannot see. That "
+                         "needs multi-view embedding caching first (SSOT gap #2)")
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--val-frac", type=float, default=0.02)
     ap.add_argument("--patience", type=int, default=3,
@@ -223,6 +285,7 @@ def main():
                              "has no len(), and the cosine LR schedule needs "
                              "steps/epoch)")
         student = Student(args.arch, args.pretrained).to(dev)
+        train_pp = build_train_preprocess(student.preprocess, args.aug)
         if args.wds_val:
             train_urls, val_urls = args.wds, args.wds_val
         else:
@@ -234,7 +297,7 @@ def main():
             else:
                 train_urls = val_urls = all_shards
                 log("wds: WARNING only one shard -> train/val OVERLAP (smoke only)")
-        train_dl = make_wds_loader(train_urls, student.preprocess, args.batch,
+        train_dl = make_wds_loader(train_urls, train_pp, args.batch,
                                    args.workers, shuffle=args.wds_shuffle,
                                    is_train=True,
                                    epoch_samples=args.wds_epoch_samples)
@@ -253,6 +316,7 @@ def main():
         emb = load_teacher_embeddings(args.embeddings_dir, wanted)
 
         student = Student(args.arch, args.pretrained).to(dev)
+        train_pp = build_train_preprocess(student.preprocess, args.aug)
         ds = BirdDistillDataset(rows, args.corpus, emb, student.preprocess)
         log(f"dataset usable (img+embedding present): {len(ds):,}")
 
@@ -264,6 +328,10 @@ def main():
             train_idx = train_idx[:64]
         train_ds = torch.utils.data.Subset(ds, train_idx)
         val_ds = torch.utils.data.Subset(ds, sorted(val_idx))
+        if args.aug != "none":
+            # train subset gets the augmented view; val keeps the center crop
+            train_ds = torch.utils.data.Subset(
+                BirdDistillDataset(rows, args.corpus, emb, train_pp), train_idx)
 
         train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True,
                               num_workers=args.workers, collate_fn=collate,
@@ -273,9 +341,33 @@ def main():
         steps_per_epoch = len(train_dl)
         log(f"train={len(train_ds):,} val={len(val_ds):,}")
 
-    opt = torch.optim.AdamW(student.parameters(), lr=args.lr, weight_decay=args.wd)
+    opt = torch.optim.AdamW(student.parameters(), lr=args.lr,
+                            betas=(0.9, args.beta2), weight_decay=args.wd)
     steps = max(1, steps_per_epoch * args.epochs)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps)
+    if args.warmup > 0 or args.min_lr > 0:
+        # linear warmup -> cosine decay to min_lr (MobileCLIP2 schedule shape).
+        # Implemented as a LambdaLR multiplier on the base LR so warmup and the
+        # cosine floor compose correctly.
+        import math as _math
+        warm = max(0, min(args.warmup, steps - 1))
+        floor = (args.min_lr / args.lr) if args.lr > 0 else 0.0
+
+        def _lr_lambda(step):
+            if warm and step < warm:
+                return (step + 1) / warm
+            prog = (step - warm) / max(1, steps - warm)
+            prog = min(1.0, max(0.0, prog))
+            cos = 0.5 * (1.0 + _math.cos(_math.pi * prog))
+            return floor + (1.0 - floor) * cos
+
+        sched = torch.optim.lr_scheduler.LambdaLR(opt, _lr_lambda)
+        log(f"schedule: warmup={warm} steps -> cosine to min_lr={args.min_lr:g} "
+            f"(floor={floor:.4g}) over {steps:,} steps")
+    else:
+        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps)
+    if args.beta2 != 0.999 or args.grad_clip or args.aug != "none":
+        log(f"recipe: beta2={args.beta2} wd={args.wd} grad_clip={args.grad_clip} "
+            f"aug={args.aug}")
     scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
 
     # --- resume: restore full training state so we continue the SAME schedule ---
@@ -341,6 +433,11 @@ def main():
                 loss = (1 - (p * t).sum(-1)).mean()
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
+            if args.grad_clip and args.grad_clip > 0:
+                # must unscale BEFORE clipping, otherwise we'd clip the
+                # loss-scaled gradients and the threshold would be meaningless
+                scaler.unscale_(opt)
+                torch.nn.utils.clip_grad_norm_(student.parameters(), args.grad_clip)
             prev_scale = scaler.get_scale()
             scaler.step(opt)
             scaler.update()
