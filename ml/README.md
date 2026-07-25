@@ -28,7 +28,9 @@ training on the RTX 3080.
 - [ ] **Leakage check (MEASURED 2026-07-23: avg 1.58 photos/obs, 54% from multi-photo obs, no big bursts):** val_cos is ~54%-leakage-biased but that's just a progress monitor; ship metric NABirds is immune. Only hard requirement: split the ground-truth held-out eval by `observation_uuid`.
 - [ ] **Pilot experimentation stage (500 sp) — BOTH recipes locked here:**
   - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
-  - [ ] adopt from MobileCLIP papers (see "What MobileCLIP's papers say"): strong aug (RandomResizedCrop [0.08,1.0]+RandAugment), multi-augmentation embedding caching, AdamW β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0
+  - [x] **adopt from MobileCLIP papers — optimizer/schedule knobs LANDED 2026-07-24** (`cb99d53`): `--beta2` (0.95), `--wd` (0.2), `--warmup` (we had NONE), `--grad-clip` (we had NONE), `--min-lr` (cosine-to-1e-6 instead of exactly 0). All default OFF so existing runs are unchanged. Warmup+min-lr compose via one LambdaLR; grad-clip calls `scaler.unscale_()` first (clipping scaled grads under AMP would make the threshold meaningless). Smoke-tested through the `--wds` path.
+  - [ ] **EXPERIMENT: augmentation strength** (reframed 2026-07-24 — this is a pilot experiment, not a standing "gap"). Compare on the 500-sp pilot: `--aug none` (current, target-matched) vs `--aug light` (RandomResizedCrop 0.65–1.0 + hflip, already implemented). ⚠️ **Strong aug ([0.08,1.0]+RandAugment) is NOT directly runnable** — see "Augmentation: why we can't just copy their strong aug" below. Only if light aug shows a real win is the expensive multi-view caching worth considering.
+  - [ ] **EXPERIMENT (expensive, gated): multi-view teacher-embedding caching.** Prerequisite for strong aug. Cost measured 2026-07-24: the original 1-view precompute ran at a steady **63–65 img/s** (417 log lines at 65; 20.6h wall clock 07-21 14:04 → 07-22 10:43, though that was interleaved with downloading). 5 views × 2.64M imgs ≈ 13.2M embeddings ≈ **~56 GPU-hours (~2.4 days)**, ~20GB storage. A re-precompute would be somewhat faster (corpus is local now, sequential reads from the WebDataset shards, no 404 retries) but ViT-L forward is the floor. **Do the cheap pilot aug experiment FIRST**; only pay for this if the aug lever actually moves the needle.
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
   - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, α≈0.5) to keep OOD robustness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
@@ -386,7 +388,8 @@ contrastive term for our use case.
    (store the RandomResizedCrop/RandAugment params, replay the exact crop so the student
    input matches the cached teacher target). **Perf saturates ~5 augmentations** (P1
    Tab.4a); DataCompDR-12M used up to 30 (for reuse across many epochs), DataCompDR-1B
-   used 10. **This is our biggest current gap:** we cache ONE 224 embedding per image, so
+   used 10. **This is a real gap, but it is GATED behind a cheap pilot experiment**
+   (reframed 2026-07-24 — see queue): we cache ONE 224 embedding per image, so
    our student can't learn augmentation invariance against matching teacher targets. To
    adopt: during precompute, generate N augmented views per image, embed each, store
    (aug_params, embedding) pairs; at train time replay a stored view.
@@ -403,6 +406,42 @@ contrastive term for our use case.
 5. Training scale (their ablation setup): global batch **8192**, **30-45k iters (~20-30
    epochs / ~0.24-0.4B seen samples)** on the 12.8M-pair DataCompDR-12M. Ours: 2.5M imgs,
    ~20 epochs — comparable epoch count, far smaller data.
+
+### Augmentation: why we can't just copy their strong aug (2026-07-24)
+
+**The finding itself is NOT MobileCLIP-specific and DOES apply to us.** Strong aug in
+distillation is a property of the training *regime*, not the architecture: in contrastive
+CLIP training weak aug is required because heavy crops break image-text alignment, but in
+distillation the teacher sees the same crop, so aggressive aug is safe and acts as a
+strong regularizer. That reasoning is arch-agnostic — it holds for our ViT-B student even
+though we use neither FastViT nor their contrastive loss.
+
+**But it is only sound IF the teacher target matches the student's view.** Their strong
+aug works because they cache a teacher embedding PER AUGMENTED VIEW and replay the exact
+crop. We cache ONE center-crop 224 embedding per image (`precompute_embeddings.py` uses
+open_clip's default eval preprocess). So applying RandomResizedCrop [0.08, 1.0] today
+would train the student to reproduce an embedding describing content it can no longer
+see — a *corrupted target*, not merely harder data. This is an easy trap: the aug item
+reads as immediately adoptable, but it silently depends on the caching item.
+
+**Hence `--aug light`** (RandomResizedCrop scale 0.65–1.0 + hflip): mild enough that the
+crop still contains essentially what the cached center-crop target describes, so it is
+target-compatible without any re-precompute. `--aug none` remains the default and is
+exactly the teacher's view.
+
+**Two reasons the payoff may be smaller for us than their +4.8%:**
+- Their gain is measured on ImageNet with models trained largely from scratch at global
+  batch 8192 on 12.8M pairs. We FINE-TUNE from LAION weights on 2.5M bird images for ~20
+  epochs. Strong aug's biggest wins come when you are data-limited and overfitting; our
+  full run plateaued cleanly with no divergence, so we may not be in that regime.
+- They cache up to 30 views precisely so a *different* view is seen each epoch. At 5
+  views × 20 epochs each view repeats 4×, giving less aug diversity than true random
+  cropping — so "perf saturates ~5" (their Tab.4a) is a claim about THEIR setup, not a
+  guarantee for ours.
+
+**Therefore: run the cheap pilot aug experiment first** (`--aug none` vs `--aug light` on
+500 species), and only pay the ~56 GPU-hours for multi-view caching if that lever moves
+the needle.
 
 **What we DROP (multi-modal, inapplicable to single-teacher image-only):** the CLIP
 contrastive term, synthetic CoCa captions, text-embedding caching, the K=2 teacher
