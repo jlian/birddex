@@ -1,0 +1,317 @@
+{
+ "imageFile": "Stellers_Jay_eating_cherries_Seattle_backyard.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 5,
+  "locationName": "Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Steller's Jay",
+    "scientificName": "Cyanocitta stelleri",
+    "confidence": 0.9983,
+    "plumage": null
+   },
+   {
+    "commonName": "California Scrub-Jay",
+    "scientificName": "Aphelocoma californica",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-billed Magpie",
+    "scientificName": "Pica hudsonia",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Crow",
+    "scientificName": "Corvus brachyrhynchos",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Canada Jay",
+    "scientificName": "Perisoreus canadensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Boat-tailed Grackle",
+    "scientificName": "Quiscalus major",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Catbird",
+    "scientificName": "Dumetella carolinensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure-winged Magpie",
+    "scientificName": "Cyanopica cyanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Bluebird",
+    "scientificName": "Sialia sialis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty Blackbird",
+    "scientificName": "Euphagus carolinus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Jay",
+    "scientificName": "Garrulus glandarius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Florida Scrub-Jay",
+    "scientificName": "Aphelocoma coerulescens",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brewer's Blackbird",
+    "scientificName": "Euphagus cyanocephalus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Fairy-bluebird",
+    "scientificName": "Irena puella",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Dollarbird",
+    "scientificName": "Eurystomus orientalis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Pigeon",
+    "scientificName": "Hemiphaga novaeseelandiae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Woodhouse's Scrub-Jay",
+    "scientificName": "Aphelocoma woodhouseii",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Jay",
+    "scientificName": "Cyanocitta cristata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Grackle",
+    "scientificName": "Quiscalus quiscula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Bluebird",
+    "scientificName": "Sialia currucoides",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Grouse",
+    "scientificName": "Dendragapus fuliginosus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Island Scrub-Jay",
+    "scientificName": "Aphelocoma insularis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Roller",
+    "scientificName": "Coracias benghalensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Large-billed Crow",
+    "scientificName": "Corvus macrorhynchos",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Flycatcher",
+    "scientificName": "Cyanoptila cyanomelana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Blackbird",
+    "scientificName": "Turdus simillimus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mandarin Duck",
+    "scientificName": "Aix galericulata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yucatan Jay",
+    "scientificName": "Cyanocorax yucatanicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Catbird",
+    "scientificName": "Melanoptila glabrirostris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Jay",
+    "scientificName": "Garrulus lanceolatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Ethiopian Thrush",
+    "scientificName": "Turdus simensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Javan Cochoa",
+    "scientificName": "Cochoa azurea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Clark's Nutcracker",
+    "scientificName": "Nucifraga columbiana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Fire-eyed Diucon",
+    "scientificName": "Pyrope pyrope",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-headed Thrush",
+    "scientificName": "Turdus chrysolaus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Lewis's Woodpecker",
+    "scientificName": "Melanerpes lewis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-eared Bulbul",
+    "scientificName": "Hypsipetes amaurotis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Cochoa",
+    "scientificName": "Cochoa viridis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Malkoha",
+    "scientificName": "Ceuthmochares aereus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Fischer's Turaco",
+    "scientificName": "Tauraco fischeri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Magpie",
+    "scientificName": "Pica serica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Cuckoo",
+    "scientificName": "Coccyzus americanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Bronze-tailed Peacock-Pheasant",
+    "scientificName": "Polyplectron chalcurum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Robin",
+    "scientificName": "Turdus migratorius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Magpie",
+    "scientificName": "Pica nuttalli",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-tailed Grackle",
+    "scientificName": "Quiscalus mexicanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Silky-flycatcher",
+    "scientificName": "Ptiliogonys cinereus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Blackbird",
+    "scientificName": "Turdus merula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-headed Cowbird",
+    "scientificName": "Molothrus ater",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

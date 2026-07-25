@@ -1,0 +1,36 @@
+{
+  "imageFile": "Common_goldeneye_at_Discovery_Park_Seattle.jpeg",
+  "context": {
+    "lat": 47.66,
+    "lon": -122.4287,
+    "month": 0,
+    "locationName": "Discovery Park, Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Glaucous-winged Gull (Larus glaucescens)\",\"confidence\":0.72,\"rangeStatus\":\"present\"},{\"species\":\"European Herring Gull (Larus argentatus)\",\"confidence\":0.23,\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":true}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Glaucous-winged Gull (Larus glaucescens)",
+        "confidence": 0.72,
+        "rangeStatus": "present"
+      },
+      {
+        "species": "European Herring Gull (Larus argentatus)",
+        "confidence": 0.23,
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      56,
+      22
+    ],
+    "birdSize": "small",
+    "multipleBirds": true
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2245,
+  "capturedAt": "2026-03-21T05:24:59.380Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.846Z",
+  "rangeAdjusted": true
+}

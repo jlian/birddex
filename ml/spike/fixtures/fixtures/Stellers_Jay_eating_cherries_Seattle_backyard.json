@@ -1,0 +1,38 @@
+{
+  "imageFile": "Stellers_Jay_eating_cherries_Seattle_backyard.jpg",
+  "context": {
+    "lat": 47.6399,
+    "lon": -122.4039,
+    "month": 5,
+    "locationName": "Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Steller's Jay (Cyanocitta stelleri)\",\"confidence\":0.98,\"plumage\":\"male\",\"rangeStatus\":\"present\"},{\"species\":\"Blue Jay (Cyanocitta cristata)\",\"confidence\":0.21,\"plumage\":\"male\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Steller's Jay (Cyanocitta stelleri)",
+        "confidence": 0.98,
+        "plumage": "male",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Blue Jay (Cyanocitta cristata)",
+        "confidence": 0.21,
+        "plumage": "male",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      49,
+      44
+    ],
+    "birdSize": "medium",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1698,
+  "capturedAt": "2026-03-21T05:24:53.805Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.856Z",
+  "rangeAdjusted": true
+}

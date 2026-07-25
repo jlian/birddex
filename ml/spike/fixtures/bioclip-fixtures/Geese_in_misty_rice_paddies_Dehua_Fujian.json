@@ -1,0 +1,65 @@
+{
+ "imageFile": "Geese_in_misty_rice_paddies_Dehua_Fujian.jpg",
+ "context": {
+  "lat": 25.7,
+  "lon": 118.24,
+  "month": 0,
+  "locationName": "Dehua, Fujian, China"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Brown-headed Gull",
+    "scientificName": "Chroicocephalus brunnicephalus",
+    "confidence": 0.8765,
+    "plumage": null
+   },
+   {
+    "commonName": "Comb Duck",
+    "scientificName": "Sarkidiornis sylvicola",
+    "confidence": 0.0205,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Spot-billed Duck",
+    "scientificName": "Anas poecilorhyncha",
+    "confidence": 0.0126,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Whistling-Duck",
+    "scientificName": "Dendrocygna javanica",
+    "confidence": 0.0083,
+    "plumage": null
+   },
+   {
+    "commonName": "Cotton Pygmy-Goose",
+    "scientificName": "Nettapus coromandelianus",
+    "confidence": 0.0077,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Spot-billed Duck",
+    "scientificName": "Anas zonorhyncha",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumed Whistling-Duck",
+    "scientificName": "Dendrocygna eytoni",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Swan Goose",
+    "scientificName": "Anser cygnoides",
+    "confidence": 0.003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

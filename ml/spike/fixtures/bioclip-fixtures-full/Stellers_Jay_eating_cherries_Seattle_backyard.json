@@ -1,0 +1,317 @@
+{
+ "imageFile": "Stellers_Jay_eating_cherries_Seattle_backyard.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 5,
+  "locationName": "Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Steller's Jay",
+    "scientificName": "Cyanocitta stelleri",
+    "confidence": 0.9961,
+    "plumage": null
+   },
+   {
+    "commonName": "Unicolored Jay",
+    "scientificName": "Aphelocoma unicolor",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Beautiful Jay",
+    "scientificName": "Cyanolyca pulchra",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure Jay",
+    "scientificName": "Cyanocorax caeruleus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Dwarf Jay",
+    "scientificName": "Cyanolyca nanus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Turquoise Jay",
+    "scientificName": "Cyanolyca turcosa",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Bushy-crested Jay",
+    "scientificName": "Cyanocorax melanocyaneus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Canada Jay",
+    "scientificName": "Perisoreus canadensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-collared Jay",
+    "scientificName": "Cyanolyca viridicyanus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Jay",
+    "scientificName": "Cyanolyca pumilo",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Island Scrub-Jay",
+    "scientificName": "Aphelocoma insularis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Brewer's Blackbird",
+    "scientificName": "Euphagus cyanocephalus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Pinyon Jay",
+    "scientificName": "Gymnorhinus cyanocephalus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Silvery-throated Jay",
+    "scientificName": "Cyanolyca argentigula",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "California Scrub-Jay",
+    "scientificName": "Aphelocoma californica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Jay",
+    "scientificName": "Cyanolyca mirabilis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Chinese Monal",
+    "scientificName": "Lophophorus lhuysii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Grouse",
+    "scientificName": "Dendragapus fuliginosus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure-hooded Jay",
+    "scientificName": "Cyanolyca cucullata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-billed Magpie",
+    "scientificName": "Pica hudsonia",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pygmy-Owl",
+    "scientificName": "Glaucidium gnoma",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Jay",
+    "scientificName": "Garrulus lanceolatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Lewis's Woodpecker",
+    "scientificName": "Melanerpes lewis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure Roller",
+    "scientificName": "Eurystomus azureus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Himalayan Monal",
+    "scientificName": "Lophophorus impejanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Bluebird",
+    "scientificName": "Sialia currucoides",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Trogon",
+    "scientificName": "Trogon mexicanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "San Blas Jay",
+    "scientificName": "Cyanocorax sanblasianus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Dipper",
+    "scientificName": "Cinclus mexicanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Jay",
+    "scientificName": "Cyanocitta cristata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-headed Woodpecker",
+    "scientificName": "Leuconotopicus albolarvatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-collared Jay",
+    "scientificName": "Cyanolyca armillata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Masked Flowerpiercer",
+    "scientificName": "Diglossa cyanea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mexican Jay",
+    "scientificName": "Aphelocoma wollweberi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-gray Robin",
+    "scientificName": "Melanodryas cyanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "California Thrasher",
+    "scientificName": "Toxostoma redivivum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Racket-tailed Drongo",
+    "scientificName": "Dicrurus remifer",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Wren",
+    "scientificName": "Troglodytes pacificus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Aztec Thrush",
+    "scientificName": "Ridgwayia pinicola",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Sichuan Jay",
+    "scientificName": "Perisoreus internigrans",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pileated Woodpecker",
+    "scientificName": "Dryocopus pileatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Sulu Bleeding-heart",
+    "scientificName": "Gallicolumba menagei",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Phainopepla",
+    "scientificName": "Phainopepla nitens",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Collared Grosbeak",
+    "scientificName": "Mycerobas affinis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Jay",
+    "scientificName": "Cyanocorax dickeyi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Evening Grosbeak",
+    "scientificName": "Hesperiphona vespertina",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-whiskered Laughingthrush",
+    "scientificName": "Trochalopteron morrisonianum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Transvolcanic Jay",
+    "scientificName": "Aphelocoma ultramarina",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

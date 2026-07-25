@@ -1,0 +1,65 @@
+{
+ "imageFile": "House_sparrow_bathing_in_mosaic_fountain_Park_Ridge.jpg",
+ "context": {
+  "lat": 42.0089,
+  "lon": -87.831,
+  "month": 8,
+  "locationName": "Park Ridge, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "House Bunting",
+    "scientificName": "Emberiza sahari",
+    "confidence": 0.0693,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Seedeater",
+    "scientificName": "Amaurospiza concolor",
+    "confidence": 0.0346,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly Weaver",
+    "scientificName": "Sporopipes squamifrons",
+    "confidence": 0.021,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Tree Sparrow",
+    "scientificName": "Passer montanus",
+    "confidence": 0.0188,
+    "plumage": null
+   },
+   {
+    "commonName": "Tinian Monarch",
+    "scientificName": "Monarcha takatsukasae",
+    "confidence": 0.014,
+    "plumage": null
+   },
+   {
+    "commonName": "Socotra Sparrow",
+    "scientificName": "Passer insularis",
+    "confidence": 0.0108,
+    "plumage": null
+   },
+   {
+    "commonName": "Sri Lanka Swallow",
+    "scientificName": "Cecropis hyperythra",
+    "confidence": 0.0101,
+    "plumage": null
+   },
+   {
+    "commonName": "Sakalava Weaver",
+    "scientificName": "Ploceus sakalava",
+    "confidence": 0.0099,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4"
+}

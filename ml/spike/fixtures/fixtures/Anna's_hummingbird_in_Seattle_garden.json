@@ -1,0 +1,44 @@
+{
+  "imageFile": "Anna's_hummingbird_in_Seattle_garden.jpg",
+  "context": {
+    "lat": 47.6399,
+    "lon": -122.4039,
+    "month": 6,
+    "locationName": "Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Anna's Hummingbird (Calypte anna)\",\"confidence\":0.774,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Rufous Hummingbird (Selasphorus rufus)\",\"confidence\":0.64,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Calliope Hummingbird (Selasphorus calliope)\",\"confidence\":0.23,\"plumage\":\"female\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Anna's Hummingbird (Calypte anna)",
+        "confidence": 0.774,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Rufous Hummingbird (Selasphorus rufus)",
+        "confidence": 0.64,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Calliope Hummingbird (Selasphorus calliope)",
+        "confidence": 0.23,
+        "plumage": "female",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      68,
+      36
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1876,
+  "capturedAt": "2026-03-21T05:24:18.826Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.844Z",
+  "rangeAdjusted": true
+}

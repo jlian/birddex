@@ -1,0 +1,317 @@
+{
+ "imageFile": "House_sparrow_bathing_in_mosaic_fountain_Park_Ridge.jpg",
+ "context": {
+  "lat": 42.0089,
+  "lon": -87.831,
+  "month": 8,
+  "locationName": "Park Ridge, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "House Bunting",
+    "scientificName": "Emberiza sahari",
+    "confidence": 0.0453,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Seedeater",
+    "scientificName": "Amaurospiza concolor",
+    "confidence": 0.0331,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly Weaver",
+    "scientificName": "Sporopipes squamifrons",
+    "confidence": 0.0249,
+    "plumage": null
+   },
+   {
+    "commonName": "Madeira Chaffinch",
+    "scientificName": "Fringilla maderensis",
+    "confidence": 0.0249,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Tree Sparrow",
+    "scientificName": "Passer montanus",
+    "confidence": 0.0214,
+    "plumage": null
+   },
+   {
+    "commonName": "Socotra Sparrow",
+    "scientificName": "Passer insularis",
+    "confidence": 0.0199,
+    "plumage": null
+   },
+   {
+    "commonName": "Sakalava Weaver",
+    "scientificName": "Ploceus sakalava",
+    "confidence": 0.0154,
+    "plumage": null
+   },
+   {
+    "commonName": "Italian Sparrow",
+    "scientificName": "Passer italiae",
+    "confidence": 0.0127,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Striped Swallow",
+    "scientificName": "Cecropis abyssinica",
+    "confidence": 0.0114,
+    "plumage": null
+   },
+   {
+    "commonName": "Swainson's Sparrow",
+    "scientificName": "Passer swainsonii",
+    "confidence": 0.0106,
+    "plumage": null
+   },
+   {
+    "commonName": "Bob-tailed Weaver",
+    "scientificName": "Brachycope anomala",
+    "confidence": 0.0098,
+    "plumage": null
+   },
+   {
+    "commonName": "House Sparrow",
+    "scientificName": "Passer domesticus",
+    "confidence": 0.0092,
+    "plumage": null
+   },
+   {
+    "commonName": "Tinian Monarch",
+    "scientificName": "Monarcha takatsukasae",
+    "confidence": 0.0089,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-headed Finch",
+    "scientificName": "Amadina erythrocephala",
+    "confidence": 0.008,
+    "plumage": null
+   },
+   {
+    "commonName": "Sri Lanka Swallow",
+    "scientificName": "Cecropis hyperythra",
+    "confidence": 0.0074,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-capped Social-Weaver",
+    "scientificName": "Pseudonigrita arnaudi",
+    "confidence": 0.0072,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-capped Cordonbleu",
+    "scientificName": "Uraeginthus cyanocephalus",
+    "confidence": 0.0072,
+    "plumage": null
+   },
+   {
+    "commonName": "Yemen Linnet",
+    "scientificName": "Linaria yemenensis",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Corsican Finch",
+    "scientificName": "Carduelis corsicana",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Sudan Golden Sparrow",
+    "scientificName": "Passer luteus",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Linnet",
+    "scientificName": "Linaria cannabina",
+    "confidence": 0.0065,
+    "plumage": null
+   },
+   {
+    "commonName": "Copper Seedeater",
+    "scientificName": "Sporophila bouvreuil",
+    "confidence": 0.0065,
+    "plumage": null
+   },
+   {
+    "commonName": "White-crowned Sparrow",
+    "scientificName": "Zonotrichia leucophrys",
+    "confidence": 0.0063,
+    "plumage": null
+   },
+   {
+    "commonName": "Swahili Sparrow",
+    "scientificName": "Passer suahelicus",
+    "confidence": 0.0063,
+    "plumage": null
+   },
+   {
+    "commonName": "Chalk-browed Mockingbird",
+    "scientificName": "Mimus saturninus",
+    "confidence": 0.006,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Seed-Finch",
+    "scientificName": "Sporophila maximiliani",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Carrizal Seedeater",
+    "scientificName": "Amaurospiza carrizalensis",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Sinai Rosefinch",
+    "scientificName": "Carpodacus synoicus",
+    "confidence": 0.0051,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Sierra Finch",
+    "scientificName": "Phrygilus punensis",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Pale-legged Hornero",
+    "scientificName": "Furnarius leucopus",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Alpine Accentor",
+    "scientificName": "Prunella collaris",
+    "confidence": 0.0046,
+    "plumage": null
+   },
+   {
+    "commonName": "Chestnut Sparrow",
+    "scientificName": "Passer eminibey",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Chilean Mockingbird",
+    "scientificName": "Mimus thenca",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Gran Canaria Blue Chaffinch",
+    "scientificName": "Fringilla polatzeki",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Yemen Serin",
+    "scientificName": "Crithagra menachensis",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Mara\u00f1on Sparrow",
+    "scientificName": "Arremon nigriceps",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Russet Sparrow",
+    "scientificName": "Passer cinnamomeus",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Bowerbird",
+    "scientificName": "Chlamydera maculata",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Canary Islands Chaffinch",
+    "scientificName": "Fringilla canariensis",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Harris's Sparrow",
+    "scientificName": "Zonotrichia querula",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Mauritius Cuckooshrike",
+    "scientificName": "Lalage typica",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Dunnock",
+    "scientificName": "Prunella modularis",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Sierra Finch",
+    "scientificName": "Rhopospina fruticeti",
+    "confidence": 0.0033,
+    "plumage": null
+   },
+   {
+    "commonName": "Chinese Beautiful Rosefinch",
+    "scientificName": "Carpodacus davidianus",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Spot-winged Rosefinch",
+    "scientificName": "Carpodacus rodopeplus",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Saxaul Sparrow",
+    "scientificName": "Passer ammodendri",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Dead Sea Sparrow",
+    "scientificName": "Passer moabiticus",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Zenaida Dove",
+    "scientificName": "Zenaida aurita",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Rock Sparrow",
+    "scientificName": "Petronia petronia",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Iberian Magpie",
+    "scientificName": "Cyanopica cooki",
+    "confidence": 0.0029,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

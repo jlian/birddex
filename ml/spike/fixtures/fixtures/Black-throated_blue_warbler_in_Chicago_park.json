@@ -1,0 +1,44 @@
+{
+  "imageFile": "Black-throated_blue_warbler_in_Chicago_park.jpg",
+  "context": {
+    "lat": 41.9632,
+    "lon": -87.6342,
+    "month": 8,
+    "locationName": "Montrose Point, Chicago, IL"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Black-throated Blue Warbler (Setophaga caerulescens)\",\"confidence\":0.87,\"plumage\":\"male\",\"rangeStatus\":\"present\"},{\"species\":\"Cerulean Warbler (Setophaga cerulea)\",\"confidence\":0.5040000000000001,\"plumage\":\"male\",\"rangeStatus\":\"present\"},{\"species\":\"Blackpoll Warbler (Setophaga striata)\",\"confidence\":0.31,\"plumage\":\"male\",\"rangeStatus\":\"present\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Black-throated Blue Warbler (Setophaga caerulescens)",
+        "confidence": 0.87,
+        "plumage": "male",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Cerulean Warbler (Setophaga cerulea)",
+        "confidence": 0.5040000000000001,
+        "plumage": "male",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Blackpoll Warbler (Setophaga striata)",
+        "confidence": 0.31,
+        "plumage": "male",
+        "rangeStatus": "present"
+      }
+    ],
+    "birdCenter": [
+      54,
+      67
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2249,
+  "capturedAt": "2026-03-21T05:25:02.458Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.845Z",
+  "rangeAdjusted": true
+}

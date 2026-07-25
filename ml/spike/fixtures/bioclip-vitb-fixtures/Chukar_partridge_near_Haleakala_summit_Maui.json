@@ -1,0 +1,317 @@
+{
+ "imageFile": "Chukar_partridge_near_Haleakala_summit_Maui.jpg",
+ "context": {
+  "lat": 20.7148,
+  "lon": -156.2502,
+  "month": 11,
+  "locationName": "Haleakala, Maui, HI"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Chukar",
+    "scientificName": "Alectoris chukar",
+    "confidence": 0.9558,
+    "plumage": null
+   },
+   {
+    "commonName": "Arabian Partridge",
+    "scientificName": "Alectoris melanocephala",
+    "confidence": 0.0263,
+    "plumage": null
+   },
+   {
+    "commonName": "Rock Partridge",
+    "scientificName": "Alectoris graeca",
+    "confidence": 0.006,
+    "plumage": null
+   },
+   {
+    "commonName": "Barbary Partridge",
+    "scientificName": "Alectoris barbara",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Philby's Partridge",
+    "scientificName": "Alectoris philbyi",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "See-see Partridge",
+    "scientificName": "Ammoperdix griseogularis",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-legged Partridge",
+    "scientificName": "Alectoris rufa",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Sand Partridge",
+    "scientificName": "Ammoperdix heyi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Ornate Tinamou",
+    "scientificName": "Nothoprocta ornata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Tinamou",
+    "scientificName": "Crypturellus atrocapillus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Partridge",
+    "scientificName": "Arborophila rubrirostris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Spinifex Pigeon",
+    "scientificName": "Geophaps plumifera",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Przevalski's Partridge",
+    "scientificName": "Alectoris magna",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Egyptian Plover",
+    "scientificName": "Pluvianus aegyptius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Spurfowl",
+    "scientificName": "Pternistis adspersus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "African Crake",
+    "scientificName": "Crecopsis egregia",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Francolin",
+    "scientificName": "Ortygornis pondicerianus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gambel's Quail",
+    "scientificName": "Callipepla gambelii",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-cheeked Partridge",
+    "scientificName": "Arborophila atrogularis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Barren Goose",
+    "scientificName": "Cereopsis novaehollandiae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Bustard",
+    "scientificName": "Eupodotis caerulescens",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Lichtenstein's Sandgrouse",
+    "scientificName": "Pterocles lichtensteinii",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Egyptian Goose",
+    "scientificName": "Alopochen aegyptiaca",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Squatter Pigeon",
+    "scientificName": "Geophaps scripta",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Crowned Lapwing",
+    "scientificName": "Vanellus coronatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Partridge",
+    "scientificName": "Perdix perdix",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Painted Sandgrouse",
+    "scientificName": "Pterocles indicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-breasted Spurfowl",
+    "scientificName": "Pternistis rufopictus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-breasted Seedsnipe",
+    "scientificName": "Thinocorus orbignyianus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pale-browed Tinamou",
+    "scientificName": "Crypturellus transfasciatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Desert Lark",
+    "scientificName": "Ammomanes deserti",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "California Quail",
+    "scientificName": "Callipepla californica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Dark Chanting-Goshawk",
+    "scientificName": "Melierax metabates",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mongolian Finch",
+    "scientificName": "Bucanetes mongolicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Three-banded Plover",
+    "scientificName": "Thinornis tricollaris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Tibetan Partridge",
+    "scientificName": "Perdix hodgsoniae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Banded Lapwing",
+    "scientificName": "Vanellus tricolor",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Crowned Sandgrouse",
+    "scientificName": "Pterocles coronatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Tibetan Snowcock",
+    "scientificName": "Tetraogallus tibetanus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Silver Pheasant",
+    "scientificName": "Lophura nycthemera",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Dotterel",
+    "scientificName": "Eudromias morinellus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pale Chanting-Goshawk",
+    "scientificName": "Melierax canorus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Hoopoe-Lark",
+    "scientificName": "Alaemon alaudipes",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-necked Spurfowl",
+    "scientificName": "Pternistis afer",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Namaqua Dove",
+    "scientificName": "Oena capensis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Barred Rail",
+    "scientificName": "Gallirallus torquatus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Handsome Spurfowl",
+    "scientificName": "Pternistis nobilis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Small-billed Tinamou",
+    "scientificName": "Crypturellus parvirostris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Flock Bronzewing",
+    "scientificName": "Phaps histrionica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy-crowned Sparrow-Lark",
+    "scientificName": "Eremopterix griseus",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

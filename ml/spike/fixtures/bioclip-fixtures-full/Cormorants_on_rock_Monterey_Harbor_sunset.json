@@ -1,0 +1,317 @@
+{
+ "imageFile": "Cormorants_on_rock_Monterey_Harbor_sunset.jpg",
+ "context": {
+  "lat": 36.6002,
+  "lon": -121.8947,
+  "month": 8,
+  "locationName": "Monterey Harbor, CA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Crowned Cormorant",
+    "scientificName": "Microcarbo coronatus",
+    "confidence": 0.4684,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.1778,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.1061,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Cormorant",
+    "scientificName": "Phalacrocorax capensis",
+    "confidence": 0.0664,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.045,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.0386,
+    "plumage": null
+   },
+   {
+    "commonName": "African Oystercatcher",
+    "scientificName": "Haematopus moquini",
+    "confidence": 0.02,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Cormorant",
+    "scientificName": "Phalacrocorax neglectus",
+    "confidence": 0.0164,
+    "plumage": null
+   },
+   {
+    "commonName": "Heermann's Gull",
+    "scientificName": "Larus heermanni",
+    "confidence": 0.009,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Booby",
+    "scientificName": "Sula leucogaster",
+    "confidence": 0.0066,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0056,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Gull",
+    "scientificName": "Larus occidentalis",
+    "confidence": 0.0051,
+    "plumage": null
+   },
+   {
+    "commonName": "Pelagic Cormorant",
+    "scientificName": "Urile pelagicus",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "Inca Tern",
+    "scientificName": "Larosterna inca",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Imperial Cormorant",
+    "scientificName": "Leucocarbo atriceps",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Guanay Cormorant",
+    "scientificName": "Leucocarbo bougainvilliorum",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Chatham Islands Shag",
+    "scientificName": "Leucocarbo onslowi",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Stewart Island Shag",
+    "scientificName": "Leucocarbo chalconotus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Cormorant",
+    "scientificName": "Phalacrocorax carbo",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Canarian Oystercatcher",
+    "scientificName": "Haematopus meadewaldoi",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Magellanic Cormorant",
+    "scientificName": "Leucocarbo magellanicus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Shag",
+    "scientificName": "Phalacrocorax punctatus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Hartlaub's Gull",
+    "scientificName": "Chroicocephalus hartlaubii",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Pitt Island Shag",
+    "scientificName": "Phalacrocorax featherstoni",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Blackish Oystercatcher",
+    "scientificName": "Haematopus ater",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Cormorant",
+    "scientificName": "Phalacrocorax fuscescens",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Socotra Cormorant",
+    "scientificName": "Phalacrocorax nigrogularis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Variable Oystercatcher",
+    "scientificName": "Haematopus unicolor",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Magellanic Oystercatcher",
+    "scientificName": "Haematopus leucopodus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Cormorant",
+    "scientificName": "Phalacrocorax varius",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Chatham Islands Oystercatcher",
+    "scientificName": "Haematopus chathamensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Auckland Islands Shag",
+    "scientificName": "Leucocarbo colensoi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Belcher's Gull",
+    "scientificName": "Larus belcheri",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "African Penguin",
+    "scientificName": "Spheniscus demersus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-footed Gull",
+    "scientificName": "Larus livens",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Chilean Skua",
+    "scientificName": "Stercorarius chilensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Gannet",
+    "scientificName": "Morus capensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Gull",
+    "scientificName": "Leucophaeus modestus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Humboldt Penguin",
+    "scientificName": "Spheniscus humboldti",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Pelican",
+    "scientificName": "Pelecanus thagus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Oystercatcher",
+    "scientificName": "Haematopus ostralegus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Campbell Islands Shag",
+    "scientificName": "Leucocarbo campbelli",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Wattled Ibis",
+    "scientificName": "Bostrychia carunculata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Neotropic Cormorant",
+    "scientificName": "Nannopterum brasilianum",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Magnificent Frigatebird",
+    "scientificName": "Fregata magnificens",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Bounty Islands Shag",
+    "scientificName": "Leucocarbo ranfurlyi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Oystercatcher",
+    "scientificName": "Haematopus fuliginosus",
+    "confidence": 0.0002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

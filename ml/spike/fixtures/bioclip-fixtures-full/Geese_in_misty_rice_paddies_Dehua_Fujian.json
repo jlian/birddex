@@ -1,0 +1,317 @@
+{
+ "imageFile": "Geese_in_misty_rice_paddies_Dehua_Fujian.jpg",
+ "context": {
+  "lat": 25.7,
+  "lon": 118.24,
+  "month": 0,
+  "locationName": "Dehua, Fujian, China"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Brown-headed Gull",
+    "scientificName": "Chroicocephalus brunnicephalus",
+    "confidence": 0.8765,
+    "plumage": null
+   },
+   {
+    "commonName": "Comb Duck",
+    "scientificName": "Sarkidiornis sylvicola",
+    "confidence": 0.0205,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Spot-billed Duck",
+    "scientificName": "Anas poecilorhyncha",
+    "confidence": 0.0126,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Whistling-Duck",
+    "scientificName": "Dendrocygna javanica",
+    "confidence": 0.0083,
+    "plumage": null
+   },
+   {
+    "commonName": "Cotton Pygmy-Goose",
+    "scientificName": "Nettapus coromandelianus",
+    "confidence": 0.0077,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Spot-billed Duck",
+    "scientificName": "Anas zonorhyncha",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumed Whistling-Duck",
+    "scientificName": "Dendrocygna eytoni",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Swan Goose",
+    "scientificName": "Anser cygnoides",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "River Tern",
+    "scientificName": "Sterna aurantia",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Skimmer",
+    "scientificName": "Rynchops albicollis",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Orinoco Goose",
+    "scientificName": "Oressochen jubatus",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Vega Gull",
+    "scientificName": "Larus vegae",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Relict Gull",
+    "scientificName": "Ichthyaetus relictus",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Siberian Crane",
+    "scientificName": "Leucogeranus leucogeranus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Indian Bustard",
+    "scientificName": "Ardeotis nigriceps",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Knob-billed Duck",
+    "scientificName": "Sarkidiornis melanotos",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Baikal Teal",
+    "scientificName": "Sibirionetta formosa",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Bar-headed Goose",
+    "scientificName": "Anser indicus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-hooded Gull",
+    "scientificName": "Chroicocephalus maculipennis",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Gull",
+    "scientificName": "Ichthyaetus ichthyaetus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Goose",
+    "scientificName": "Oressochen melanopterus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-wattled Lapwing",
+    "scientificName": "Vanellus indicus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Francolin",
+    "scientificName": "Ortygornis pondicerianus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Armenian Gull",
+    "scientificName": "Larus armenicus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Woolly-necked Stork",
+    "scientificName": "Ciconia episcopus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Mongolian Gull",
+    "scientificName": "Larus mongolicus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "White-rumped Vulture",
+    "scientificName": "Gyps bengalensis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Slender-billed Gull",
+    "scientificName": "Chroicocephalus genei",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Cormorant",
+    "scientificName": "Microcarbo niger",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-backed Swamphen",
+    "scientificName": "Porphyrio indicus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Duck",
+    "scientificName": "Asarcornis scutulata",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-headed Swamphen",
+    "scientificName": "Porphyrio poliocephalus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Vinous-breasted Myna",
+    "scientificName": "Acridotheres leucocephalus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Gull",
+    "scientificName": "Chroicocephalus serranus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Wattled Crane",
+    "scientificName": "Grus carunculatus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Pond-Heron",
+    "scientificName": "Ardeola grayii",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Amsterdam Duck",
+    "scientificName": "Mareca marecula",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Javan Pond-Heron",
+    "scientificName": "Ardeola speciosa",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Stork",
+    "scientificName": "Ciconia boyciana",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Heron",
+    "scientificName": "Ardea insignis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Painted Francolin",
+    "scientificName": "Francolinus pictus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Pratincole",
+    "scientificName": "Glareola lactea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Gull",
+    "scientificName": "Chroicocephalus ridibundus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bengal Florican",
+    "scientificName": "Houbaropsis bengalensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiga Bean-Goose",
+    "scientificName": "Anser fabalis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eaton's Pintail",
+    "scientificName": "Anas eatoni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Upland Goose",
+    "scientificName": "Chloephaga picta",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-wattled Lapwing",
+    "scientificName": "Vanellus malabaricus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Courser",
+    "scientificName": "Cursorius coromandelicus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Painted Stork",
+    "scientificName": "Mycteria leucocephala",
+    "confidence": 0.0004,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

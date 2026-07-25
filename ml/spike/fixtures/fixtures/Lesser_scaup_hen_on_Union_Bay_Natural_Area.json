@@ -1,0 +1,50 @@
+{
+  "imageFile": "Lesser_scaup_hen_on_Union_Bay_Natural_Area.jpg",
+  "context": {
+    "lat": 47.6543,
+    "lon": -122.2952,
+    "month": 10,
+    "locationName": "Union Bay Natural Area, Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Mallard (Anas platyrhynchos)\",\"confidence\":0.56,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"American Wigeon (Mareca americana)\",\"confidence\":0.41,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Eurasian Wigeon (Mareca penelope)\",\"confidence\":0.36,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"American Black Duck (Anas rubripes)\",\"confidence\":0.315,\"plumage\":\"female\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Mallard (Anas platyrhynchos)",
+        "confidence": 0.56,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "American Wigeon (Mareca americana)",
+        "confidence": 0.41,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Eurasian Wigeon (Mareca penelope)",
+        "confidence": 0.36,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "American Black Duck (Anas rubripes)",
+        "confidence": 0.315,
+        "plumage": "female",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      53,
+      57
+    ],
+    "birdSize": "medium",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2508,
+  "capturedAt": "2026-03-21T05:24:48.465Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.851Z",
+  "rangeAdjusted": true
+}

@@ -1,0 +1,38 @@
+{
+  "imageFile": "Hairy_woodpecker_on_mossy_tree_Carkeek_Park.jpg",
+  "context": {
+    "lat": 47.7117,
+    "lon": -122.3771,
+    "month": 6,
+    "locationName": "Carkeek Park, Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Hairy Woodpecker (Leuconotopicus villosus)\",\"confidence\":0.79,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Downy Woodpecker (Dryobates pubescens)\",\"confidence\":0.64,\"plumage\":\"female\",\"rangeStatus\":\"present\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Hairy Woodpecker (Leuconotopicus villosus)",
+        "confidence": 0.79,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Downy Woodpecker (Dryobates pubescens)",
+        "confidence": 0.64,
+        "plumage": "female",
+        "rangeStatus": "present"
+      }
+    ],
+    "birdCenter": [
+      52,
+      41
+    ],
+    "birdSize": "medium",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1849,
+  "capturedAt": "2026-03-21T05:24:45.115Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.851Z",
+  "rangeAdjusted": true
+}

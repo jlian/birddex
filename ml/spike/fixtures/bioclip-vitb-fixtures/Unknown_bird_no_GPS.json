@@ -1,0 +1,317 @@
+{
+ "imageFile": "Unknown_bird_no_GPS.jpeg",
+ "context": {
+  "lat": null,
+  "lon": null,
+  "month": null,
+  "locationName": ""
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Common Chiffchaff",
+    "scientificName": "Phylloscopus collybita",
+    "confidence": 0.2474,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Bush Warbler",
+    "scientificName": "Horornis diphone",
+    "confidence": 0.1774,
+    "plumage": null
+   },
+   {
+    "commonName": "Bushtit",
+    "scientificName": "Psaltriparus minimus",
+    "confidence": 0.1753,
+    "plumage": null
+   },
+   {
+    "commonName": "Verdin",
+    "scientificName": "Auriparus flaviceps",
+    "confidence": 0.1004,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Leaf Warbler",
+    "scientificName": "Phylloscopus proregulus",
+    "confidence": 0.0326,
+    "plumage": null
+   },
+   {
+    "commonName": "Wood Warbler",
+    "scientificName": "Phylloscopus sibilatrix",
+    "confidence": 0.0311,
+    "plumage": null
+   },
+   {
+    "commonName": "Willow Warbler",
+    "scientificName": "Phylloscopus trochilus",
+    "confidence": 0.0256,
+    "plumage": null
+   },
+   {
+    "commonName": "Warbling White-eye",
+    "scientificName": "Zosterops japonicus",
+    "confidence": 0.0246,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Firecrest",
+    "scientificName": "Regulus ignicapilla",
+    "confidence": 0.0186,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Phoebe",
+    "scientificName": "Sayornis phoebe",
+    "confidence": 0.016,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-crowned Kinglet",
+    "scientificName": "Regulus satrapa",
+    "confidence": 0.0139,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Penduline-Tit",
+    "scientificName": "Remiz pendulinus",
+    "confidence": 0.0081,
+    "plumage": null
+   },
+   {
+    "commonName": "Willow Tit",
+    "scientificName": "Poecile montanus",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Pine Warbler",
+    "scientificName": "Setophaga pinus",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "Rifleman",
+    "scientificName": "Acanthisitta chloris",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiwan Yuhina",
+    "scientificName": "Yuhina brunneiceps",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive-capped Warbler",
+    "scientificName": "Setophaga pityophila",
+    "confidence": 0.0048,
+    "plumage": null
+   },
+   {
+    "commonName": "Mouse-colored Penduline-Tit",
+    "scientificName": "Anthoscopus musculus",
+    "confidence": 0.0046,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Tit",
+    "scientificName": "Aegithalos caudatus",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Blackcap",
+    "scientificName": "Sylvia atricapilla",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Masked Gnatcatcher",
+    "scientificName": "Polioptila dumicola",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Arctic Warbler",
+    "scientificName": "Phylloscopus borealis",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Honeyeater",
+    "scientificName": "Lichmera indistincta",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-headed Nuthatch",
+    "scientificName": "Sitta pusilla",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Gerygone",
+    "scientificName": "Gerygone igata",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Warbling Vireo",
+    "scientificName": "Vireo gilvus",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive-tree Warbler",
+    "scientificName": "Hippolais olivetorum",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Greenish Warbler",
+    "scientificName": "Phylloscopus trochiloides",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-faced Honeyeater",
+    "scientificName": "Caligavis chrysops",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Arrowhead Warbler",
+    "scientificName": "Setophaga pharetra",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Sharp-tailed Tyrant",
+    "scientificName": "Culicivora caudacuta",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-browed Warbler",
+    "scientificName": "Phylloscopus inornatus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-gray Gnatcatcher",
+    "scientificName": "Polioptila caerulea",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Noronha Vireo",
+    "scientificName": "Vireo gracilirostris",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Seychelles Warbler",
+    "scientificName": "Acrocephalus sechellensis",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Siskin",
+    "scientificName": "Spinus spinus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "House Sparrow",
+    "scientificName": "Passer domesticus",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "White-plumed Honeyeater",
+    "scientificName": "Ptilotula penicillata",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Chickadee",
+    "scientificName": "Poecile carolinensis",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Marsh Tit",
+    "scientificName": "Poecile palustris",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "White-eyed Vireo",
+    "scientificName": "Vireo griseus",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-throated Bunting",
+    "scientificName": "Emberiza elegans",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Hermit Warbler",
+    "scientificName": "Setophaga occidentalis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-tailed Gnatcatcher",
+    "scientificName": "Polioptila melanura",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Sombre Tit",
+    "scientificName": "Poecile lugubris",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Flycatcher",
+    "scientificName": "Empidonax difficilis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Chestnut-sided Warbler",
+    "scientificName": "Setophaga pensylvanica",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-chested White-eye",
+    "scientificName": "Zosterops albogularis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Brooks's Leaf Warbler",
+    "scientificName": "Phylloscopus subviridis",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive Warbler",
+    "scientificName": "Peucedramus taeniatus",
+    "confidence": 0.0008,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

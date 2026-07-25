@@ -1,0 +1,317 @@
+{
+ "imageFile": "Great_blue_heron_roosting_at_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Gray Heron",
+    "scientificName": "Ardea cinerea",
+    "confidence": 0.609,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Heron",
+    "scientificName": "Ardea purpurea",
+    "confidence": 0.2807,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.0862,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Heron",
+    "scientificName": "Butorides virescens",
+    "confidence": 0.0056,
+    "plumage": null
+   },
+   {
+    "commonName": "Striated Heron",
+    "scientificName": "Butorides striata",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Tricolored Heron",
+    "scientificName": "Egretta tricolor",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Heron",
+    "scientificName": "Butorides atricapilla",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Heron",
+    "scientificName": "Ardea pacifica",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Whistling Heron",
+    "scientificName": "Syrigma sibilatrix",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Boat-billed Heron",
+    "scientificName": "Cochlearius cochlearius",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumed Egret",
+    "scientificName": "Ardea plumifera",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-backed Bittern",
+    "scientificName": "Botaurus involucris",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bare-throated Tiger-Heron",
+    "scientificName": "Tigrisoma mexicanum",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Goliath Heron",
+    "scientificName": "Ardea goliath",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Heron",
+    "scientificName": "Ardea insignis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocoi Heron",
+    "scientificName": "Ardea cocoi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Bittern",
+    "scientificName": "Botaurus minutus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Egret",
+    "scientificName": "Ardea alba",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Pond-Heron",
+    "scientificName": "Ardeola grayii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Bittern",
+    "scientificName": "Botaurus stellaris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Heron",
+    "scientificName": "Ardea sumatrana",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Egret",
+    "scientificName": "Ardea brachyrhyncha",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "American Bittern",
+    "scientificName": "Botaurus lentiginosus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Reef-Heron",
+    "scientificName": "Egretta gularis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Sparrowhawk",
+    "scientificName": "Accipiter nisus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-bellied Heron",
+    "scientificName": "Ardeola rufiventris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Storm's Stork",
+    "scientificName": "Ciconia stormi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Anhinga",
+    "scientificName": "Anhinga anhinga",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Heron",
+    "scientificName": "Ardea melanocephala",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Heron",
+    "scientificName": "Egretta picata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-faced Heron",
+    "scientificName": "Egretta novaehollandiae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Squacco Heron",
+    "scientificName": "Ardeola ralloides",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Chinese Pond-Heron",
+    "scientificName": "Ardeola bacchus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-crowned Night Heron",
+    "scientificName": "Nycticorax nycticorax",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-crowned Night Heron",
+    "scientificName": "Nyctanassa violacea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Milky Stork",
+    "scientificName": "Mycteria cinerea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Bittern",
+    "scientificName": "Botaurus exilis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Fasciated Tiger-Heron",
+    "scientificName": "Tigrisoma fasciatum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Dalmatian Pelican",
+    "scientificName": "Pelecanus crispus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Egret",
+    "scientificName": "Egretta vinaceigula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Reef-Heron",
+    "scientificName": "Egretta sacra",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pink-backed Pelican",
+    "scientificName": "Pelecanus rufescens",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Heron",
+    "scientificName": "Egretta ardesiaca",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufescent Tiger-Heron",
+    "scientificName": "Tigrisoma lineatum",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Marabou Stork",
+    "scientificName": "Leptoptilos crumenifer",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Hadada Ibis",
+    "scientificName": "Bostrychia hagedash",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Reddish Egret",
+    "scientificName": "Egretta rufescens",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Blue Heron",
+    "scientificName": "Egretta caerulea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Stork",
+    "scientificName": "Ciconia nigra",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Dwarf Bittern",
+    "scientificName": "Botaurus sturmii",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

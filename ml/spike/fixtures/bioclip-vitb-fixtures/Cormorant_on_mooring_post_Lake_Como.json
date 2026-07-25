@@ -1,0 +1,317 @@
+{
+ "imageFile": "Cormorant_on_mooring_post_Lake_Como.jpg",
+ "context": {
+  "lat": 45.8097,
+  "lon": 9.0846,
+  "month": 8,
+  "locationName": "Lake Como, Italy"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Common Cuckoo",
+    "scientificName": "Cuculus canorus",
+    "confidence": 0.3378,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Cuckoo",
+    "scientificName": "Cuculus optatus",
+    "confidence": 0.1786,
+    "plumage": null
+   },
+   {
+    "commonName": "Eleonora's Falcon",
+    "scientificName": "Falco eleonorae",
+    "confidence": 0.0991,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Hobby",
+    "scientificName": "Falco subbuteo",
+    "confidence": 0.0684,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Swift",
+    "scientificName": "Apus apus",
+    "confidence": 0.0616,
+    "plumage": null
+   },
+   {
+    "commonName": "Horus Swift",
+    "scientificName": "Apus horus",
+    "confidence": 0.04,
+    "plumage": null
+   },
+   {
+    "commonName": "White-nest Swiftlet",
+    "scientificName": "Aerodramus fuciphagus",
+    "confidence": 0.0245,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Nightjar",
+    "scientificName": "Caprimulgus europaeus",
+    "confidence": 0.022,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Kite",
+    "scientificName": "Milvus migrans",
+    "confidence": 0.0193,
+    "plumage": null
+   },
+   {
+    "commonName": "Saker Falcon",
+    "scientificName": "Falco cherrug",
+    "confidence": 0.0116,
+    "plumage": null
+   },
+   {
+    "commonName": "Bearded Vulture",
+    "scientificName": "Gypaetus barbatus",
+    "confidence": 0.0108,
+    "plumage": null
+   },
+   {
+    "commonName": "Vega Gull",
+    "scientificName": "Larus vegae",
+    "confidence": 0.0095,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Gull",
+    "scientificName": "Larus canus",
+    "confidence": 0.0089,
+    "plumage": null
+   },
+   {
+    "commonName": "Parasitic Jaeger",
+    "scientificName": "Stercorarius parasiticus",
+    "confidence": 0.0086,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Marsh Harrier",
+    "scientificName": "Circus aeruginosus",
+    "confidence": 0.008,
+    "plumage": null
+   },
+   {
+    "commonName": "Gyrfalcon",
+    "scientificName": "Falco rusticolus",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-toed Snake-Eagle",
+    "scientificName": "Circaetus gallicus",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "European Honey-buzzard",
+    "scientificName": "Pernis apivorus",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Fulmar",
+    "scientificName": "Fulmarus glacialis",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Kestrel",
+    "scientificName": "Falco tinnunculus",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Cinereous Harrier",
+    "scientificName": "Circus cinereus",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Buzzard",
+    "scientificName": "Buteo buteo",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Swiftlet",
+    "scientificName": "Aerodramus hirundinaceus",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Stygian Owl",
+    "scientificName": "Asio stygius",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Hen Harrier",
+    "scientificName": "Circus cyaneus",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Volcano Swiftlet",
+    "scientificName": "Aerodramus vulcanorum",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Crag-Martin",
+    "scientificName": "Ptyonoprogne rupestris",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Gannet",
+    "scientificName": "Morus bassanus",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Tern",
+    "scientificName": "Chlidonias niger",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Three-toed Swiftlet",
+    "scientificName": "Aerodramus papuensis",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Forest Buzzard",
+    "scientificName": "Buteo trizonatus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Kite",
+    "scientificName": "Milvus milvus",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Streaked Shearwater",
+    "scientificName": "Calonectris leucomelas",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Skua",
+    "scientificName": "Stercorarius skua",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Eagle-Owl",
+    "scientificName": "Bubo bubo",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallid Harrier",
+    "scientificName": "Circus macrourus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Peregrine Falcon",
+    "scientificName": "Falco peregrinus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Swallow",
+    "scientificName": "Riparia riparia",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Ameline Swiftlet",
+    "scientificName": "Aerodramus amelis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "African Swift",
+    "scientificName": "Apus barbatus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Hawk Owl",
+    "scientificName": "Surnia ulula",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Montagu's Harrier",
+    "scientificName": "Circus pygargus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Merlin",
+    "scientificName": "Falco columbarius",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Sparrowhawk",
+    "scientificName": "Accipiter nisus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-legged Gull",
+    "scientificName": "Larus michahellis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Goshawk",
+    "scientificName": "Astur gentilis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Sunda Cuckoo",
+    "scientificName": "Cuculus lepidus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Swift",
+    "scientificName": "Apus pacificus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Nightjar",
+    "scientificName": "Nyctipolus hirundinaceus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Himalayan Swiftlet",
+    "scientificName": "Aerodramus brevirostris",
+    "confidence": 0.0006,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

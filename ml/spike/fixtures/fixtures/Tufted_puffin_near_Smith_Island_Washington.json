@@ -1,0 +1,43 @@
+{
+  "imageFile": "Tufted_puffin_near_Smith_Island_Washington.jpg",
+  "context": {
+    "lat": 48.3204,
+    "lon": -122.8352,
+    "month": 7,
+    "locationName": "Smith Island, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Tufted Puffin (Fratercula cirrhata)\",\"confidence\":0.485,\"plumage\":\"female\",\"rangeStatus\":\"out-of-range\"},{\"species\":\"Rhinoceros Auklet (Cerorhinca monocerata)\",\"confidence\":0.35100000000000003,\"rangeStatus\":\"present\"},{\"species\":\"Horned Puffin (Fratercula corniculata)\",\"confidence\":0.29,\"plumage\":\"female\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Tufted Puffin (Fratercula cirrhata)",
+        "confidence": 0.485,
+        "plumage": "female",
+        "rangeStatus": "out-of-range"
+      },
+      {
+        "species": "Rhinoceros Auklet (Cerorhinca monocerata)",
+        "confidence": 0.35100000000000003,
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Horned Puffin (Fratercula corniculata)",
+        "confidence": 0.29,
+        "plumage": "female",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      31,
+      52
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1655,
+  "capturedAt": "2026-03-21T05:24:56.300Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.857Z",
+  "rangeAdjusted": true
+}

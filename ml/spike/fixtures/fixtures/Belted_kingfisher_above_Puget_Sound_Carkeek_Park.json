@@ -1,0 +1,32 @@
+{
+  "imageFile": "Belted_kingfisher_above_Puget_Sound_Carkeek_Park.jpg",
+  "context": {
+    "lat": 47.7117,
+    "lon": -122.3771,
+    "month": 7,
+    "locationName": "Carkeek Park, Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Belted Kingfisher (Megaceryle alcyon)\",\"confidence\":0.98,\"plumage\":\"female\",\"rangeStatus\":\"present\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Belted Kingfisher (Megaceryle alcyon)",
+        "confidence": 0.98,
+        "plumage": "female",
+        "rangeStatus": "present"
+      }
+    ],
+    "birdCenter": [
+      48,
+      56
+    ],
+    "birdSize": "medium",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1662,
+  "capturedAt": "2026-03-21T05:24:21.330Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.844Z",
+  "rangeAdjusted": true
+}

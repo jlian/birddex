@@ -1,0 +1,50 @@
+{
+  "imageFile": "Dark-eyed_junco_in_foliage_Seattle_Arboretum.jpg",
+  "context": {
+    "lat": 47.6399,
+    "lon": -122.2958,
+    "month": 10,
+    "locationName": "Washington Park Arboretum, Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Dark-eyed Junco (Junco hyemalis)\",\"confidence\":0.94,\"plumage\":\"male\",\"rangeStatus\":\"present\"},{\"species\":\"White-crowned Sparrow (Zonotrichia leucophrys)\",\"confidence\":0.43,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Song Sparrow (Melospiza melodia)\",\"confidence\":0.33,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Fox Sparrow (Passerella iliaca)\",\"confidence\":0.27,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Dark-eyed Junco (Junco hyemalis)",
+        "confidence": 0.94,
+        "plumage": "male",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "White-crowned Sparrow (Zonotrichia leucophrys)",
+        "confidence": 0.43,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Song Sparrow (Melospiza melodia)",
+        "confidence": 0.33,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Fox Sparrow (Passerella iliaca)",
+        "confidence": 0.27,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      63,
+      60
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1781,
+  "capturedAt": "2026-03-21T05:24:33.287Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.848Z",
+  "rangeAdjusted": true
+}

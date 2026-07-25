@@ -1,0 +1,50 @@
+{
+  "imageFile": "Sanderling_foraging_Lake_Michigan_Chicago.jpg",
+  "context": {
+    "lat": 41.9632,
+    "lon": -87.6342,
+    "month": 8,
+    "locationName": "Lake Michigan, Chicago, IL"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Sanderling (Calidris alba)\",\"confidence\":0.83,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Semipalmated Sandpiper (Calidris pusilla)\",\"confidence\":0.68,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Least Sandpiper (Calidris minutilla)\",\"confidence\":0.36,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Western Sandpiper (Calidris mauri)\",\"confidence\":0.25,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Sanderling (Calidris alba)",
+        "confidence": 0.83,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Semipalmated Sandpiper (Calidris pusilla)",
+        "confidence": 0.68,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Least Sandpiper (Calidris minutilla)",
+        "confidence": 0.36,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Western Sandpiper (Calidris mauri)",
+        "confidence": 0.25,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      29,
+      42
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2439,
+  "capturedAt": "2026-03-21T05:25:14.339Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.856Z",
+  "rangeAdjusted": true
+}

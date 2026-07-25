@@ -1,0 +1,41 @@
+{
+  "imageFile": "Cormorants_on_navigation_marker_Skagit_Bay.jpg",
+  "context": {
+    "lat": 48.3918,
+    "lon": -122.4885,
+    "month": 6,
+    "locationName": "Skagit Bay, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Brandt's Cormorant (Urile penicillatus)\",\"confidence\":0.646,\"rangeStatus\":\"near-range\"},{\"species\":\"Double-crested Cormorant (Nannopterum auritum)\",\"confidence\":0.58,\"rangeStatus\":\"present\"},{\"species\":\"Pelagic Cormorant (Urile pelagicus)\",\"confidence\":0.5125500000000001,\"rangeStatus\":\"near-range\"}],\"multipleBirds\":true}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Brandt's Cormorant (Urile penicillatus)",
+        "confidence": 0.646,
+        "rangeStatus": "near-range"
+      },
+      {
+        "species": "Double-crested Cormorant (Nannopterum auritum)",
+        "confidence": 0.58,
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Pelagic Cormorant (Urile pelagicus)",
+        "confidence": 0.5125500000000001,
+        "rangeStatus": "near-range"
+      }
+    ],
+    "birdCenter": [
+      64,
+      49
+    ],
+    "birdSize": "small",
+    "multipleBirds": true
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 3734,
+  "capturedAt": "2026-03-21T05:24:25.938Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.848Z",
+  "rangeAdjusted": true
+}

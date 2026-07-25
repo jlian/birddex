@@ -1,0 +1,317 @@
+{
+ "imageFile": "Anna's_hummingbird_in_Seattle_garden.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 6,
+  "locationName": "Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Volcano Hummingbird",
+    "scientificName": "Selasphorus flammula",
+    "confidence": 0.3346,
+    "plumage": null
+   },
+   {
+    "commonName": "Anna's Hummingbird",
+    "scientificName": "Calypte anna",
+    "confidence": 0.219,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruby-throated Hummingbird",
+    "scientificName": "Archilochus colubris",
+    "confidence": 0.0709,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous Hummingbird",
+    "scientificName": "Selasphorus rufus",
+    "confidence": 0.0548,
+    "plumage": null
+   },
+   {
+    "commonName": "Glow-throated Hummingbird",
+    "scientificName": "Selasphorus ardens",
+    "confidence": 0.0523,
+    "plumage": null
+   },
+   {
+    "commonName": "Santa Marta Blossomcrown",
+    "scientificName": "Anthocephala floriceps",
+    "confidence": 0.0504,
+    "plumage": null
+   },
+   {
+    "commonName": "Allen's Hummingbird",
+    "scientificName": "Selasphorus sasin",
+    "confidence": 0.034,
+    "plumage": null
+   },
+   {
+    "commonName": "Talamanca Hummingbird",
+    "scientificName": "Eugenes spectabilis",
+    "confidence": 0.0177,
+    "plumage": null
+   },
+   {
+    "commonName": "Bronze-tailed Comet",
+    "scientificName": "Polyonymus caroli",
+    "confidence": 0.0171,
+    "plumage": null
+   },
+   {
+    "commonName": "Violet-headed Hummingbird",
+    "scientificName": "Klais guimeti",
+    "confidence": 0.0152,
+    "plumage": null
+   },
+   {
+    "commonName": "Turquoise-crowned Hummingbird",
+    "scientificName": "Cynanthus doubledayi",
+    "confidence": 0.0145,
+    "plumage": null
+   },
+   {
+    "commonName": "Rivoli's Hummingbird",
+    "scientificName": "Eugenes fulgens",
+    "confidence": 0.0134,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Inca",
+    "scientificName": "Coeligena wilsoni",
+    "confidence": 0.0124,
+    "plumage": null
+   },
+   {
+    "commonName": "Horned Sungem",
+    "scientificName": "Heliactin bilophus",
+    "confidence": 0.0099,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-chinned Hummingbird",
+    "scientificName": "Archilochus alexandri",
+    "confidence": 0.0093,
+    "plumage": null
+   },
+   {
+    "commonName": "Costa's Hummingbird",
+    "scientificName": "Calypte costae",
+    "confidence": 0.0089,
+    "plumage": null
+   },
+   {
+    "commonName": "Broad-tailed Hummingbird",
+    "scientificName": "Selasphorus platycercus",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "Striated Yuhina",
+    "scientificName": "Staphida castaniceps",
+    "confidence": 0.0056,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain-capped Starthroat",
+    "scientificName": "Heliomaster constantii",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-tailed Sapphire",
+    "scientificName": "Chrysuronia oenone",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Marvelous Spatuletail",
+    "scientificName": "Loddigesia mirabilis",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-throated Mountain-gem",
+    "scientificName": "Lampornis viridipallens",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Grande Comore Flycatcher",
+    "scientificName": "Humblotia flavirostris",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Bronzy Inca",
+    "scientificName": "Coeligena coeligena",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Fiery-throated Hummingbird",
+    "scientificName": "Panterpe insignis",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple-throated Mountain-gem",
+    "scientificName": "Lampornis calolaemus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Gould's Inca",
+    "scientificName": "Coeligena inca",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Lucifer Hummingbird",
+    "scientificName": "Calothorax lucifer",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Calliope Hummingbird",
+    "scientificName": "Selasphorus calliope",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Wine-throated Hummingbird",
+    "scientificName": "Selasphorus ellioti",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Bee Hummingbird",
+    "scientificName": "Mellisuga helenae",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Merida Sunangel",
+    "scientificName": "Heliangelus spencei",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-shafted Woodstar",
+    "scientificName": "Chaetocercus jourdanii",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-capped Thornbill",
+    "scientificName": "Chalcostigma ruficeps",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Amethyst Woodstar",
+    "scientificName": "Calliphlox amethystina",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Frilled Coquette",
+    "scientificName": "Lophornis magnificus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-sided Hillstar",
+    "scientificName": "Oreotrochilus leucopleurus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-fronted Lancebill",
+    "scientificName": "Doryfera ludovicae",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-throated Mountain-gem",
+    "scientificName": "Lampornis clemenciae",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-crested Coquette",
+    "scientificName": "Lophornis helenae",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-breasted Starthroat",
+    "scientificName": "Heliomaster squamosus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Piedtail",
+    "scientificName": "Phlogophilus harterti",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Magenta-throated Woodstar",
+    "scientificName": "Philodice bryantae",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Mountain-gem",
+    "scientificName": "Lampornis castaneoventris",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Tooth-billed Hummingbird",
+    "scientificName": "Androdon aequatorialis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Violetear",
+    "scientificName": "Colibri delphinae",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Amazilia Hummingbird",
+    "scientificName": "Amazilis amazilia",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Honduran Emerald",
+    "scientificName": "Amazilia luciae",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Sheartail",
+    "scientificName": "Thaumastura cora",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Amethyst-throated Mountain-gem",
+    "scientificName": "Lampornis amethystinus",
+    "confidence": 0.0004,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

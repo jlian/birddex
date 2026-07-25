@@ -1,0 +1,65 @@
+{
+ "imageFile": "Palm_warbler_on_Lake_Michigan_shore_Chicago.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Lake Michigan shore, Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Palm Warbler",
+    "scientificName": "Setophaga palmarum",
+    "confidence": 0.8646,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape May Warbler",
+    "scientificName": "Setophaga tigrina",
+    "confidence": 0.011,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-rumped Warbler",
+    "scientificName": "Setophaga coronata",
+    "confidence": 0.0076,
+    "plumage": null
+   },
+   {
+    "commonName": "Prairie Warbler",
+    "scientificName": "Setophaga discolor",
+    "confidence": 0.0057,
+    "plumage": null
+   },
+   {
+    "commonName": "Vitelline Warbler",
+    "scientificName": "Setophaga vitellina",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Pine Warbler",
+    "scientificName": "Setophaga pinus",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Kirtland's Warbler",
+    "scientificName": "Setophaga kirtlandii",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Grayish Miner",
+    "scientificName": "Geositta maritima",
+    "confidence": 0.0038,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4-bs32"
+}

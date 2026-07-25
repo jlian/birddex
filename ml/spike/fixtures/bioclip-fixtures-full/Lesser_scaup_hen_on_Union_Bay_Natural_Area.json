@@ -1,0 +1,317 @@
+{
+ "imageFile": "Lesser_scaup_hen_on_Union_Bay_Natural_Area.jpg",
+ "context": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Ring-necked Duck",
+    "scientificName": "Aythya collaris",
+    "confidence": 0.9151,
+    "plumage": null
+   },
+   {
+    "commonName": "Redhead",
+    "scientificName": "Aythya americana",
+    "confidence": 0.0383,
+    "plumage": null
+   },
+   {
+    "commonName": "Rosy-billed Pochard",
+    "scientificName": "Netta peposaca",
+    "confidence": 0.0098,
+    "plumage": null
+   },
+   {
+    "commonName": "Madagascar Pochard",
+    "scientificName": "Aythya innotata",
+    "confidence": 0.0091,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0082,
+    "plumage": null
+   },
+   {
+    "commonName": "Canvasback",
+    "scientificName": "Aythya valisineria",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Duck",
+    "scientificName": "Heteronetta atricapilla",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy Duck",
+    "scientificName": "Oxyura jamaicensis",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Merganser",
+    "scientificName": "Lophodytes cucullatus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "American Black Duck",
+    "scientificName": "Anas rubripes",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Pochard",
+    "scientificName": "Netta erythrophthalma",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Ferruginous Duck",
+    "scientificName": "Aythya nyroca",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Pochard",
+    "scientificName": "Aythya ferina",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Duck",
+    "scientificName": "Aythya fuligula",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Scaup",
+    "scientificName": "Aythya novaeseelandiae",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Baer's Pochard",
+    "scientificName": "Aythya baeri",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied-billed Grebe",
+    "scientificName": "Podilymbus podiceps",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "West Indian Whistling-Duck",
+    "scientificName": "Dendrocygna arborea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Wood Duck",
+    "scientificName": "Aix sponsa",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Duck",
+    "scientificName": "Oxyura ferruginea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Whistling-Duck",
+    "scientificName": "Dendrocygna guttata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pink-headed Duck",
+    "scientificName": "Rhodonessa caryophyllacea",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "American Wigeon",
+    "scientificName": "Mareca americana",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-faced Whistling-Duck",
+    "scientificName": "Dendrocygna viduata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Masked Duck",
+    "scientificName": "Nomonyx dominicus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Brazilian Merganser",
+    "scientificName": "Mergus octosetaceus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Whistling-Duck",
+    "scientificName": "Dendrocygna javanica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Hartlaub's Duck",
+    "scientificName": "Pteronetta hartlaubii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Fulvous Whistling-Duck",
+    "scientificName": "Dendrocygna bicolor",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Labrador Duck",
+    "scientificName": "Camptorhynchus labradorius",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Campbell Islands Teal",
+    "scientificName": "Anas nesiotis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Mottled Duck",
+    "scientificName": "Anas fulvigula",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Musk Duck",
+    "scientificName": "Biziura lobata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-winged Teal",
+    "scientificName": "Anas crecca",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Maccoa Duck",
+    "scientificName": "Oxyura maccoa",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pintail",
+    "scientificName": "Anas acuta",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty Blackbird",
+    "scientificName": "Euphagus carolinus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-headed Blackbird",
+    "scientificName": "Xanthocephalus xanthocephalus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Philippine Duck",
+    "scientificName": "Anas luzonica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "African Pygmy-Goose",
+    "scientificName": "Nettapus auritus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Boat-tailed Grackle",
+    "scientificName": "Quiscalus major",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-backed Duck",
+    "scientificName": "Thalassornis leuconotus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-bellied Whistling-Duck",
+    "scientificName": "Dendrocygna autumnalis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eared Grebe",
+    "scientificName": "Podiceps nigricollis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Pintail",
+    "scientificName": "Anas georgica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-winged Teal",
+    "scientificName": "Spatula discors",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Freckled Duck",
+    "scientificName": "Stictonetta naevosa",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

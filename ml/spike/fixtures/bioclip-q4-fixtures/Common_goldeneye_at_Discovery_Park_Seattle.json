@@ -1,0 +1,65 @@
+{
+ "imageFile": "Common_goldeneye_at_Discovery_Park_Seattle.jpeg",
+ "context": {
+  "lat": 47.66,
+  "lon": -122.4287,
+  "month": 0,
+  "locationName": "Discovery Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Barrow's Goldeneye",
+    "scientificName": "Bucephala islandica",
+    "confidence": 0.3724,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Goldeneye",
+    "scientificName": "Bucephala clangula",
+    "confidence": 0.0645,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous Gull",
+    "scientificName": "Larus hyperboreus",
+    "confidence": 0.0453,
+    "plumage": null
+   },
+   {
+    "commonName": "Iceland Gull",
+    "scientificName": "Larus glaucoides",
+    "confidence": 0.0384,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous-winged Gull",
+    "scientificName": "Larus glaucescens",
+    "confidence": 0.0281,
+    "plumage": null
+   },
+   {
+    "commonName": "Smew",
+    "scientificName": "Mergellus albellus",
+    "confidence": 0.0253,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Scoter",
+    "scientificName": "Melanitta deglandi",
+    "confidence": 0.025,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Duck",
+    "scientificName": "Clangula hyemalis",
+    "confidence": 0.0248,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4"
+}

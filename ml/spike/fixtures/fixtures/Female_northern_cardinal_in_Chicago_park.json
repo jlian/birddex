@@ -1,0 +1,49 @@
+{
+  "imageFile": "Female_northern_cardinal_in_Chicago_park.jpg",
+  "context": {
+    "lat": 41.9632,
+    "lon": -87.6342,
+    "month": 8,
+    "locationName": "Chicago, IL"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Northern Cardinal (Cardinalis cardinalis)\",\"confidence\":0.93,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Rose-breasted Grosbeak (Pheucticus ludovicianus)\",\"confidence\":0.30600000000000005,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Red Crossbill (Loxia curvirostra)\",\"confidence\":0.279,\"rangeStatus\":\"present\"},{\"species\":\"Pyrrhuloxia (Cardinalis sinuatus)\",\"confidence\":0.21,\"plumage\":\"female\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Northern Cardinal (Cardinalis cardinalis)",
+        "confidence": 0.93,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Rose-breasted Grosbeak (Pheucticus ludovicianus)",
+        "confidence": 0.30600000000000005,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Red Crossbill (Loxia curvirostra)",
+        "confidence": 0.279,
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Pyrrhuloxia (Cardinalis sinuatus)",
+        "confidence": 0.21,
+        "plumage": "female",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      64,
+      56
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1553,
+  "capturedAt": "2026-03-21T05:25:04.896Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.849Z",
+  "rangeAdjusted": true
+}

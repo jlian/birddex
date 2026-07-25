@@ -1,0 +1,44 @@
+{
+  "imageFile": "Chukar_partridge_near_Haleakala_summit_Maui.jpg",
+  "context": {
+    "lat": 20.7148,
+    "lon": -156.2502,
+    "month": 11,
+    "locationName": "Haleakala, Maui, HI"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Chukar (Alectoris chukar)\",\"confidence\":0.97,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Rock Partridge (Alectoris graeca)\",\"confidence\":0.39,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Red-legged Partridge (Alectoris rufa)\",\"confidence\":0.225,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Chukar (Alectoris chukar)",
+        "confidence": 0.97,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Rock Partridge (Alectoris graeca)",
+        "confidence": 0.39,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Red-legged Partridge (Alectoris rufa)",
+        "confidence": 0.225,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      72,
+      66
+    ],
+    "birdSize": "medium",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 1833,
+  "capturedAt": "2026-03-21T05:25:17.013Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.845Z",
+  "rangeAdjusted": true
+}

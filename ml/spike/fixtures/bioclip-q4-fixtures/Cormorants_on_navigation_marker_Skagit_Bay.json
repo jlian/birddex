@@ -1,0 +1,65 @@
+{
+ "imageFile": "Cormorants_on_navigation_marker_Skagit_Bay.jpg",
+ "context": {
+  "lat": 48.3918,
+  "lon": -122.4885,
+  "month": 6,
+  "locationName": "Skagit Bay, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.1715,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.1561,
+    "plumage": null
+   },
+   {
+    "commonName": "Inca Tern",
+    "scientificName": "Larosterna inca",
+    "confidence": 0.15,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.107,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0909,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Cormorant",
+    "scientificName": "Phalacrocorax neglectus",
+    "confidence": 0.0807,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0419,
+    "plumage": null
+   },
+   {
+    "commonName": "Crowned Cormorant",
+    "scientificName": "Microcarbo coronatus",
+    "confidence": 0.0186,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4"
+}

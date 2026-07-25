@@ -1,0 +1,317 @@
+{
+ "imageFile": "Cormorant_on_mooring_post_Lake_Como.jpg",
+ "context": {
+  "lat": 45.8097,
+  "lon": 9.0846,
+  "month": 8,
+  "locationName": "Lake Como, Italy"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Great Cormorant",
+    "scientificName": "Phalacrocorax carbo",
+    "confidence": 0.3579,
+    "plumage": null
+   },
+   {
+    "commonName": "Dalmatian Pelican",
+    "scientificName": "Pelecanus crispus",
+    "confidence": 0.2455,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Cormorant",
+    "scientificName": "Microcarbo pygmaeus",
+    "confidence": 0.1017,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Cormorant",
+    "scientificName": "Phalacrocorax capillatus",
+    "confidence": 0.0728,
+    "plumage": null
+   },
+   {
+    "commonName": "European Shag",
+    "scientificName": "Gulosus aristotelis",
+    "confidence": 0.0316,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Cormorant",
+    "scientificName": "Phalacrocorax neglectus",
+    "confidence": 0.0307,
+    "plumage": null
+   },
+   {
+    "commonName": "Yelkouan Shearwater",
+    "scientificName": "Puffinus yelkouan",
+    "confidence": 0.0249,
+    "plumage": null
+   },
+   {
+    "commonName": "Socotra Cormorant",
+    "scientificName": "Phalacrocorax nigrogularis",
+    "confidence": 0.0207,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.0152,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Cormorant",
+    "scientificName": "Phalacrocorax capensis",
+    "confidence": 0.0085,
+    "plumage": null
+   },
+   {
+    "commonName": "Imperial Cormorant",
+    "scientificName": "Leucocarbo atriceps",
+    "confidence": 0.0082,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Booby",
+    "scientificName": "Sula leucogaster",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Cormorant",
+    "scientificName": "Phalacrocorax fuscicollis",
+    "confidence": 0.0044,
+    "plumage": null
+   },
+   {
+    "commonName": "Flightless Cormorant",
+    "scientificName": "Nannopterum harrisi",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Pelagic Cormorant",
+    "scientificName": "Urile pelagicus",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Cormorant",
+    "scientificName": "Phalacrocorax varius",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-legged Gull",
+    "scientificName": "Larus michahellis",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Caspian Gull",
+    "scientificName": "Larus cachinnans",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Great White Pelican",
+    "scientificName": "Pelecanus onocrotalus",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Shag",
+    "scientificName": "Phalacrocorax punctatus",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Cormorant",
+    "scientificName": "Phalacrocorax fuscescens",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Bounty Islands Shag",
+    "scientificName": "Leucocarbo ranfurlyi",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Guanay Cormorant",
+    "scientificName": "Leucocarbo bougainvilliorum",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Barolo Shearwater",
+    "scientificName": "Puffinus baroli",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Pitt Island Shag",
+    "scientificName": "Phalacrocorax featherstoni",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Italian Sparrow",
+    "scientificName": "Passer italiae",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Balearic Shearwater",
+    "scientificName": "Puffinus mauretanicus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Heron",
+    "scientificName": "Ardea cinerea",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Anhinga",
+    "scientificName": "Anhinga anhinga",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Gannet",
+    "scientificName": "Morus bassanus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Stork",
+    "scientificName": "Ciconia nigra",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Crowned Cormorant",
+    "scientificName": "Microcarbo coronatus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Armenian Gull",
+    "scientificName": "Larus armenicus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Double-crested Cormorant",
+    "scientificName": "Nannopterum auritum",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Sandwich Tern",
+    "scientificName": "Thalasseus sandvicensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Campbell Islands Shag",
+    "scientificName": "Leucocarbo campbelli",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Cormorant",
+    "scientificName": "Microcarbo niger",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Magellanic Cormorant",
+    "scientificName": "Leucocarbo magellanicus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Crow",
+    "scientificName": "Corvus cornix",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Razorbill",
+    "scientificName": "Alca torda",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Murre",
+    "scientificName": "Uria aalge",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Oystercatcher",
+    "scientificName": "Haematopus ostralegus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Coot",
+    "scientificName": "Fulica atra",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-crested Pochard",
+    "scientificName": "Netta rufina",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Mediterranean Gull",
+    "scientificName": "Ichthyaetus melanocephalus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Crested Grebe",
+    "scientificName": "Podiceps cristatus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Griffon",
+    "scientificName": "Gyps fulvus",
+    "confidence": 0.0005,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

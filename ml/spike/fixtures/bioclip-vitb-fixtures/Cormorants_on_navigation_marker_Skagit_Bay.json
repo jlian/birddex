@@ -1,0 +1,317 @@
+{
+ "imageFile": "Cormorants_on_navigation_marker_Skagit_Bay.jpg",
+ "context": {
+  "lat": 48.3918,
+  "lon": -122.4885,
+  "month": 6,
+  "locationName": "Skagit Bay, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "European Starling",
+    "scientificName": "Sturnus vulgaris",
+    "confidence": 0.3163,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-breasted Martin",
+    "scientificName": "Progne chalybea",
+    "confidence": 0.1738,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotless Starling",
+    "scientificName": "Sturnus unicolor",
+    "confidence": 0.0729,
+    "plumage": null
+   },
+   {
+    "commonName": "Brewer's Blackbird",
+    "scientificName": "Euphagus cyanocephalus",
+    "confidence": 0.0539,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Phoebe",
+    "scientificName": "Sayornis nigricans",
+    "confidence": 0.0493,
+    "plumage": null
+   },
+   {
+    "commonName": "Tricolored Blackbird",
+    "scientificName": "Agelaius tricolor",
+    "confidence": 0.0466,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Martin",
+    "scientificName": "Progne subis",
+    "confidence": 0.0431,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-collared Swallow",
+    "scientificName": "Pygochelidon melanoleuca",
+    "confidence": 0.0282,
+    "plumage": null
+   },
+   {
+    "commonName": "Bronzed Cowbird",
+    "scientificName": "Molothrus aeneus",
+    "confidence": 0.0249,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Blue Swallow",
+    "scientificName": "Hirundo nigrita",
+    "confidence": 0.0206,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Crag-Martin",
+    "scientificName": "Ptyonoprogne rupestris",
+    "confidence": 0.0164,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Martin",
+    "scientificName": "Progne elegans",
+    "confidence": 0.0157,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Swallow",
+    "scientificName": "Pygochelidon cyanoleuca",
+    "confidence": 0.0102,
+    "plumage": null
+   },
+   {
+    "commonName": "Sinaloa Martin",
+    "scientificName": "Progne sinaloae",
+    "confidence": 0.0086,
+    "plumage": null
+   },
+   {
+    "commonName": "Caribbean Martin",
+    "scientificName": "Progne dominicensis",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain Martin",
+    "scientificName": "Riparia paludicola",
+    "confidence": 0.0062,
+    "plumage": null
+   },
+   {
+    "commonName": "Western House-Martin",
+    "scientificName": "Delichon urbicum",
+    "confidence": 0.006,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Turnstone",
+    "scientificName": "Arenaria melanocephala",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-headed Cowbird",
+    "scientificName": "Molothrus ater",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Swallow",
+    "scientificName": "Hirundo albigularis",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Swallow",
+    "scientificName": "Tachycineta albiventer",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Chiguanco Thrush",
+    "scientificName": "Turdus chiguanco",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Swift",
+    "scientificName": "Apus apus",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Myna",
+    "scientificName": "Acridotheres cristatellus",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Tasman Starling",
+    "scientificName": "Aplonis fusca",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Swallow",
+    "scientificName": "Riparia riparia",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Welcome Swallow",
+    "scientificName": "Hirundo neoxena",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Dark-bellied Cinclodes",
+    "scientificName": "Cinclodes patagonicus",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty-winged Starling",
+    "scientificName": "Aplonis zelandica",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-chested Martin",
+    "scientificName": "Progne tapera",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Dusky Indigobird",
+    "scientificName": "Vidua funerea",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Negrito",
+    "scientificName": "Lessonia oreas",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Violet-green Swallow",
+    "scientificName": "Tachycineta thalassina",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-winged Starling",
+    "scientificName": "Aplonis grandis",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Martin",
+    "scientificName": "Progne murphyi",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Galapagos Martin",
+    "scientificName": "Progne modesta",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Chough",
+    "scientificName": "Pyrrhocorax pyrrhocorax",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-throated Swallow",
+    "scientificName": "Petrochelidon rufigula",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Tristram's Starling",
+    "scientificName": "Onychognathus tristramii",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Red Sea Swallow",
+    "scientificName": "Petrochelidon perdita",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Rough-winged Swallow",
+    "scientificName": "Stelgidopteryx serripennis",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Wilson's Indigobird",
+    "scientificName": "Vidua wilsoni",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "White-nest Swiftlet",
+    "scientificName": "Aerodramus fuciphagus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Preuss's Swallow",
+    "scientificName": "Petrochelidon preussi",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Meves's Starling",
+    "scientificName": "Lamprotornis mevesii",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Seaside Cinclodes",
+    "scientificName": "Cinclodes nigrofumosus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Shiny Cowbird",
+    "scientificName": "Molothrus bonariensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Needletail",
+    "scientificName": "Hirundapus caudacutus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Austral Blackbird",
+    "scientificName": "Curaeus curaeus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "House Sparrow",
+    "scientificName": "Passer domesticus",
+    "confidence": 0.0006,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

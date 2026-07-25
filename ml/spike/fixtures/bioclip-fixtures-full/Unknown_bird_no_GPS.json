@@ -1,0 +1,317 @@
+{
+ "imageFile": "Unknown_bird_no_GPS.jpeg",
+ "context": {
+  "lat": null,
+  "lon": null,
+  "month": null,
+  "locationName": ""
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Bushtit",
+    "scientificName": "Psaltriparus minimus",
+    "confidence": 0.9177,
+    "plumage": null
+   },
+   {
+    "commonName": "Verdin",
+    "scientificName": "Auriparus flaviceps",
+    "confidence": 0.0076,
+    "plumage": null
+   },
+   {
+    "commonName": "Wrentit",
+    "scientificName": "Chamaea fasciata",
+    "confidence": 0.0075,
+    "plumage": null
+   },
+   {
+    "commonName": "Bewick's Wren",
+    "scientificName": "Thryomanes bewickii",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain-mantled Tit-Spinetail",
+    "scientificName": "Leptasthenura aegithaloides",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Hutton's Vireo",
+    "scientificName": "Vireo huttoni",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Oak Titmouse",
+    "scientificName": "Baeolophus inornatus",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Anna's Hummingbird",
+    "scientificName": "Calypte anna",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Chickadee",
+    "scientificName": "Poecile gambeli",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Parisoma",
+    "scientificName": "Curruca lugens",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-gray Gnatcatcher",
+    "scientificName": "Polioptila caerulea",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-crowned Kinglet",
+    "scientificName": "Regulus satrapa",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty-crowned Tit-Spinetail",
+    "scientificName": "Leptasthenura pileata",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Nuthatch",
+    "scientificName": "Sitta pygmaea",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Chestnut-backed Chickadee",
+    "scientificName": "Poecile rufescens",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Dark-eyed Junco",
+    "scientificName": "Junco hyemalis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Boreal Chickadee",
+    "scientificName": "Poecile hudsonicus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Chickadee",
+    "scientificName": "Poecile atricapillus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Pipipi",
+    "scientificName": "Mohoua novaeseelandiae",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "California Gnatcatcher",
+    "scientificName": "Polioptila californica",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-browed Tit",
+    "scientificName": "Aegithalos iouschistos",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Townsend's Warbler",
+    "scientificName": "Setophaga townsendi",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiwan Fulvetta",
+    "scientificName": "Fulvetta formosana",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Tit",
+    "scientificName": "Aegithalos exilis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Apalis",
+    "scientificName": "Apalis cinerea",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "White-naped Yuhina",
+    "scientificName": "Yuhina bakeri",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Sichuan Tit",
+    "scientificName": "Poecile weigoldicus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiwan Yuhina",
+    "scientificName": "Yuhina brunneiceps",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Indochinese Fulvetta",
+    "scientificName": "Fulvetta danisi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Hermit Warbler",
+    "scientificName": "Setophaga occidentalis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Mouse-colored Penduline-Tit",
+    "scientificName": "Anthoscopus musculus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Whitehead",
+    "scientificName": "Mohoua albicilla",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Bar-throated Apalis",
+    "scientificName": "Apalis thoracica",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Marsh Tit",
+    "scientificName": "Poecile palustris",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Gerygone",
+    "scientificName": "Gerygone igata",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Tit-Spinetail",
+    "scientificName": "Leptasthenura platensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-crowned Sparrow",
+    "scientificName": "Zonotrichia atricapilla",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Townsend's Solitaire",
+    "scientificName": "Myadestes townsendi",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Piura Chat-Tyrant",
+    "scientificName": "Ochthoeca piurae",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Orange-crowned Warbler",
+    "scientificName": "Leiothlypis celata",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Manipur Fulvetta",
+    "scientificName": "Fulvetta manipurensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pygmy-Owl",
+    "scientificName": "Glaucidium gnoma",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Tit-Tyrant",
+    "scientificName": "Anairetes parulus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-crowned Spinetail",
+    "scientificName": "Cranioleuca pyrrhophia",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Canary Islands Chiffchaff",
+    "scientificName": "Phylloscopus canariensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Creeper",
+    "scientificName": "Certhia americana",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure Tit",
+    "scientificName": "Cyanistes cyanus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Mara\u00f1on Gnatcatcher",
+    "scientificName": "Polioptila maior",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "African Dusky Flycatcher",
+    "scientificName": "Muscicapa adusta",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Bush Warbler",
+    "scientificName": "Horornis diphone",
+    "confidence": 0.0002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

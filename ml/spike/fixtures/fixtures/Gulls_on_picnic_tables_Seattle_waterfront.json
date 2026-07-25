@@ -1,0 +1,44 @@
+{
+  "imageFile": "Gulls_on_picnic_tables_Seattle_waterfront.jpg",
+  "context": {
+    "lat": 47.6062,
+    "lon": -122.3421,
+    "month": 7,
+    "locationName": "Seattle Waterfront, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Glaucous-winged Gull (Larus glaucescens)\",\"confidence\":0.62,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"California Gull (Larus californicus)\",\"confidence\":0.279,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Western Gull (Larus occidentalis)\",\"confidence\":0.205,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":true}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Glaucous-winged Gull (Larus glaucescens)",
+        "confidence": 0.62,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "California Gull (Larus californicus)",
+        "confidence": 0.279,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Western Gull (Larus occidentalis)",
+        "confidence": 0.205,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      72,
+      73
+    ],
+    "birdSize": "medium",
+    "multipleBirds": true
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2935,
+  "capturedAt": "2026-03-21T05:24:42.389Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.850Z",
+  "rangeAdjusted": true
+}

@@ -1,0 +1,65 @@
+{
+ "imageFile": "Belted_kingfisher_above_Puget_Sound_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.9377,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Kingfisher",
+    "scientificName": "Megaceryle lugubris",
+    "confidence": 0.0265,
+    "plumage": null
+   },
+   {
+    "commonName": "Ringed Kingfisher",
+    "scientificName": "Megaceryle torquata",
+    "confidence": 0.0098,
+    "plumage": null
+   },
+   {
+    "commonName": "Amazon Kingfisher",
+    "scientificName": "Chloroceryle amazona",
+    "confidence": 0.005,
+    "plumage": null
+   },
+   {
+    "commonName": "Giant Kingfisher",
+    "scientificName": "Megaceryle maxima",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Bismarck Kingfisher",
+    "scientificName": "Ceyx websteri",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Kingfisher",
+    "scientificName": "Chloroceryle americana",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Kingfisher",
+    "scientificName": "Ceryle rudis",
+    "confidence": 0.0006,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4"
+}

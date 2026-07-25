@@ -1,0 +1,317 @@
+{
+ "imageFile": "Mallard_drake_on_Union_Bay_Natural_Area.jpg",
+ "context": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Mallard",
+    "scientificName": "Anas platyrhynchos",
+    "confidence": 0.9986,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Shoveler",
+    "scientificName": "Spatula clypeata",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Gadwall",
+    "scientificName": "Mareca strepera",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Eider",
+    "scientificName": "Somateria mollissima",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Falcated Duck",
+    "scientificName": "Mareca falcata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-winged Teal",
+    "scientificName": "Anas crecca",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Scaup",
+    "scientificName": "Aythya novaeseelandiae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Duck",
+    "scientificName": "Aythya fuligula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Black Duck",
+    "scientificName": "Anas rubripes",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mexican Duck",
+    "scientificName": "Anas diazi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Paradise Shelduck",
+    "scientificName": "Tadorna variegata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Chestnut Teal",
+    "scientificName": "Anas castanea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Black Duck",
+    "scientificName": "Anas superciliosa",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Teal",
+    "scientificName": "Anas flavirostris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Duck",
+    "scientificName": "Anas undulata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Eider",
+    "scientificName": "Somateria fischeri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Shelduck",
+    "scientificName": "Tadorna tadorna",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiga Bean-Goose",
+    "scientificName": "Anser fabalis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Amsterdam Duck",
+    "scientificName": "Mareca marecula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "American Wigeon",
+    "scientificName": "Mareca americana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Whooper Swan",
+    "scientificName": "Cygnus cygnus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Wood Duck",
+    "scientificName": "Aix sponsa",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "King Eider",
+    "scientificName": "Somateria spectabilis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brazilian Merganser",
+    "scientificName": "Mergus octosetaceus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Wigeon",
+    "scientificName": "Mareca penelope",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Barrow's Goldeneye",
+    "scientificName": "Bucephala islandica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Graylag Goose",
+    "scientificName": "Anser anser",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Scoter",
+    "scientificName": "Melanitta nigra",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Meller's Duck",
+    "scientificName": "Anas melleri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Ring-necked Duck",
+    "scientificName": "Aythya collaris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-gartered Coot",
+    "scientificName": "Fulica armillata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mottled Duck",
+    "scientificName": "Anas fulvigula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Teal",
+    "scientificName": "Anas gracilis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Swan",
+    "scientificName": "Cygnus atratus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Goldeneye",
+    "scientificName": "Bucephala clangula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Fieldfare",
+    "scientificName": "Turdus pilaris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Emperor Goose",
+    "scientificName": "Anser canagicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Chiloe Wigeon",
+    "scientificName": "Mareca sibilatrix",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Australasian Shoveler",
+    "scientificName": "Spatula rhynchotis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Mute Swan",
+    "scientificName": "Cygnus olor",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pintail",
+    "scientificName": "Anas acuta",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Hawaiian Duck",
+    "scientificName": "Anas wyvilliana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Pigeon",
+    "scientificName": "Hemiphaga novaeseelandiae",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Capercaillie",
+    "scientificName": "Tetrao urogallus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brant",
+    "scientificName": "Branta bernicla",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Pochard",
+    "scientificName": "Aythya ferina",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

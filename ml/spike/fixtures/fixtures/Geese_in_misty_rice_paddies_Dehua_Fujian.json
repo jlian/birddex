@@ -1,0 +1,50 @@
+{
+  "imageFile": "Geese_in_misty_rice_paddies_Dehua_Fujian.jpg",
+  "context": {
+    "lat": 25.7,
+    "lon": 118.24,
+    "month": 0,
+    "locationName": "Dehua, Fujian, China"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Greater White-fronted Goose (Anser albifrons)\",\"confidence\":0.62,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Taiga Bean-Goose (Anser fabalis)\",\"confidence\":0.49,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Graylag Goose (Anser anser)\",\"confidence\":0.41,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Swan Goose (Anser cygnoides)\",\"confidence\":0.355,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":true}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Greater White-fronted Goose (Anser albifrons)",
+        "confidence": 0.62,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Taiga Bean-Goose (Anser fabalis)",
+        "confidence": 0.49,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Graylag Goose (Anser anser)",
+        "confidence": 0.41,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Swan Goose (Anser cygnoides)",
+        "confidence": 0.355,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      52,
+      78
+    ],
+    "birdSize": "small",
+    "multipleBirds": true
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 3128,
+  "capturedAt": "2026-03-21T05:25:27.232Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.849Z",
+  "rangeAdjusted": true
+}

@@ -1,0 +1,34 @@
+{
+  "imageFile": "Unknown_bird_no_GPS.jpeg",
+  "context": {},
+  "rawResponse": "{\"candidates\":[{\"species\":\"Dunnock (Prunella modularis)\",\"confidence\":0.67},{\"species\":\"House Sparrow (Passer domesticus)\",\"confidence\":0.41,\"plumage\":\"female\"},{\"species\":\"Willow Warbler (Phylloscopus trochilus)\",\"confidence\":0.34}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Dunnock (Prunella modularis)",
+        "confidence": 0.67
+      },
+      {
+        "species": "House Sparrow (Passer domesticus)",
+        "confidence": 0.41,
+        "plumage": "female"
+      },
+      {
+        "species": "Willow Warbler (Phylloscopus trochilus)",
+        "confidence": 0.34
+      }
+    ],
+    "birdCenter": [
+      34,
+      56
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 4132,
+  "capturedAt": "2026-03-21T05:25:38.563Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.857Z",
+  "rangeAdjusted": false
+}

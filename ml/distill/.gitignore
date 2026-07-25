@@ -38,3 +38,7 @@ eval_*_results.json
 
 # local copy/symlink of src/lib/taxonomy.json (canonical is tracked there)
 taxonomy.json
+
+# 110MB download bookkeeping, regenerable from the iNat metadata pass
+download_manifest.jsonl.gz
+logs/

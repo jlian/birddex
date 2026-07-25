@@ -1,0 +1,56 @@
+{
+  "imageFile": "Palm_warbler_on_Lake_Michigan_shore_Chicago.jpg",
+  "context": {
+    "lat": 41.9632,
+    "lon": -87.6342,
+    "month": 8,
+    "locationName": "Lake Michigan shore, Chicago, IL"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Song Sparrow (Melospiza melodia)\",\"confidence\":0.58,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Lincoln's Sparrow (Melospiza lincolnii)\",\"confidence\":0.5,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Savannah Sparrow (Passerculus sandwichensis)\",\"confidence\":0.396,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"House Sparrow (Passer domesticus)\",\"confidence\":0.34,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Yellow-rumped Warbler (Setophaga coronata)\",\"confidence\":0.27,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Song Sparrow (Melospiza melodia)",
+        "confidence": 0.58,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Lincoln's Sparrow (Melospiza lincolnii)",
+        "confidence": 0.5,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Savannah Sparrow (Passerculus sandwichensis)",
+        "confidence": 0.396,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "House Sparrow (Passer domesticus)",
+        "confidence": 0.34,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Yellow-rumped Warbler (Setophaga coronata)",
+        "confidence": 0.27,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      }
+    ],
+    "birdCenter": [
+      31,
+      72
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2474,
+  "capturedAt": "2026-03-21T05:25:11.073Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.851Z",
+  "rangeAdjusted": true
+}

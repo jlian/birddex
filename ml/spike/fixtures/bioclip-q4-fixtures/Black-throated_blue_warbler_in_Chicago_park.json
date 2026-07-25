@@ -1,0 +1,65 @@
+{
+ "imageFile": "Black-throated_blue_warbler_in_Chicago_park.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Montrose Point, Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Black-throated Blue Warbler",
+    "scientificName": "Setophaga caerulescens",
+    "confidence": 0.9378,
+    "plumage": null
+   },
+   {
+    "commonName": "Cerulean Warbler",
+    "scientificName": "Setophaga cerulea",
+    "confidence": 0.0097,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-blue Flycatcher",
+    "scientificName": "Ficedula tricolor",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Flycatcher",
+    "scientificName": "Cyanoptila cyanomelana",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Ultramarine Flycatcher",
+    "scientificName": "Ficedula superciliaris",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-throated Flycatcher",
+    "scientificName": "Cyornis rubeculoides",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "White-backed Black-Tit",
+    "scientificName": "Melaniparus leuconotus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-backed Forktail",
+    "scientificName": "Enicurus schistaceus",
+    "confidence": 0.0009,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4"
+}

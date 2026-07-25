@@ -1,0 +1,65 @@
+{
+ "imageFile": "Lesser_scaup_hen_on_Union_Bay_Natural_Area.jpg",
+ "context": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Ring-necked Duck",
+    "scientificName": "Aythya collaris",
+    "confidence": 0.8528,
+    "plumage": null
+   },
+   {
+    "commonName": "Redhead",
+    "scientificName": "Aythya americana",
+    "confidence": 0.0485,
+    "plumage": null
+   },
+   {
+    "commonName": "Madagascar Pochard",
+    "scientificName": "Aythya innotata",
+    "confidence": 0.0298,
+    "plumage": null
+   },
+   {
+    "commonName": "Rosy-billed Pochard",
+    "scientificName": "Netta peposaca",
+    "confidence": 0.027,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0111,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Duck",
+    "scientificName": "Heteronetta atricapilla",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Canvasback",
+    "scientificName": "Aythya valisineria",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Pochard",
+    "scientificName": "Netta erythrophthalma",
+    "confidence": 0.0024,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4-bs32"
+}

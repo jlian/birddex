@@ -1,0 +1,317 @@
+{
+ "imageFile": "House_sparrow_bathing_in_mosaic_fountain_Park_Ridge.jpg",
+ "context": {
+  "lat": 42.0089,
+  "lon": -87.831,
+  "month": 8,
+  "locationName": "Park Ridge, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Western Marsh Harrier",
+    "scientificName": "Circus aeruginosus",
+    "confidence": 0.1023,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Capercaillie",
+    "scientificName": "Tetrao urogallus",
+    "confidence": 0.0729,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Ground-Thrush",
+    "scientificName": "Geokichla guttata",
+    "confidence": 0.0396,
+    "plumage": null
+   },
+   {
+    "commonName": "Tawny Owl",
+    "scientificName": "Strix aluco",
+    "confidence": 0.0365,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Woodcock",
+    "scientificName": "Scolopax rusticola",
+    "confidence": 0.0319,
+    "plumage": null
+   },
+   {
+    "commonName": "Mute Swan",
+    "scientificName": "Cygnus olor",
+    "confidence": 0.0315,
+    "plumage": null
+   },
+   {
+    "commonName": "Egyptian Goose",
+    "scientificName": "Alopochen aegyptiaca",
+    "confidence": 0.0311,
+    "plumage": null
+   },
+   {
+    "commonName": "Corn Crake",
+    "scientificName": "Crex crex",
+    "confidence": 0.0297,
+    "plumage": null
+   },
+   {
+    "commonName": "Watercock",
+    "scientificName": "Gallicrex cinerea",
+    "confidence": 0.0244,
+    "plumage": null
+   },
+   {
+    "commonName": "Orange-headed Thrush",
+    "scientificName": "Geokichla citrina",
+    "confidence": 0.0223,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-banded Rail",
+    "scientificName": "Gallirallus philippensis",
+    "confidence": 0.0206,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Nightjar",
+    "scientificName": "Caprimulgus europaeus",
+    "confidence": 0.018,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Peacock-Pheasant",
+    "scientificName": "Polyplectron bicalcaratum",
+    "confidence": 0.017,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Buzzard",
+    "scientificName": "Buteo buteo",
+    "confidence": 0.0167,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Sparrowhawk",
+    "scientificName": "Accipiter nisus",
+    "confidence": 0.0146,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Thick-knee",
+    "scientificName": "Burhinus indicus",
+    "confidence": 0.0146,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Heron",
+    "scientificName": "Ardea cinerea",
+    "confidence": 0.0133,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Nightingale",
+    "scientificName": "Luscinia megarhynchos",
+    "confidence": 0.0129,
+    "plumage": null
+   },
+   {
+    "commonName": "Hawfinch",
+    "scientificName": "Coccothraustes coccothraustes",
+    "confidence": 0.0126,
+    "plumage": null
+   },
+   {
+    "commonName": "Song Thrush",
+    "scientificName": "Turdus philomelos",
+    "confidence": 0.0117,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Grebe",
+    "scientificName": "Tachybaptus ruficollis",
+    "confidence": 0.0107,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Jay",
+    "scientificName": "Garrulus glandarius",
+    "confidence": 0.0097,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Coot",
+    "scientificName": "Fulica atra",
+    "confidence": 0.0096,
+    "plumage": null
+   },
+   {
+    "commonName": "Hen Harrier",
+    "scientificName": "Circus cyaneus",
+    "confidence": 0.0095,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Crane",
+    "scientificName": "Grus grus",
+    "confidence": 0.0086,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Pochard",
+    "scientificName": "Aythya ferina",
+    "confidence": 0.0084,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Cattle-Egret",
+    "scientificName": "Ardea coromanda",
+    "confidence": 0.0078,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Spoonbill",
+    "scientificName": "Platalea leucorodia",
+    "confidence": 0.0076,
+    "plumage": null
+   },
+   {
+    "commonName": "Orange Ground-Thrush",
+    "scientificName": "Geokichla gurneyi",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "House Sparrow",
+    "scientificName": "Passer domesticus",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "Pheasant-tailed Jacana",
+    "scientificName": "Hydrophasianus chirurgus",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "House Bunting",
+    "scientificName": "Emberiza sahari",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Blue Robin",
+    "scientificName": "Larvivora brunnea",
+    "confidence": 0.0064,
+    "plumage": null
+   },
+   {
+    "commonName": "King Eider",
+    "scientificName": "Somateria spectabilis",
+    "confidence": 0.0062,
+    "plumage": null
+   },
+   {
+    "commonName": "Senegal Thick-knee",
+    "scientificName": "Burhinus senegalensis",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-eyed Dove",
+    "scientificName": "Streptopelia semitorquata",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Bittern",
+    "scientificName": "Botaurus stellaris",
+    "confidence": 0.0057,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-tailed Godwit",
+    "scientificName": "Limosa limosa",
+    "confidence": 0.0057,
+    "plumage": null
+   },
+   {
+    "commonName": "Siberian Thrush",
+    "scientificName": "Geokichla sibirica",
+    "confidence": 0.0055,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Turtle-Dove",
+    "scientificName": "Streptopelia orientalis",
+    "confidence": 0.0055,
+    "plumage": null
+   },
+   {
+    "commonName": "Dodo",
+    "scientificName": "Raphus cucullatus",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Parrot Crossbill",
+    "scientificName": "Loxia pytyopsittacus",
+    "confidence": 0.005,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Chaffinch",
+    "scientificName": "Fringilla coelebs",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Hoopoe",
+    "scientificName": "Upupa epops",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Eagle-Owl",
+    "scientificName": "Bubo bubo",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Baikal Bush Warbler",
+    "scientificName": "Locustella davidi",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Swift",
+    "scientificName": "Apus apus",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Eared Dove",
+    "scientificName": "Zenaida auriculata",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Bush Thick-knee",
+    "scientificName": "Burhinus grallarius",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-breasted Rail",
+    "scientificName": "Lewinia striata",
+    "confidence": 0.0036,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

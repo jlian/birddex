@@ -1,0 +1,317 @@
+{
+ "imageFile": "Tufted_puffin_near_Smith_Island_Washington.jpg",
+ "context": {
+  "lat": 48.3204,
+  "lon": -122.8352,
+  "month": 7,
+  "locationName": "Smith Island, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Tufted Puffin",
+    "scientificName": "Fratercula cirrhata",
+    "confidence": 0.9601,
+    "plumage": null
+   },
+   {
+    "commonName": "Westland Petrel",
+    "scientificName": "Procellaria westlandica",
+    "confidence": 0.0293,
+    "plumage": null
+   },
+   {
+    "commonName": "King Eider",
+    "scientificName": "Somateria spectabilis",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Velvet Scoter",
+    "scientificName": "Melanitta fusca",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Giant-Petrel",
+    "scientificName": "Macronectes giganteus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Oystercatcher",
+    "scientificName": "Haematopus fuliginosus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Gull",
+    "scientificName": "Larus pacificus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "White-headed Steamer-Duck",
+    "scientificName": "Tachyeres leucocephalus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Flightless Steamer-Duck",
+    "scientificName": "Tachyeres pteneres",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Kelp Goose",
+    "scientificName": "Chloephaga hybrida",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Swift",
+    "scientificName": "Apus pacificus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-winged Petrel",
+    "scientificName": "Pterodroma macroptera",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Giant-Petrel",
+    "scientificName": "Macronectes halli",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Eider",
+    "scientificName": "Somateria mollissima",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Scoter",
+    "scientificName": "Melanitta deglandi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Atlantic Puffin",
+    "scientificName": "Fratercula arctica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "South Polar Skua",
+    "scientificName": "Stercorarius maccormicki",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-browed Albatross",
+    "scientificName": "Thalassarche melanophris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Labrador Duck",
+    "scientificName": "Camptorhynchus labradorius",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Scoter",
+    "scientificName": "Melanitta americana",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-eared Parrot",
+    "scientificName": "Ognorhynchus icterotis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Wake Island Rail",
+    "scientificName": "Gallirallus wakensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Kerguelen Petrel",
+    "scientificName": "Aphrodroma brevirostris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Mottled Duck",
+    "scientificName": "Anas fulvigula",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Upland Goose",
+    "scientificName": "Chloephaga picta",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Fulmar",
+    "scientificName": "Fulmarus glacialis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-footed Albatross",
+    "scientificName": "Phoebastria nigripes",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-tailed Albatross",
+    "scientificName": "Phoebastria albatrus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Scoter",
+    "scientificName": "Melanitta nigra",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-backed Needletail",
+    "scientificName": "Hirundapus giganteus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-winged Kingfisher",
+    "scientificName": "Pelargopsis amauroptera",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocos Booby",
+    "scientificName": "Sula brewsteri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Makira Moorhen",
+    "scientificName": "Gallinula silvestris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-fronted Coot",
+    "scientificName": "Fulica rufifrons",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Skua",
+    "scientificName": "Stercorarius antarcticus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Laysan Albatross",
+    "scientificName": "Phoebastria immutabilis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "African Oystercatcher",
+    "scientificName": "Haematopus moquini",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Paradise Shelduck",
+    "scientificName": "Tadorna variegata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Ascension Frigatebird",
+    "scientificName": "Fregata aquila",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Sea-Eagle",
+    "scientificName": "Haliaeetus pelagicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Forbes-Watson's Swift",
+    "scientificName": "Apus berliozi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-crested Pochard",
+    "scientificName": "Netta rufina",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Horned Puffin",
+    "scientificName": "Fratercula corniculata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-headed Manakin",
+    "scientificName": "Ceratopipra rubrocapilla",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Auckland Islands Teal",
+    "scientificName": "Anas aucklandica",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Swift",
+    "scientificName": "Apus apus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Duck",
+    "scientificName": "Hymenolaimus malacorhynchos",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

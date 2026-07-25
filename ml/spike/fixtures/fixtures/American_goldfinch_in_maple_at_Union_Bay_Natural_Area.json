@@ -1,0 +1,50 @@
+{
+  "imageFile": "American_goldfinch_in_maple_at_Union_Bay_Natural_Area.jpg",
+  "context": {
+    "lat": 47.6543,
+    "lon": -122.2952,
+    "month": 10,
+    "locationName": "Union Bay Natural Area, Seattle, WA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"American Goldfinch (Spinus tristis)\",\"confidence\":0.82,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Pine Siskin (Spinus pinus)\",\"confidence\":0.64,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"House Finch (Haemorhous mexicanus)\",\"confidence\":0.39,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Lesser Goldfinch (Spinus psaltria)\",\"confidence\":0.215,\"plumage\":\"female\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "American Goldfinch (Spinus tristis)",
+        "confidence": 0.82,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Pine Siskin (Spinus pinus)",
+        "confidence": 0.64,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "House Finch (Haemorhous mexicanus)",
+        "confidence": 0.39,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Lesser Goldfinch (Spinus psaltria)",
+        "confidence": 0.215,
+        "plumage": "female",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      57,
+      48
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 4259,
+  "capturedAt": "2026-03-21T05:24:16.096Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.843Z",
+  "rangeAdjusted": true
+}

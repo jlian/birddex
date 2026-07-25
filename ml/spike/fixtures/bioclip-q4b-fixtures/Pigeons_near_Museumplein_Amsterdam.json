@@ -1,0 +1,65 @@
+{
+ "imageFile": "Pigeons_near_Museumplein_Amsterdam.jpg",
+ "context": {
+  "lat": 52.3581,
+  "lon": 4.8826,
+  "month": 11,
+  "locationName": "Museumplein, Amsterdam, Netherlands"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Rock Pigeon",
+    "scientificName": "Columba livia",
+    "confidence": 0.8398,
+    "plumage": null
+   },
+   {
+    "commonName": "Hill Pigeon",
+    "scientificName": "Columba rupestris",
+    "confidence": 0.0791,
+    "plumage": null
+   },
+   {
+    "commonName": "Speckled Pigeon",
+    "scientificName": "Columba guinea",
+    "confidence": 0.0121,
+    "plumage": null
+   },
+   {
+    "commonName": "Bonin Pigeon",
+    "scientificName": "Columba versicolor",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Picazuro Pigeon",
+    "scientificName": "Patagioenas picazuro",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Spot-winged Pigeon",
+    "scientificName": "Patagioenas maculosa",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Comoro Pigeon",
+    "scientificName": "Columba pollenii",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "West Peruvian Dove",
+    "scientificName": "Zenaida meloda",
+    "confidence": 0.002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4-bs32"
+}

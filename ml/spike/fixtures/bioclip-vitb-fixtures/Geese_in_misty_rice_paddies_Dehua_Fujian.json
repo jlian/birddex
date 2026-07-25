@@ -1,0 +1,317 @@
+{
+ "imageFile": "Geese_in_misty_rice_paddies_Dehua_Fujian.jpg",
+ "context": {
+  "lat": 25.7,
+  "lon": 118.24,
+  "month": 0,
+  "locationName": "Dehua, Fujian, China"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Plain Prinia",
+    "scientificName": "Prinia inornata",
+    "confidence": 0.1644,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Whistling-Duck",
+    "scientificName": "Dendrocygna javanica",
+    "confidence": 0.1383,
+    "plumage": null
+   },
+   {
+    "commonName": "Coscoroba Swan",
+    "scientificName": "Coscoroba coscoroba",
+    "confidence": 0.0936,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-tailed Godwit",
+    "scientificName": "Limosa limosa",
+    "confidence": 0.0817,
+    "plumage": null
+   },
+   {
+    "commonName": "Spot-billed Pelican",
+    "scientificName": "Pelecanus philippensis",
+    "confidence": 0.0727,
+    "plumage": null
+   },
+   {
+    "commonName": "Malabar Lark",
+    "scientificName": "Galerida malabarica",
+    "confidence": 0.06,
+    "plumage": null
+   },
+   {
+    "commonName": "Sykes's Warbler",
+    "scientificName": "Iduna rama",
+    "confidence": 0.0428,
+    "plumage": null
+   },
+   {
+    "commonName": "Marbled Godwit",
+    "scientificName": "Limosa fedoa",
+    "confidence": 0.0207,
+    "plumage": null
+   },
+   {
+    "commonName": "Baya Weaver",
+    "scientificName": "Ploceus philippinus",
+    "confidence": 0.0169,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Skylark",
+    "scientificName": "Alauda gulgula",
+    "confidence": 0.0151,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Pied Starling",
+    "scientificName": "Gracupica contra",
+    "confidence": 0.0144,
+    "plumage": null
+   },
+   {
+    "commonName": "Fulvous Whistling-Duck",
+    "scientificName": "Dendrocygna bicolor",
+    "confidence": 0.0135,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Pond-Heron",
+    "scientificName": "Ardeola grayii",
+    "confidence": 0.0134,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Crane",
+    "scientificName": "Grus monacha",
+    "confidence": 0.0133,
+    "plumage": null
+   },
+   {
+    "commonName": "Swan Goose",
+    "scientificName": "Anser cygnoides",
+    "confidence": 0.0124,
+    "plumage": null
+   },
+   {
+    "commonName": "Pheasant-tailed Jacana",
+    "scientificName": "Hydrophasianus chirurgus",
+    "confidence": 0.0121,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-tailed Gull",
+    "scientificName": "Larus crassirostris",
+    "confidence": 0.01,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Spot-billed Duck",
+    "scientificName": "Anas poecilorhyncha",
+    "confidence": 0.0094,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Openbill",
+    "scientificName": "Anastomus oscitans",
+    "confidence": 0.0084,
+    "plumage": null
+   },
+   {
+    "commonName": "White Ibis",
+    "scientificName": "Eudocimus albus",
+    "confidence": 0.0082,
+    "plumage": null
+   },
+   {
+    "commonName": "Zebra Dove",
+    "scientificName": "Geopelia striata",
+    "confidence": 0.0079,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pintail",
+    "scientificName": "Anas acuta",
+    "confidence": 0.0079,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian White-eye",
+    "scientificName": "Zosterops palpebrosus",
+    "confidence": 0.0075,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Tailorbird",
+    "scientificName": "Orthotomus sutorius",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "Bar-headed Goose",
+    "scientificName": "Anser indicus",
+    "confidence": 0.0058,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-billed Dowitcher",
+    "scientificName": "Limnodromus scolopaceus",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Junglefowl",
+    "scientificName": "Gallus sonneratii",
+    "confidence": 0.005,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-winged Stilt",
+    "scientificName": "Himantopus himantopus",
+    "confidence": 0.005,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-hooded Gull",
+    "scientificName": "Chroicocephalus maculipennis",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "Tawny Lark",
+    "scientificName": "Galerida deva",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Whistling-Duck",
+    "scientificName": "Dendrocygna guttata",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Gull",
+    "scientificName": "Chroicocephalus serranus",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Armenian Gull",
+    "scientificName": "Larus armenicus",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Golden Oriole",
+    "scientificName": "Oriolus kundoo",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Painted Stork",
+    "scientificName": "Mycteria leucocephala",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Greenshank",
+    "scientificName": "Tringa nebularia",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Spoonbill",
+    "scientificName": "Platalea minor",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-tailed Tropicbird",
+    "scientificName": "Phaethon lepturus",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Booted Warbler",
+    "scientificName": "Iduna caligata",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Sarus Crane",
+    "scientificName": "Antigone antigone",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Quelea",
+    "scientificName": "Quelea quelea",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Masked Water-Tyrant",
+    "scientificName": "Fluvicola nengeta",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-breasted Waterhen",
+    "scientificName": "Amaurornis phoenicurus",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Jungle Bush-Quail",
+    "scientificName": "Perdicula asiatica",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy Shelduck",
+    "scientificName": "Tadorna ferruginea",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Kingfisher",
+    "scientificName": "Ceryle rudis",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Pintail",
+    "scientificName": "Anas georgica",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Thick-knee",
+    "scientificName": "Burhinus indicus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Sunbird",
+    "scientificName": "Cinnyris asiaticus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Muscovy Duck",
+    "scientificName": "Cairina moschata",
+    "confidence": 0.0015,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

@@ -1,0 +1,65 @@
+{
+ "imageFile": "Cormorants_on_rock_Monterey_Harbor_sunset.jpg",
+ "context": {
+  "lat": 36.6002,
+  "lon": -121.8947,
+  "month": 8,
+  "locationName": "Monterey Harbor, CA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Crowned Cormorant",
+    "scientificName": "Microcarbo coronatus",
+    "confidence": 0.4684,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.1778,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.1061,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Cormorant",
+    "scientificName": "Phalacrocorax capensis",
+    "confidence": 0.0664,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.045,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.0386,
+    "plumage": null
+   },
+   {
+    "commonName": "African Oystercatcher",
+    "scientificName": "Haematopus moquini",
+    "confidence": 0.02,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Cormorant",
+    "scientificName": "Phalacrocorax neglectus",
+    "confidence": 0.0164,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

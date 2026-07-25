@@ -1,0 +1,41 @@
+{
+  "imageFile": "Cormorants_on_rock_Monterey_Harbor_sunset.jpg",
+  "context": {
+    "lat": 36.6002,
+    "lon": -121.8947,
+    "month": 8,
+    "locationName": "Monterey Harbor, CA"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Brandt's Cormorant (Urile penicillatus)\",\"confidence\":0.72,\"rangeStatus\":\"present\"},{\"species\":\"Double-crested Cormorant (Nannopterum auritum)\",\"confidence\":0.561,\"rangeStatus\":\"near-range\"},{\"species\":\"Pelagic Cormorant (Urile pelagicus)\",\"confidence\":0.49,\"rangeStatus\":\"present\"}],\"multipleBirds\":true}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Brandt's Cormorant (Urile penicillatus)",
+        "confidence": 0.72,
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Double-crested Cormorant (Nannopterum auritum)",
+        "confidence": 0.561,
+        "rangeStatus": "near-range"
+      },
+      {
+        "species": "Pelagic Cormorant (Urile pelagicus)",
+        "confidence": 0.49,
+        "rangeStatus": "present"
+      }
+    ],
+    "birdCenter": [
+      40,
+      57
+    ],
+    "birdSize": "small",
+    "multipleBirds": true
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 3871,
+  "capturedAt": "2026-03-21T05:24:30.641Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.848Z",
+  "rangeAdjusted": true
+}

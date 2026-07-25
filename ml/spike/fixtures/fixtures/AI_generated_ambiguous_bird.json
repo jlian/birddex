@@ -1,0 +1,50 @@
+{
+  "imageFile": "AI_generated_ambiguous_bird.png",
+  "context": {
+    "lat": 40,
+    "lon": -100,
+    "month": 5,
+    "locationName": "Unknown (AI-generated test image)"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"Willow Flycatcher (Empidonax traillii)\",\"confidence\":0.38,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"},{\"species\":\"Western Wood-Pewee (Contopus sordidulus)\",\"confidence\":0.35,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"},{\"species\":\"Eastern Wood-Pewee (Contopus virens)\",\"confidence\":0.31,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"},{\"species\":\"Alder Flycatcher (Empidonax alnorum)\",\"confidence\":0.215,\"plumage\":\"juvenile\",\"rangeStatus\":\"out-of-range\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "Willow Flycatcher (Empidonax traillii)",
+        "confidence": 0.38,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Western Wood-Pewee (Contopus sordidulus)",
+        "confidence": 0.35,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      },
+      {
+        "species": "Eastern Wood-Pewee (Contopus virens)",
+        "confidence": 0.31,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      },
+      {
+        "species": "Alder Flycatcher (Empidonax alnorum)",
+        "confidence": 0.215,
+        "plumage": "juvenile",
+        "rangeStatus": "out-of-range"
+      }
+    ],
+    "birdCenter": [
+      42,
+      59
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2467,
+  "capturedAt": "2026-03-21T05:25:33.566Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.841Z",
+  "rangeAdjusted": true
+}

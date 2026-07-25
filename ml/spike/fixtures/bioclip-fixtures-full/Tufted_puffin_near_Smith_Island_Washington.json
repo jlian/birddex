@@ -1,0 +1,317 @@
+{
+ "imageFile": "Tufted_puffin_near_Smith_Island_Washington.jpg",
+ "context": {
+  "lat": 48.3204,
+  "lon": -122.8352,
+  "month": 7,
+  "locationName": "Smith Island, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Tufted Puffin",
+    "scientificName": "Fratercula cirrhata",
+    "confidence": 0.9923,
+    "plumage": null
+   },
+   {
+    "commonName": "Horned Puffin",
+    "scientificName": "Fratercula corniculata",
+    "confidence": 0.0046,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Atlantic Puffin",
+    "scientificName": "Fratercula arctica",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Auklet",
+    "scientificName": "Aethia cristatella",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Parakeet Auklet",
+    "scientificName": "Aethia psittacula",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Falkland Steamer-Duck",
+    "scientificName": "Tachyeres brachypterus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Eider",
+    "scientificName": "Somateria fischeri",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "King Eider",
+    "scientificName": "Somateria spectabilis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Petrel",
+    "scientificName": "Procellaria conspicillata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Lorikeet",
+    "scientificName": "Vini peruviana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-legged Cormorant",
+    "scientificName": "Poikilocarbo gaimardi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Gentoo Penguin",
+    "scientificName": "Pygoscelis papua",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-headed Steamer-Duck",
+    "scientificName": "Tachyeres leucocephalus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Guillemot",
+    "scientificName": "Cepphus carbo",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Labrador Duck",
+    "scientificName": "Camptorhynchus labradorius",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Emperor Goose",
+    "scientificName": "Anser canagicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Stejneger's Scoter",
+    "scientificName": "Melanitta stejnegeri",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Scoter",
+    "scientificName": "Melanitta americana",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pink-headed Duck",
+    "scientificName": "Rhodonessa caryophyllacea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Least Auklet",
+    "scientificName": "Aethia pusilla",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Flying Steamer-Duck",
+    "scientificName": "Tachyeres patachonicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-footed Albatross",
+    "scientificName": "Phoebastria nigripes",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Macaroni Penguin",
+    "scientificName": "Eudyptes chrysolophus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Scoter",
+    "scientificName": "Melanitta deglandi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Torrent Duck",
+    "scientificName": "Merganetta armata",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-browed Albatross",
+    "scientificName": "Thalassarche melanophris",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Duck",
+    "scientificName": "Clangula hyemalis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Campbell Islands Shag",
+    "scientificName": "Leucocarbo campbelli",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Flightless Steamer-Duck",
+    "scientificName": "Tachyeres pteneres",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Giant-Petrel",
+    "scientificName": "Macronectes giganteus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Pitt Island Shag",
+    "scientificName": "Phalacrocorax featherstoni",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Duck",
+    "scientificName": "Hymenolaimus malacorhynchos",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Inca Tern",
+    "scientificName": "Larosterna inca",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Bounty Islands Shag",
+    "scientificName": "Leucocarbo ranfurlyi",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Harlequin Duck",
+    "scientificName": "Histrionicus histrionicus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Titicaca Grebe",
+    "scientificName": "Rollandia microptera",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Striated Caracara",
+    "scientificName": "Daptrius australis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Blackish Cinclodes",
+    "scientificName": "Cinclodes antarcticus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Whiskered Auklet",
+    "scientificName": "Aethia pygmaea",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Tanimbar Eclectus",
+    "scientificName": "Eclectus riedeli",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Duck",
+    "scientificName": "Speculanas specularis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Lord Howe Swamphen",
+    "scientificName": "Porphyrio albus",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Parkinson's Petrel",
+    "scientificName": "Procellaria parkinsoni",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Giant-Petrel",
+    "scientificName": "Macronectes halli",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Fulmar",
+    "scientificName": "Fulmarus glacialis",
+    "confidence": 0.0,
+    "plumage": null
+   },
+   {
+    "commonName": "Barrow's Goldeneye",
+    "scientificName": "Bucephala islandica",
+    "confidence": 0.0,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

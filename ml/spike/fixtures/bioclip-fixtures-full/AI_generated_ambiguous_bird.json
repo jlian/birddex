@@ -1,0 +1,317 @@
+{
+ "imageFile": "AI_generated_ambiguous_bird.png",
+ "context": {
+  "lat": 40,
+  "lon": -100,
+  "month": 5,
+  "locationName": "Unknown (AI-generated test image)"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Gambaga Flycatcher",
+    "scientificName": "Muscicapa gambagae",
+    "confidence": 0.1835,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-streaked Flycatcher",
+    "scientificName": "Muscicapa griseisticta",
+    "confidence": 0.0836,
+    "plumage": null
+   },
+   {
+    "commonName": "Brujo Flycatcher",
+    "scientificName": "Pyrocephalus nanus",
+    "confidence": 0.0326,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape May Warbler",
+    "scientificName": "Setophaga tigrina",
+    "confidence": 0.0251,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Brown Flycatcher",
+    "scientificName": "Muscicapa dauurica",
+    "confidence": 0.0248,
+    "plumage": null
+   },
+   {
+    "commonName": "Suiriri Flycatcher",
+    "scientificName": "Suiriri suiriri",
+    "confidence": 0.0232,
+    "plumage": null
+   },
+   {
+    "commonName": "Arrowhead Warbler",
+    "scientificName": "Setophaga pharetra",
+    "confidence": 0.0215,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Triller",
+    "scientificName": "Lalage leucopyga",
+    "confidence": 0.0204,
+    "plumage": null
+   },
+   {
+    "commonName": "B\u00f6hm's Flycatcher",
+    "scientificName": "Myopornis boehmi",
+    "confidence": 0.0183,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy-breasted Flycatcher",
+    "scientificName": "Muscicapa randi",
+    "confidence": 0.0177,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Warbler-Finch",
+    "scientificName": "Certhidea fusca",
+    "confidence": 0.0153,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Tit-Flycatcher",
+    "scientificName": "Fraseria plumbea",
+    "confidence": 0.0152,
+    "plumage": null
+   },
+   {
+    "commonName": "Furtive Flycatcher",
+    "scientificName": "Ficedula disposita",
+    "confidence": 0.0151,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-streaked Flycatcher",
+    "scientificName": "Muscicapa williamsoni",
+    "confidence": 0.0144,
+    "plumage": null
+   },
+   {
+    "commonName": "Sulawesi Brown Flycatcher",
+    "scientificName": "Muscicapa sodhii",
+    "confidence": 0.0142,
+    "plumage": null
+   },
+   {
+    "commonName": "Mouse-gray Flycatcher",
+    "scientificName": "Myiophobus crypterythrus",
+    "confidence": 0.0138,
+    "plumage": null
+   },
+   {
+    "commonName": "Rand's Warbler",
+    "scientificName": "Randia pseudozosterops",
+    "confidence": 0.0133,
+    "plumage": null
+   },
+   {
+    "commonName": "Dark-sided Flycatcher",
+    "scientificName": "Muscicapa sibirica",
+    "confidence": 0.0128,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-headed Batis",
+    "scientificName": "Batis orientalis",
+    "confidence": 0.0095,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive-capped Warbler",
+    "scientificName": "Setophaga pityophila",
+    "confidence": 0.0088,
+    "plumage": null
+   },
+   {
+    "commonName": "Kirtland's Warbler",
+    "scientificName": "Setophaga kirtlandii",
+    "confidence": 0.0088,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy Flycatcher",
+    "scientificName": "Fraseria caerulescens",
+    "confidence": 0.0082,
+    "plumage": null
+   },
+   {
+    "commonName": "Blackpoll Warbler",
+    "scientificName": "Setophaga striata",
+    "confidence": 0.0079,
+    "plumage": null
+   },
+   {
+    "commonName": "Sumba Brown Flycatcher",
+    "scientificName": "Muscicapa segregata",
+    "confidence": 0.0073,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty-backed Monjita",
+    "scientificName": "Neoxolmis rubetra",
+    "confidence": 0.007,
+    "plumage": null
+   },
+   {
+    "commonName": "Fulvous-crowned Scrub-Tyrant",
+    "scientificName": "Euscarthmus meloryphus",
+    "confidence": 0.0066,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-rumped Warbler",
+    "scientificName": "Setophaga coronata",
+    "confidence": 0.0061,
+    "plumage": null
+   },
+   {
+    "commonName": "Banded Parisoma",
+    "scientificName": "Curruca boehmi",
+    "confidence": 0.006,
+    "plumage": null
+   },
+   {
+    "commonName": "Rusty-tailed Flycatcher",
+    "scientificName": "Ficedula ruficauda",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Polynesian Triller",
+    "scientificName": "Lalage maculosa",
+    "confidence": 0.0055,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-tailed Field Tyrant",
+    "scientificName": "Muscigralla brevicauda",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy Tit",
+    "scientificName": "Melaniparus cinerascens",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Kipengere Seedeater",
+    "scientificName": "Crithagra melanochroa",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Sparrowhawk",
+    "scientificName": "Tachyspiza nanus",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-webbed Bush-Tyrant",
+    "scientificName": "Cnemarchus rufipennis",
+    "confidence": 0.005,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Tit-Tyrant",
+    "scientificName": "Anairetes flavirostris",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Mascarene Martin",
+    "scientificName": "Phedina borbonica",
+    "confidence": 0.0048,
+    "plumage": null
+   },
+   {
+    "commonName": "Tanimbar Flycatcher",
+    "scientificName": "Ficedula riedeli",
+    "confidence": 0.0048,
+    "plumage": null
+   },
+   {
+    "commonName": "Hudson's Black-Tyrant",
+    "scientificName": "Knipolegus hudsoni",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "Firethroat",
+    "scientificName": "Calliope pectardens",
+    "confidence": 0.0047,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-throated Sparrow",
+    "scientificName": "Gymnoris xanthocollis",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Flycatcher",
+    "scientificName": "Muscicapa epulata",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Hispaniolan Elaenia",
+    "scientificName": "Elaenia cherriei",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-headed Robin",
+    "scientificName": "Heteromyias cinereifrons",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "African Gray Flycatcher",
+    "scientificName": "Bradornis microrhynchus",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Whistler",
+    "scientificName": "Pachycephala leucogastra",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-sided Scrub-Tyrant",
+    "scientificName": "Euscarthmus rufomarginatus",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive-chested Flycatcher",
+    "scientificName": "Myiophobus cryptoxanthus",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Cerulean Warbler",
+    "scientificName": "Setophaga cerulea",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-bellied Shrike-Tyrant",
+    "scientificName": "Agriornis micropterus",
+    "confidence": 0.0034,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

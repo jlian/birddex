@@ -1,0 +1,65 @@
+{
+ "imageFile": "AI_generated_ambiguous_bird.png",
+ "context": {
+  "lat": 40,
+  "lon": -100,
+  "month": 5,
+  "locationName": "Unknown (AI-generated test image)"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Gambaga Flycatcher",
+    "scientificName": "Muscicapa gambagae",
+    "confidence": 0.2837,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-streaked Flycatcher",
+    "scientificName": "Muscicapa griseisticta",
+    "confidence": 0.0887,
+    "plumage": null
+   },
+   {
+    "commonName": "Brujo Flycatcher",
+    "scientificName": "Pyrocephalus nanus",
+    "confidence": 0.0382,
+    "plumage": null
+   },
+   {
+    "commonName": "Suiriri Flycatcher",
+    "scientificName": "Suiriri suiriri",
+    "confidence": 0.0342,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Brown Flycatcher",
+    "scientificName": "Muscicapa dauurica",
+    "confidence": 0.028,
+    "plumage": null
+   },
+   {
+    "commonName": "B\u00f6hm's Flycatcher",
+    "scientificName": "Myopornis boehmi",
+    "confidence": 0.0269,
+    "plumage": null
+   },
+   {
+    "commonName": "Mouse-gray Flycatcher",
+    "scientificName": "Myiophobus crypterythrus",
+    "confidence": 0.0233,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Triller",
+    "scientificName": "Lalage leucopyga",
+    "confidence": 0.0167,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2-q4-bs32"
+}

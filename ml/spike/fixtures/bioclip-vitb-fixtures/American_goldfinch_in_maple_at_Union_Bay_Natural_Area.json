@@ -1,0 +1,317 @@
+{
+ "imageFile": "American_goldfinch_in_maple_at_Union_Bay_Natural_Area.jpg",
+ "context": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "American Goldfinch",
+    "scientificName": "Spinus tristis",
+    "confidence": 0.5293,
+    "plumage": null
+   },
+   {
+    "commonName": "Brambling",
+    "scientificName": "Fringilla montifringilla",
+    "confidence": 0.3597,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Chaffinch",
+    "scientificName": "Fringilla coelebs",
+    "confidence": 0.0204,
+    "plumage": null
+   },
+   {
+    "commonName": "Citril Finch",
+    "scientificName": "Carduelis citrinella",
+    "confidence": 0.0166,
+    "plumage": null
+   },
+   {
+    "commonName": "Ortolan Bunting",
+    "scientificName": "Emberiza hortulana",
+    "confidence": 0.0079,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellowhammer",
+    "scientificName": "Emberiza citrinella",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Hawfinch",
+    "scientificName": "Coccothraustes coccothraustes",
+    "confidence": 0.0062,
+    "plumage": null
+   },
+   {
+    "commonName": "Olive Warbler",
+    "scientificName": "Peucedramus taeniatus",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Melodious Warbler",
+    "scientificName": "Hippolais polyglotta",
+    "confidence": 0.0042,
+    "plumage": null
+   },
+   {
+    "commonName": "Lazuli Bunting",
+    "scientificName": "Passerina amoena",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-chinned Siskin",
+    "scientificName": "Spinus barbatus",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Siskin",
+    "scientificName": "Spinus spinus",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Corsican Finch",
+    "scientificName": "Carduelis corsicana",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Mangrove Vireo",
+    "scientificName": "Vireo pallens",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Oriental Greenfinch",
+    "scientificName": "Chloris sinica",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Arabian Golden Sparrow",
+    "scientificName": "Passer euchlorus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Zitting Cisticola",
+    "scientificName": "Cisticola juncidis",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "White-eyed Vireo",
+    "scientificName": "Vireo griseus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Lawrence's Goldfinch",
+    "scientificName": "Spinus lawrencei",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Bunting",
+    "scientificName": "Emberiza spodocephala",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-headed Cisticola",
+    "scientificName": "Cisticola exilis",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "European Goldfinch",
+    "scientificName": "Carduelis carduelis",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Penduline-Tit",
+    "scientificName": "Remiz pendulinus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Dickcissel",
+    "scientificName": "Spiza americana",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "White-crowned Penduline-Tit",
+    "scientificName": "Remiz coronatus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Baya Weaver",
+    "scientificName": "Ploceus philippinus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Bearded Reedling",
+    "scientificName": "Panurus biarmicus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Ochre-rumped Bunting",
+    "scientificName": "Emberiza yessoensis",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Sudan Golden Sparrow",
+    "scientificName": "Passer luteus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Goldfinch",
+    "scientificName": "Spinus psaltria",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Cinnamon Weaver",
+    "scientificName": "Ploceus badius",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Linnet",
+    "scientificName": "Linaria cannabina",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-faced Siskin",
+    "scientificName": "Spinus yarrellii",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Wing-barred Piprites",
+    "scientificName": "Piprites chloris",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Penduline-Tit",
+    "scientificName": "Remiz macronyx",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Siskin",
+    "scientificName": "Spinus spinescens",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-breasted Flycatcher",
+    "scientificName": "Empidonax fulvifrons",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Laysan Finch",
+    "scientificName": "Telespiza cantans",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Weaver",
+    "scientificName": "Ploceus melanocephalus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Bearded Tachuri",
+    "scientificName": "Polystictus pectoralis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Siskin",
+    "scientificName": "Spinus magellanicus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "European Greenfinch",
+    "scientificName": "Chloris chloris",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-faced Parrotlet",
+    "scientificName": "Forpus xanthops",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow Bunting",
+    "scientificName": "Emberiza sulphurata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Chirping Cisticola",
+    "scientificName": "Cisticola pipiens",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-backed Weaver",
+    "scientificName": "Ploceus jacksoni",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Bunting",
+    "scientificName": "Emberiza melanocephala",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Ground Dove",
+    "scientificName": "Uropelia campestris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Pine Siskin",
+    "scientificName": "Spinus pinus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Apapane",
+    "scientificName": "Himatione sanguinea",
+    "confidence": 0.0001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "bioclip-2"
+}

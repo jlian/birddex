@@ -1,0 +1,38 @@
+{
+  "imageFile": "House_sparrow_bathing_in_mosaic_fountain_Park_Ridge.jpg",
+  "context": {
+    "lat": 42.0089,
+    "lon": -87.831,
+    "month": 8,
+    "locationName": "Park Ridge, IL"
+  },
+  "rawResponse": "{\"candidates\":[{\"species\":\"House Sparrow (Passer domesticus)\",\"confidence\":0.78,\"plumage\":\"female\",\"rangeStatus\":\"present\"},{\"species\":\"Song Sparrow (Melospiza melodia)\",\"confidence\":0.44,\"plumage\":\"juvenile\",\"rangeStatus\":\"present\"}],\"multipleBirds\":false}",
+  "parsed": {
+    "candidates": [
+      {
+        "species": "House Sparrow (Passer domesticus)",
+        "confidence": 0.78,
+        "plumage": "female",
+        "rangeStatus": "present"
+      },
+      {
+        "species": "Song Sparrow (Melospiza melodia)",
+        "confidence": 0.44,
+        "plumage": "juvenile",
+        "rangeStatus": "present"
+      }
+    ],
+    "birdCenter": [
+      52,
+      55
+    ],
+    "birdSize": "small",
+    "multipleBirds": false
+  },
+  "model": "gpt-5.4-mini",
+  "durationMs": 2053,
+  "capturedAt": "2026-03-21T05:25:07.780Z",
+  "promotedFrom": "gpt-5.4-mini-low",
+  "promotedAt": "2026-03-21T06:01:06.851Z",
+  "rangeAdjusted": true
+}
