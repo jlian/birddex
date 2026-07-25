@@ -1,0 +1,164 @@
+{
+ "American_goldfinch_in_maple_at_Union_Bay_Natural_Area.jpg": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "Anna's_hummingbird_in_Seattle_garden.jpg": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 6,
+  "locationName": "Seattle, WA"
+ },
+ "Belted_kingfisher_above_Puget_Sound_Carkeek_Park.jpg": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "Cormorants_on_navigation_marker_Skagit_Bay.jpg": {
+  "lat": 48.3918,
+  "lon": -122.4885,
+  "month": 6,
+  "locationName": "Skagit Bay, WA"
+ },
+ "Cormorants_on_rock_Monterey_Harbor_sunset.jpg": {
+  "lat": 36.6002,
+  "lon": -121.8947,
+  "month": 8,
+  "locationName": "Monterey Harbor, CA"
+ },
+ "Dark-eyed_junco_in_foliage_Seattle_Arboretum.jpg": {
+  "lat": 47.6399,
+  "lon": -122.2958,
+  "month": 10,
+  "locationName": "Washington Park Arboretum, Seattle, WA"
+ },
+ "Great_blue_heron_roosting_at_Carkeek_Park.jpg": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "Great_blue_heron_with_Mount_Baker_from_Drayton_Harbor.jpg": {
+  "lat": 48.9784,
+  "lon": -122.7913,
+  "month": 9,
+  "locationName": "Drayton Harbor, Blaine, WA"
+ },
+ "Gulls_on_picnic_tables_Seattle_waterfront.jpg": {
+  "lat": 47.6062,
+  "lon": -122.3421,
+  "month": 7,
+  "locationName": "Seattle Waterfront, WA"
+ },
+ "Hairy_woodpecker_on_mossy_tree_Carkeek_Park.jpg": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 6,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "Lesser_scaup_hen_on_Union_Bay_Natural_Area.jpg": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "Mallard_drake_on_Union_Bay_Natural_Area.jpg": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "Stellers_Jay_eating_cherries_Seattle_backyard.jpg": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 5,
+  "locationName": "Seattle, WA"
+ },
+ "Tufted_puffin_near_Smith_Island_Washington.jpg": {
+  "lat": 48.3204,
+  "lon": -122.8352,
+  "month": 7,
+  "locationName": "Smith Island, WA"
+ },
+ "Common_goldeneye_at_Discovery_Park_Seattle.jpeg": {
+  "lat": 47.66,
+  "lon": -122.4287,
+  "month": 0,
+  "locationName": "Discovery Park, Seattle, WA"
+ },
+ "Black-throated_blue_warbler_in_Chicago_park.jpg": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Montrose Point, Chicago, IL"
+ },
+ "Female_northern_cardinal_in_Chicago_park.jpg": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Chicago, IL"
+ },
+ "House_sparrow_bathing_in_mosaic_fountain_Park_Ridge.jpg": {
+  "lat": 42.0089,
+  "lon": -87.831,
+  "month": 8,
+  "locationName": "Park Ridge, IL"
+ },
+ "Palm_warbler_on_Lake_Michigan_shore_Chicago.jpg": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Lake Michigan shore, Chicago, IL"
+ },
+ "Sanderling_foraging_Lake_Michigan_Chicago.jpg": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Lake Michigan, Chicago, IL"
+ },
+ "Chukar_partridge_near_Haleakala_summit_Maui.jpg": {
+  "lat": 20.7148,
+  "lon": -156.2502,
+  "month": 11,
+  "locationName": "Haleakala, Maui, HI"
+ },
+ "Pigeons_near_Museumplein_Amsterdam.jpg": {
+  "lat": 52.3581,
+  "lon": 4.8826,
+  "month": 11,
+  "locationName": "Museumplein, Amsterdam, Netherlands"
+ },
+ "Cormorant_on_mooring_post_Lake_Como.jpg": {
+  "lat": 45.8097,
+  "lon": 9.0846,
+  "month": 8,
+  "locationName": "Lake Como, Italy"
+ },
+ "Geese_in_misty_rice_paddies_Dehua_Fujian.jpg": {
+  "lat": 25.7,
+  "lon": 118.24,
+  "month": 0,
+  "locationName": "Dehua, Fujian, China"
+ },
+ "Common_kingfisher_at_Taipei_Zoo.jpeg": {
+  "lat": 24.998,
+  "lon": 121.581,
+  "month": 11,
+  "locationName": "Taipei Zoo, Taiwan"
+ },
+ "AI_generated_ambiguous_bird.png": {
+  "lat": 40,
+  "lon": -100,
+  "month": 5,
+  "locationName": "Unknown (AI-generated test image)"
+ },
+ "Unknown_bird_no_GPS.jpeg": {
+  "lat": null,
+  "lon": null,
+  "month": null,
+  "locationName": ""
+ }
+}
