@@ -936,10 +936,18 @@ Heavy work runs on **tomahawk** (RTX 3080) under the spike venv
 there; that's the durable copy (readable even when tomahawk is asleep). Local
 checkouts are just working copies of it.
 
-Current copies (2026-07-24, all now at the same commit after the reconciliation):
-1. **Pi `~/wingdex/ml/`** — git checkout. Convenient for my native edit tools but
-   it is the root cause of repeated "edited the wrong copy" confusion. **Slated
-   for deletion** (see below).
+**STATUS 2026-07-24 (evening): consolidation DONE for code.** The Pi checkout was
+deleted (trashed), and the spikes scratch dir's script COPIES were replaced with
+SYMLINKS into the tomahawk repo, so there is now exactly ONE copy of every script
+and drift is structurally impossible. Verified: `train_student.py` and
+`run_experiments.py` still run through the symlinks. Originals preserved at
+`~/spikes/bioclip-birdid/distill/.script-copies-backup-20260724-194835/`.
+Remaining: delete the local `corpus/` after both gates + human approval.
+
+Historical copies (now resolved):
+1. ~~**Pi `~/wingdex/ml/`**~~ — DELETED 2026-07-24 (trashed). It was the root cause
+   of repeated "edited the wrong copy" confusion; the Pi has no data/GPU anchor so
+   it was pure redundancy.
 2. **Tomahawk `~/wingdex`** — git checkout (was stale at `3c82604`, reset to
    origin 2026-07-24). Not currently where training runs.
 3. **Tomahawk `~/spikes/bioclip-birdid/`** — **non-git loose scratch dir where
