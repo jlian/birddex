@@ -955,6 +955,18 @@ Historical copies (now resolved):
    the repo → drift risk. Corpus, `runs/`, `embeddings/`, manifests, logs,
    checkpoints live here — all OFF git (`.gitignore`), too large + regenerable.
 
+**TARGET END STATE (clarified by John 2026-07-24): ONE directory,
+`~/wingdex/ml/distill/`, with NO sibling scratch dir at all — not even a
+symlinked one.** Symlinks made the code single-source, but a second directory
+that still looks like a project root is itself the confusion risk. The blocker
+is `corpus/` (262GB): moving it is risky/slow, so the order is
+**gates → approve → DELETE corpus → move the small remainder → delete the
+scratch dir**. Remaining after corpus deletion is only ~4.2GB
+(embeddings 3.9GB, runs, nabirds, manifests/caches, logs), which is trivially
+movable. NOTE the venv (`~/spikes/bioclip-birdid/.venv`, 5.5GB) has absolute
+paths baked into its shebangs — it cannot be moved, only recreated; that is a
+separate decision.
+
 **Cleanup — DECIDED 2026-07-24, collapse to ONE checkout on tomahawk (AFTER the
 current run finishes):**
 1. Make tomahawk `~/wingdex` the single working checkout. Point training at
