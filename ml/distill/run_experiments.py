@@ -23,7 +23,8 @@ import subprocess
 import sys
 import time
 
-VENV_PY = "/home/jlian/spikes/bioclip-birdid/.venv/bin/python"
+VENV_PY = os.environ.get(
+    "WINGDEX_PY", "/home/jlian/wingdex/ml/distill/.venv/bin/python")
 
 
 def log(m):
@@ -78,10 +79,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--queue", required=True)
     ap.add_argument("--status", default="/tmp/experiment_queue_status.json")
-    ap.add_argument("--logdir", default="/home/jlian/spikes/bioclip-birdid/distill/runs")
+    ap.add_argument("--workdir",
+                    default=os.environ.get("WINGDEX_WORKDIR",
+                                           "/home/jlian/spikes/bioclip-birdid/distill"),
+                    help="dir the training script runs from (must contain the data: "
+                         "manifests, embeddings/, runs/). Overridable so this keeps "
+                         "working after the scratch dir is retired")
+    ap.add_argument("--logdir", default=None,
+                    help="where run output dirs go (default: <workdir>/runs)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--max-consecutive-failures", type=int, default=2)
     a = ap.parse_args()
+
+    if a.logdir is None:
+        a.logdir = os.path.join(a.workdir, "runs")
+    if not os.path.isdir(a.workdir):
+        raise SystemExit(f"--workdir does not exist: {a.workdir}")
 
     queue = json.load(open(a.queue))
     experiments = queue["experiments"]
@@ -136,7 +149,7 @@ def main():
         t0 = time.time()
         with open(log_path, "w") as lf:
             proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT,
-                                  cwd="/home/jlian/spikes/bioclip-birdid/distill")
+                                  cwd=a.workdir)
         el = time.time() - t0
 
         res = parse_result(log_path)
