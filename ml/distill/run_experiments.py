@@ -53,7 +53,7 @@ def parse_result(log_path):
                 epochs.append({"epoch": int(m.group(1)),
                                "train_loss": float(m.group(3)),
                                "val_cos_sim": float(m.group(4))})
-            m2 = re.search(r"best val_cos_sim=([0-9.]+)", line)
+            m2 = re.search(r"best val_cos_sim=([0-9]+\.[0-9]+)", line)
             if m2:
                 best = float(m2.group(1))
             m3 = re.search(r"([0-9]+) img/s", line)

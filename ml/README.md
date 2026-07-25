@@ -532,6 +532,69 @@ replace a for-loop. What WAS borrowed from them: structured per-run results,
 resumability (a crash on run 4 does not restart the queue), a gpu-busy guard, and a
 hard stop after N consecutive failures.
 
+## Pilot sweep results (2026-07-25) — recipe DECIDED
+
+Six runs on the 500-species pilot shard set, ~16h unattended. Design was a chain of
+one-factor-at-a-time comparisons (NOT a factorial), each pair differing by exactly
+one thing. Full per-run logs in `runs/exp*/train.log`; queue state `/tmp/expq_status.json`.
+
+| run | best val_cos | peak ep | drift | notes |
+|---|---|---|---|---|
+| exp3 newrecipe + aug light, 15ep | **0.9512** | 15 | no | still climbing at ep15 |
+| exp5 lr 7e-5, 8ep | 0.9483 | 8 | no | LR sweep winner |
+| exp6 lr 5e-5, 8ep | 0.9475 | 8 | no | |
+| exp2 newrecipe, 15ep | 0.9464 | 12 | YES | |
+| exp4 lr 1e-4, 8ep | 0.9463 | 8 | no | LR sweep control |
+| exp1 baseline old recipe, 15ep | 0.9447 | 12 | YES | foundation check |
+
+**exp1 VALIDATED THE FOUNDATION.** 0.9447 vs the original local-corpus pilot's 0.9465
+= 0.0018 gap, within noise. The WebDataset shards + loader reproduce the known result,
+so everything downstream is interpretable **and the local corpus is safe to delete.**
+
+### The three comparisons
+
+- **RECIPE (exp1 → exp2): +0.0016.** Real but marginal. The MobileCLIP2 bundle
+  (wd 0.1→0.2, beta2 0.999→0.95, warmup 500, grad-clip 1.0, min-lr 1e-7) helps a
+  little. Both still peak ~ep12 and drift after. ⚠️ This tested the BUNDLE, not
+  individual knobs — an ablation isolating wd (0.1 vs 0.2) is worth one run, since wd
+  is a real regularization change rather than a stability tweak and may account for
+  most of the gain on its own.
+- **AUG (exp2 → exp3): +0.0048 — the biggest single lever, and the shape matters more
+  than the number.** exp3 was STILL CLIMBING at ep15 (+0.0002 on the final step) while
+  exp1/exp2 plateaued at ep12 and declined. And exp3's train_loss is far HIGHER
+  (0.0369 vs 0.0236) with BETTER val: textbook regularization, fitting the train set
+  less and generalizing more. **The late-epoch overfit drift is gone.** Two direct
+  implications: (a) light aug should be in the locked recipe, (b) exp3 was
+  epoch-limited, so a longer run at aug light would likely gain more.
+- **LR (exp4/5/6, 8ep): 7e-5 wins** (0.9483 vs 0.9463 @1e-4, 0.9475 @5e-5). Confirms
+  the SSOT's long-standing hypothesis. Note 7.5e-5 is almost exactly the
+  linear-scaling value for batch 96 if 1e-4 was tuned for batch 128 — i.e. the
+  never-rescaled LR really was slightly hot.
+
+### Recommended locked recipe
+`--lr 7e-5 --wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 --min-lr 1e-7 --aug light`
+plus MORE epochs than 15 (aug light had not converged).
+
+### ⚠️ Caveats before over-trusting this
+1. **These are val_cos deltas of 0.002–0.005 on a leakage-biased metric** (~54% of val
+   images come from multi-photo observations). The ship metric is NABirds retention;
+   small cosine gaps can vanish downstream. **The winning checkpoints should be run
+   through `eval_nabirds.py` before the recipe is truly locked.**
+2. **UNTESTED INTERACTION: aug light × lr 7e-5.** exp3 used lr 1e-4; the LR sweep ran
+   with aug none. Stronger aug typically wants MORE LR, not less, so the two winners
+   may not simply compose. One confirmation run (aug light + 7e-5, 15+ epochs) is the
+   obvious next experiment.
+3. The LR sweep ran at 8 epochs while the aug/recipe comparisons ran at 15, so LR
+   rankings are short-horizon and should be re-confirmed at full length.
+
+### Follow-on queue
+- [ ] confirmation run: aug light + lr 7e-5, 20–25 epochs (tests the interaction AND
+      the "aug light hadn't converged" hypothesis in one run)
+- [ ] NABirds eval on exp3 + the confirmation run — the real verdict
+- [ ] one-run ablation: wd 0.1 vs 0.2 at otherwise-fixed new recipe
+- [ ] only if light aug keeps winning: reconsider the ~56 GPU-hour multi-view
+      embedding caching that would unlock TRUE strong aug ([0.08,1.0]+RandAugment)
+
 ## Training recipe (as of the pilot)
 
 - Cosine loss on L2-normalized embeddings; AdamW (lr 1e-4, wd 0.1); cosine LR
