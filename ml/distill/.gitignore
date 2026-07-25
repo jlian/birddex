@@ -35,3 +35,6 @@ cub/
 eval_*_results.json
 # but DO keep the small generated label maps
 !nabirds_to_taxo.json
+
+# local copy/symlink of src/lib/taxonomy.json (canonical is tracked there)
+taxonomy.json
