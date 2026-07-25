@@ -16,6 +16,7 @@ epochs) and a within-shard sample buffer. That is NOT a global shuffle. Since
 `pack_webdataset.py` writes rows ordered by taxon, a small buffer would give
 taxon-correlated batches, so keep `--wds-shuffle` large (default 10000).
 """
+import hashlib
 import io
 
 import numpy as np
@@ -26,8 +27,25 @@ from PIL import Image
 EMB_DIM = 768
 
 
+def _in_val(key, val_frac, seed=42):
+    """Deterministic per-sample train/val assignment.
+
+    Hash the sample key (photo_id) so the split is stable across runs, workers
+    and epochs without needing any state, and identical for train and val
+    loaders (one takes the complement of the other).
+
+    WHY NOT hold out a whole shard: `pack_webdataset.py` writes rows ordered by
+    taxon, so any single shard covers only a handful of species (measured: the
+    last pilot shard had 15 of 500). Validating on that is not comparable to the
+    original random 2% split and would silently rank sweep runs on ~3% of the
+    species. Hashing spreads val evenly across every shard and species.
+    """
+    h = hashlib.blake2b(f"{seed}:{key}".encode(), digest_size=8).digest()
+    return (int.from_bytes(h, "big") % 1_000_000) < int(val_frac * 1_000_000)
+
+
 def _decode(sample, preprocess):
-    """tar member dict -> (image_tensor, teacher_embedding, ok_flag)."""
+    """tar member dict -> (image_tensor, teacher_embedding)."""
     try:
         img = Image.open(io.BytesIO(sample["jpg"])).convert("RGB")
         x = preprocess(img)
@@ -41,7 +59,8 @@ def _decode(sample, preprocess):
 
 
 def make_wds_loader(urls, preprocess, batch_size, workers,
-                    shuffle=10000, is_train=True, epoch_samples=None):
+                    shuffle=10000, is_train=True, epoch_samples=None,
+                    val_frac=0.02, split_seed=42):
     """Build a DataLoader over WebDataset shards.
 
     Yields `(images, teacher_embeddings)` as stacked float32 tensors, i.e. the
@@ -49,10 +68,13 @@ def make_wds_loader(urls, preprocess, batch_size, workers,
     unchanged. (webdataset's `.batched()` does the stacking itself -- no extra
     collate_fn is needed.)
 
-    urls: brace-expanded shard pattern(s), e.g.
-          "/mnt/nas/WingDex-Distill/wds/shard-{00000..00249}.tar"
-    epoch_samples: if set, define an epoch length (with_epoch) so the training
-          loop's step math stays sane for an IterableDataset.
+    Train and val read the SAME shard list and are separated by a deterministic
+    hash of the sample key (see `_in_val`), giving a stratified ~val_frac split
+    that covers every species -- unlike holding out a taxon-ordered shard.
+
+    urls: shard path list or glob/brace pattern.
+    epoch_samples: define an epoch length (with_epoch) so the training loop's
+          step math stays sane for an IterableDataset.
     """
     ds = wds.WebDataset(
         urls,
@@ -61,6 +83,13 @@ def make_wds_loader(urls, preprocess, batch_size, workers,
         handler=wds.ignore_and_continue,
         empty_check=False,
     )
+
+    if val_frac and val_frac > 0:
+        want_val = not is_train
+        ds = ds.select(
+            lambda s: _in_val(s["__key__"], val_frac, split_seed) == want_val
+        )
+
     if is_train and shuffle:
         ds = ds.shuffle(shuffle)
 

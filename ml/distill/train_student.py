@@ -287,24 +287,32 @@ def main():
         student = Student(args.arch, args.pretrained).to(dev)
         train_pp = build_train_preprocess(student.preprocess, args.aug)
         if args.wds_val:
+            # explicit override: caller supplied a separate val shard set
             train_urls, val_urls = args.wds, args.wds_val
+            split_frac = 0.0
+            log("wds: using explicit --wds-val shard set (no hash split)")
         else:
-            # hold out the LAST shard for validation so train/val don't overlap
-            all_shards = sorted(glob.glob(args.wds)) if "*" in args.wds else [args.wds]
-            if len(all_shards) > 1:
-                train_urls, val_urls = all_shards[:-1], all_shards[-1:]
-                log(f"wds: holding out {os.path.basename(val_urls[0])} for val")
-            else:
-                train_urls = val_urls = all_shards
-                log("wds: WARNING only one shard -> train/val OVERLAP (smoke only)")
+            # SAME shards for both; train/val separated by a deterministic hash
+            # of the sample key. Do NOT hold out a shard: shards are packed in
+            # taxon order, so one shard covers only a handful of species
+            # (measured: the last pilot shard had 15 of 500), which is not
+            # comparable to the original random 2% split and would rank sweep
+            # runs on ~3% of the species.
+            train_urls = val_urls = sorted(glob.glob(args.wds)) \
+                if "*" in args.wds else args.wds
+            split_frac = args.val_frac
+            log(f"wds: hash-based {split_frac:.1%} val split across ALL shards "
+                f"(stratified; covers every species)")
         train_dl = make_wds_loader(train_urls, train_pp, args.batch,
                                    args.workers, shuffle=args.wds_shuffle,
                                    is_train=True,
-                                   epoch_samples=args.wds_epoch_samples)
+                                   epoch_samples=args.wds_epoch_samples,
+                                   val_frac=split_frac)
         val_samples = max(args.batch, args.wds_epoch_samples // 50)
         val_dl = make_wds_loader(val_urls, student.preprocess, args.batch,
                                  max(1, args.workers // 2), shuffle=0,
-                                 is_train=False, epoch_samples=val_samples)
+                                 is_train=False, epoch_samples=val_samples,
+                                 val_frac=split_frac)
         steps_per_epoch = max(1, args.wds_epoch_samples // args.batch)
         log(f"wds mode: {args.wds_epoch_samples:,} samples/epoch -> "
             f"{steps_per_epoch:,} steps/epoch, val~{val_samples:,} samples")

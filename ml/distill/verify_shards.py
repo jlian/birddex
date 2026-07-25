@@ -42,6 +42,10 @@ def main():
     ap.add_argument("--deep-shards", type=int, default=0,
                     help="0 = scan ALL shards for member integrity (slower but "
                          "that is the point of a pre-deletion gate)")
+    ap.add_argument("--max-dup-gap", type=int, default=1400,
+                    help="tolerated shortfall between rows-written and distinct "
+                         "tar keys, caused by duplicate photo_ids in the source "
+                         "manifest (measured: 1,368). Beyond this = real loss")
     a = ap.parse_args()
 
     failures = []
@@ -103,8 +107,22 @@ def main():
     log(f"scanned: {total_samples:,} complete samples, {incomplete} incomplete")
 
     if not a.deep_shards and claimed_total and total_samples != claimed_total:
-        failures.append(f"sample count mismatch: tar={total_samples:,} "
-                        f"vs shards.json={claimed_total:,}")
+        # The packer counts ROWS WRITTEN; a tar counts DISTINCT KEYS. The source
+        # manifest contains duplicate photo_ids (the same photo filed under more
+        # than one taxon -- measured 2026-07-24: 2,503,107 rows vs 2,501,739
+        # distinct photo_ids = 1,368 dup rows). Duplicates share a sample key, so
+        # they collapse when counted by key. Tolerate a shortfall up to the known
+        # duplicate count; anything beyond that is real data loss.
+        gap = claimed_total - total_samples
+        if gap < 0 or gap > a.max_dup_gap:
+            failures.append(f"sample count mismatch: tar={total_samples:,} "
+                            f"vs shards.json={claimed_total:,} (gap={gap:,}, "
+                            f"tolerated up to {a.max_dup_gap:,} for known "
+                            f"duplicate photo_ids)")
+        else:
+            log(f"  note: {gap:,} fewer distinct keys than rows written -- "
+                f"expected, the manifest has duplicate photo_ids (same photo "
+                f"under >1 taxon); within the {a.max_dup_gap:,} tolerance")
 
     # --- 5/6/7. deep-verify a random sample against the ORIGINAL sources ---
     log(f"deep-verifying {a.sample} random samples against source npz + manifest...")
@@ -157,15 +175,27 @@ def main():
     # 6. taxon ids vs manifest
     try:
         import duckdb
+        from collections import defaultdict
         con = duckdb.connect()
         pids = ",".join(str(p) for p in list(got.keys()))
         rows = con.execute(
             f"SELECT photo_id, inat_taxon_id FROM read_parquet('{a.train_manifest}') "
             f"WHERE photo_id IN ({pids})"
         ).fetchall()
-        tax_bad = sum(1 for p, t in rows
-                      if int(got[int(p)]["cls"].decode()) != int(t))
-        log(f"  taxon ids: checked={len(rows)} mismatches={tax_bad}")
+        # A photo_id can legitimately appear under MORE THAN ONE taxon in the
+        # manifest (1,368 such duplicate rows). The packed .cls only has to match
+        # ONE of them, so compare against the set, not row-by-row -- otherwise
+        # every duplicate is falsely reported as a mismatch.
+        valid = defaultdict(set)
+        for p, t in rows:
+            valid[int(p)].add(int(t))
+        tax_bad = sum(1 for p, opts in valid.items()
+                      if int(got[p]["cls"].decode()) not in opts)
+        n_dup = sum(1 for opts in valid.values() if len(opts) > 1)
+        if n_dup:
+            log(f"  note: {n_dup} sampled photo_ids exist under >1 taxon in the "
+                f"manifest (source data duplicates, not a packing error)")
+        log(f"  taxon ids: checked={len(valid)} photo_ids mismatches={tax_bad}")
         if tax_bad:
             failures.append(f"{tax_bad} taxon-id mismatches vs manifest")
     except Exception as e:
