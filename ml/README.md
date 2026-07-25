@@ -41,11 +41,11 @@ training on the RTX 3080.
 - [ ] **Measure STOCK MobileCLIP-S2 on our bird benchmark (baseline floor):** download Apple's weights, zero-shot with ITS OWN text tower on the 27-img golden set + NABirds. We've been ASSERTING "stock is bird-blind" — measure it. Gives the clean before/after (stock → our distilled student, same arch) = pure bird-knowledge delta for the writeup. Inference-only, needs GPU (when free) or slow CPU.
 - [ ] **Adopt Apple's WebDataset + open_clip_train dataloader (option A), keep our image-only cosine loss** — see "Adopt upstream training path" below. Prime suspect for both the ViT-B 314 img/s and FastViT slowness is our random-small-file dataloader; Apple's tar-sharded path is built to saturate the GPU.
   - [x] **Step 1: packing script** — `pack_webdataset.py` (added 2026-07-24). corpus JPEGs + cached teacher embeddings → `.tar` shards; each sample = `.jpg` (verbatim bytes, 500px preserved) + `.emb` (768-d fp16) + `.cls` (inat_taxon_id). Writes **directly to the NAS** so sharding and the corpus move are ONE pass (no 2x local peak; V: vhdx has only ~49GB physically free). Smoke-tested: webdataset reads back, embeddings match source npz bit-for-bit, taxon ids match manifest.
-  - [ ] **Step 1b: full pack running** → `/mnt/nas/WingDex-Distill/wds/` (~2.5M samples, ~250 shards, ~262GB). Watched by cron `wds-pack-watch`.
+  - [x] **Step 1b: full pack DONE** → `/mnt/nas/WingDex-Distill/wds/` — **2,502,898 rows, 251 shards, 252GB, 62.6 min @ 666/s** (209 skipped for missing embeddings, 0 missing images). Pilot set also packed: `wds-pilot500/` (247,400 samples, 25 shards, 25GB).
   - [ ] **Step 1c: VERIFY before deleting anything.** Two gates, BOTH required, human-reviewed: (a) *integrity* — shard count/sizes vs `shards.json`, every shard opens as a valid tar, sampled embeddings still match the source npz, no truncated final shard; (b) *training viability* — actually run a short training job reading shards FROM THE NAS and confirm loss/val_cos behave like the local-corpus run AND measure img/s (this is also the step-3 NAS-throughput check). Only after John reviews both may the local `corpus/` be deleted.
   - [ ] **Step 1d: delete local corpus.** Corpus is re-downloadable from iNat Open Data via `pull_images.py`, so it is a convenience copy, not irreplaceable. **Compacting the VHD is OPTIONAL, not required** (clarified 2026-07-24): V: exists solely to host `V:\WSL\ext4.vhdx`, so free space on V: has no other consumer. What actually matters is that the vhdx (a dynamic disk with a high-water mark) never needs to grow past V:'s 477GB capacity. Deleting the corpus frees ~262GB *inside* the ext4 filesystem, which WSL reuses before ever expanding the vhdx file again — so the high-water mark stops climbing and the constraint goes away on its own. Compacting (requires WSL shut down) would shrink the file and hand space back to V:, but nothing else needs that space. Current state: vhdx 406GB, V: 477GB → ~71GB of growth headroom, which is adequate.
-  - [ ] Step 2: wire our cosine loss into open_clip's webdataset dataloader (or adapt Apple's `dr/` loader).
-  - [ ] Step 3: re-benchmark FastViT AND ViT-B through that path, reading from the NAS.
+  - [x] **Step 2 DONE:** `wds_loader.py` + `train_student.py --wds` (2026-07-24). Kept our image-only cosine loss; Apple's `dr/` loader was NOT adopted (it exists to replay per-augmentation params for their reinforced-dataset scheme, which we don't use). Includes a stratified hash val split — see the session log.
+  - [~] **Step 3 partly done for ViT-B:** loader alone **~640 img/s** from the NAS (vs ~306 old) but end-to-end training is still **~302-320 img/s** → **we are now GPU-bound, not I/O-bound**, so the dataloader was not what capped ViT-B. FastViT through this path is still TODO and is where the win should actually show.
 - [ ] Final **MobileCLIP-S2** production run with locked recipe (3080 if viable, else torch.compile / rented cloud GPU — see "Cloud GPU rental", ~$10-20 fallback). ⚠️ **LICENSE GATE:** only Apple `datacompdr` weights exist for MobileCLIP-S2 (research-only, confirmed 2026-07-23). Commercial ship requires training FastViT from RANDOM init (costly) OR an open-weights small arch OR shipping the LAION ViT-B/16 (~45MB, clean). See Licensing section.
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
 - [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
@@ -461,6 +461,76 @@ the deferred multi-teacher improvement pass.
 caching, (b) strong aug [0.08,1.0]+RandAugment, (c) optimizer/schedule toward AdamW
 β₂=0.95 / wd 0.2 / cosine-to-1e-6 / warmup / grad-clip 1.0. All cheap to test on the
 500-sp pilot.
+
+## Session log: 2026-07-24 evening (WebDataset migration + gates)
+
+**Pack completed.** `pack_webdataset.py` wrote **2,502,898 rows -> 251 shards, 252GB**
+to `/mnt/nas/WingDex-Distill/wds/` in **62.6 min (666 samples/s)**. Skipped 209
+(no cached embedding), 0 missing images. A separate **pilot set** was packed for
+cheap sweep iteration: `/mnt/nas/WingDex-Distill/wds-pilot500/`, **247,400 samples,
+25 shards, 25GB** (matches the original pilot's usable count exactly).
+
+**Why a separate pilot shard set:** `--pilot-species` only filters the LOCAL-corpus
+path; it is silently ignored in `--wds` mode. And the top-500 species are SCATTERED
+across taxon order, so train-time filtering would read all 2.5M samples to use ~10%.
+`pack_webdataset.py --pilot-species N` now exists for this.
+
+### Throughput: the dataloader was A bottleneck, but not THE ceiling
+- WebDataset loader alone, reading from the NAS: **~640 img/s** (vs ~306 for the old
+  random-small-file loader) = **2.1x**.
+- But end-to-end *training* is still **~302-320 img/s**, i.e. unchanged.
+- Conclusion: **we are now GPU-bound, not I/O-bound.** The random-small-file loader
+  was real overhead but was NOT what capped ViT-B at ~314 img/s; the 3080's
+  forward+backward is. This reframes the SSOT's original hypothesis. Expect the
+  WebDataset win to matter much MORE for FastViT/MobileCLIP (cheaper per-image
+  compute -> more I/O-hungry).
+- NAS throughput is therefore a non-issue for ViT-B: spinning rust feeds the GPU fine.
+
+### BUG FOUND + FIXED: the wds val split was measuring ~3% of species
+`train_student.py` originally held out the LAST shard for validation. But shards are
+packed in TAXON ORDER, so one shard covers only a handful of species -- **measured:
+the held-out pilot shard had 15 of 500 species**. Every sweep run would have had its
+`val_cos_sim` computed on ~3% of the species, silently invalidating the LR rankings.
+**Fixed:** train and val now read the SAME shards, separated by a deterministic
+blake2b hash of the sample key. Verified on the pilot set: val_frac **0.0202**,
+**496/496 species covered (100%)**, **4,948 val samples** -- which exactly matches the
+original local-corpus pilot's val size, so numbers are directly comparable again.
+No repacking was needed; this is purely a read-time selection change.
+
+### DATA QUALITY FINDING: 1,368 duplicate photo_ids in the manifest
+`train_manifest.parquet` has **2,503,107 rows but only 2,501,739 distinct photo_ids**
+= **1,368 duplicate rows** (the same photo filed under MORE THAN ONE taxon; e.g.
+photo_id 4508957 appears under both taxon 4335 and 4327). Consequences:
+- The packer counts rows written; a tar counts distinct keys, so duplicates collapse
+  and the two counts legitimately differ. `verify_shards.py --max-dup-gap` tolerates
+  this; a larger gap would be real data loss.
+- Comparing a packed `.cls` row-by-row against the manifest falsely flags duplicates,
+  so the check now compares against the SET of taxa valid for that photo_id.
+- **These duplicates were also in the original training run**, so ~1,368 of 2.5M
+  images (0.05%) were trained under two different taxon labels. Negligible in impact,
+  but real -- worth deduping the manifest before any future re-pack.
+
+### Environment: uv replaces the old venv
+The old venv (`~/spikes/bioclip-birdid/.venv`) had absolute paths baked into its
+shebangs, so it could not be moved -- which blocked deleting the spikes scratch dir.
+Rather than sed shebangs (fragile: packages also bake absolute paths into console
+scripts, `.pth` files and extension RPATHs; `virtualenv --relocatable` is
+semi-deprecated for exactly this reason), it was recreated with **uv** under the repo:
+`ml/distill/pyproject.toml` + `uv.lock` (58 packages resolved in 829ms), venv at
+`ml/distill/.venv` (gitignored). Verified: torch 2.6.0+cu124, CUDA available, RTX
+3080 detected, versions identical to the old env.
+**Gotcha:** torch cu124 wheels are NOT on PyPI, so `tool.uv.index` +
+`tool.uv.sources` pin torch/torchvision to the pytorch cu124 index explicitly.
+Without that, uv silently resolves the CPU build and CUDA disappears.
+
+### Tooling note (why no W&B/Optuna/Hydra)
+`run_experiments.py` runs the experiment matrix as a plain sequential loop over a JSON
+spec. W&B Sweeps / Optuna / Hydra / MLflow are the real prior art and are worth it for
+parallel workers, distributed trials, or Bayesian search over a large space -- we have
+ONE GPU and a 5-run grid, so they would add a service dependency and a failure mode to
+replace a for-loop. What WAS borrowed from them: structured per-run results,
+resumability (a crash on run 4 does not restart the queue), a gpu-busy guard, and a
+hard stop after N consecutive failures.
 
 ## Training recipe (as of the pilot)
 
