@@ -21,9 +21,14 @@ Usage:
       --pilot-species 500 --limit 4000
 """
 import argparse
+import hashlib
 import json
 import os
 import time
+
+import glob
+import io
+import tarfile
 
 import numpy as np
 import torch
@@ -71,11 +76,19 @@ def load_student(checkpoint, device):
     return st, st.preprocess
 
 
-def pick_heldout_rows(train_manifest, corpus, taxo, pilot_species, val_frac=0.02, seed=42):
-    """Reconstruct the pilot's val split exactly (same seed/logic as train_student).
+def pick_heldout_rows(train_manifest, corpus, taxo, pilot_species,
+                      val_frac=0.02, seed=42, split="legacy"):
+    """Rows the model did NOT train on.
 
-    train_student builds a Subset over the dataset's usable rows; the val indices
-    are the first n_val of a seeded permutation. We reproduce that ordering.
+    Two split modes, and picking the WRONG one silently evaluates on training
+    data:
+
+    * split="legacy" -- reproduces the ORIGINAL local-corpus split: a seeded
+      torch.randperm over usable rows, first n_val = val. Correct for
+      checkpoints trained from `corpus/` (the pre-WebDataset runs).
+    * split="hash"   -- the deterministic blake2b split used by the WebDataset
+      loader (see wds_loader._in_val). Correct for every checkpoint trained via
+      --wds, i.e. everything from 2026-07-24 onward.
     """
     sci_to_idx = {r[1].lower(): i for i, r in enumerate(taxo)}
     con = duckdb.connect()
@@ -89,24 +102,117 @@ def pick_heldout_rows(train_manifest, corpus, taxo, pilot_species, val_frac=0.02
         where = "TRUE"
     rows = con.execute(f"SELECT photo_id, inat_taxon_id, extension, scientific "
                        f"FROM {M} WHERE {where}").fetchall()
-    # mirror train_student: keep rows whose image exists on disk (approx: all here)
     usable = []
     for pid, tid, ext, sci in rows:
         if sci and sci.lower() in sci_to_idx:
             usable.append((pid, tid, (ext or "jpg"), sci_to_idx[sci.lower()]))
-    # seeded permutation, first n_val = val (matches train_student split logic)
+
+    if split == "hash":
+        from wds_loader import _in_val
+        val = [r for r in usable if _in_val(str(r[0]), val_frac, seed)]
+        log(f"hash split: {len(val):,} held-out of {len(usable):,}")
+        return val
+
     g = torch.Generator().manual_seed(seed)
     perm = torch.randperm(len(usable), generator=g).tolist()
     n_val = max(1, int(len(usable) * val_frac))
     val = [usable[i] for i in perm[:n_val]]
+    log(f"legacy split: {len(val):,} held-out of {len(usable):,}")
     return val
+
+
+class ShardImageSource:
+    """Read images by photo_id out of WebDataset .tar shards.
+
+    Builds a photo_id -> (shard, offset) index once, then random-accesses
+    members on demand. Lets the held-out eval keep working after the loose
+    `corpus/` directory is deleted.
+
+    The index is CACHED to disk: building it means walking every tar header,
+    which on the 251-shard main set over CIFS is minutes of I/O. The cache key
+    includes the shard list + mtimes + sizes, so it self-invalidates if the
+    shards are ever repacked.
+    """
+
+    def __init__(self, pattern, wanted=None, cache_dir=None):
+        shards = sorted(glob.glob(pattern))
+        if not shards:
+            raise SystemExit(f"no shards matched: {pattern}")
+
+        sig = hashlib.blake2b(
+            "|".join(f"{p}:{os.path.getmtime(p)}:{os.path.getsize(p)}"
+                     for p in shards).encode(), digest_size=8).hexdigest()
+        cdir = cache_dir or os.path.dirname(shards[0])
+        if not os.access(cdir, os.W_OK):
+            cdir = "/tmp"
+        cache = os.path.join(cdir, f".shardindex-{sig}.json")
+
+        if os.path.exists(cache):
+            with open(cache) as f:
+                raw = json.load(f)
+            self.index = {int(k): (v[0], v[1]) for k, v in raw.items()}
+            log(f"loaded shard index from cache ({len(self.index):,} images)")
+        else:
+            self.index = {}
+            log(f"indexing {len(shards)} shards (one-time, then cached)...")
+            for n, sp in enumerate(shards, 1):
+                with tarfile.open(sp, "r") as t:
+                    for m in t:
+                        if not m.isfile() or not m.name.endswith(".jpg"):
+                            continue
+                        try:
+                            pid = int(m.name[:-4])
+                        except ValueError:
+                            continue
+                        self.index[pid] = (sp, m.offset)
+                if n % 25 == 0:
+                    log(f"  ...{n}/{len(shards)} shards, {len(self.index):,} images")
+            try:
+                with open(cache, "w") as f:
+                    json.dump({str(k): list(v) for k, v in self.index.items()}, f)
+                log(f"cached shard index -> {cache}")
+            except Exception as e:
+                log(f"(could not cache shard index: {e})")
+        self._open = {}
+
+    def get(self, pid):
+        hit = self.index.get(int(pid))
+        if hit is None:
+            return None
+        sp, off = hit
+        t = self._open.get(sp)
+        if t is None:
+            t = tarfile.open(sp, "r")
+            self._open[sp] = t
+        t.fileobj.seek(off)
+        m = tarfile.TarInfo.fromtarfile(t)
+        return t.extractfile(m).read()
+
+    def close(self):
+        for t in self._open.values():
+            try:
+                t.close()
+            except Exception:
+                pass
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--train-manifest", default="train_manifest.parquet")
-    ap.add_argument("--corpus", default="corpus")
+    ap.add_argument("--corpus", default="corpus",
+                    help="loose image dir; ignored when --wds is given")
+    ap.add_argument("--wds", default="",
+                    help="read images from WebDataset shards instead of a loose "
+                         "corpus/ dir, e.g. "
+                         "'/mnt/nas/WingDex-Distill/wds-pilot500/shard-*.tar'. "
+                         "Lets this eval keep working after corpus/ is deleted")
+    ap.add_argument("--split", default="auto", choices=["auto", "legacy", "hash"],
+                    help="which held-out split to reconstruct. 'legacy' = the "
+                         "seeded randperm used by local-corpus runs; 'hash' = the "
+                         "blake2b split used by --wds runs. 'auto' picks hash when "
+                         "--wds is given, else legacy. Getting this WRONG silently "
+                         "evaluates on training data")
     ap.add_argument("--embeddings-dir", default="embeddings",
                     help="cached teacher embedding shards (shard_*.npz); avoids "
                          "re-running the teacher image encoder")
@@ -125,10 +231,20 @@ def main():
     text_feats, teacher = build_text_classifier(taxo, dev)
     student, student_pp = load_student(args.checkpoint, dev)
 
-    val = pick_heldout_rows(args.train_manifest, args.corpus, taxo, args.pilot_species)
+    split_mode = args.split
+    if split_mode == "auto":
+        split_mode = "hash" if args.wds else "legacy"
+        log(f"--split auto -> {split_mode}")
+    val = pick_heldout_rows(args.train_manifest, args.corpus, taxo,
+                            args.pilot_species, split=split_mode)
     if args.limit:
         val = val[:args.limit]
     log(f"held-out val samples: {len(val)}")
+
+    # image source: WebDataset shards (survives corpus/ deletion) or loose dir
+    src = None
+    if args.wds:
+        src = ShardImageSource(args.wds, wanted={pid for pid, _, _, _ in val})
 
     # ---- teacher: use CACHED embeddings (lookup by photo_id), no teacher fwd ----
     import glob
@@ -165,9 +281,15 @@ def main():
     def run_student():
         embs, labs, buf, blab = [], [], [], []
         for pid, tid, ext, lab in val:
-            path = os.path.join(args.corpus, str(tid), f"{pid}.{ext}")
             try:
-                x = student_pp(Image.open(path).convert("RGB"))
+                if src is not None:
+                    raw = src.get(pid)
+                    if raw is None:
+                        continue
+                    img = Image.open(io.BytesIO(raw))
+                else:
+                    img = Image.open(os.path.join(args.corpus, str(tid), f"{pid}.{ext}"))
+                x = student_pp(img.convert("RGB"))
             except Exception:
                 continue
             buf.append(x); blab.append(lab)
