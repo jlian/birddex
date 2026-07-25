@@ -79,6 +79,13 @@ def main():
                     help="~10k x ~100KB = ~1GB shards, a good WebDataset size")
     ap.add_argument("--limit", type=int, default=0,
                     help="stop after N samples (smoke test)")
+    ap.add_argument("--pilot-species", type=int, default=0,
+                    help="pack ONLY the top-N species by image count (matches "
+                         "train_student.py --pilot-species). Produces a small "
+                         "pilot shard set for cheap sweep iteration: the pilot "
+                         "species are SCATTERED across taxon order, so filtering "
+                         "at train time would mean reading the whole corpus to "
+                         "use ~10% of it")
     ap.add_argument("--start-shard", type=int, default=0)
     args = ap.parse_args()
 
@@ -86,9 +93,19 @@ def main():
 
     log("reading manifest via duckdb")
     con = duckdb.connect()
+    where = "TRUE"
+    if args.pilot_species and args.pilot_species > 0:
+        top = con.execute(f"""
+            SELECT inat_taxon_id FROM read_parquet('{args.train_manifest}')
+            GROUP BY 1 ORDER BY count(*) DESC LIMIT {args.pilot_species}
+        """).fetchall()
+        ids = ",".join(str(r[0]) for r in top)
+        where = f"inat_taxon_id IN ({ids})"
+        log(f"--pilot-species {args.pilot_species}: filtering to top species by count")
     rows = con.execute(f"""
         SELECT photo_id, inat_taxon_id, extension
         FROM read_parquet('{args.train_manifest}')
+        WHERE {where}
         ORDER BY inat_taxon_id, photo_id
     """).fetchall()
     log(f"manifest rows: {len(rows):,}")
