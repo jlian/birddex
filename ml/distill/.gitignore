@@ -42,3 +42,5 @@ taxonomy.json
 # 110MB download bookkeeping, regenerable from the iNat metadata pass
 download_manifest.jsonl.gz
 logs/
+
+obs_split_*.json
