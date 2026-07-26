@@ -70,6 +70,20 @@ def main():
     ap.add_argument("--out", default="groundtruth_heldout.parquet")
     ap.add_argument("--require-gps", action="store_true", default=True,
                     help="keep only GPS'd photos (the metadata fusion lever needs them)")
+    ap.add_argument("--memory-limit", default="12GB",
+                    help="HARD DuckDB memory cap. Without this DuckDB assumes it "
+                         "may use ~80%% of visible RAM and will expand until WSL "
+                         "thrashes -- that is exactly what wedged the box on "
+                         "2026-07-25 (WSL is capped at 31.5GB and a training job "
+                         "was also resident). build_manifest.py uses 24GB when "
+                         "nothing else is running; 12GB is the safe value to "
+                         "coexist with training")
+    ap.add_argument("--temp-dir", default="",
+                    help="DuckDB spill directory. Point this at the NAS to keep "
+                         "out-of-core spill off the WSL vhdx entirely")
+    ap.add_argument("--threads", type=int, default=0,
+                    help="DuckDB threads (0=auto). Lower it to leave CPU for a "
+                         "concurrent training job")
     a = ap.parse_args()
 
     taxa_csv = os.path.join(a.meta, "taxa.csv.gz")
@@ -86,6 +100,19 @@ def main():
 
     con = duckdb.connect()
     con.execute("PRAGMA enable_progress_bar")
+    # HARD limits first -- see --memory-limit. This join streams a 19GB
+    # compressed photos table and builds hash tables against 2.5M exclusion
+    # rows, so it WILL go out-of-core; the only question is whether it spills
+    # gracefully or eats the machine.
+    con.execute(f"PRAGMA memory_limit='{a.memory_limit}'")
+    log(f"duckdb memory_limit={a.memory_limit}")
+    if a.threads:
+        con.execute(f"PRAGMA threads={a.threads}")
+        log(f"duckdb threads={a.threads}")
+    if a.temp_dir:
+        os.makedirs(a.temp_dir, exist_ok=True)
+        con.execute(f"PRAGMA temp_directory='{a.temp_dir}'")
+        log(f"duckdb spill dir={a.temp_dir}")
     rd = ("read_csv('{}', delim='\\t', header=true, quote='', escape='', "
           "ignore_errors=true, all_varchar=true)")
 
