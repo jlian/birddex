@@ -19,6 +19,40 @@ step is the **combined confirmation run** (see "NEXT STEP" below).
 data + uv venv). The Pi checkout and the `~/spikes` scratch dir are both gone.
 Training data = WebDataset shards on the NAS.
 
+### Results: exp7 + ground-truth sampler (2026-07-26)
+
+**exp7 (aug light + lr 7e-5, 25 ep, 500-sp pilot) — the confirmation run.**
+- best val_cos **0.9540 @ep25**, monotonic, **no post-peak decline**
+- at ep15 (apples-to-apples vs exp3): **0.9504 vs exp3's 0.9512**
+- **held-out top-1 retention 104.1%** (student 59.63 vs teacher 57.30) — beats
+  exp3's 100.4% and exp1's 92.2%
+- **NABirds top-1 93.26%, retention 101.9%** (teacher 91.49). Note: only 282
+  in-species test images, so noisy; the full-run baseline was 94.7%.
+- **still climbing at ep25** (+0.0001/ep, not flattened)
+
+**Verdict: LR is a WASH, EPOCHS are the lever.** The ep15 gap (0.0008) is inside
+noise, and exp7 won on both metrics that actually matter (held-out retention and
+NABirds). exp7's +0.0028 over exp3 came from epochs 16-25, not from the lower LR.
+⚠️ Do NOT lock a recipe on a 0.0008 val_cos difference while ignoring the ship
+metric — that was the cron's initial recommendation and it is the wrong basis.
+
+**Locked recipe (LR either 1e-4 or 7e-5, they are equivalent):**
+`--wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 --min-lr 1e-7 --aug light`
+with **as many epochs as budget allows — 25 was still not enough**.
+
+**Ground-truth held-out set — BUILT.** `groundtruth_heldout.parquet` (10.9MB):
+- **178,852 photos / 5,908 species / 178,852 observations** (one photo per obs)
+- per-species: min 5, **median 40** (the cap), avg 30.3
+- **VERIFY: 0 leaked photo_ids, 0 leaked observations** ✅
+- streamed 46.4M untouched candidate photos in ~23.5 min at a 24GB DuckDB cap
+- ⚠️ **5,259 of 11,167 taxonomy species dropped** for having <5 untouched photos.
+  So the fine-tune set covers **5,908 species, not our full 7,555 corpus species**
+  — rare species were scarcity-capped in the original pull, so there is no hidden
+  reservoir for them. Any fine-tune eval must be read as "on the 5,908 species
+  with spare data", not as full-taxonomy coverage.
+- NOTE this is the photo LIST only. The images are not downloaded yet
+  (~15-20GB via `pull_images.py`).
+
 ### ⭐ NEXT STEP (decided 2026-07-25)
 
 **Run ONE experiment: aug light + lr 7e-5, 25 epochs, on the 500-sp pilot.**
