@@ -17,7 +17,7 @@ training on the RTX 3080.
 
 **Working locations (see "Where things live" at bottom, there are 3 code copies):**
 - Edit code/docs in the Pi git repo `~/wingdex/ml/`.
-- Training runs on tomahawk in the loose scratch dir `~/spikes/bioclip-birdid/`.
+- Training runs on tomahawk in `~/wingdex/ml/distill/` (the repo dir itself; the old scratch dir was retired 2026-07-25). Training data = WebDataset shards on the NAS.
 
 ### Queue (ordered; corrected 2026-07-23)
 
@@ -278,7 +278,7 @@ I/O is the prime suspect for both the ViT-B "only 314 img/s" and the FastViT
 slowness — not the arch. Per the standing rule (adopt proven prior art, don't
 hand-roll), route the FINAL runs through Apple's tuned path instead.
 
-**Apple `ml-mobileclip` reality (cloned at `~/spikes/bioclip-birdid/ml-mobileclip`):**
+**Apple `ml-mobileclip` reality (was cloned in the now-deleted scratch dir; re-clone from github.com/apple/ml-mobileclip if needed):**
 their DataCompDR training uses `open_clip_train.main` with `--dataset-type
 webdataset` over `.tar` shards, `--precision amp`, `--grad-checkpointing`, and a
 `dr/` loader that pulls per-sample teacher *reinforcements* (embeddings) straight
@@ -1060,65 +1060,48 @@ license-audit ready (every image records license + attribution).
 
 ---
 
-## Where things live (⚠️ 3 code copies — cleanup pending)
+## Where things live (✅ consolidated 2026-07-25)
 
-Heavy work runs on **tomahawk** (RTX 3080) under the spike venv
-`~/spikes/bioclip-birdid/.venv` (torch 2.6.0+cu124, open_clip 3.3.0).
+**ONE directory: `~/wingdex/ml/distill/` on tomahawk.** The scratch dir
+`~/spikes/bioclip-birdid/` is GONE, and so is the Pi checkout. There is no
+sibling copy, no symlink farm, and no drift risk left. Heavy work runs on
+tomahawk (RTX 3080).
 
-**SSOT of record = GitHub `jlian/wingdex` @ `bioclip-distill`.** Commit + push
-there; that's the durable copy (readable even when tomahawk is asleep). Local
-checkouts are just working copies of it.
+- **Code + docs:** this git repo, branch `bioclip-distill`. GitHub
+  (`jlian/wingdex`) is the durable record — push there; it is readable even when
+  tomahawk is asleep.
+- **Env:** `ml/distill/.venv`, managed by **uv** from the committed
+  `pyproject.toml` + `uv.lock` (58 packages). Rebuild anywhere with `uv sync`.
+  Gotcha: torch cu124 wheels are not on PyPI, so `tool.uv.index` +
+  `tool.uv.sources` pin torch/torchvision to the pytorch cu124 index — without
+  that uv silently resolves the CPU build and CUDA disappears.
+- **Data (~40GB, all gitignored):** `runs/`, `embeddings/` (3.9GB, 366 shards of
+  cached teacher embeddings), `nabirds/` (9.5GB OOD eval set), `nabirds_meta/`,
+  the manifests, `taxonomy.json`, attribution records, and `logs/`.
+- **Training data:** WebDataset shards on the NAS —
+  `/mnt/nas/WingDex-Distill/wds/` (251 shards, 252GB, 2,502,898 samples) and
+  `/mnt/nas/WingDex-Distill/wds-pilot500/` (25 shards, 25GB, 247,400 samples).
+- **Backup:** `/mnt/nas/WingDex-Distill-Backup/20260724/` holds checkpoints,
+  embeddings, manifests, nabirds and attributions.
+- **Phase-0 spike artifacts:** `ml/spike/` — 16 scripts + 162 embedding fixtures
+  for John's own bird photos, committed 2026-07-25 because they existed ONLY in
+  the scratch dir and are the provenance for the spike findings quoted above.
 
-**STATUS 2026-07-24 (evening): consolidation DONE for code.** The Pi checkout was
-deleted (trashed), and the spikes scratch dir's script COPIES were replaced with
-SYMLINKS into the tomahawk repo, so there is now exactly ONE copy of every script
-and drift is structurally impossible. Verified: `train_student.py` and
-`run_experiments.py` still run through the symlinks. Originals preserved at
-`~/spikes/bioclip-birdid/distill/.script-copies-backup-20260724-194835/`.
-Remaining: delete the local `corpus/` after both gates + human approval.
+**The 262GB loose `corpus/` was DELETED 2026-07-25**, gated on exp1 reproducing
+the known pilot baseline off the shards (0.9447 vs 0.9465). Every image lives in
+the shards byte-identically (`pack_webdataset.py` copies jpg bytes verbatim;
+gate 1b verified all 251 shards), and it is re-downloadable from iNat Open Data
+via `pull_images.py`. Freed 261GB; WSL disk went 391GB → 92GB used.
+`eval_heldout.py` was ported to read from shards (`--wds`) first, so nothing
+depends on loose files any more.
 
-Historical copies (now resolved):
-1. ~~**Pi `~/wingdex/ml/`**~~ — DELETED 2026-07-24 (trashed). It was the root cause
-   of repeated "edited the wrong copy" confusion; the Pi has no data/GPU anchor so
-   it was pure redundancy.
-2. **Tomahawk `~/wingdex`** — git checkout (was stale at `3c82604`, reset to
-   origin 2026-07-24). Not currently where training runs.
-3. **Tomahawk `~/spikes/bioclip-birdid/`** — **non-git loose scratch dir where
-   training ACTUALLY runs** (path `distill/`, no `ml/`). Scripts hand-synced from
-   the repo → drift risk. Corpus, `runs/`, `embeddings/`, manifests, logs,
-   checkpoints live here — all OFF git (`.gitignore`), too large + regenerable.
+Note: compacting `V:\WSL\ext4.vhdx` is OPTIONAL. V: exists only to host the
+vhdx, so free space there has no other consumer; what matters is that the
+dynamic disk never needs to grow past V:'s 477GB, and deleting the corpus freed
+~262GB *inside* the filesystem that WSL will reuse before expanding the file.
 
-**TARGET END STATE (clarified by John 2026-07-24): ONE directory,
-`~/wingdex/ml/distill/`, with NO sibling scratch dir at all — not even a
-symlinked one.** Symlinks made the code single-source, but a second directory
-that still looks like a project root is itself the confusion risk. The blocker
-is `corpus/` (262GB): moving it is risky/slow, so the order is
-**gates → approve → DELETE corpus → move the small remainder → delete the
-scratch dir**. Remaining after corpus deletion is only ~4.2GB
-(embeddings 3.9GB, runs, nabirds, manifests/caches, logs), which is trivially
-movable. NOTE the venv (`~/spikes/bioclip-birdid/.venv`, 5.5GB) has absolute
-paths baked into its shebangs — it cannot be moved, only recreated; that is a
-separate decision.
+History: scripts were briefly split across `bioclip-birdid` and `bioclip-distill`
+branches (consolidated 2026-07-22); five separate ml docs were merged into this
+file 2026-07-23; the Pi checkout was deleted and the scratch scripts symlinked
+2026-07-24; full consolidation into one directory 2026-07-25.
 
-**Cleanup — DECIDED 2026-07-24, collapse to ONE checkout on tomahawk (AFTER the
-current run finishes):**
-1. Make tomahawk `~/wingdex` the single working checkout. Point training at
-   `~/wingdex/ml/distill/` — either move the scratch data (`corpus/`,
-   `embeddings/`, `runs/`) under it or symlink them in (they stay gitignored).
-2. Retire `~/spikes/bioclip-birdid/distill` as a code location (keep only as a
-   data dir if symlinking, else migrate its data).
-3. **Delete the Pi `~/wingdex` checkout entirely.** The Pi has no data/GPU anchor;
-   its only purpose was edit convenience, which caused the drift. I edit the
-   tomahawk copy over the node and read from GitHub when tomahawk is asleep.
-4. Then move the 262GB corpus to the NAS (keep the ~4GB embeddings + checkpoints;
-   raw JPEGs only needed during precompute).
-
-Why one copy on tomahawk (not the Pi): the corpus + embeddings + GPU physically
-live on tomahawk and can't move, so training must run there; the Pi copy is pure
-redundancy. rsync between two live-edited copies never worked because both sides
-get edited — the fix is deleting the second copy, not a smarter sync.
-
-History note: scripts were briefly split across `bioclip-birdid` and
-`bioclip-distill` branches; consolidated onto `bioclip-distill` 2026-07-22. The
-5 separate ml docs were merged into this file 2026-07-23. `--resume` (true
-full-state training resume) added 2026-07-24 (`19fc190`).

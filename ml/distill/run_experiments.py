@@ -81,7 +81,7 @@ def main():
     ap.add_argument("--status", default="/tmp/experiment_queue_status.json")
     ap.add_argument("--workdir",
                     default=os.environ.get("WINGDEX_WORKDIR",
-                                           "/home/jlian/spikes/bioclip-birdid/distill"),
+                                           "/home/jlian/wingdex/ml/distill"),
                     help="dir the training script runs from (must contain the data: "
                          "manifests, embeddings/, runs/). Overridable so this keeps "
                          "working after the scratch dir is retired")

@@ -17,7 +17,7 @@ Design:
     open-weight license audit.
 
 Usage:
-  python download_inat.py --out ~/spikes/bioclip-birdid/distill \
+  python download_inat.py --out ~/wingdex/ml/distill \
       --per-species 200 --sleep 1.1
   python download_inat.py --out ... --per-species 200 --limit-species 25   # pilot
 """

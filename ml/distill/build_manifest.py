@@ -24,8 +24,8 @@ iNat metadata schema (tab-separated, header row):
                 extension, license, width, height, position
 
 Usage:
-  python build_manifest.py --meta ~/spikes/bioclip-birdid/inat-metadata \
-      --taxonomy taxonomy.json --out ~/spikes/bioclip-birdid/distill \
+  python build_manifest.py --meta ~/wingdex/ml/inat-metadata \
+      --taxonomy taxonomy.json --out ~/wingdex/ml/distill \
       --per-species 300 --min-photos 50 --research-only --require-gps
 """
 import argparse

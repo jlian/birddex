@@ -3,7 +3,7 @@
 # Each pass embeds whatever new on-disk images exist, exits, then we loop.
 # Stops itself once the pull is done AND a pass embeds 0 new images (fully caught up).
 set -u
-cd "$HOME/spikes/bioclip-birdid/distill" || exit 1
+cd "$HOME/wingdex/ml/distill" || exit 1
 VENV=../.venv/bin/python
 
 while true; do

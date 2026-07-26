@@ -13,7 +13,7 @@ metadata tables we need (tab-separated .csv.gz) straight over HTTPS:
 Resumable: uses HTTP Range to continue a partial file. Verify with --list.
 
 Usage:
-  python fetch_metadata.py --out ~/spikes/bioclip-birdid/inat-metadata
+  python fetch_metadata.py --out ~/wingdex/ml/inat-metadata
   python fetch_metadata.py --out ... --only taxa            # just the small one
   python fetch_metadata.py --list                           # show S3 sizes, no download
 """

@@ -14,8 +14,8 @@ done-set file so re-runs skip finished work. ~2.5M x 768 x 2B ~= 3.8 GB embeddin
 
 Usage:
   python precompute_embeddings.py --manifest manifest.parquet \
-      --corpus ~/spikes/bioclip-birdid/distill/corpus \
-      --out ~/spikes/bioclip-birdid/distill/embeddings \
+      --corpus ~/wingdex/ml/distill/corpus \
+      --out ~/wingdex/ml/distill/embeddings \
       --batch 256 --shard-size 50000
   python precompute_embeddings.py ... --limit 2000   # smoke test
 """

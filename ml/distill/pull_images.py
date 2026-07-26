@@ -14,7 +14,7 @@ failures.log. Safe to re-run to fill gaps.
 
 Usage:
   python pull_images.py --manifest manifest.parquet \
-      --out ~/spikes/bioclip-birdid/distill --size medium --workers 16
+      --out ~/wingdex/ml/distill --size medium --workers 16
 """
 import argparse
 import json
