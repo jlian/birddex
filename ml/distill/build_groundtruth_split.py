@@ -129,9 +129,16 @@ def main():
     log(f"  {n_tr:,} trained photos across {n_obs:,} observations (both excluded)")
 
     log("reading target species...")
+    # carry app_idx/scientific/common through: pull_images.py writes them into
+    # its per-photo record, so the sampled manifest must match the schema of
+    # train_manifest.parquet or the pull dies AFTER downloading each file.
     con.execute(f"""
         CREATE TEMP TABLE taxa AS
-        SELECT DISTINCT CAST(inat_taxon_id AS BIGINT) AS inat_taxon_id
+        SELECT DISTINCT
+               CAST(inat_taxon_id AS BIGINT) AS inat_taxon_id,
+               TRY_CAST(app_idx AS BIGINT)   AS app_idx,
+               scientific,
+               common
         FROM read_csv('{a.target_taxa}', header=true, all_varchar=true)
         WHERE inat_taxon_id IS NOT NULL
     """)
@@ -145,10 +152,14 @@ def main():
         CREATE TEMP TABLE candidates AS
         SELECT
             CAST(p.photo_id AS BIGINT)        AS photo_id,
-            p.observation_uuid                AS observation_uuid,
-            CAST(o.taxon_id AS BIGINT)        AS inat_taxon_id,
             p.extension                       AS extension,
             p.license                         AS license,
+            TRY_CAST(p.observer_id AS BIGINT) AS observer_id,
+            p.observation_uuid                AS observation_uuid,
+            CAST(o.taxon_id AS BIGINT)        AS inat_taxon_id,
+            t.app_idx                         AS app_idx,
+            t.scientific                      AS scientific,
+            t.common                          AS common,
             CAST(o.latitude  AS DOUBLE)       AS latitude,
             CAST(o.longitude AS DOUBLE)       AS longitude,
             o.observed_on                     AS observed_on

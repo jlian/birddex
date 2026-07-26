@@ -18,6 +18,9 @@ dependencies = [
     "pillow==12.2.0",
     "braceexpand==0.1.7",
     "matplotlib>=3.9",
+    # pull_images.py uses duckdb .fetchdf(); pandas was present in the old
+    # pre-uv venv and got dropped when the env was rebuilt from imports
+    "pandas>=2.2",
 ]
 
 [dependency-groups]
