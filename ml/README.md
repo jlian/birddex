@@ -12,25 +12,62 @@ Tracks issue [#260](https://github.com/jlian/wingdex/issues/260). Branch:
 
 ## STATUS + QUEUE (read this first)
 
-🔵 **In progress.** Full 7,555-species **ViT-B/16** baseline distillation run is
-training on the RTX 3080.
+🟢 **Baseline done, recipe chosen, infrastructure consolidated.** Next concrete
+step is the **combined confirmation run** (see "NEXT STEP" below).
 
-**Working locations (see "Where things live" at bottom, there are 3 code copies):**
-- Edit code/docs in the Pi git repo `~/wingdex/ml/`.
-- Training runs on tomahawk in `~/wingdex/ml/distill/` (the repo dir itself; the old scratch dir was retired 2026-07-25). Training data = WebDataset shards on the NAS.
+**Working location: ONE directory** — `~/wingdex/ml/distill/` on tomahawk (repo +
+data + uv venv). The Pi checkout and the `~/spikes` scratch dir are both gone.
+Training data = WebDataset shards on the NAS.
+
+### ⭐ NEXT STEP (decided 2026-07-25)
+
+**Run ONE experiment: aug light + lr 7e-5, 25 epochs, on the 500-sp pilot.**
+
+```
+cd ~/wingdex/ml/distill && ./.venv/bin/python -u train_student.py \
+  --wds "/mnt/nas/WingDex-Distill/wds-pilot500/shard-*.tar" \
+  --wds-epoch-samples 247400 --arch ViT-B-16 --pretrained laion2b_s34b_b88k \
+  --batch 96 --workers 12 --epochs 25 \
+  --lr 7e-5 --wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 --min-lr 1e-7 \
+  --aug light --patience 0 --out runs/exp7_combined_lr7e5_auglight_ep25
+```
+then `eval_heldout.py --wds ...` + `eval_nabirds.py` on its `best.pt`.
+
+**Why this one, ~5.8h, and why not anything else first:**
+1. It tests the ONE untested interaction. exp3 (aug light) used lr 1e-4; the LR
+   sweep ran with aug none. Stronger aug typically wants MORE LR, not less, so
+   the two winners may NOT simply compose — this is the only open question that
+   could change the locked recipe.
+2. It answers "was exp3 epoch-limited?" in the same run. exp3 was still climbing
+   at ep15 (+0.0002 on the final step) with no drift, so 25 epochs tests the
+   obvious follow-on for free.
+3. It produces the checkpoint the remaining evals should run against, so the
+   NABirds number lands on the actual candidate recipe rather than on a
+   superseded one.
+
+**Explicitly deferred, and why:**
+- *Multi-view caching / strong aug* — now justified (light aug won), but it is
+  ~56 GPU-h on the full corpus. Do the **pilot-only** version (~5.5h) AFTER this
+  run, so the strong-aug comparison is against the final recipe.
+- *wd 0.1 vs 0.2 ablation* — the recipe bundle only bought +0.0016 total, so
+  untangling which knob did it is low-value until something depends on it.
+- *Another full 7,555-sp run* — gated on this run beating exp3 meaningfully.
+  Reproducing the baseline is not worth 3.5h × 20 epochs on its own.
+- *FastViT re-benchmark / stock MobileCLIP-S2 floor* — both are cheap and
+  GPU-free-window tasks, but neither is on the critical path to the ship metric.
 
 ### Queue (ordered; corrected 2026-07-23)
 
 - [x] Phase 1 — corpus assembled (iNat AWS Open Data, 7,555 sp, 2.65M imgs / 262 GB)
 - [x] Phase 2 — teacher embeddings cached (366 shards, ~2.644M × 768-d)
 - [x] Pilot: 500-species ViT-B/16 (val_cos 0.946; 99% OOD retention on NABirds)
-- [ ] **Full 7,555-species ViT-B/16 baseline run** ← *in progress* (epoch ~10, val_cos ~0.9573)
+- [x] **Full 7,555-species ViT-B/16 baseline run** — 20 epochs, val_cos 0.9650, converged cleanly. **NABirds OOD retention 94.7% top-1** (student 81.83 vs teacher 86.41), held-out 100.1%.
 - [ ] **Leakage check (MEASURED 2026-07-23: avg 1.58 photos/obs, 54% from multi-photo obs, no big bursts):** val_cos is ~54%-leakage-biased but that's just a progress monitor; ship metric NABirds is immune. Only hard requirement: split the ground-truth held-out eval by `observation_uuid`.
 - [ ] **Pilot experimentation stage (500 sp) — BOTH recipes locked here:**
-  - [ ] distillation-recipe sweep: batch 96 × LR {5e-5, 7e-5, 1e-4}, aug, resolution, epochs
+  - [x] **distillation-recipe sweep DONE 2026-07-25** (6 runs, ~16h) — LR winner **7e-5** (0.9483 vs 0.9463 @1e-4, 0.9475 @5e-5). See "Pilot sweep results".
   - [x] **adopt from MobileCLIP papers — optimizer/schedule knobs LANDED 2026-07-24** (`cb99d53`): `--beta2` (0.95), `--wd` (0.2), `--warmup` (we had NONE), `--grad-clip` (we had NONE), `--min-lr` (cosine-to-1e-6 instead of exactly 0). All default OFF so existing runs are unchanged. Warmup+min-lr compose via one LambdaLR; grad-clip calls `scaler.unscale_()` first (clipping scaled grads under AMP would make the threshold meaningless). Smoke-tested through the `--wds` path.
-  - [ ] **EXPERIMENT: augmentation strength** (reframed 2026-07-24 — this is a pilot experiment, not a standing "gap"). Compare on the 500-sp pilot: `--aug none` (current, target-matched) vs `--aug light` (RandomResizedCrop 0.65–1.0 + hflip, already implemented). ⚠️ **Strong aug ([0.08,1.0]+RandAugment) is NOT directly runnable** — see "Augmentation: why we can't just copy their strong aug" below. Only if light aug shows a real win is the expensive multi-view caching worth considering.
-  - [ ] **EXPERIMENT (expensive, gated): multi-view teacher-embedding caching.** Prerequisite for strong aug. Cost measured 2026-07-24: the original 1-view precompute ran at a steady **63–65 img/s** (417 log lines at 65; 20.6h wall clock 07-21 14:04 → 07-22 10:43, though that was interleaved with downloading). 5 views × 2.64M imgs ≈ 13.2M embeddings ≈ **~56 GPU-hours (~2.4 days)**, ~20GB storage. A re-precompute would be somewhat faster (corpus is local now, sequential reads from the WebDataset shards, no 404 retries) but ViT-L forward is the floor. **Do the cheap pilot aug experiment FIRST**; only pay for this if the aug lever actually moves the needle.
+  - [x] **EXPERIMENT: augmentation strength — DONE 2026-07-25, light aug WON decisively.** +0.0048 val_cos (0.9512 vs 0.9464) AND the late-epoch overfit drift disappeared AND it was still climbing at ep15. Confirmed on accuracy, not just cosine: **held-out top-1 retention 100.4% (student 55.93 vs teacher 55.73) vs 92.2% for the same recipe without aug.** This is the biggest single lever found so far and it clears the gate for multi-view caching.
+  - [ ] **EXPERIMENT (expensive, now UNGATED — light aug won): multi-view teacher-embedding caching.** Prerequisite for TRUE strong aug ([0.08,1.0]+RandAugment). Tooling is READY: `precompute_embeddings.py --views N --wds ...` (added 2026-07-25; view 0 is always the center crop so the cache is a strict superset of the existing one). Cost: 5 views × 2.64M ≈ 13.2M embeddings @ 65 emb/s ≈ **~56 GPU-hours (~2.4 days)**, ~20GB. **Do it on the 500-sp PILOT first** (~1.3M embeddings ≈ 5.5h) — that tests the strong-aug hypothesis for a tenth of the cost before committing to the full corpus.
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
   - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, α≈0.5) to keep OOD robustness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
@@ -42,7 +79,7 @@ training on the RTX 3080.
 - [ ] **Adopt Apple's WebDataset + open_clip_train dataloader (option A), keep our image-only cosine loss** — see "Adopt upstream training path" below. Prime suspect for both the ViT-B 314 img/s and FastViT slowness is our random-small-file dataloader; Apple's tar-sharded path is built to saturate the GPU.
   - [x] **Step 1: packing script** — `pack_webdataset.py` (added 2026-07-24). corpus JPEGs + cached teacher embeddings → `.tar` shards; each sample = `.jpg` (verbatim bytes, 500px preserved) + `.emb` (768-d fp16) + `.cls` (inat_taxon_id). Writes **directly to the NAS** so sharding and the corpus move are ONE pass (no 2x local peak; V: vhdx has only ~49GB physically free). Smoke-tested: webdataset reads back, embeddings match source npz bit-for-bit, taxon ids match manifest.
   - [x] **Step 1b: full pack DONE** → `/mnt/nas/WingDex-Distill/wds/` — **2,502,898 rows, 251 shards, 252GB, 62.6 min @ 666/s** (209 skipped for missing embeddings, 0 missing images). Pilot set also packed: `wds-pilot500/` (247,400 samples, 25 shards, 25GB).
-  - [ ] **Step 1c: VERIFY before deleting anything.** Two gates, BOTH required, human-reviewed: (a) *integrity* — shard count/sizes vs `shards.json`, every shard opens as a valid tar, sampled embeddings still match the source npz, no truncated final shard; (b) *training viability* — actually run a short training job reading shards FROM THE NAS and confirm loss/val_cos behave like the local-corpus run AND measure img/s (this is also the step-3 NAS-throughput check). Only after John reviews both may the local `corpus/` be deleted.
+  - [x] **Step 1c: VERIFIED + corpus DELETED 2026-07-25.** Gate 1b: all 251 shards opened, 2,502,337 complete triples, 0 embedding/taxon mismatches, 0 decode failures. Gate 2: 2 epochs on pilot shards, ep2 val_cos 0.9217 vs local-corpus baseline 0.9194. Gate 2b: full 251-shard streaming, 1,000 steps clean @ 318 img/s. Final gate: exp1 reproduced the known pilot baseline off shards (0.9447 vs 0.9465). Corpus deleted; 299GB freed.
   - [ ] **Step 1d: delete local corpus.** Corpus is re-downloadable from iNat Open Data via `pull_images.py`, so it is a convenience copy, not irreplaceable. **Compacting the VHD is OPTIONAL, not required** (clarified 2026-07-24): V: exists solely to host `V:\WSL\ext4.vhdx`, so free space on V: has no other consumer. What actually matters is that the vhdx (a dynamic disk with a high-water mark) never needs to grow past V:'s 477GB capacity. Deleting the corpus frees ~262GB *inside* the ext4 filesystem, which WSL reuses before ever expanding the vhdx file again — so the high-water mark stops climbing and the constraint goes away on its own. Compacting (requires WSL shut down) would shrink the file and hand space back to V:, but nothing else needs that space. Current state: vhdx 406GB, V: 477GB → ~71GB of growth headroom, which is adequate.
   - [x] **Step 2 DONE:** `wds_loader.py` + `train_student.py --wds` (2026-07-24). Kept our image-only cosine loss; Apple's `dr/` loader was NOT adopted (it exists to replay per-augmentation params for their reinforced-dataset scheme, which we don't use). Includes a stratified hash val split — see the session log.
   - [~] **Step 3 partly done for ViT-B:** loader alone **~640 img/s** from the NAS (vs ~306 old) but end-to-end training is still **~302-320 img/s** → **we are now GPU-bound, not I/O-bound**, so the dataloader was not what capped ViT-B. FastViT through this path is still TODO and is where the win should actually show.
