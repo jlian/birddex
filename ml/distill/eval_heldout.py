@@ -107,10 +107,38 @@ def pick_heldout_rows(train_manifest, corpus, taxo, pilot_species,
         if sci and sci.lower() in sci_to_idx:
             usable.append((pid, tid, (ext or "jpg"), sci_to_idx[sci.lower()]))
 
+    if split == "obs":
+        # observation-grouped split: hash the OBSERVATION uuid so all photos of
+        # one bird-sighting land on the SAME side. This is the SSOT's hard
+        # leakage requirement for the ground-truth eval. Measured 2026-07-25 on
+        # the pilot: photo-id hashing split 2,762 observations across train/val;
+        # observation hashing splits 0. NOTE this only RELABELS which photos are
+        # val -- it is a partition, so the training set size is unchanged
+        # (242,419 -> 242,375 of 247,434, a 0.02% shuffle).
+        import hashlib
+        con2 = duckdb.connect()
+        obs_of = dict(con2.execute(
+            f"SELECT photo_id, observation_uuid FROM {M} WHERE {where}").fetchall())
+
+        def _obs_in_val(pid):
+            obs = obs_of.get(pid)
+            key = obs if obs else f"photo:{pid}"
+            h = hashlib.blake2b(f"{seed}:{key}".encode(), digest_size=8).digest()
+            return (int.from_bytes(h, "big") % 1_000_000) < int(val_frac * 1_000_000)
+
+        val = [r for r in usable if _obs_in_val(r[0])]
+        n_obs = len({obs_of.get(r[0]) for r in val if obs_of.get(r[0])})
+        log(f"observation-grouped split: {len(val):,} held-out photos across "
+            f"{n_obs:,} observations (of {len(usable):,} total)")
+        return val
+
     if split == "hash":
         from wds_loader import _in_val
         val = [r for r in usable if _in_val(str(r[0]), val_frac, seed)]
         log(f"hash split: {len(val):,} held-out of {len(usable):,}")
+        log("  NOTE: photo-id hashing leaks across observations -- 56.5% of these "
+            "val photos share an observation with a training photo. Use "
+            "--split obs for the leak-free number.")
         return val
 
     g = torch.Generator().manual_seed(seed)
@@ -207,12 +235,15 @@ def main():
                          "corpus/ dir, e.g. "
                          "'/mnt/nas/WingDex-Distill/wds-pilot500/shard-*.tar'. "
                          "Lets this eval keep working after corpus/ is deleted")
-    ap.add_argument("--split", default="auto", choices=["auto", "legacy", "hash"],
+    ap.add_argument("--split", default="auto", choices=["auto", "legacy", "hash", "obs"],
                     help="which held-out split to reconstruct. 'legacy' = the "
                          "seeded randperm used by local-corpus runs; 'hash' = the "
-                         "blake2b split used by --wds runs. 'auto' picks hash when "
-                         "--wds is given, else legacy. Getting this WRONG silently "
-                         "evaluates on training data")
+                         "blake2b photo-id split used by --wds runs; 'obs' = the "
+                         "same hash applied to observation_uuid so all photos of "
+                         "one sighting stay on one side (leak-free, and what the "
+                         "SSOT requires for a ground-truth eval). 'auto' picks "
+                         "obs when --wds is given, else legacy. Getting this "
+                         "WRONG silently evaluates on training data")
     ap.add_argument("--embeddings-dir", default="embeddings",
                     help="cached teacher embedding shards (shard_*.npz); avoids "
                          "re-running the teacher image encoder")
@@ -233,7 +264,7 @@ def main():
 
     split_mode = args.split
     if split_mode == "auto":
-        split_mode = "hash" if args.wds else "legacy"
+        split_mode = "obs" if args.wds else "legacy"
         log(f"--split auto -> {split_mode}")
     val = pick_heldout_rows(args.train_manifest, args.corpus, taxo,
                             args.pilot_species, split=split_mode)
