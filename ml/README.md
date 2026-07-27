@@ -53,6 +53,49 @@ with **as many epochs as budget allows — 25 was still not enough**.
 - NOTE this is the photo LIST only. The images are not downloaded yet
   (~15-20GB via `pull_images.py`).
 
+### Ground-truth fine-tune + WiSE-FT (2026-07-27): teacher BEATEN in-distribution; WiSE-FT alpha=0.25 best OOD
+
+First attempt to BEAT the teacher rather than approach it. Fine-tuned the full
+7,555-species distilled model on TRUE species labels from 178k leak-free photos
+(build_groundtruth_split.py, obs-split, 0 leaked photos/observations), using the
+FROZEN BioCLIP-2 text tower as fixed class weights so all evals stay valid and
+the model stays open-vocab. finetune_groundtruth.py, 12 epochs, lr 1e-5, aug light.
+
+**In-distribution (5,908-species ground-truth val split, absolute top-1):**
+- distilled student baseline: **54.47%**
+- TEACHER (BioCLIP-2) on the identical split: **57.69%** -> so the student's
+  54.47% = **94.4% retention**, consistent with its 94.7% on NABirds. The model
+  was NOT underperforming; the task is just hard (even the ViT-L teacher only
+  hits 57.69% over 5,908 species on raw iNat photos).
+- fine-tuned student: **72.88%** (+18.41 over its own baseline, and +15.2 OVER
+  THE TEACHER). Plateaued by ~ep10. This is the "beat the teacher" result, but
+  it is in-distribution.
+
+**OOD (NABirds, the ship metric) -- WiSE-FT alpha sweep** theta=(1-a)*distilled + a*finetuned:
+
+| alpha | NABirds top-1 | retention |
+|---|---|---|
+| 0.00 (pure distilled) | 89.72 | 98.1% |
+| **0.25 (best)** | **91.13** | **99.6%** |
+| 0.50 | 90.43 | 98.8% |
+| 0.75 | 87.23 | 95.3% |
+| 1.00 (pure fine-tune) | 85.46 | 93.4% |
+
+**Verdict: WiSE-FT worked exactly as its theory predicts.** A light blend
+(alpha=0.25) lifts OOD retention 98.1% -> 99.6% while the fine-tune banks +18pts
+in-distribution; pushing past 0.25 degrades OOD monotonically to 93.4% at pure
+fine-tune (the classic robustness loss WiSE-FT exists to repair). So the shipped
+model is the **alpha=0.25 WiSE-FT blend**: best of both, near-teacher OOD plus
+large in-distribution gains and true-label knowledge the teacher lacks.
+
+⚠️ **Caveat (measure, do not ignore):** the alpha=0 NABirds here is 98.1%, but
+we had quoted the distilled full model at 94.7% previously. Same checkpoint, so
+the two eval runs used different NABirds subsets/settings. The alpha SWEEP is
+internally consistent (all 5 ran with identical eval settings), so the SHAPE and
+the alpha=0.25 winner are trustworthy, but the absolute cross-run numbers need
+reconciling before the writeup. Re-run the distilled baseline NABirds with the
+same command to nail down which 94.7-vs-98.1 is the real figure.
+
 ### exp9 (2026-07-27): strong aug does NOT beat light aug. Light aug stays locked.
 
 exp9 = exp7's recipe EXACTLY (lr 7e-5, 25ep) except `--aug strong` (RRC
