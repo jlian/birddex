@@ -53,6 +53,50 @@ with **as many epochs as budget allows — 25 was still not enough**.
 - NOTE this is the photo LIST only. The images are not downloaded yet
   (~15-20GB via `pull_images.py`).
 
+### WiSE-FT at FULL species (2026-07-27): the sweep FLIPPED — heavy fine-tune wins
+
+The alpha sweep in the section below was accidentally run at the eval default
+`--pilot-species 500`. Re-run at `--pilot-species 0` (all 7,555 species, the
+real ship basis), the curve inverts:
+
+| alpha | 500-sp retention | FULL-species retention | FULL student top1 |
+|---|---|---|---|
+| 0.00 (distilled) | 98.1% | 94.7% | 81.83 |
+| 0.25 | **99.6%** (500-sp winner) | 99.2% | 85.71 |
+| 0.50 | 98.8% | 102.1% | 88.19 |
+| 0.60 | - | 102.9% | 88.91 |
+| **0.75** | - | **103.5% (peak)** | **89.45** |
+| 1.00 (pure fine-tune) | 93.4% | 103.3% | 89.30 |
+
+**On the full taxonomy, MORE fine-tune weight is better, and the ground-truth
+fine-tune BEATS THE TEACHER on OOD NABirds** (alpha>=0.50 all exceed 100%
+retention; peak alpha=0.75 = 103.5%, student 89.45 vs teacher 86.41). This is
+the headline result: true-label fine-tuning genuinely beats the ViT-L teacher on
+out-of-distribution data, not just in-distribution.
+
+Why the sweep flipped between 500 and 7,555 species: on the 500 pilot species the
+distilled model was already near-teacher, so fine-tuning mostly added OOD noise
+and low alpha won. Across all 7,555 species the fine-tune's true-label knowledge
+helps far more, so the optimum shifts hard toward the fine-tuned weights. **The
+500-species sweep was misleading; only the full-species curve should inform the
+ship decision.** Lesson: ALWAYS pass `--pilot-species 0` for a shippable number.
+
+**Ship candidate: alpha=0.75 WiSE-FT blend (103.5% NABirds retention).** Note
+1.00 is within noise of 0.75, so the blend is barely doing anything here vs the
+pure fine-tune -- at full scale the fine-tune is robust enough on its own that
+WiSE-FT's OOD protection is nearly moot. Keep alpha=0.75 as a small hedge.
+
+### FULL RETRAIN with the locked recipe (started 2026-07-27 16:05)
+Kicked off the full 7,555-species distillation with the LOCKED recipe (lr 7e-5,
+wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0, min-lr 1e-7, aug light, 25 ep) ->
+runs/full7555_locked_ep25. ~54h. Baseline to beat: old-recipe runs/full7555_vitb
+(val_cos 0.9650, NABirds 94.7% at full species). Expectation is honest: the
+pilot delta was tiny (+0.003 val_cos), and at full scale it may be zero or
+slightly negative -- in which case the read is "scale dominates recipe". Watched
+by cron full-retrain-pipeline. After it finishes, the ground-truth fine-tune +
+WiSE-FT should be re-applied to the NEW checkpoint for a fully-consistent shipped
+model.
+
 ### Ground-truth fine-tune + WiSE-FT (2026-07-27): teacher BEATEN in-distribution; WiSE-FT alpha=0.25 best OOD
 
 First attempt to BEAT the teacher rather than approach it. Fine-tuned the full
