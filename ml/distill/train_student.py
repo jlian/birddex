@@ -129,6 +129,7 @@ def build_train_preprocess(eval_preprocess, mode):
 
     if mode == "none":
         return eval_preprocess
+    scale = (0.08, 1.0) if mode == "strong" else (0.65, 1.0)
 
     # reuse the arch's own size + normalization from the eval pipeline
     size, normalize = None, None
@@ -143,7 +144,7 @@ def build_train_preprocess(eval_preprocess, mode):
         raise SystemExit("could not find Normalize in the eval preprocess")
 
     return T.Compose([
-        T.RandomResizedCrop(size, scale=(0.65, 1.0), ratio=(0.85, 1.18),
+        T.RandomResizedCrop(size, scale=scale, ratio=(0.75, 1.33),
                             interpolation=T.InterpolationMode.BICUBIC),
         T.RandomHorizontalFlip(),
         T.Lambda(lambda im: im.convert("RGB")),
@@ -225,7 +226,7 @@ def main():
     ap.add_argument("--min-lr", type=float, default=0.0,
                     help="cosine schedule floor (MobileCLIP2 anneals 1e-3 -> 1e-6, "
                          "i.e. min_lr = lr/1000). 0 = anneal to zero")
-    ap.add_argument("--aug", default="none", choices=["none", "light"],
+    ap.add_argument("--aug", default="none", choices=["none", "light", "strong"],
                     help="train-time augmentation. 'none' = the same center-crop "
                          "view the teacher was embedded from (target-matched). "
                          "'light' = RandomResizedCrop(scale 0.65-1.0) + hflip, "
@@ -234,7 +235,17 @@ def main():
                          "offered: our teacher cache has ONE center-crop embedding "
                          "per image, so an aggressive crop would train against a "
                          "target describing content the student cannot see. That "
-                         "needs multi-view embedding caching first (SSOT gap #2)")
+                         "needs multi-view embedding caching first (SSOT gap #2). "
+                         "'strong' = MobileCLIP's RandomResizedCrop [0.08,1.0] + "
+                         "hflip and REQUIRES --mv-embeddings, because each crop "
+                         "must be paired with the teacher target computed for that "
+                         "same crop")
+    ap.add_argument("--mv-embeddings", default="",
+                    help="dir of a --views N precompute (shard_*.npz with a "
+                         "'views' array). Enables per-view teacher targets: the "
+                         "loader picks a random view, augments the image with "
+                         "that view's transform, and trains against the embedding "
+                         "cached for it. Required by --aug strong")
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--val-frac", type=float, default=0.02)
     ap.add_argument("--patience", type=int, default=3,
@@ -286,6 +297,17 @@ def main():
                              "steps/epoch)")
         student = Student(args.arch, args.pretrained).to(dev)
         train_pp = build_train_preprocess(student.preprocess, args.aug)
+        mv = None
+        if args.mv_embeddings:
+            from wds_loader import MultiViewTargets
+            mv = MultiViewTargets(args.mv_embeddings)
+            log(f"multi-view targets: {mv.n_views} views/image from "
+                f"{args.mv_embeddings}")
+        elif args.aug == "strong":
+            raise SystemExit(
+                "--aug strong requires --mv-embeddings: with a single center-crop "
+                "target an 8%-scale crop trains against an embedding of content "
+                "the student cannot see, which is a WRONG label, not hard data.")
         if args.wds_val:
             # explicit override: caller supplied a separate val shard set
             train_urls, val_urls = args.wds, args.wds_val
@@ -307,7 +329,8 @@ def main():
                                    args.workers, shuffle=args.wds_shuffle,
                                    is_train=True,
                                    epoch_samples=args.wds_epoch_samples,
-                                   val_frac=split_frac)
+                                   val_frac=split_frac,
+                                   mv_targets=mv, view_transform=train_pp)
         val_samples = max(args.batch, args.wds_epoch_samples // 50)
         val_dl = make_wds_loader(val_urls, student.preprocess, args.batch,
                                  max(1, args.workers // 2), shuffle=0,
@@ -325,6 +348,17 @@ def main():
 
         student = Student(args.arch, args.pretrained).to(dev)
         train_pp = build_train_preprocess(student.preprocess, args.aug)
+        mv = None
+        if args.mv_embeddings:
+            from wds_loader import MultiViewTargets
+            mv = MultiViewTargets(args.mv_embeddings)
+            log(f"multi-view targets: {mv.n_views} views/image from "
+                f"{args.mv_embeddings}")
+        elif args.aug == "strong":
+            raise SystemExit(
+                "--aug strong requires --mv-embeddings: with a single center-crop "
+                "target an 8%-scale crop trains against an embedding of content "
+                "the student cannot see, which is a WRONG label, not hard data.")
         ds = BirdDistillDataset(rows, args.corpus, emb, student.preprocess)
         log(f"dataset usable (img+embedding present): {len(ds):,}")
 

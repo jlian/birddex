@@ -16,8 +16,10 @@ epochs) and a within-shard sample buffer. That is NOT a global shuffle. Since
 `pack_webdataset.py` writes rows ordered by taxon, a small buffer would give
 taxon-correlated batches, so keep `--wds-shuffle` large (default 10000).
 """
+import glob
 import hashlib
 import io
+import os
 
 import numpy as np
 import torch
@@ -25,6 +27,53 @@ import webdataset as wds
 from PIL import Image
 
 EMB_DIM = 768
+
+
+class MultiViewTargets:
+    """photo_id -> [view0..viewN-1] teacher embeddings from a --views N cache.
+
+    The shards carry ONE `.emb` per sample: the center-crop target. That is
+    correct for `--aug none` / `--aug light`, but it is exactly what blocks TRUE
+    strong aug -- an 8%-scale crop against a whole-image target is a wrong label,
+    not harder data. With a multi-view cache we can hand the student the target
+    matching the crop it actually sees.
+
+    Usage: the loader picks a random view per sample per epoch and applies the
+    SAME view's augmentation, so image and target stay paired.
+    """
+
+    def __init__(self, emb_dir):
+        shards = sorted(glob.glob(os.path.join(emb_dir, "shard_*.npz")))
+        if not shards:
+            raise SystemExit(f"no shard_*.npz in {emb_dir}")
+        by_pid = {}
+        n_views = 0
+        for sp in shards:
+            with np.load(sp) as d:
+                if "views" not in d:
+                    raise SystemExit(
+                        f"{sp} has no 'views' array -- that is a SINGLE-view cache. "
+                        "Point --mv-embeddings at a --views N>1 precompute.")
+                for pid, v, e in zip(d["photo_ids"], d["views"], d["embeddings"]):
+                    by_pid.setdefault(int(pid), {})[int(v)] = e
+                    n_views = max(n_views, int(v) + 1)
+        # pack to a dense [n_views, 768] array per photo; drop incomplete ones
+        self.table = {}
+        dropped = 0
+        for pid, vs in by_pid.items():
+            if len(vs) != n_views:
+                dropped += 1
+                continue
+            self.table[pid] = np.stack([vs[i] for i in range(n_views)])
+        self.n_views = n_views
+        print(f"[mv] {len(self.table):,} photos x {n_views} views "
+              f"({dropped:,} dropped for incomplete view sets)", flush=True)
+
+    def get(self, pid, view):
+        row = self.table.get(int(pid))
+        if row is None:
+            return None
+        return row[view % self.n_views]
 
 
 def _in_val(key, val_frac, seed=42):
@@ -44,23 +93,51 @@ def _in_val(key, val_frac, seed=42):
     return (int.from_bytes(h, "big") % 1_000_000) < int(val_frac * 1_000_000)
 
 
-def _decode(sample, preprocess):
-    """tar member dict -> (image_tensor, teacher_embedding)."""
+def _decode(sample, preprocess, mv=None, view_tf=None, rng=None):
+    """tar member dict -> (image_tensor, teacher_embedding).
+
+    Single-view (mv=None): use the shard's baked-in center-crop `.emb`.
+
+    Multi-view (mv set): pick a random view v, apply THAT view's transform to the
+    image, and use the teacher embedding cached for the SAME v. Keeping the pair
+    consistent is the entire point -- it is what makes aggressive crops a valid
+    training signal instead of a mislabeled one. View 0 is the center crop, so
+    v=0 degenerates to the single-view behaviour.
+    """
     try:
         img = Image.open(io.BytesIO(sample["jpg"])).convert("RGB")
+    except Exception:
+        return None
+
+    if mv is not None:
+        try:
+            pid = int(sample["__key__"])
+        except (ValueError, KeyError):
+            return None
+        v = int(rng.integers(mv.n_views)) if rng is not None else 0
+        emb = mv.get(pid, v)
+        if emb is None:
+            return None          # photo missing from the multi-view cache
+        try:
+            x = (preprocess(img) if v == 0 else view_tf(img))
+        except Exception:
+            return None
+        return x, torch.from_numpy(np.asarray(emb, dtype=np.float32))
+
+    try:
         x = preprocess(img)
     except Exception:
         return None
     emb = np.frombuffer(sample["emb"], dtype=np.float16)
     if emb.shape != (EMB_DIM,):
         return None
-    t = torch.from_numpy(emb.astype(np.float32))
-    return x, t
+    return x, torch.from_numpy(emb.astype(np.float32))
 
 
 def make_wds_loader(urls, preprocess, batch_size, workers,
                     shuffle=10000, is_train=True, epoch_samples=None,
-                    val_frac=0.02, split_seed=42):
+                    val_frac=0.02, split_seed=42,
+                    mv_targets=None, view_transform=None):
     """Build a DataLoader over WebDataset shards.
 
     Yields `(images, teacher_embeddings)` as stacked float32 tensors, i.e. the
@@ -93,7 +170,12 @@ def make_wds_loader(urls, preprocess, batch_size, workers,
     if is_train and shuffle:
         ds = ds.shuffle(shuffle)
 
-    ds = ds.map(lambda s: _decode(s, preprocess), handler=wds.ignore_and_continue)
+    # validation always uses the deterministic center crop + its view-0 target,
+    # so val_cos stays comparable across every run regardless of aug settings
+    _mv = mv_targets if is_train else None
+    _rng = np.random.default_rng(split_seed) if (is_train and mv_targets) else None
+    ds = ds.map(lambda s: _decode(s, preprocess, _mv, view_transform, _rng),
+                handler=wds.ignore_and_continue)
     # drop samples that failed to decode
     ds = ds.select(lambda x: x is not None)
     ds = ds.batched(batch_size, partial=not is_train)
