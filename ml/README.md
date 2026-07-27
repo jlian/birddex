@@ -88,13 +88,24 @@ fine-tune (the classic robustness loss WiSE-FT exists to repair). So the shipped
 model is the **alpha=0.25 WiSE-FT blend**: best of both, near-teacher OOD plus
 large in-distribution gains and true-label knowledge the teacher lacks.
 
-⚠️ **Caveat (measure, do not ignore):** the alpha=0 NABirds here is 98.1%, but
-we had quoted the distilled full model at 94.7% previously. Same checkpoint, so
-the two eval runs used different NABirds subsets/settings. The alpha SWEEP is
-internally consistent (all 5 ran with identical eval settings), so the SHAPE and
-the alpha=0.25 winner are trustworthy, but the absolute cross-run numbers need
-reconciling before the writeup. Re-run the distilled baseline NABirds with the
-same command to nail down which 94.7-vs-98.1 is the real figure.
+⚠️ **RESOLVED 2026-07-27 — read this before quoting ANY NABirds number.**
+The 98.1%-vs-94.7% gap was not an error in either number: **`eval_nabirds.py`
+DEFAULTS to `--pilot-species 500`**, restricting the eval to the 500 pilot
+species. Pass `--pilot-species 0` to score all 7,555. Verified by re-running the
+same checkpoint both ways:
+
+| eval scope | student top1 | teacher top1 | retention |
+|---|---|---|---|
+| `--pilot-species 500` (the DEFAULT) | 89.72 | 91.49 | 98.1% |
+| `--pilot-species 0` (all 7,555) | 81.83 | 86.41 | **94.7%** |
+
+So **94.7% is the honest full-taxonomy figure** and 98.1% is the easier
+500-species subset. Consequence: the WiSE-FT alpha table above was computed on
+the 500-species subset, because the default was never overridden. The sweep is
+internally consistent (all five alphas used identical settings) so the SHAPE is
+valid, but the alpha winner is being re-confirmed at `--pilot-species 0` before
+the ship recommendation is final. **Always pass `--pilot-species 0` explicitly
+for any number that goes in the writeup.**
 
 ### exp9 (2026-07-27): strong aug does NOT beat light aug. Light aug stays locked.
 
