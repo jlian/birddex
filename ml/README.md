@@ -53,6 +53,46 @@ with **as many epochs as budget allows — 25 was still not enough**.
 - NOTE this is the photo LIST only. The images are not downloaded yet
   (~15-20GB via `pull_images.py`).
 
+### exp8 (2026-07-26): epochs are NOT the lever — LR is. My hypothesis was wrong.
+
+exp8 = the SAME recipe as exp7 except **lr 1e-4 instead of 7e-5**, run to 40 epochs
+to test the "both runs were still climbing, so epochs are the binding constraint"
+hypothesis. It falsified that hypothesis cleanly.
+
+| | exp7 (lr 7e-5, 25ep) | exp8 (lr 1e-4, 40ep) |
+|---|---|---|
+| best val_cos | **0.9540** | 0.9503 (peak ~ep37) |
+| val_cos @ep25 | **0.9540** | 0.9485 |
+| curve at end | still climbing | **FLAT since ep33** |
+| held-out retention | **104.1%** | 103.2% |
+| NABirds top-1 | **93.26%** | 92.91% |
+
+**exp8 lost on all three metrics, and 15 extra epochs never even reached exp7's
+25-epoch mark.** Read: 1e-4 converges fast to a LOWER ceiling; 7e-5 climbs more
+slowly to a BETTER optimum. 40 epochs is more than enough — the recipe, not the
+epoch count, was the limiter.
+
+**Correcting the earlier call:** on 2026-07-25 I saw exp3 (lr 1e-4) beat exp7 by
+0.0008 at ep15, called it noise, and concluded "LR is a wash, epochs are the
+lever." That was over-generalizing from a single crossing point — a gap at one
+epoch says nothing about the *asymptote*. exp8 is a good experiment precisely
+because it disproved the hypothesis it was built to confirm.
+
+### ✅ LOCKED DISTILLATION RECIPE (as of 2026-07-26)
+```
+--lr 7e-5 --wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 --min-lr 1e-7
+--aug light --batch 96 --epochs ~25
+```
+Levers now considered SETTLED: LR (7e-5 > 1e-4 > 5e-5), epochs (~25; 40 does not
+help), recipe bundle (+0.0016, marginal). The ONE lever left with real upside is
+**true strong augmentation**, which needs multi-view teacher caching.
+
+### Ground-truth set: images pulled
+178,804 files / 5,908 species / 19GB at `~/wingdex/ml/groundtruth/corpus/`
+(gitignored). 13 HTTP-404 failures (0.007%). 0 decode failures in a 120-file
+sample, median 500x375. Leak-verified: 0 trained photo_ids, 0 trained
+observations. Ready for the WiSE-FT ground-truth fine-tune.
+
 ### ⭐ NEXT STEP (decided 2026-07-25)
 
 **Run ONE experiment: aug light + lr 7e-5, 25 epochs, on the 500-sp pilot.**
