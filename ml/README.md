@@ -53,6 +53,43 @@ with **as many epochs as budget allows — 25 was still not enough**.
 - NOTE this is the photo LIST only. The images are not downloaded yet
   (~15-20GB via `pull_images.py`).
 
+### exp9 (2026-07-27): strong aug does NOT beat light aug. Light aug stays locked.
+
+exp9 = exp7's recipe EXACTLY (lr 7e-5, 25ep) except `--aug strong` (RRC
+[0.08,1.0]) with per-view teacher targets from a 5-view precompute. This was the
+one lever with theoretical upside left (MobileCLIP's +4.8%), and the whole
+multi-view machinery (`precompute_embeddings.py --views`, `MultiViewTargets`,
+`--aug strong`) was built to test it. Verdict: it did not pay off.
+
+| metric | exp7 (light aug) | exp9 (strong aug) | winner |
+|---|---|---|---|
+| best val_cos | **0.9540** | 0.9434 | light (+0.0106) |
+| held-out retention (obs split) | 104.1% | **105.9%** | strong (+1.8) |
+| NABirds top-1 (ship metric) | **93.26%** | 92.55% | light (+0.71) |
+
+**Read:** strong aug is genuinely regularizing (best held-out retention of any
+run, still climbing at ep25, higher train_loss), but it costs raw representation
+quality (val_cos) and, crucially, loses on **NABirds, the ship metric**. The
+held-out win is on the in-distribution obs-split set; the out-of-distribution
+NABirds number is what matters, and light aug wins it. Net: not worth it.
+
+**DECISION: light aug stays the locked recipe. The full-corpus 5-view precompute
+(~56 GPU-h) is NOT justified and is cancelled.** The pilot test paid for itself
+by saving those 56 hours. All distillation levers are now exhausted:
+- LR: 7e-5 (exp7 > exp8's 1e-4)
+- epochs: ~25 (exp8 proved 40 doesn't help)
+- recipe bundle: +0.0016, keep it
+- aug: **light** (exp3/exp7 > exp9's strong on the ship metric)
+
+### ✅ FINAL LOCKED DISTILLATION RECIPE
+```
+--lr 7e-5 --wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 --min-lr 1e-7
+--aug light --batch 96 --epochs 25
+```
+Best pilot result: exp7 = val_cos 0.9540, held-out retention 104.1%, NABirds
+93.26%. Next: apply this recipe to the FULL 7,555-species run, then the
+ground-truth WiSE-FT fine-tune (images already pulled).
+
 ### exp8 (2026-07-26): epochs are NOT the lever — LR is. My hypothesis was wrong.
 
 exp8 = the SAME recipe as exp7 except **lr 1e-4 instead of 7e-5**, run to 40 epochs
