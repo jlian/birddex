@@ -336,6 +336,28 @@ help), recipe bundle (+0.0016, marginal). The ONE lever left with real upside is
 sample, median 500x375. Leak-verified: 0 trained photo_ids, 0 trained
 observations. Ready for the WiSE-FT ground-truth fine-tune.
 
+### 🏷️ MODEL REGISTRY — use these names, not "the existing model"
+
+Naming: **`wd-<arch>-<stage><n>`**. `d`=distilled, `f`=ground-truth fine-tuned,
+`w`=WiSE-FT blend. Bump the number on any change that produces a new checkpoint
+we might ship or compare against. Always cite the name AND the run dir.
+
+| name | what it is | run dir | key numbers |
+|---|---|---|---|
+| **wd-vitb-d1** | full 7,555-sp distillation, **OLD** recipe (no warmup/clip, beta2 .999, wd .1, aug none, lr 1e-4, 20ep) | `runs/full7555_vitb` | val_cos 0.9650 · NABirds 94.7% (81.83/86.41) |
+| **wd-vitb-f1** | d1 + ground-truth fine-tune (lr 1e-5, 12ep, 5,908 classes — includes the 2,058 starved species, see the sampler bug) | `runs/ft_full7555_gt` | GT-val 72.88% (vs teacher 57.69) · NABirds 103.3% @a=1.0 |
+| **wd-vitb-w1** | WiSE-FT blend of d1+f1 at **alpha=0.75** (current best OOD) | `runs/ft_full7555_gt/wise_a0.75.pt` | **NABirds 103.5% (89.45/86.41)** ⬅ current ship candidate |
+| **wd-vitb-d2** | full retrain, **LOCKED** recipe (lr 7e-5, wd .2, beta2 .95, warmup 500, clip 1.0, aug light, 25ep) | `runs/full7555_locked_ep25` | *in flight, ~Thu AM* |
+| *wd-vitb-f2* | d2 + fine-tune on the CLEANED ground-truth set (T2) | *tbd* | *planned* |
+| *wd-vitb-w2* | WiSE-FT blend of d2+f2 | *tbd* | *planned — intended ship model* |
+
+Pilot/experiment checkpoints (`exp1..exp9`, `pilot500_vitb`, `gate*`, `*smoke*`)
+are **not** registry models — they are 500-species pilots used to pick the recipe
+and should never be quoted as WingDex results.
+
+Teacher reference: **BioCLIP-2 ViT-L/14** (`hf-hub:imageomics/bioclip-2`).
+NABirds 86.41 top-1 @ full species; 57.69 on the 5,908-sp ground-truth val split.
+
 ### ⭐ TASK QUEUE (concrete, rewritten 2026-07-27 17:55)
 
 Ordering principle: **unblock Phase 4 first.** Phase 4 is the go/no-go the whole
@@ -344,14 +366,14 @@ that keeps crowding it out. Tasks below are sized and have explicit exit criteri
 so they can be run unattended.
 
 ---
-**T0 — IN FLIGHT: full retrain, locked recipe** (~Thu AM)
+**T0 — IN FLIGHT: build wd-vitb-d2** (full retrain, locked recipe, ~Thu AM)
 `runs/full7555_locked_ep25`, started Mon 16:05, ~2.4h/epoch x 25.
 Watched by cron `full-retrain-pipeline` (reports at ep20 + on completion, then
 runs full-species evals).
-*Exit:* val_cos + NABirds (`--pilot-species 0`) vs old `runs/full7555_vitb`
-(0.9650 / 94.7%). A flat or negative result means "scale dominates recipe", which
-is a legitimate finding, not a failure. **Nothing below is blocked on this** —
-T1/T2 can use the EXISTING full model.
+*Exit:* val_cos + NABirds (`--pilot-species 0`) for **d2 vs d1** (0.9650 / 94.7%).
+A flat or negative result means "scale dominates recipe", which is a legitimate
+finding, not a failure. **Nothing below is blocked on this** — T1/T2 run against
+d1/f1/w1.
 
 ---
 **T1 — Diagnose the fine-tune coverage question** (~30 min, CPU/GPU-light)
@@ -382,8 +404,8 @@ classifier head on top may be WORSE than leaving them to zero-shot.
 **T3 — PHASE 4: benchmark vs GPT (83/87) and ViT-L (87/96)** ⬅ THE ACTUAL GOAL
 Run the shipped candidate through the shared gated+range pipeline on the golden
 set. This is the go/no-go for the whole project and has NEVER been run.
-Use the best model available when T3 starts (existing full + fine-tune + WiSE-FT
-alpha, or T0's output if it has landed).
+Use the best registry model available when T3 starts: **w1** today, or **w2**
+if T0/T2/T5 have landed. State which one the numbers came from.
 *Exit:* a go/no-go writeup with the head-to-head numbers.
 **Do not let T4+ delay this.**
 
@@ -394,9 +416,10 @@ target). Measure golden-set + NABirds AFTER quantizing — the bar is "useful
 (~GPT-level ok)", not "matches BioCLIP".
 
 ---
-**T5 — Re-apply fine-tune + WiSE-FT to the T0 checkpoint** (~2h)
-Only once T0 lands, so the shipped artifact is internally consistent (locked
-recipe + clean fine-tune from T2).
+**T5 — Build wd-vitb-f2 and wd-vitb-w2** (~2h)
+Fine-tune d2 on T2's cleaned ground-truth set, then WiSE-FT blend. Only once T0
+lands, so the shipped artifact is internally consistent (locked recipe + clean
+fine-tune). **w2 is the intended ship model.**
 
 ---
 **BACKLOG (explicitly not blocking)**
