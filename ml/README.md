@@ -336,44 +336,89 @@ help), recipe bundle (+0.0016, marginal). The ONE lever left with real upside is
 sample, median 500x375. Leak-verified: 0 trained photo_ids, 0 trained
 observations. Ready for the WiSE-FT ground-truth fine-tune.
 
-### ⭐ TASK QUEUE (rewritten 2026-07-27 17:00)
+### ⭐ TASK QUEUE (concrete, rewritten 2026-07-27 17:55)
 
-**IN FLIGHT**
-- [ ] **Full 7,555-sp retrain, locked recipe** -> `runs/full7555_locked_ep25`.
-      Started 16:05 Mon; ~2.4h/epoch x 25 = **~Thu morning**. Watched by cron
-      `full-retrain-pipeline` (hourly, reports at ep20 + on completion, then runs
-      full-species evals). Baseline to beat: old-recipe `runs/full7555_vitb`
-      (val_cos 0.9650, NABirds 94.7%). Expect a small or zero gain; if it lands
-      behind, the read is "scale dominates recipe", not "the retrain failed".
+Ordering principle: **unblock Phase 4 first.** Phase 4 is the go/no-go the whole
+project exists to answer and it has never been run; everything else is polish
+that keeps crowding it out. Tasks below are sized and have explicit exit criteria
+so they can be run unattended.
 
-**AFTER THE RETRAIN (in priority order)**
-- [ ] **Re-apply the ground-truth fine-tune + WiSE-FT to the NEW checkpoint** so
-      the shipped model is internally consistent (locked recipe + fine-tune).
-      ~2h. Everything needed is on disk.
-- [ ] **EXPERIMENT: aggressive fine-tune.** Ours moved the weights only 4.718%
-      (lr 1e-5, 12ep) -- too gentle to trigger the OOD damage WiSE-FT repairs.
-      Try lr 3e-5..1e-4 and/or 25 epochs, then re-sweep alpha. May push OOD past
-      103.5%, and would tell us whether WiSE-FT actually earns its keep here. ~2h.
-- [ ] **PHASE 4 — the actual go/no-go: benchmark vs GPT (83/87) and ViT-L (87/96)
-      on the shared gated+range pipeline.** This is the question the whole project
-      exists to answer and it has NEVER been run. Do not let further model
-      polishing crowd it out.
-- [ ] **Export + web**: int8/ONNX/Core ML; then int4 on the fine-tuned ViT-B for
-      web (~22MB, <25MB target). Measure golden-set + NABirds after quantizing.
+---
+**T0 — IN FLIGHT: full retrain, locked recipe** (~Thu AM)
+`runs/full7555_locked_ep25`, started Mon 16:05, ~2.4h/epoch x 25.
+Watched by cron `full-retrain-pipeline` (reports at ep20 + on completion, then
+runs full-species evals).
+*Exit:* val_cos + NABirds (`--pilot-species 0`) vs old `runs/full7555_vitb`
+(0.9650 / 94.7%). A flat or negative result means "scale dominates recipe", which
+is a legitimate finding, not a failure. **Nothing below is blocked on this** —
+T1/T2 can use the EXISTING full model.
 
-**BENCH / NICE-TO-HAVE (not blocking)**
-- [ ] stock MobileCLIP-S2 vs our student (cross-arch comparison for the writeup;
-      MobileCLIP is NOT a ship path -- license gate resolved 2026-07-25)
-- [ ] co-occurrence hard-example weighting (built, never wired into training)
-- [ ] cosine->accuracy curve (needs per-epoch checkpoints on a future run)
+---
+**T1 — Diagnose the fine-tune coverage question** (~30 min, CPU/GPU-light)
+The fine-tune trained on 5,908 classes but only 3,850 were ever distilled; the
+other 2,058 have 5-49 photos worldwide (median 24) and were pulled in by a
+sampler bug, not a decision. Before trusting "fine-tune beats the teacher":
+1. Split the NABirds gain by whether each species was in `train_manifest.parquet`.
+   NABirds is North American so its species are well-populated — expectation is
+   the 2,058 contribute ~nothing there and the +7.6pt OOD gain is real. **Verify.**
+2. Report per-species top-1 for the 2,058 starved classes specifically.
+*Exit:* a clear statement of how much of the gain is recognition vs coverage.
+*Why first:* it is cheap and it gates how we describe the headline result.
 
+---
+**T2 — Fix the sampler + decide the species floor** (~30 min + ~2h re-run)
+`build_groundtruth_split.py` never intersects with the distilled species. Add
+that intersection AND make the floor a deliberate choice, not an accident.
+Proposal: `--min-per-species 20` (a class needs enough to learn; 5 is hopeless)
+and an explicit `--distilled-only` flag defaulting ON.
+Then re-run the fine-tune on the clean set and re-sweep alpha.
+*Exit:* does OOD retention go UP (the starved classes were diluting) or DOWN
+(they were contributing)? Either answer is useful and settles T1's ambiguity.
+*Note:* the distilled student inherits BioCLIP-2's open-vocab text tower, so
+rare species already get a sensible zero-shot answer. Training a 20-example
+classifier head on top may be WORSE than leaving them to zero-shot.
+
+---
+**T3 — PHASE 4: benchmark vs GPT (83/87) and ViT-L (87/96)** ⬅ THE ACTUAL GOAL
+Run the shipped candidate through the shared gated+range pipeline on the golden
+set. This is the go/no-go for the whole project and has NEVER been run.
+Use the best model available when T3 starts (existing full + fine-tune + WiSE-FT
+alpha, or T0's output if it has landed).
+*Exit:* a go/no-go writeup with the head-to-head numbers.
+**Do not let T4+ delay this.**
+
+---
+**T4 — Export + web** (after T3 says go)
+int8/ONNX/Core ML; then int4 on the fine-tuned ViT-B for web (~22MB, <25MB
+target). Measure golden-set + NABirds AFTER quantizing — the bar is "useful
+(~GPT-level ok)", not "matches BioCLIP".
+
+---
+**T5 — Re-apply fine-tune + WiSE-FT to the T0 checkpoint** (~2h)
+Only once T0 lands, so the shipped artifact is internally consistent (locked
+recipe + clean fine-tune from T2).
+
+---
+**BACKLOG (explicitly not blocking)**
+- aggressive fine-tune sweep: ours moved weights only 4.718% (lr 1e-5, 12ep), too
+  gentle to trigger the OOD damage WiSE-FT repairs. Try lr 3e-5..1e-4 / 25ep and
+  re-sweep alpha. May push past 103.5% AND make WiSE-FT actually earn its keep.
+- `--per-species` sweep for the fine-tune set (40 was never tuned; we use ~0.4%
+  of the ~49M untouched photos available)
+- shard the ground-truth corpus (178k loose JPEGs = ~9 min/epoch; sharding would
+  pay for itself if the fine-tune becomes a sweep)
+- stock MobileCLIP-S2 vs our student (writeup comparison only; NOT a ship path)
+- co-occurrence hard-example weighting (built, never wired into training)
+- cosine->accuracy curve (needs per-epoch checkpoints on a future run)
+
+---
 **SETTLED — do not re-litigate**
 - distillation recipe: lr 7e-5, wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0,
   min-lr 1e-7, aug light, ~25 epochs
-- epochs: 40 does NOT help (exp8); strong aug does NOT help (exp9, saved 56 GPU-h)
-- ship model: LAION ViT-B/16 (clean license); MobileCLIP-S2 cancelled
+- epochs: 40 does NOT help (exp8). strong aug does NOT help (exp9, saved 56 GPU-h)
+- ship model: LAION ViT-B/16 (clean license). MobileCLIP-S2 cancelled (license gate)
 - **ALWAYS pass `--pilot-species 0` to eval_nabirds.py for any shippable number**
-  (it defaults to 500 and that silently inflates retention 94.7% -> 98.1%)
+  (it defaults to 500, which silently inflates retention 94.7% -> 98.1%)
 
 ### Queue (ordered; corrected 2026-07-23)
 
