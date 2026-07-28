@@ -115,7 +115,30 @@ distillation, and has nothing left. Confirmed in the data: **dropped species max
 out at 512 available photos (median 159); kept species have a median of 994.**
 Nothing in the 100-500 available band survived; essentially everything above 600 did.
 
-**But the sets are NOT nested, which is the more interesting finding:**
+**⚠️ CORRECTION 2026-07-27 (John challenged this; I was wrong).** I first wrote
+that the 2,058 fine-tune-only species "passed the >=50 filter but were excluded
+from the 7,555". **False.** All 2,058 have `avail_photos < 50` (min 5, median 24,
+max 49) -- they FAILED the corpus floor and were never distillation candidates
+(confirmed: 0 of 2,058 appear in the raw pre-cap manifest). My error was assuming
+`target_taxa.csv` is the post-filter species list; it is the PRE-filter list of
+all 11,167 taxonomy species, 3,612 of which are under 50 photos.
+
+**This is a BUG in `build_groundtruth_split.py`, not a property of the data.**
+The sampler filters on its own `--min-per-species 5` against iNat directly and
+never intersects with the species the distillation actually trained on. It
+therefore silently pulled in 2,058 species with as few as 5 photos in existence.
+
+Consequences to weigh before trusting the fine-tune numbers:
+- 27,810 photos (15.5% of the fine-tune set) are species with 5-49 total photos
+  worldwide -- far too few to learn a fine-grained class; likely noise or
+  memorization rather than signal.
+- it makes the classifier 5,908-way instead of 3,850-way, diluting gradient
+  signal on the species we actually distilled.
+- so the fine-tune may have been HELPED by nothing here, or actively hurt.
+**Fix:** intersect the sampler with `train_manifest.parquet` species, or raise
+`--min-per-species` substantially, then re-run the fine-tune and compare.
+
+**The sets are NOT nested:**
 
 | | species | photos |
 |---|---|---|
@@ -123,16 +146,18 @@ Nothing in the 100-500 available band survived; essentially everything above 600
 | distilled ONLY (supply consumed by the 500 cap) | 3,705 | |
 | **fine-tune ONLY — NEVER distilled** | **2,058** | **27,810 (15.5%)** |
 
-So the fine-tune is doing TWO jobs at once: refining species the student already
-knows, AND **teaching it 2,058 species it never saw during distillation**. That
-plausibly contributes to why heavy alpha won at full taxonomy (see the WiSE-FT
-section): part of the gain is knowledge the distilled model simply did not have,
-not just better calibration on known species.
+So the fine-tune trains on 5,908 classes of which only 3,850 were ever distilled.
+The 2,058 extras are data-starved species that should not have been included at
+all (see the correction above).
 
-⚠️ Follow-up worth doing: split the NABirds gain by whether a species was in the
-distillation set. If most of the improvement comes from the 2,058 novel species,
-the honest framing is "the fine-tune expanded coverage", which is a different
-claim from "the fine-tune beat the teacher on the same task".
+⚠️ **Queued follow-ups (both cheap, both gate the headline claim):**
+1. Fix the sampler to intersect with the distilled species, re-run the fine-tune
+   on a clean 3,850-class set, and see whether OOD retention goes UP (the 2,058
+   starved classes were diluting it) or DOWN (they were contributing).
+2. Split the NABirds gain by whether a species was in the distillation set --
+   NABirds is North American so most of its species are well-populated, meaning
+   the 2,058 probably contribute little there and the +7.6pt OOD gain is likely
+   real. Verify rather than assume.
 
 ### Why the WiSE-FT curve is flat at the top: the fine-tune was GENTLE (2026-07-27)
 
