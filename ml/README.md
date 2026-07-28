@@ -86,6 +86,41 @@ ship decision.** Lesson: ALWAYS pass `--pilot-species 0` for a shippable number.
 pure fine-tune -- at full scale the fine-tune is robust enough on its own that
 WiSE-FT's OOD protection is nearly moot. Keep alpha=0.75 as a small hedge.
 
+### Why the WiSE-FT curve is flat at the top: the fine-tune was GENTLE (2026-07-27)
+
+Initially I claimed the flat alpha=0.75..1.00 top meant "WiSE-FT does not matter at
+full taxonomy" and hand-waved a story about NABirds being drawn from the same iNat
+pool. **Both were wrong.** NABirds is Cornell Lab / Visipedia, birder-sourced, a
+genuinely different distribution -- so the fine-tune's +7.6pt OOD gain
+(94.7% -> 103.3% at alpha=1.0) is real generalization, not same-pool leakage, and
+is a STRONGER result than I first credited.
+
+Measured the actual weight movement instead of theorizing:
+
+```
+global relative weight change (distilled -> finetuned): 4.718%
+  11.84%  visual.proj              <- projection layers move most
+  11.82%  proj.weight
+   8.82%  visual.transformer.resblocks.11.attn.out_proj.weight
+   8.48%  resblocks.10 / 8.47% resblocks.11.mlp   <- last blocks
+   0.43%  resblocks.7/8/11 ln_*    <- early layers barely touched
+```
+Also verified the interpolation itself is correct: |W - W_prev| is identical
+(0.2012) across every alpha step, exactly as (1-a)*A + a*B requires. Not a merge bug.
+
+**Real explanation:** the fine-tune only nudged the model 4.7%, concentrated in
+the projection + last few blocks, because it was configured conservatively
+(lr 1e-5 = 7x below distillation LR, 12 epochs, aug light, wd 0.1). So alpha=1.0
+is ALREADY effectively a mild interpolation, and there is little OOD damage for
+WiSE-FT to repair. It is not that WiSE-FT stopped working -- **our fine-tune was
+too gentle to trigger the failure mode WiSE-FT exists to fix.** (Consistent with
+the 500-species sweep reproducing the textbook hump: whether the protection
+matters depends on how much the fine-tune helps on the eval distribution.)
+
+**Implication / queued experiment:** a more aggressive fine-tune (higher LR,
+more epochs) may push OOD higher still, and only THEN would WiSE-FT earn its
+keep. ~2h, images already on disk. Worth running after the retrain.
+
 ### FULL RETRAIN with the locked recipe (started 2026-07-27 16:05)
 Kicked off the full 7,555-species distillation with the LOCKED recipe (lr 7e-5,
 wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0, min-lr 1e-7, aug light, 25 ep) ->
@@ -228,42 +263,44 @@ help), recipe bundle (+0.0016, marginal). The ONE lever left with real upside is
 sample, median 500x375. Leak-verified: 0 trained photo_ids, 0 trained
 observations. Ready for the WiSE-FT ground-truth fine-tune.
 
-### ⭐ NEXT STEP (decided 2026-07-25)
+### ⭐ TASK QUEUE (rewritten 2026-07-27 17:00)
 
-**Run ONE experiment: aug light + lr 7e-5, 25 epochs, on the 500-sp pilot.**
+**IN FLIGHT**
+- [ ] **Full 7,555-sp retrain, locked recipe** -> `runs/full7555_locked_ep25`.
+      Started 16:05 Mon; ~2.4h/epoch x 25 = **~Thu morning**. Watched by cron
+      `full-retrain-pipeline` (hourly, reports at ep20 + on completion, then runs
+      full-species evals). Baseline to beat: old-recipe `runs/full7555_vitb`
+      (val_cos 0.9650, NABirds 94.7%). Expect a small or zero gain; if it lands
+      behind, the read is "scale dominates recipe", not "the retrain failed".
 
-```
-cd ~/wingdex/ml/distill && ./.venv/bin/python -u train_student.py \
-  --wds "/mnt/nas/WingDex-Distill/wds-pilot500/shard-*.tar" \
-  --wds-epoch-samples 247400 --arch ViT-B-16 --pretrained laion2b_s34b_b88k \
-  --batch 96 --workers 12 --epochs 25 \
-  --lr 7e-5 --wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 --min-lr 1e-7 \
-  --aug light --patience 0 --out runs/exp7_combined_lr7e5_auglight_ep25
-```
-then `eval_heldout.py --wds ...` + `eval_nabirds.py` on its `best.pt`.
+**AFTER THE RETRAIN (in priority order)**
+- [ ] **Re-apply the ground-truth fine-tune + WiSE-FT to the NEW checkpoint** so
+      the shipped model is internally consistent (locked recipe + fine-tune).
+      ~2h. Everything needed is on disk.
+- [ ] **EXPERIMENT: aggressive fine-tune.** Ours moved the weights only 4.718%
+      (lr 1e-5, 12ep) -- too gentle to trigger the OOD damage WiSE-FT repairs.
+      Try lr 3e-5..1e-4 and/or 25 epochs, then re-sweep alpha. May push OOD past
+      103.5%, and would tell us whether WiSE-FT actually earns its keep here. ~2h.
+- [ ] **PHASE 4 — the actual go/no-go: benchmark vs GPT (83/87) and ViT-L (87/96)
+      on the shared gated+range pipeline.** This is the question the whole project
+      exists to answer and it has NEVER been run. Do not let further model
+      polishing crowd it out.
+- [ ] **Export + web**: int8/ONNX/Core ML; then int4 on the fine-tuned ViT-B for
+      web (~22MB, <25MB target). Measure golden-set + NABirds after quantizing.
 
-**Why this one, ~5.8h, and why not anything else first:**
-1. It tests the ONE untested interaction. exp3 (aug light) used lr 1e-4; the LR
-   sweep ran with aug none. Stronger aug typically wants MORE LR, not less, so
-   the two winners may NOT simply compose — this is the only open question that
-   could change the locked recipe.
-2. It answers "was exp3 epoch-limited?" in the same run. exp3 was still climbing
-   at ep15 (+0.0002 on the final step) with no drift, so 25 epochs tests the
-   obvious follow-on for free.
-3. It produces the checkpoint the remaining evals should run against, so the
-   NABirds number lands on the actual candidate recipe rather than on a
-   superseded one.
+**BENCH / NICE-TO-HAVE (not blocking)**
+- [ ] stock MobileCLIP-S2 vs our student (cross-arch comparison for the writeup;
+      MobileCLIP is NOT a ship path -- license gate resolved 2026-07-25)
+- [ ] co-occurrence hard-example weighting (built, never wired into training)
+- [ ] cosine->accuracy curve (needs per-epoch checkpoints on a future run)
 
-**Explicitly deferred, and why:**
-- *Multi-view caching / strong aug* — now justified (light aug won), but it is
-  ~56 GPU-h on the full corpus. Do the **pilot-only** version (~5.5h) AFTER this
-  run, so the strong-aug comparison is against the final recipe.
-- *wd 0.1 vs 0.2 ablation* — the recipe bundle only bought +0.0016 total, so
-  untangling which knob did it is low-value until something depends on it.
-- *Another full 7,555-sp run* — gated on this run beating exp3 meaningfully.
-  Reproducing the baseline is not worth 3.5h × 20 epochs on its own.
-- *FastViT re-benchmark / stock MobileCLIP-S2 floor* — both are cheap and
-  GPU-free-window tasks, but neither is on the critical path to the ship metric.
+**SETTLED — do not re-litigate**
+- distillation recipe: lr 7e-5, wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0,
+  min-lr 1e-7, aug light, ~25 epochs
+- epochs: 40 does NOT help (exp8); strong aug does NOT help (exp9, saved 56 GPU-h)
+- ship model: LAION ViT-B/16 (clean license); MobileCLIP-S2 cancelled
+- **ALWAYS pass `--pilot-species 0` to eval_nabirds.py for any shippable number**
+  (it defaults to 500 and that silently inflates retention 94.7% -> 98.1%)
 
 ### Queue (ordered; corrected 2026-07-23)
 
