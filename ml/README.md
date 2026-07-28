@@ -336,27 +336,52 @@ help), recipe bundle (+0.0016, marginal). The ONE lever left with real upside is
 sample, median 500x375. Leak-verified: 0 trained photo_ids, 0 trained
 observations. Ready for the WiSE-FT ground-truth fine-tune.
 
-### 🏷️ MODEL REGISTRY — use these names, not "the existing model"
+### 🏷️ MODEL REGISTRY — **WingCLIP** versioning
 
-Naming: **`wd-<arch>-<stage><n>`**. `d`=distilled, `f`=ground-truth fine-tuned,
-`w`=WiSE-FT blend. Bump the number on any change that produces a new checkpoint
-we might ship or compare against. Always cite the name AND the run dir.
+**Name:** WingCLIP. It IS a legitimate CLIP variant — ViT-B/16 image tower,
+CLIP-contrastive pretrained (LAION-2B), emitting embeddings in a shared
+image/text space and usable zero-shot with a text tower. The model card must
+state the lineage explicitly for attribution + licensing: **LAION-2B ViT-B/16
+init, distilled from BioCLIP-2 ViT-L/14**. That is a card requirement, not a
+naming constraint.
 
-| name | what it is | run dir | key numbers |
+**Scheme: `WingCLIP-<MAJOR>.<MINOR>[-stage][-pilot]`**
+- **MINOR = the training-recipe/data basis** (the expensive thing: a distillation
+  generation). Bump it when the recipe or corpus changes.
+- **stage suffix = where in the pipeline that basis is**, all cheap post-processing:
+  - `-alpha` = raw distillation output
+  - `-beta`  = + ground-truth fine-tune
+  - *(no suffix)* = + WiSE-FT blend — the **complete pipeline** on that basis
+- **`-pilot`** = the 500-species version of any of the above.
+- **MAJOR 1.0 = earned, not automatic.** A basis becomes 1.0 only when it PASSES
+  Phase 4 vs GPT (83/87). So 1.0 will most likely be a *promotion* of a 0.x, not
+  a separate training run.
+
+| version | what | run dir | key numbers |
 |---|---|---|---|
-| **wd-vitb-d1** | full 7,555-sp distillation, **OLD** recipe (no warmup/clip, beta2 .999, wd .1, aug none, lr 1e-4, 20ep) | `runs/full7555_vitb` | val_cos 0.9650 · NABirds 94.7% (81.83/86.41) |
-| **wd-vitb-f1** | d1 + ground-truth fine-tune (lr 1e-5, 12ep, 5,908 classes — includes the 2,058 starved species, see the sampler bug) | `runs/ft_full7555_gt` | GT-val 72.88% (vs teacher 57.69) · NABirds 103.3% @a=1.0 |
-| **wd-vitb-w1** | WiSE-FT blend of d1+f1 at **alpha=0.75** (current best OOD) | `runs/ft_full7555_gt/wise_a0.75.pt` | **NABirds 103.5% (89.45/86.41)** ⬅ current ship candidate |
-| **wd-vitb-d2** | full retrain, **LOCKED** recipe (lr 7e-5, wd .2, beta2 .95, warmup 500, clip 1.0, aug light, 25ep) | `runs/full7555_locked_ep25` | *in flight, ~Thu AM* |
-| *wd-vitb-f2* | d2 + fine-tune on the CLEANED ground-truth set (T2) | *tbd* | *planned* |
-| *wd-vitb-w2* | WiSE-FT blend of d2+f2 | *tbd* | *planned — intended ship model* |
+| `WingCLIP-0.1-alpha-pilot` | 500sp distill, old recipe | `pilot500_vitb` | val_cos 0.9465 |
+| **`WingCLIP-0.1-alpha`** | **full 7,555sp distill, OLD recipe** (no warmup/clip, beta2 .999, wd .1, aug none, lr 1e-4, 20ep) | `full7555_vitb` | val_cos 0.9650 · NABirds **94.7%** (81.83/86.41) |
+| **`WingCLIP-0.1-beta`** | 0.1-alpha + ground-truth fine-tune (lr 1e-5, 12ep) | `ft_full7555_gt` | GT-val 72.88% (teacher 57.69) · NABirds 103.3% |
+| **`WingCLIP-0.1`** | 0.1-beta + WiSE-FT alpha=0.75 — complete pipeline | `ft_full7555_gt/wise_a0.75.pt` | **NABirds 103.5%** (89.45/86.41) ⬅ current best |
+| `WingCLIP-0.2-alpha-pilot` | 500sp distill, LOCKED recipe | `exp7_combined_lr7e5_auglight_ep25` | val_cos 0.9540 |
+| `WingCLIP-0.2-alpha` | full distill, **LOCKED** recipe (lr 7e-5, wd .2, beta2 .95, warmup 500, clip 1.0, aug light, 25ep) | `full7555_locked_ep25` | *in flight, ~Thu AM* |
+| `WingCLIP-0.2-beta` | 0.2-alpha + fine-tune on the CLEANED GT set (T2) | *tbd* | *planned* |
+| `WingCLIP-0.2` | 0.2-beta + WiSE-FT — complete pipeline | *tbd* | *planned* |
+| `WingCLIP-1.0` | whichever basis first PASSES Phase 4 | *tbd* | *earned, not automatic* |
 
-Pilot/experiment checkpoints (`exp1..exp9`, `pilot500_vitb`, `gate*`, `*smoke*`)
-are **not** registry models — they are 500-species pilots used to pick the recipe
-and should never be quoted as WingDex results.
+**Experiments** that never became a lineage are tagged under the basis they
+informed and are never quoted as WingCLIP results:
+`0.2-pilot-exp1..exp6` (recipe + LR sweep), `0.2-pilot-exp8` (40-epoch test),
+`0.2-pilot-exp9` (strong aug + 5-view). Also non-registry: `gate*`, `*smoke*`, `pilot`.
 
-Teacher reference: **BioCLIP-2 ViT-L/14** (`hf-hub:imageomics/bioclip-2`).
-NABirds 86.41 top-1 @ full species; 57.69 on the 5,908-sp ground-truth val split.
+**Publishing:** keep 0.x internal. Only push to HF at 1.0 — HF repos accumulate
+confusing history fast, and a 0.x with a known sampler bug is not something to
+put a card on.
+
+**Teacher reference** (every retention number divides by this):
+BioCLIP-2 ViT-L/14 `hf-hub:imageomics/bioclip-2` — NABirds **86.41** top-1 at
+full species; **57.69** on the 5,908-sp ground-truth val split. (NABirds at the
+`--pilot-species 500` default reads 91.49 — do not mix the two.)
 
 ### ⭐ TASK QUEUE (concrete, rewritten 2026-07-27 17:55)
 
@@ -366,14 +391,15 @@ that keeps crowding it out. Tasks below are sized and have explicit exit criteri
 so they can be run unattended.
 
 ---
-**T0 — IN FLIGHT: build wd-vitb-d2** (full retrain, locked recipe, ~Thu AM)
+**T0 — IN FLIGHT: build WingCLIP-0.2-alpha** (full retrain, locked recipe, ~Thu AM)
 `runs/full7555_locked_ep25`, started Mon 16:05, ~2.4h/epoch x 25.
 Watched by cron `full-retrain-pipeline` (reports at ep20 + on completion, then
 runs full-species evals).
-*Exit:* val_cos + NABirds (`--pilot-species 0`) for **d2 vs d1** (0.9650 / 94.7%).
+*Exit:* val_cos + NABirds (`--pilot-species 0`) for **0.2-alpha vs 0.1-alpha**
+(0.9650 / 94.7%).
 A flat or negative result means "scale dominates recipe", which is a legitimate
 finding, not a failure. **Nothing below is blocked on this** — T1/T2 run against
-d1/f1/w1.
+0.1-alpha / 0.1-beta / 0.1.
 
 ---
 **T1 — Diagnose the fine-tune coverage question** (~30 min, CPU/GPU-light)
@@ -404,8 +430,9 @@ classifier head on top may be WORSE than leaving them to zero-shot.
 **T3 — PHASE 4: benchmark vs GPT (83/87) and ViT-L (87/96)** ⬅ THE ACTUAL GOAL
 Run the shipped candidate through the shared gated+range pipeline on the golden
 set. This is the go/no-go for the whole project and has NEVER been run.
-Use the best registry model available when T3 starts: **w1** today, or **w2**
-if T0/T2/T5 have landed. State which one the numbers came from.
+Use the best registry model available when T3 starts: **WingCLIP-0.1** today, or
+**WingCLIP-0.2** if T0/T2/T5 have landed. State which one the numbers came from.
+**Passing Phase 4 is what promotes a basis to 1.0.**
 *Exit:* a go/no-go writeup with the head-to-head numbers.
 **Do not let T4+ delay this.**
 
@@ -416,10 +443,10 @@ target). Measure golden-set + NABirds AFTER quantizing — the bar is "useful
 (~GPT-level ok)", not "matches BioCLIP".
 
 ---
-**T5 — Build wd-vitb-f2 and wd-vitb-w2** (~2h)
-Fine-tune d2 on T2's cleaned ground-truth set, then WiSE-FT blend. Only once T0
-lands, so the shipped artifact is internally consistent (locked recipe + clean
-fine-tune). **w2 is the intended ship model.**
+**T5 — Build WingCLIP-0.2-beta and WingCLIP-0.2** (~2h)
+Fine-tune 0.2-alpha on T2's cleaned ground-truth set, then WiSE-FT blend. Only
+once T0 lands, so the artifact is internally consistent (locked recipe + clean
+fine-tune). **0.2 is the intended 1.0 candidate.**
 
 ---
 **BACKLOG (explicitly not blocking)**
