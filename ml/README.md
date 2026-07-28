@@ -86,6 +86,54 @@ ship decision.** Lesson: ALWAYS pass `--pilot-species 0` for a shippable number.
 pure fine-tune -- at full scale the fine-tune is robust enough on its own that
 WiSE-FT's OOD protection is nearly moot. Keep alpha=0.75 as a small hedge.
 
+### How the 178k fine-tune set was chosen, and what it actually contains (2026-07-27)
+
+**Sizing was two knobs plus scarcity, not a target.** `build_groundtruth_split.py
+--per-species 40 --min-per-species 5`, taking ONE photo per observation from
+photos the distillation never touched. 5,908 x 40 would be ~236k; the real
+distribution came out min 5, **median 40 (the cap)**, mean 30.3 -> 178,852. Most
+species hit the cap; a long tail sits near the floor. The 40 was a judgement
+call (enough signal per class without a huge download) and **has never been
+tested** -- it may under-fit common species or over-weight them vs rare ones.
+iNat has ~49M untouched photos across our species, so 178k is ~0.4% of what is
+available; raising `--per-species` to 100-200 is just a sampler re-run + bigger
+pull, no new code.
+
+Non-arbitrary constraints: one photo per observation (kills near-duplicate
+leakage inside the held-out set), and exclusion of any photo whose OBSERVATION
+appears in training. Verified 0 leaked photo_ids, 0 leaked observations.
+
+**Why the fine-tune covers 5,908 species when the corpus covers 7,555 --
+and why that is NOT simply "a lower floor".** The two floors apply to different
+pools and are not comparable:
+- corpus `--min-photos 50` = species with >=50 photos available in iNat TOTAL
+- fine-tune `--min-per-species 5` = species with >=5 photos LEFT OVER after the
+  distillation already took up to 500 each
+
+A species with 60 available photos passed the 50 floor, gave all 60 to the
+distillation, and has nothing left. Confirmed in the data: **dropped species max
+out at 512 available photos (median 159); kept species have a median of 994.**
+Nothing in the 100-500 available band survived; essentially everything above 600 did.
+
+**But the sets are NOT nested, which is the more interesting finding:**
+
+| | species | photos |
+|---|---|---|
+| in BOTH (distilled + fine-tuned) | 3,850 | |
+| distilled ONLY (supply consumed by the 500 cap) | 3,705 | |
+| **fine-tune ONLY — NEVER distilled** | **2,058** | **27,810 (15.5%)** |
+
+So the fine-tune is doing TWO jobs at once: refining species the student already
+knows, AND **teaching it 2,058 species it never saw during distillation**. That
+plausibly contributes to why heavy alpha won at full taxonomy (see the WiSE-FT
+section): part of the gain is knowledge the distilled model simply did not have,
+not just better calibration on known species.
+
+⚠️ Follow-up worth doing: split the NABirds gain by whether a species was in the
+distillation set. If most of the improvement comes from the 2,058 novel species,
+the honest framing is "the fine-tune expanded coverage", which is a different
+claim from "the fine-tune beat the teacher on the same task".
+
 ### Why the WiSE-FT curve is flat at the top: the fine-tune was GENTLE (2026-07-27)
 
 Initially I claimed the flat alpha=0.75..1.00 top meant "WiSE-FT does not matter at
