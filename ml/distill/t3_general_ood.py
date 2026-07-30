@@ -93,6 +93,12 @@ def load_imagefolder(root, limit_per_class):
 
 
 def embed(model, preprocess, samples, device, batch):
+    """Use model.visual directly, NOT forward().
+
+    Student.forward() projects 512 -> 768 to match the BioCLIP-2
+    teacher, but the general zero-shot head is built in the student
+    own laion2b 512-d space. forward() gives a 768x512 mismatch.
+    """
     embs = []
     labs = []
     buf = []
@@ -102,7 +108,7 @@ def embed(model, preprocess, samples, device, batch):
             return
         x = torch.stack(buf).to(device)
         with torch.no_grad():
-            e = model.encode_image(x) if hasattr(model, "encode_image") else model(x)
+            e = model.visual(x)
         embs.append(e.float().cpu())
         labs.extend(bl)
         buf.clear()
