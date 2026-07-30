@@ -1,0 +1,317 @@
+{
+ "imageFile": "Gulls_on_picnic_tables_Seattle_waterfront.jpg",
+ "context": {
+  "lat": 47.6062,
+  "lon": -122.3421,
+  "month": 7,
+  "locationName": "Seattle Waterfront, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Glaucous-winged Gull",
+    "scientificName": "Larus glaucescens",
+    "confidence": 0.9104,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-backed Gull",
+    "scientificName": "Larus schistisagus",
+    "confidence": 0.0377,
+    "plumage": null
+   },
+   {
+    "commonName": "Iceland Gull",
+    "scientificName": "Larus glaucoides",
+    "confidence": 0.0049,
+    "plumage": null
+   },
+   {
+    "commonName": "Vega Gull",
+    "scientificName": "Larus vegae",
+    "confidence": 0.0046,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-billed Gull",
+    "scientificName": "Larus brachyrhynchus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Dolphin Gull",
+    "scientificName": "Leucophaeus scoresbii",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "European Herring Gull",
+    "scientificName": "Larus argentatus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous Gull",
+    "scientificName": "Larus hyperboreus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Annam Prinia",
+    "scientificName": "Prinia rocki",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Gull",
+    "scientificName": "Larus occidentalis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Mongolian Gull",
+    "scientificName": "Larus mongolicus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-legged Cormorant",
+    "scientificName": "Poikilocarbo gaimardi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Ancient Murrelet",
+    "scientificName": "Synthliboramphus antiquus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rodrigues Rail",
+    "scientificName": "Erythromachus leguati",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Waterfall Swift",
+    "scientificName": "Hydrochous gigas",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-footed Gull",
+    "scientificName": "Larus livens",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Ground Tit",
+    "scientificName": "Pseudopodoces humilis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Maui Nukupuu",
+    "scientificName": "Hemignathus affinis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Bishop's Oo",
+    "scientificName": "Moho bishopi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "American Herring Gull",
+    "scientificName": "Larus smithsonianus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-tailed Gull",
+    "scientificName": "Larus crassirostris",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Madagascar Spinetail",
+    "scientificName": "Zoonavena grandidieri",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Sao Tome Prinia",
+    "scientificName": "Prinia molleri",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Moluccan Megapode",
+    "scientificName": "Eulipoa wallacei",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Emperor Goose",
+    "scientificName": "Anser canagicus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Swallow-tailed Gull",
+    "scientificName": "Creagrus furcatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Cinclodes",
+    "scientificName": "Cinclodes taczanowskii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-winged Prinia",
+    "scientificName": "Prinia erythroptera",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-eared Night Heron",
+    "scientificName": "Oroanassa magnifica",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Speckled Chachalaca",
+    "scientificName": "Ortalis guttata",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-hooded Gull",
+    "scientificName": "Chroicocephalus cirrocephalus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Pitt Island Shag",
+    "scientificName": "Phalacrocorax featherstoni",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Biak Megapode",
+    "scientificName": "Megapodius geelvinkianus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Macleay's Honeyeater",
+    "scientificName": "Xanthotis macleayanus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Longtail",
+    "scientificName": "Urolais epichlorus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Swahili Sparrow",
+    "scientificName": "Passer suahelicus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Kagu",
+    "scientificName": "Rhynochetos jubatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Prinia",
+    "scientificName": "Prinia atrogularis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumbeous Ibis",
+    "scientificName": "Theristicus caerulescens",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Niceforo's Wren",
+    "scientificName": "Thryophilus nicefori",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Vogelkop Melidectes",
+    "scientificName": "Melidectes leucostephes",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Giant-Honeyeater",
+    "scientificName": "Gymnomyza viridis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Sao Tome Ibis",
+    "scientificName": "Bostrychia bocagei",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-capped Fruit-Dove",
+    "scientificName": "Ptilinopus dupetithouarsii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain-backed Antpitta",
+    "scientificName": "Grallaria haplonota",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Night Heron",
+    "scientificName": "Gorsachius goisagi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Burmese Collared-Dove",
+    "scientificName": "Streptopelia xanthocycla",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-throated Woodcreeper",
+    "scientificName": "Xiphorhynchus guttatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain Parakeet",
+    "scientificName": "Brotogeris tirica",
+    "confidence": 0.0001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

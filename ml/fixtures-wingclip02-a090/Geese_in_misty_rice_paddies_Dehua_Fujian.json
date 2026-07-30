@@ -1,0 +1,317 @@
+{
+ "imageFile": "Geese_in_misty_rice_paddies_Dehua_Fujian.jpg",
+ "context": {
+  "lat": 25.7,
+  "lon": 118.24,
+  "month": 0,
+  "locationName": "Dehua, Fujian, China"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Bar-headed Goose",
+    "scientificName": "Anser indicus",
+    "confidence": 0.333,
+    "plumage": null
+   },
+   {
+    "commonName": "Emperor Goose",
+    "scientificName": "Anser canagicus",
+    "confidence": 0.1893,
+    "plumage": null
+   },
+   {
+    "commonName": "Swan Goose",
+    "scientificName": "Anser cygnoides",
+    "confidence": 0.093,
+    "plumage": null
+   },
+   {
+    "commonName": "Hawaiian Goose",
+    "scientificName": "Branta sandvicensis",
+    "confidence": 0.0569,
+    "plumage": null
+   },
+   {
+    "commonName": "Upland Goose",
+    "scientificName": "Chloephaga picta",
+    "confidence": 0.0196,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-necked Ibis",
+    "scientificName": "Theristicus caudatus",
+    "confidence": 0.0111,
+    "plumage": null
+   },
+   {
+    "commonName": "Snow Goose",
+    "scientificName": "Anser caerulescens",
+    "confidence": 0.0092,
+    "plumage": null
+   },
+   {
+    "commonName": "Coscoroba Swan",
+    "scientificName": "Coscoroba coscoroba",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "Pink-footed Goose",
+    "scientificName": "Anser brachyrhynchus",
+    "confidence": 0.0053,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Barren Goose",
+    "scientificName": "Cereopsis novaehollandiae",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiga Bean-Goose",
+    "scientificName": "Anser fabalis",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Taiwan Yuhina",
+    "scientificName": "Yuhina brunneiceps",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Ibis",
+    "scientificName": "Theristicus melanopis",
+    "confidence": 0.0041,
+    "plumage": null
+   },
+   {
+    "commonName": "Graylag Goose",
+    "scientificName": "Anser anser",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Wagtail-Tyrant",
+    "scientificName": "Stigmatura napensis",
+    "confidence": 0.0033,
+    "plumage": null
+   },
+   {
+    "commonName": "White Eared-Pheasant",
+    "scientificName": "Crossoptilon crossoptilon",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-winged Gray Warbler",
+    "scientificName": "Drymocichla incana",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Woodpecker Finch",
+    "scientificName": "Camarhynchus pallidus",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Inca Wren",
+    "scientificName": "Pheugopedius eisenmanni",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "Bismarck Thicketbird",
+    "scientificName": "Cincloramphus grosvenori",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Masked Water-Tyrant",
+    "scientificName": "Fluvicola nengeta",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-winged Goose",
+    "scientificName": "Cyanochen cyanoptera",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy-headed Goose",
+    "scientificName": "Chloephaga rubidiceps",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Ibis",
+    "scientificName": "Theristicus branickii",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Silver Pheasant",
+    "scientificName": "Lophura nycthemera",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Rodrigues Warbler",
+    "scientificName": "Acrocephalus rodericanus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "White-crested Laughingthrush",
+    "scientificName": "Garrulax leucolophus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Eared-Pheasant",
+    "scientificName": "Crossoptilon auritum",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-footed Booby",
+    "scientificName": "Sula sula",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Starling",
+    "scientificName": "Spodiopsar sericeus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Solomons Corella",
+    "scientificName": "Cacatua ducorpsii",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Oahu Nukupuu",
+    "scientificName": "Hemignathus lucidus",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Ibis",
+    "scientificName": "Nipponia nippon",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Superciliated Wren",
+    "scientificName": "Cantorchilus superciliaris",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Przevalski's Partridge",
+    "scientificName": "Alectoris magna",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-crested Cockatoo",
+    "scientificName": "Cacatua sulphurea",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Pearl Kite",
+    "scientificName": "Gampsonyx swainsonii",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Red Bishop",
+    "scientificName": "Euplectes franciscanus",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Ringed Teal",
+    "scientificName": "Callonetta leucophrys",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Unstreaked Tit-Tyrant",
+    "scientificName": "Uromyias agraphia",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Crowned Warbler",
+    "scientificName": "Phylloscopus occipitalis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Helmeted Guineafowl",
+    "scientificName": "Numida meleagris",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Cheer Pheasant",
+    "scientificName": "Catreus wallichii",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous-winged Gull",
+    "scientificName": "Larus glaucescens",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-naped Crane",
+    "scientificName": "Antigone vipio",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-cheeked Tit",
+    "scientificName": "Aegithalos leucogenys",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumbeous Ibis",
+    "scientificName": "Theristicus caerulescens",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Apolinar's Wren",
+    "scientificName": "Cistothorus apolinari",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater White-fronted Goose",
+    "scientificName": "Anser albifrons",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "West Indian Woodpecker",
+    "scientificName": "Melanerpes superciliaris",
+    "confidence": 0.0009,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

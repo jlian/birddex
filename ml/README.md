@@ -1751,3 +1751,61 @@ distillation has no term that preserves score scale or peakiness.
    Expect the fix to be a lower dominance margin and/or temperature scaling.
 3. Consider a calibration fix at the source: temperature-tune the student's
    softmax so its confidence distribution matches the teacher's.
+
+### PHASE 4 addendum (2026-07-30): 0.2 BEATS 0.1 through the pipeline, and why
+
+Ran the SAME Phase 4 on WingCLIP-0.2 @ alpha=0.90:
+
+| model | NABirds (argmax) | pipeline top-1 | pipeline top-5 | median top-1 conf | >0.9 |
+|---|---|---|---|---|---|
+| BioCLIP-2 teacher | 86.41 | **87%** | **96%** | **0.915** | 14/27 |
+| WingCLIP-0.2 @0.90 | 88.46 | **83%** | 87% | 0.807 | 3/27 |
+| WingCLIP-0.1 @0.90 | **89.93** | 78% | 91% | 0.715 | 0/27 |
+| GPT-5.4-mini | — | 83% | 87% | — | — |
+
+**The ranking INVERTS between the two metrics.** 0.1 wins on raw recognition
+(NABirds argmax) but LOSES through the pipeline; 0.2 is worse at recognition but
+better end-to-end, and ties GPT. Pipeline top-1 tracks **confidence sharpness**
+(0.915 -> 87%, 0.807 -> 83%, 0.715 -> 78%) almost perfectly, NOT argmax accuracy.
+
+⚠️ Caveat: 83% vs 78% is ONE image on n=23. Do not treat the 0.1-vs-0.2 pipeline
+ordering as settled until the large pipeline-scored eval exists.
+
+**ARGMAX vs SOFTMAX (the root cause).** Both read the same 11,167 cosine sims.
+Argmax only needs the ORDERING. Softmax needs the GAPS. Cosine distillation
+(`1 - cos(student, teacher)`) constrains embedding DIRECTION, so ordering is
+preserved (NABirds is great) but the SPREAD of the sims is unconstrained. A
+student can rank correctly while producing 0.31/0.29/0.28 where the teacher
+produces 0.42/0.24/0.22 -- same winner, far flatter softmax. Every downstream
+threshold (0.2 floor, dom>=0.5 gate) then misfires.
+**Not catastrophic: this is a monotonic rescaling problem, the easiest kind.**
+The information is intact (our top-5 MATCHES the teacher at 96%). No retraining
+needed.
+
+### STOP HAND-ROLLING THE GATE — use the standard methods
+
+Strategy A-G is a bespoke heuristic. The literature has proven tools:
+
+1. **Temperature scaling** (Guo et al. 2017, *On Calibration of Modern Neural
+   Networks*) — fit ONE scalar T on held-out data, divide logits by T before
+   softmax. Provably **cannot change argmax**, so NABirds accuracy is
+   mathematically untouched. One parameter on thousands of images cannot
+   meaningfully overfit. This targets our exact failure. **DO THIS FIRST.**
+2. **Bayesian range prior instead of hard tiering** —
+   `P(species | image, loc) ∝ P(image | species) · P(species | loc)`.
+   The range data ALREADY IS an occurrence prior; add `log P(species|loc)` to the
+   scaled logit. One line, actual probabilistic meaning, and it naturally handles
+   what Strategy F fumbles (weak-but-in-range should beat strong-but-impossible,
+   while a genuinely dominant candidate should survive a mediocre prior).
+3. **Conformal prediction** for abstention — gives a candidate set with a
+   GUARANTEED coverage rate ("true species is in this set 95% of the time")
+   instead of an eyeballed threshold. This is exactly what RealBirdID benchmarks.
+
+**PLAN (revised):**
+1. Build the large pipeline-scored eval (n>=3000, from
+   `groundtruth_heldout_distilled.parquet` which has lat/lon/observed_on).
+   Needed BEFORE fitting anything, or we tune on 23 images.
+2. Fit temperature T on it. Re-run Phase 4. Expect most of the 78->87 gap to
+   close with zero retraining and zero argmax change.
+3. Only if a gap REMAINS, replace the tiering with the log-prior sum (2).
+4. Re-check the 0.1 vs 0.2 ordering on the large set before choosing a basis.

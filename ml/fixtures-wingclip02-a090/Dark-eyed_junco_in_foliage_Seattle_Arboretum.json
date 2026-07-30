@@ -1,0 +1,317 @@
+{
+ "imageFile": "Dark-eyed_junco_in_foliage_Seattle_Arboretum.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.2958,
+  "month": 10,
+  "locationName": "Washington Park Arboretum, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Dark-eyed Junco",
+    "scientificName": "Junco hyemalis",
+    "confidence": 0.8312,
+    "plumage": null
+   },
+   {
+    "commonName": "Guadalupe Junco",
+    "scientificName": "Junco insularis",
+    "confidence": 0.0075,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Chickadee",
+    "scientificName": "Poecile atricapillus",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy-breasted Flycatcher",
+    "scientificName": "Muscicapa randi",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Apalis",
+    "scientificName": "Apalis nigriceps",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Forktail",
+    "scientificName": "Enicurus scouleri",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Field Sparrow",
+    "scientificName": "Spizella pusilla",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Dubois's Seedeater",
+    "scientificName": "Sporophila ardesiaca",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Apalis",
+    "scientificName": "Apalis personata",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-eyed Junco",
+    "scientificName": "Junco phaeonotus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Tagula Butcherbird",
+    "scientificName": "Cracticus louisiadensis",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Masked Apalis",
+    "scientificName": "Apalis binotata",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Blue Warbler",
+    "scientificName": "Setophaga caerulescens",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Dove",
+    "scientificName": "Zenaida macroura",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "White-tailed Sabrewing",
+    "scientificName": "Campylopterus ensipennis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-throated Bunting",
+    "scientificName": "Emberiza elegans",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "African Chaffinch",
+    "scientificName": "Fringilla spodiogenys",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "White Wagtail",
+    "scientificName": "Motacilla alba",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Baird's Junco",
+    "scientificName": "Junco bairdi",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "White-breasted Nuthatch",
+    "scientificName": "Sitta carolinensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-throated Warbler",
+    "scientificName": "Setophaga dominica",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-bibbed Tit",
+    "scientificName": "Poecile hypermelaenus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Finch",
+    "scientificName": "Haemorhous purpureus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Parrot-billed Seedeater",
+    "scientificName": "Sporophila peruviana",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Ecuadorian Seedeater",
+    "scientificName": "Amaurospiza aequatorialis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Cotinga",
+    "scientificName": "Conioptilon mcilhennyi",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Parula",
+    "scientificName": "Setophaga americana",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Bunting",
+    "scientificName": "Emberiza spodocephala",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-cheeked Thrush",
+    "scientificName": "Catharus minimus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Dark-rumped Rosefinch",
+    "scientificName": "Carpodacus edwardsii",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Warbler",
+    "scientificName": "Geothlypis philadelphia",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-bellied Seedeater",
+    "scientificName": "Sporophila nigricollis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-cheeked Tit",
+    "scientificName": "Aegithalos leucogenys",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Butcherbird",
+    "scientificName": "Cracticus cassicus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Flores Jungle Flycatcher",
+    "scientificName": "Eumyias oscillans",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Indigo Bunting",
+    "scientificName": "Passerina cyanea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Cuban Solitaire",
+    "scientificName": "Myadestes elisabeth",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Wild Turkey",
+    "scientificName": "Meleagris gallopavo",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Towhee",
+    "scientificName": "Pipilo erythrophthalmus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-rumped Seedeater",
+    "scientificName": "Crithagra tristriata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Bunting",
+    "scientificName": "Emberiza siemsseni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Carrizal Seedeater",
+    "scientificName": "Amaurospiza carrizalensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Song Sparrow",
+    "scientificName": "Melospiza melodia",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Kirtland's Warbler",
+    "scientificName": "Setophaga kirtlandii",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Slate-colored Seedeater",
+    "scientificName": "Sporophila schistacea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "American Tree Sparrow",
+    "scientificName": "Spizelloides arborea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Tit",
+    "scientificName": "Parus cinereus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Chapin's Apalis",
+    "scientificName": "Apalis chapini",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Speirops",
+    "scientificName": "Zosterops lugubris",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Collared Bush-Robin",
+    "scientificName": "Tarsiger johnstoniae",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

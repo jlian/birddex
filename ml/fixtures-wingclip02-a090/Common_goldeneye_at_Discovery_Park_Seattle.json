@@ -1,0 +1,317 @@
+{
+ "imageFile": "Common_goldeneye_at_Discovery_Park_Seattle.jpeg",
+ "context": {
+  "lat": 47.66,
+  "lon": -122.4287,
+  "month": 0,
+  "locationName": "Discovery Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Common Goldeneye",
+    "scientificName": "Bucephala clangula",
+    "confidence": 0.4914,
+    "plumage": null
+   },
+   {
+    "commonName": "Barrow's Goldeneye",
+    "scientificName": "Bucephala islandica",
+    "confidence": 0.2445,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0128,
+    "plumage": null
+   },
+   {
+    "commonName": "Short-billed Gull",
+    "scientificName": "Larus brachyrhynchus",
+    "confidence": 0.0074,
+    "plumage": null
+   },
+   {
+    "commonName": "Ancient Murrelet",
+    "scientificName": "Synthliboramphus antiquus",
+    "confidence": 0.0062,
+    "plumage": null
+   },
+   {
+    "commonName": "Bufflehead",
+    "scientificName": "Bucephala albeola",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly-sided Merganser",
+    "scientificName": "Mergus squamatus",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-headed Racquet-tail",
+    "scientificName": "Prioniturus platenae",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Bonaparte's Gull",
+    "scientificName": "Chroicocephalus philadelphia",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Loon",
+    "scientificName": "Gavia immer",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Franklin's Gull",
+    "scientificName": "Leucophaeus pipixcan",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous Twistwing",
+    "scientificName": "Cnipodectes superrufus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Spinetail",
+    "scientificName": "Telacanthura melanopygia",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Babbler",
+    "scientificName": "Argya caudata",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Duck",
+    "scientificName": "Clangula hyemalis",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "White-winged Scoter",
+    "scientificName": "Melanitta deglandi",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "California Gull",
+    "scientificName": "Larus californicus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Bates's Weaver",
+    "scientificName": "Ploceus batesi",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Evening Grosbeak",
+    "scientificName": "Hesperiphona vespertina",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Vega Gull",
+    "scientificName": "Larus vegae",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Gull",
+    "scientificName": "Chroicocephalus ridibundus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocha Antshrike",
+    "scientificName": "Thamnophilus praecox",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Smew",
+    "scientificName": "Mergellus albellus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Cordilleran Parakeet",
+    "scientificName": "Psittacara frontatus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Moluccan Whistler",
+    "scientificName": "Pachycephala macrorhyncha",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooretama Slaty-Antshrike",
+    "scientificName": "Thamnophilus ambiguus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Gull",
+    "scientificName": "Larus canus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-winged Racquet-tail",
+    "scientificName": "Prioniturus verticalis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Racquet-tail",
+    "scientificName": "Prioniturus luconensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-breasted Racquet-tail",
+    "scientificName": "Prioniturus flavicans",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Upland Antshrike",
+    "scientificName": "Thamnophilus aroyae",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Lake Lufira Masked-Weaver",
+    "scientificName": "Ploceus ruweti",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Sabine's Gull",
+    "scientificName": "Xema sabini",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Elegant Trogon",
+    "scientificName": "Trogon elegans",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Saunders's Gull",
+    "scientificName": "Saundersilarus saundersi",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Lark Bunting",
+    "scientificName": "Calamospiza melanocorys",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Amur Falcon",
+    "scientificName": "Falco amurensis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Azara's Spinetail",
+    "scientificName": "Synallaxis azarae",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "White-eyed Vireo",
+    "scientificName": "Vireo griseus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous-winged Gull",
+    "scientificName": "Larus glaucescens",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Merganser",
+    "scientificName": "Lophodytes cucullatus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Vanuatu Whistler",
+    "scientificName": "Pachycephala chlorura",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-tailed Goldenthroat",
+    "scientificName": "Polytmus theresiae",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Magpie",
+    "scientificName": "Pica pica",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Manipur Fulvetta",
+    "scientificName": "Fulvetta manipurensis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Pygmy-Owl",
+    "scientificName": "Glaucidium gnoma",
+    "confidence": 0.0006,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

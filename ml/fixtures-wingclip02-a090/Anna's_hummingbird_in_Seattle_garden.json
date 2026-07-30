@@ -1,0 +1,317 @@
+{
+ "imageFile": "Anna's_hummingbird_in_Seattle_garden.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 6,
+  "locationName": "Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Anna's Hummingbird",
+    "scientificName": "Calypte anna",
+    "confidence": 0.847,
+    "plumage": null
+   },
+   {
+    "commonName": "Costa's Hummingbird",
+    "scientificName": "Calypte costae",
+    "confidence": 0.0089,
+    "plumage": null
+   },
+   {
+    "commonName": "Nuttall's Woodpecker",
+    "scientificName": "Dryobates nuttallii",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "California Scrub-Jay",
+    "scientificName": "Aphelocoma californica",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Townsend's Warbler",
+    "scientificName": "Setophaga townsendi",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Band-tailed Pigeon",
+    "scientificName": "Patagioenas fasciata",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-crowned Sparrow",
+    "scientificName": "Zonotrichia atricapilla",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Cassin's Kingbird",
+    "scientificName": "Tyrannus vociferans",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Allen's Hummingbird",
+    "scientificName": "Selasphorus sasin",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-billed Starthroat",
+    "scientificName": "Heliomaster longirostris",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "California Towhee",
+    "scientificName": "Melozone crissalis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "California Quail",
+    "scientificName": "Callipepla californica",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Phoebe",
+    "scientificName": "Sayornis nigricans",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Sapsucker",
+    "scientificName": "Sphyrapicus ruber",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Ibadan Malimbe",
+    "scientificName": "Malimbus ibadanensis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Brewer's Blackbird",
+    "scientificName": "Euphagus cyanocephalus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Hutton's Vireo",
+    "scientificName": "Vireo huttoni",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Malimbe",
+    "scientificName": "Malimbus malimbicus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Bewick's Wren",
+    "scientificName": "Thryomanes bewickii",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-backed Firecrown",
+    "scientificName": "Sephanoides sephaniodes",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "California Thrasher",
+    "scientificName": "Toxostoma redivivum",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Flycatcher",
+    "scientificName": "Empidonax difficilis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy Storm-Petrel",
+    "scientificName": "Hydrobates homochroa",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Bornean Shortwing",
+    "scientificName": "Brachypteryx erythrogyna",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Ridgway's Rail",
+    "scientificName": "Rallus obsoletus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Bushtit",
+    "scientificName": "Psaltriparus minimus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Garnet-throated Hummingbird",
+    "scientificName": "Lamprolaima rhami",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Tricolored Blackbird",
+    "scientificName": "Agelaius tricolor",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Lawrence's Goldfinch",
+    "scientificName": "Spinus lawrencei",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Sumatran Shortwing",
+    "scientificName": "Brachypteryx saturata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Duck",
+    "scientificName": "Hymenolaimus malacorhynchos",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Caspian Tern",
+    "scientificName": "Hydroprogne caspia",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Hoary Puffleg",
+    "scientificName": "Haplophaedia lugens",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Varied Thrush",
+    "scientificName": "Ixoreus naevius",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Zenker's Honeyguide",
+    "scientificName": "Melignomon zenkeri",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Rachel's Malimbe",
+    "scientificName": "Malimbus racheliae",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Crimsonwing",
+    "scientificName": "Cryptospiza reichenovii",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Amethyst-throated Sunangel",
+    "scientificName": "Heliangelus amethysticollis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-headed Malimbe",
+    "scientificName": "Malimbus rubricollis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Jay",
+    "scientificName": "Cyanocitta stelleri",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pink-necked Green-Pigeon",
+    "scientificName": "Treron vernans",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Townsend's Solitaire",
+    "scientificName": "Myadestes townsendi",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Turnstone",
+    "scientificName": "Arenaria melanocephala",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Moustached Tinkerbird",
+    "scientificName": "Pogoniulus leucomystax",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Towhee",
+    "scientificName": "Pipilo maculatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-billed Malimbe",
+    "scientificName": "Malimbus nitens",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Giant Kingfisher",
+    "scientificName": "Megaceryle maxima",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

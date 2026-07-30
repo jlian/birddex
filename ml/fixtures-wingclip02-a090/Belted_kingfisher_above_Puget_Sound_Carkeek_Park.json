@@ -1,0 +1,317 @@
+{
+ "imageFile": "Belted_kingfisher_above_Puget_Sound_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.8072,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Kingfisher",
+    "scientificName": "Megaceryle lugubris",
+    "confidence": 0.0237,
+    "plumage": null
+   },
+   {
+    "commonName": "Bismarck Kingfisher",
+    "scientificName": "Ceyx websteri",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Ringed Kingfisher",
+    "scientificName": "Megaceryle torquata",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Chatham Islands Pigeon",
+    "scientificName": "Hemiphaga chathamensis",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Amazon Kingfisher",
+    "scientificName": "Chloroceryle amazona",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Kingfisher",
+    "scientificName": "Ceryle rudis",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Giant Kingfisher",
+    "scientificName": "Megaceryle maxima",
+    "confidence": 0.0025,
+    "plumage": null
+   },
+   {
+    "commonName": "White-sided Hillstar",
+    "scientificName": "Oreotrochilus leucopleurus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Merganser",
+    "scientificName": "Lophodytes cucullatus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Merganser",
+    "scientificName": "Mergus serrator",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Hook-billed Kingfisher",
+    "scientificName": "Melidora macrorrhina",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-fronted Flycatcher",
+    "scientificName": "Eumyias hoevelli",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "White-eyed River Martin",
+    "scientificName": "Pseudochelidon sirintarae",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-backed Kingfisher",
+    "scientificName": "Todiramphus pyrrhopygius",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruby-throated Hummingbird",
+    "scientificName": "Archilochus colubris",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Flicker",
+    "scientificName": "Colaptes auratus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Merganser",
+    "scientificName": "Mergus merganser",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Kingfisher",
+    "scientificName": "Pelargopsis melanorhyncha",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-breasted Prinia",
+    "scientificName": "Prinia hodgsonii",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Bishop's Oo",
+    "scientificName": "Moho bishopi",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-crowned Tetraka",
+    "scientificName": "Xanthomixis cinereiceps",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Swallow-winged Puffbird",
+    "scientificName": "Chelidoptera tenebrosa",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Wallacean Cuckooshrike",
+    "scientificName": "Coracina personata",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Auckland Islands Merganser",
+    "scientificName": "Mergus australis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Shoveler",
+    "scientificName": "Spatula clypeata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Kingbird",
+    "scientificName": "Tyrannus tyrannus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Sind Woodpecker",
+    "scientificName": "Dendrocopos assimilis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-lored Kingfisher",
+    "scientificName": "Todiramphus winchelli",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Sparrowhawk",
+    "scientificName": "Tachyspiza nanus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Sula Dwarf-Kingfisher",
+    "scientificName": "Ceyx wallacii",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Cuckooshrike",
+    "scientificName": "Coracina schistacea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "New Britain Kingfisher",
+    "scientificName": "Todiramphus albonotatus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Mangrove Kingfisher",
+    "scientificName": "Halcyon senegaloides",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-headed Kingfisher",
+    "scientificName": "Halcyon leucocephala",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Kingfisher",
+    "scientificName": "Halcyon pileata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Perija Parakeet",
+    "scientificName": "Pyrrhura caeruleiceps",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pileated Woodpecker",
+    "scientificName": "Dryocopus pileatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Bismarck Woodswallow",
+    "scientificName": "Artamus insignis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blyth's Kingfisher",
+    "scientificName": "Alcedo hercules",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Talaud Kingfisher",
+    "scientificName": "Todiramphus enigma",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Stout-billed Cuckooshrike",
+    "scientificName": "Coracina caeruleogrisea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Highland Lark",
+    "scientificName": "Corypha kurrae",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Kingbird",
+    "scientificName": "Tyrannus verticalis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Dusky Crested Flycatcher",
+    "scientificName": "Elminia nigromitrata",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Moluccan Cuckooshrike",
+    "scientificName": "Coracina atriceps",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Dipper",
+    "scientificName": "Cinclus mexicanus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Maupiti Monarch",
+    "scientificName": "Pomarea maupitiensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Mongolian Ground-Jay",
+    "scientificName": "Podoces hendersoni",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

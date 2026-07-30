@@ -1,0 +1,317 @@
+{
+ "imageFile": "Hairy_woodpecker_on_mossy_tree_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 6,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Hairy Woodpecker",
+    "scientificName": "Leuconotopicus villosus",
+    "confidence": 0.8949,
+    "plumage": null
+   },
+   {
+    "commonName": "Downy Woodpecker",
+    "scientificName": "Dryobates pubescens",
+    "confidence": 0.0257,
+    "plumage": null
+   },
+   {
+    "commonName": "American Three-toed Woodpecker",
+    "scientificName": "Picoides dorsalis",
+    "confidence": 0.0079,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Three-toed Woodpecker",
+    "scientificName": "Picoides tridactylus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Nuthatch",
+    "scientificName": "Sitta canadensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Hemispingus",
+    "scientificName": "Pseudospingus verticalis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Stierling's Woodpecker",
+    "scientificName": "Dendropicos stierlingi",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-spotted Woodpecker",
+    "scientificName": "Veniliornis spilogaster",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "American Robin",
+    "scientificName": "Turdus migratorius",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Groove-billed Toucanet",
+    "scientificName": "Aulacorhynchus sulcatus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Spectacled Spiderhunter",
+    "scientificName": "Arachnothera flavigaster",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Semipalmated Plover",
+    "scientificName": "Charadrius semipalmatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Spotted Woodpecker",
+    "scientificName": "Dendrocopos major",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Paradise Riflebird",
+    "scientificName": "Ptiloris paradiseus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Killdeer",
+    "scientificName": "Charadrius vociferus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Strickland's Woodpecker",
+    "scientificName": "Leuconotopicus stricklandi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Evening Grosbeak",
+    "scientificName": "Hesperiphona vespertina",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Large Gray Babbler",
+    "scientificName": "Argya malcolmi",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Von der Decken's Hornbill",
+    "scientificName": "Tockus deckeni",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-breasted Woodpecker",
+    "scientificName": "Dendrocopos atratus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Robin",
+    "scientificName": "Irania gutturalis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Cassia Crossbill",
+    "scientificName": "Loxia sinesciuris",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Philippine Pygmy Woodpecker",
+    "scientificName": "Yungipicus maculatus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Kashmir Nuthatch",
+    "scientificName": "Sitta cashmirensis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Cameroon Speirops",
+    "scientificName": "Zosterops melanocephalus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Syrian Woodpecker",
+    "scientificName": "Dendrocopos syriacus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Thick-billed Saltator",
+    "scientificName": "Saltator maxillosus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesson's Seedeater",
+    "scientificName": "Sporophila bouvronides",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-billed Spiderhunter",
+    "scientificName": "Arachnothera robusta",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumbeous Antbird",
+    "scientificName": "Myrmelastes hyperythrus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Thick-billed Seed-Finch",
+    "scientificName": "Sporophila funerea",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Woodswallow",
+    "scientificName": "Artamus maximus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Gosling's Bunting",
+    "scientificName": "Emberiza goslingi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Undulated Antpitta",
+    "scientificName": "Grallaria squamigera",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-throated Chlorospingus",
+    "scientificName": "Chlorospingus flavigularis",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-eyed Vireo",
+    "scientificName": "Vireo olivaceus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "White-crowned Sparrow",
+    "scientificName": "Zonotrichia leucophrys",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Cinnabar Boobook",
+    "scientificName": "Ninox ios",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Alder Flycatcher",
+    "scientificName": "Empidonax alnorum",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Santo Thicketbird",
+    "scientificName": "Cincloramphus whitneyi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Rose-breasted Grosbeak",
+    "scientificName": "Pheucticus ludovicianus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Moustached Antpitta",
+    "scientificName": "Grallaria alleni",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Guan",
+    "scientificName": "Chamaepetes unicolor",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-thighed Puffleg",
+    "scientificName": "Eriocnemis derbyi",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Tennessee Warbler",
+    "scientificName": "Leiothlypis peregrina",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Kingbird",
+    "scientificName": "Tyrannus tyrannus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Omao",
+    "scientificName": "Myadestes obscurus",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Willow Flycatcher",
+    "scientificName": "Empidonax traillii",
+    "confidence": 0.0001,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

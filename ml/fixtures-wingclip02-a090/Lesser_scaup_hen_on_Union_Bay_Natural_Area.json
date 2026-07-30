@@ -1,0 +1,317 @@
+{
+ "imageFile": "Lesser_scaup_hen_on_Union_Bay_Natural_Area.jpg",
+ "context": {
+  "lat": 47.6543,
+  "lon": -122.2952,
+  "month": 10,
+  "locationName": "Union Bay Natural Area, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Ring-necked Duck",
+    "scientificName": "Aythya collaris",
+    "confidence": 0.9007,
+    "plumage": null
+   },
+   {
+    "commonName": "Redhead",
+    "scientificName": "Aythya americana",
+    "confidence": 0.0134,
+    "plumage": null
+   },
+   {
+    "commonName": "Rosy-billed Pochard",
+    "scientificName": "Netta peposaca",
+    "confidence": 0.0088,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Duck",
+    "scientificName": "Heteronetta atricapilla",
+    "confidence": 0.005,
+    "plumage": null
+   },
+   {
+    "commonName": "Madagascar Pochard",
+    "scientificName": "Aythya innotata",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Whistling-Duck",
+    "scientificName": "Dendrocygna javanica",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Scaup",
+    "scientificName": "Aythya affinis",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Canvasback",
+    "scientificName": "Aythya valisineria",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Whistling-Duck",
+    "scientificName": "Dendrocygna guttata",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Pochard",
+    "scientificName": "Aythya ferina",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy Duck",
+    "scientificName": "Oxyura jamaicensis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Veery",
+    "scientificName": "Catharus fuscescens",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Andean Duck",
+    "scientificName": "Oxyura ferruginea",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-cheeked Parakeet",
+    "scientificName": "Pyrrhura molinae",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Scaup",
+    "scientificName": "Aythya novaeseelandiae",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Ringed Teal",
+    "scientificName": "Callonetta leucophrys",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Hermit Thrush",
+    "scientificName": "Catharus guttatus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rose-breasted Grosbeak",
+    "scientificName": "Pheucticus ludovicianus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Jabiru",
+    "scientificName": "Jabiru mycteria",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Swainson's Thrush",
+    "scientificName": "Catharus ustulatus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern Pochard",
+    "scientificName": "Netta erythrophthalma",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Hill Blue Flycatcher",
+    "scientificName": "Cyornis whitei",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Sparrowhawk",
+    "scientificName": "Tachyspiza gularis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Collared Bush-Robin",
+    "scientificName": "Tarsiger johnstoniae",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Baer's Pochard",
+    "scientificName": "Aythya baeri",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Boulder Finch",
+    "scientificName": "Idiopsar brachyurus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Ferruginous Duck",
+    "scientificName": "Aythya nyroca",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Wood Duck",
+    "scientificName": "Aix sponsa",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-cheeked Lovebird",
+    "scientificName": "Agapornis nigrigenis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pink-headed Duck",
+    "scientificName": "Rhodonessa caryophyllacea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Timor Stubtail",
+    "scientificName": "Urosphena subulata",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Boat-tailed Grackle",
+    "scientificName": "Quiscalus major",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Marsh Wren",
+    "scientificName": "Cistothorus palustris",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Duck",
+    "scientificName": "Aythya fuligula",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Velvet-mantled Drongo",
+    "scientificName": "Dicrurus modestus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Chinese Sparrowhawk",
+    "scientificName": "Tachyspiza soloensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-chested Tyrant",
+    "scientificName": "Taeniotriccus andrei",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blaze-winged Parakeet",
+    "scientificName": "Pyrrhura devillei",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-masked Parakeet",
+    "scientificName": "Psittacara erythrogenys",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-headed Blackbird",
+    "scientificName": "Xanthocephalus xanthocephalus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Oxylabes",
+    "scientificName": "Oxylabes madagascariensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Henna-hooded Foliage-gleaner",
+    "scientificName": "Clibanornis erythrocephalus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Wren",
+    "scientificName": "Thryothorus ludovicianus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-mantled Goshawk",
+    "scientificName": "Tachyspiza luteoschistacea",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Hooded Merganser",
+    "scientificName": "Lophodytes cucullatus",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Nicaraguan Grackle",
+    "scientificName": "Quiscalus nicaraguensis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-chested Jungle Flycatcher",
+    "scientificName": "Cyornis umbratilis",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-throated Flycatcher",
+    "scientificName": "Cyornis rubeculoides",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Pulitzer's Longbill",
+    "scientificName": "Macrosphenus pulitzeri",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}
