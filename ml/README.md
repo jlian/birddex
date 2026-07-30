@@ -197,13 +197,28 @@ keep. ~2h, images already on disk. Worth running after the retrain.
 ### FULL RETRAIN with the locked recipe (started 2026-07-27 16:05)
 Kicked off the full 7,555-species distillation with the LOCKED recipe (lr 7e-5,
 wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0, min-lr 1e-7, aug light, 25 ep) ->
-runs/full7555_locked_ep25. ~54h. Baseline to beat: old-recipe runs/full7555_vitb
-(val_cos 0.9650, NABirds 94.7% at full species). Expectation is honest: the
-pilot delta was tiny (+0.003 val_cos), and at full scale it may be zero or
-slightly negative -- in which case the read is "scale dominates recipe". Watched
-by cron full-retrain-pipeline. After it finishes, the ground-truth fine-tune +
-WiSE-FT should be re-applied to the NEW checkpoint for a fully-consistent shipped
-model.
+runs/full7555_locked_ep25.
+
+**RESULT (2026-07-30): the locked recipe LOST at full scale. Keep WingCLIP-0.1-alpha
+as the distillation base.** Final val_cos 0.9618 (vs 0.1-alpha 0.9650) and
+crucially **NABirds full-species retention 90.7% (student 78.4 / teacher 86.41)
+vs 0.1-alpha's 94.7% (81.83)** — a 4-point OOD REGRESSION, not noise. The honest
+read, exactly as predicted going in: at 7,555 species / 2.5M images the recipe's
+regularization (aug light + wd 0.2) has little overfitting to prevent and instead
+costs representation quality, so **scale dominates recipe** and the old-recipe
+0.1-alpha is the better distillation base. The +0.003 val_cos / sub-point pilot
+edge did NOT transfer to full scale, and it inverted on the ship metric.
+
+Consequences:
+- **WingCLIP-0.1-alpha stays the distillation base; 0.2-alpha is retired** (not
+  promoted). The ground-truth fine-tune + WiSE-FT (which already beat the teacher,
+  103.5% at alpha 0.75) is applied on 0.1, not 0.2.
+- The ~62 GPU-hours were not wasted: they turned "the pilot recipe is better" from
+  an assumption into a measured, disproven claim at full scale. That is the value
+  of running it.
+- Lesson reinforced (again this week, cf. exp8): pilot deltas of a few thousandths
+  val_cos do NOT reliably transfer to full scale, and val_cos is not the ship
+  metric. Decide recipes on NABirds `--pilot-species 0`, not val_cos.
 
 ### Ground-truth fine-tune + WiSE-FT (2026-07-27): teacher BEATEN in-distribution; WiSE-FT alpha=0.25 best OOD
 
@@ -364,7 +379,7 @@ naming constraint.
 | **`WingCLIP-0.1-beta`** | 0.1-alpha + ground-truth fine-tune (lr 1e-5, 12ep) | `ft_full7555_gt` | GT-val 72.88% (teacher 57.69) · NABirds 103.3% |
 | **`WingCLIP-0.1`** | 0.1-beta + WiSE-FT alpha=0.75 — complete pipeline | `ft_full7555_gt/wise_a0.75.pt` | **NABirds 103.5%** (89.45/86.41) ⬅ current best |
 | `WingCLIP-0.2-alpha-pilot` | 500sp distill, LOCKED recipe | `exp7_combined_lr7e5_auglight_ep25` | val_cos 0.9540 |
-| `WingCLIP-0.2-alpha` | full distill, **LOCKED** recipe (lr 7e-5, wd .2, beta2 .95, warmup 500, clip 1.0, aug light, 25ep) | `full7555_locked_ep25` | *in flight, ~Thu AM* |
+| `WingCLIP-0.2-alpha` | full distill, **LOCKED** recipe (lr 7e-5, wd .2, beta2 .95, warmup 500, clip 1.0, aug light, 25ep) | `full7555_locked_ep25` | val_cos 0.9618 · **NABirds 90.7%** (78.4/86.41) — LOST to 0.1-alpha's 94.7% |
 | `WingCLIP-0.2-beta` | 0.2-alpha + fine-tune on the CLEANED GT set (T2) | *tbd* | *planned* |
 | `WingCLIP-0.2` | 0.2-beta + WiSE-FT — complete pipeline | *tbd* | *planned* |
 | `WingCLIP-1.0` | whichever basis first PASSES Phase 4 | *tbd* | *earned, not automatic* |
