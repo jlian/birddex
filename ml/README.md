@@ -1690,3 +1690,42 @@ is the actual product requirement (reject them). Obvious next task.
 **Method note:** `Student.forward()` projects 512->768 to match the BioCLIP-2
 teacher. For a general-space eval you MUST use `model.visual(x)` directly, or you
 get a 768x512 shape mismatch. Cost one crashed run.
+
+### T4 RESULTS (2026-07-30) — does the confidence gate reject non-birds? YES
+
+Every abstention number we had was measured on NABirds, where every image IS a
+bird, so the gate had never been asked to reject anything. A 3,850-way bird
+softmax has no "none of these" class, so the open question was whether a dog
+photo produces low confidence (good) or confident nonsense (bad).
+
+Imagenette (500 non-bird images) through the SAME bird classifier + confidence
+path as eval_nabirds.py. Pass rate = % of non-bird photos the gate lets through
+(= false accepts, lower is better):
+
+  alpha      pass@0.3  pass@0.5  pass@0.7  pass@0.9   mean conf
+  0.00 (base)    3.6%      0.8%      0.0%      0.0%      0.0854
+  0.50           4.4%      1.6%      0.8%      0.0%      0.0882
+  0.75           5.6%      2.0%      1.0%      0.0%      0.1003
+  0.90 (ship)    7.4%      2.4%      0.8%      0.2%      0.1087
+  1.00           7.2%      2.2%      0.2%      0.2%      0.1052
+
+**At the ship candidate (alpha=0.90, thr 0.5): 2.4% of non-birds pass, vs 88.4%
+of real birds.** ~36x selectivity, from a model never trained to detect birds.
+At thr 0.7: 0.8% non-bird leakage while bird coverage is still ~75%.
+
+Mechanism: mean confidence on non-birds is 0.109. A dog resembles none of the
+11,167 species, so similarity is diffuse and no class wins the softmax. The
+"no none-of-these class" concern does not bite.
+
+**DECISION: ship the existing confidence gate at thr 0.5. No separate
+bird/not-bird detector needed.** Open product question resolved.
+
+Secondary finding: fine-tuning slightly WORSENS non-bird rejection
+(0.8% -> 2.4% leakage from alpha 0 to 0.9), monotonic and consistent with the
+T3.3 general-knowledge collapse — a more bird-specialized model is marginally
+more willing to force a bird label onto anything. Magnitude is trivial.
+
+⚠️ **Caveat: Imagenette is EASY negatives** (churches, chainsaws, gas pumps).
+Real WingDex failure cases are hard negatives: blurry branches, squirrels, a
+leaf at bird scale. 2.4% is a FLOOR, not a guarantee. A real hard-negative set
+would be needed for a shippable confidence number.
