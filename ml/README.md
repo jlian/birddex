@@ -151,9 +151,13 @@ The 2,058 extras are data-starved species that should not have been included at
 all (see the correction above).
 
 ⚠️ **Follow-ups:**
-1. [ ] Fix the sampler to intersect with the distilled species, re-run the
-   fine-tune on a clean 3,850-class set, and see whether OOD retention goes UP
-   (the 2,058 starved classes were diluting it) or DOWN (they were contributing).
+1. [x] **RESOLVED 2026-07-30 (T2): sampler fixed; clean set = 3,850 species
+   / 151,042 photos.** OOD went UP slightly: NABirds 89.45 (dirty, alpha=0.75)
+   -> 89.93 (clean, alpha=0.90). In-distribution val 63.39 -> 77.61 (+14.22).
+   The 2,058 starved classes were pure dilution, not contributors.
+   CAUTION: in-dist figures are NOT comparable to the old 72.88% (5,908 vs
+   3,850 classes). NABirds is the only fixed-basis comparison.
+
 2. [x] **RESOLVED 2026-07-30 (T1): the NABirds gain is RECOGNITION, not coverage.**
    Split the NABirds test set by whether each species was in
    `train_manifest.parquet`. Result: **all 24,633 test images belong to distilled
@@ -561,7 +565,7 @@ fine-tune). **0.2 is the intended 1.0 candidate.**
   - [x] **EXPERIMENT: augmentation strength — DONE 2026-07-25, light aug WON decisively.** +0.0048 val_cos (0.9512 vs 0.9464) AND the late-epoch overfit drift disappeared AND it was still climbing at ep15. Confirmed on accuracy, not just cosine: **held-out top-1 retention 100.4% (student 55.93 vs teacher 55.73) vs 92.2% for the same recipe without aug.** This is the biggest single lever found so far and it clears the gate for multi-view caching.
   - [ ] **EXPERIMENT (expensive, now UNGATED — light aug won): multi-view teacher-embedding caching.** Prerequisite for TRUE strong aug ([0.08,1.0]+RandAugment). Tooling is READY: `precompute_embeddings.py --views N --wds ...` (added 2026-07-25; view 0 is always the center crop so the cache is a strict superset of the existing one). Cost: 5 views × 2.64M ≈ 13.2M embeddings @ 65 emb/s ≈ **~56 GPU-hours (~2.4 days)**, ~20GB. **Do it on the 500-sp PILOT first** (~1.3M embeddings ≈ 5.5h) — that tests the strong-aug hypothesis for a tenth of the cost before committing to the full corpus.
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
-  - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, α≈0.5) to keep OOD robustness
+  - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, alpha=0.90 -- MEASURED 2026-07-30 T3.2, NOT 0.5) to keep OOD robustness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
 - [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
