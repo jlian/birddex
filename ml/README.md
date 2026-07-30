@@ -1635,3 +1635,58 @@ branches (consolidated 2026-07-22); five separate ml docs were merged into this
 file 2026-07-23; the Pi checkout was deleted and the scratch scripts symlinked
 2026-07-24; full consolidation into one directory 2026-07-25.
 
+
+### T3 RESULTS (2026-07-30) — WiSE-FT investigated properly
+
+**T3.1 — the interpolation is CORRECT.** `t3_wise_verify.py`: alpha=1.0
+reproduces the fine-tune bit-for-bit (max abs diff 0.000e+00), alpha=0.5 equals
+the analytic midpoint exactly, 154/154 tensors moved during fine-tuning, none
+frozen or excluded from the merge. So any weird curve shape is a real finding,
+not an arithmetic bug. Settled.
+
+**T3.2 — WiSE-FT DOES help, the earlier "it's useless" call was WRONG.**
+The 3-point sweep (0.50/0.75/1.00) missed the peak. Filling in 0.25 and 0.90:
+
+  base 01: 0.25->85.86  0.50->88.42  0.75->89.69  **0.90->89.93**  1.00->89.77
+  base 02: 0.25->83.20  0.50->86.40  0.75->88.19  **0.90->88.46**  1.00->88.26
+
+alpha=0.90 beats alpha=1.00 on BOTH bases (+0.16, +0.20). Small, but it appears
+independently at the same alpha on two separate runs, so it is a real peak.
+Optimum is ~0.9, not the paper's ~0.5 — a milder version of the same effect,
+consistent with our fine-tune data and eval both being birds (mild shift ->
+less to recover).
+**NEW SHIP CANDIDATE: base 01 @ alpha=0.90 = 89.93 NABirds** (teacher 86.41,
+retention 104.1%). Beats the old dirty-run 89.45.
+
+**T3.3 — the bird-only eval WAS hiding catastrophic forgetting.**
+Imagenette (10 general non-bird ImageNet classes, 500 imgs), zero-shot through
+a head built in the student's own laion2b 512-d space:
+
+  base 01: 0.00->17.4  0.25->17.4  0.50->15.0  0.75->11.6  0.90->9.8  1.00->9.4
+  base 02: 0.00->10.4  0.25->10.4  0.50->11.4  0.75->13.4  0.90->14.0  1.00->13.6
+
+base 01 collapses MONOTONICALLY, -8.0 pts, losing ~half its general capability.
+On birds the same sweep spans +4 pts UPWARD; here it is 8 pts DOWNWARD. So
+fine-tuning IS destroying general knowledge exactly as WiSE-FT predicts, and
+NABirds is structurally blind to it. Hypothesis confirmed.
+
+⚠️ **UNEXPLAINED: base 02 runs BACKWARDS** (10.4 -> 14.0, rising with alpha) and
+starts 7 pts BELOW base 01. Two bases, opposite signs, on the same eval. No
+explanation yet. Do not build on the base-02 general numbers until understood.
+
+⚠️ **Caveat on all T3.3 numbers:** 17.4% top-1 on 10 classes is barely above the
+10% chance floor, and top-5 ~60% on 10 classes is near-meaningless. These are
+bird specialists distilled from a bird specialist; they were never general. The
+RELATIVE collapse is the signal, the absolute values are not. n=500 implies
+roughly +/-1.7pt noise, which base 02's wiggles sit inside; base 01's 8-pt slide
+does not.
+
+**Product implication:** WingDex will be poor on non-bird photos at EVERY alpha
+(dogs, leaves, thumbs -> confident nonsense). Argues for an abstention gate. We
+already have the bird-side numbers: alpha=0.75, conf>=0.5 -> 88.4% coverage at
+95.18% accuracy. NOT YET MEASURED: what that gate does to non-bird inputs, which
+is the actual product requirement (reject them). Obvious next task.
+
+**Method note:** `Student.forward()` projects 512->768 to match the BioCLIP-2
+teacher. For a general-space eval you MUST use `model.visual(x)` directly, or you
+get a 768x512 shape mismatch. Cost one crashed run.
