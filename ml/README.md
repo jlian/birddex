@@ -360,8 +360,11 @@ because it disproved the hypothesis it was built to confirm.
 --aug light --batch 96 --epochs ~25
 ```
 Levers now considered SETTLED: LR (7e-5 > 1e-4 > 5e-5), epochs (~25; 40 does not
-help), recipe bundle (+0.0016, marginal). The ONE lever left with real upside is
-**true strong augmentation**, which needs multi-view teacher caching.
+help), recipe bundle (+0.0016, marginal), and augmentation strength
+(light > strong -- exp9 2026-07-27 tested true strong aug with multi-view
+teacher caching and it LOST on NABirds; cancelled). No distillation-recipe
+lever with known upside remains. Remaining ideas are unvalidated: co-occurrence
+hard-example weighting (built, never wired in) and higher input resolution.
 
 ### Ground-truth set: images pulled
 178,804 files / 5,908 species / 19GB at `~/wingdex/ml/groundtruth/corpus/`
@@ -563,7 +566,7 @@ fine-tune). **0.2 is the intended 1.0 candidate.**
   - [x] **distillation-recipe sweep DONE 2026-07-25** (6 runs, ~16h) — LR winner **7e-5** (0.9483 vs 0.9463 @1e-4, 0.9475 @5e-5). See "Pilot sweep results".
   - [x] **adopt from MobileCLIP papers — optimizer/schedule knobs LANDED 2026-07-24** (`cb99d53`): `--beta2` (0.95), `--wd` (0.2), `--warmup` (we had NONE), `--grad-clip` (we had NONE), `--min-lr` (cosine-to-1e-6 instead of exactly 0). All default OFF so existing runs are unchanged. Warmup+min-lr compose via one LambdaLR; grad-clip calls `scaler.unscale_()` first (clipping scaled grads under AMP would make the threshold meaningless). Smoke-tested through the `--wds` path.
   - [x] **EXPERIMENT: augmentation strength — DONE 2026-07-25, light aug WON decisively.** +0.0048 val_cos (0.9512 vs 0.9464) AND the late-epoch overfit drift disappeared AND it was still climbing at ep15. Confirmed on accuracy, not just cosine: **held-out top-1 retention 100.4% (student 55.93 vs teacher 55.73) vs 92.2% for the same recipe without aug.** This is the biggest single lever found so far and it clears the gate for multi-view caching.
-  - [ ] **EXPERIMENT (expensive, now UNGATED — light aug won): multi-view teacher-embedding caching.** Prerequisite for TRUE strong aug ([0.08,1.0]+RandAugment). Tooling is READY: `precompute_embeddings.py --views N --wds ...` (added 2026-07-25; view 0 is always the center crop so the cache is a strict superset of the existing one). Cost: 5 views × 2.64M ≈ 13.2M embeddings @ 65 emb/s ≈ **~56 GPU-hours (~2.4 days)**, ~20GB. **Do it on the 500-sp PILOT first** (~1.3M embeddings ≈ 5.5h) — that tests the strong-aug hypothesis for a tenth of the cost before committing to the full corpus.
+  - [x] **EXPERIMENT: multi-view teacher caching / TRUE strong aug -- DONE 2026-07-27 (exp9), and it LOST. CANCELLED, do not re-propose.** Tested on the 500-sp pilot exactly as planned. Strong aug (RRC [0.08,1.0] + 5-view per-view teacher targets) regularizes better (held-out retention 105.9% vs 104.1%) but LOSES the ship metric: NABirds 92.55 vs 93.26 for light aug, and val_cos 0.9434 vs 0.9540. The full-corpus 5-view precompute (~56 GPU-h) is NOT justified. See the exp9 section above. Light aug stays locked.
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
   - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, alpha=0.90 -- MEASURED 2026-07-30 T3.2, NOT 0.5) to keep OOD robustness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
