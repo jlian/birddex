@@ -1,0 +1,317 @@
+{
+ "imageFile": "Female_northern_cardinal_in_Chicago_park.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Northern Cardinal",
+    "scientificName": "Cardinalis cardinalis",
+    "confidence": 0.7519,
+    "plumage": null
+   },
+   {
+    "commonName": "Vermilion Cardinal",
+    "scientificName": "Cardinalis phoeniceus",
+    "confidence": 0.01,
+    "plumage": null
+   },
+   {
+    "commonName": "Pyrrhuloxia",
+    "scientificName": "Cardinalis sinuatus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Wren",
+    "scientificName": "Thryothorus ludovicianus",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Jay",
+    "scientificName": "Cyanocitta cristata",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Thrasher",
+    "scientificName": "Toxostoma rufum",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Racquet-tail",
+    "scientificName": "Prioniturus luconensis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Loango Weaver",
+    "scientificName": "Ploceus subpersonatus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-breasted Racquet-tail",
+    "scientificName": "Prioniturus flavicans",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Dark-eyed Junco",
+    "scientificName": "Junco hyemalis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-headed Racquet-tail",
+    "scientificName": "Prioniturus platenae",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Moluccan Megapode",
+    "scientificName": "Eulipoa wallacei",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Rodrigues Fody",
+    "scientificName": "Foudia flavicans",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Dove",
+    "scientificName": "Zenaida macroura",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Freckle-breasted Thornbird",
+    "scientificName": "Phacellodomus striaticollis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "American Goldfinch",
+    "scientificName": "Spinus tristis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Pileated Woodpecker",
+    "scientificName": "Dryocopus pileatus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Hermit Thrush",
+    "scientificName": "Catharus guttatus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Cardinal Quelea",
+    "scientificName": "Quelea cardinalis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Chickadee",
+    "scientificName": "Poecile carolinensis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Cacholote",
+    "scientificName": "Pseudoseisura lophotes",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Cardinal Lory",
+    "scientificName": "Chalcopsitta cardinalis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bob-tailed Weaver",
+    "scientificName": "Brachycope anomala",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Abyssinian Crimsonwing",
+    "scientificName": "Cryptospiza salvadorii",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Cardinal Myzomela",
+    "scientificName": "Myzomela cardinalis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Mindoro Racquet-tail",
+    "scientificName": "Prioniturus mindorensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Field Sparrow",
+    "scientificName": "Spizella pusilla",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Seychelles Fody",
+    "scientificName": "Foudia sechellarum",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Puff-throated Bulbul",
+    "scientificName": "Alophoixus pallidus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Reunion Fody",
+    "scientificName": "Foudia delloni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Towhee",
+    "scientificName": "Pipilo erythrophthalmus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-tailed Hawk",
+    "scientificName": "Buteo jamaicensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Jameson's Firefinch",
+    "scientificName": "Lagonosticta rhodopareia",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Antillean Bullfinch",
+    "scientificName": "Melopyrrha violacea",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "White-browed Spinetail",
+    "scientificName": "Hellmayrea gularis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Forest Fody",
+    "scientificName": "Foudia omissa",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Crimson-fronted Cardinal",
+    "scientificName": "Paroaria baeri",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Luzon Bleeding-heart",
+    "scientificName": "Gallicolumba luzonica",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Summer Tanager",
+    "scientificName": "Piranga rubra",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-capped Chickadee",
+    "scientificName": "Poecile atricapillus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-winged Blackbird",
+    "scientificName": "Agelaius phoeniceus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Cheer Pheasant",
+    "scientificName": "Catreus wallichii",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Scarlet Tanager",
+    "scientificName": "Piranga olivacea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Phoebe",
+    "scientificName": "Sayornis phoebe",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Horned Owl",
+    "scientificName": "Bubo virginianus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Vinous-throated Parrotbill",
+    "scientificName": "Suthora webbiana",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Mountain Illadopsis",
+    "scientificName": "Illadopsis pyrrhoptera",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Robin",
+    "scientificName": "Turdus migratorius",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

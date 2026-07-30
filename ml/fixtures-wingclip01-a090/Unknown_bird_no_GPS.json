@@ -1,0 +1,317 @@
+{
+ "imageFile": "Unknown_bird_no_GPS.jpeg",
+ "context": {
+  "lat": null,
+  "lon": null,
+  "month": null,
+  "locationName": ""
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Bushtit",
+    "scientificName": "Psaltriparus minimus",
+    "confidence": 0.5209,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Tit",
+    "scientificName": "Aegithalos caudatus",
+    "confidence": 0.0784,
+    "plumage": null
+   },
+   {
+    "commonName": "Marsh Tit",
+    "scientificName": "Poecile palustris",
+    "confidence": 0.034,
+    "plumage": null
+   },
+   {
+    "commonName": "Silver-throated Tit",
+    "scientificName": "Aegithalos glaucogularis",
+    "confidence": 0.0262,
+    "plumage": null
+   },
+   {
+    "commonName": "Whitehead",
+    "scientificName": "Mohoua albicilla",
+    "confidence": 0.0158,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-browed Tit",
+    "scientificName": "Aegithalos iouschistos",
+    "confidence": 0.0157,
+    "plumage": null
+   },
+   {
+    "commonName": "Cinderella Waxbill",
+    "scientificName": "Glaucestrilda thomensis",
+    "confidence": 0.0108,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Tit",
+    "scientificName": "Aegithalos exilis",
+    "confidence": 0.0077,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Tit",
+    "scientificName": "Aegithalos fuliginosus",
+    "confidence": 0.0071,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain-mantled Tit-Spinetail",
+    "scientificName": "Leptasthenura aegithaloides",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Oak Titmouse",
+    "scientificName": "Baeolophus inornatus",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Tit",
+    "scientificName": "Aegithalos niveogularis",
+    "confidence": 0.0035,
+    "plumage": null
+   },
+   {
+    "commonName": "Wrentit",
+    "scientificName": "Chamaea fasciata",
+    "confidence": 0.0033,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Waxbill",
+    "scientificName": "Estrilda astrild",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Parisoma",
+    "scientificName": "Curruca lugens",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Penduline-Tit",
+    "scientificName": "Remiz pendulinus",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Sombre Tit",
+    "scientificName": "Poecile lugubris",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Kandt's Waxbill",
+    "scientificName": "Estrilda kandti",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Mouse-colored Penduline-Tit",
+    "scientificName": "Anthoscopus musculus",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-eyed Babbler",
+    "scientificName": "Chrysomma sinense",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Lavender Waxbill",
+    "scientificName": "Glaucestrilda caerulescens",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Vinous-throated Parrotbill",
+    "scientificName": "Suthora webbiana",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-chinned Yuhina",
+    "scientificName": "Yuhina nigrimenta",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Mackinnon's Shrike",
+    "scientificName": "Lanius mackinnoni",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Chestnut-backed Chickadee",
+    "scientificName": "Poecile rufescens",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure Tit",
+    "scientificName": "Cyanistes cyanus",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-throated Tit",
+    "scientificName": "Aegithalos concinnus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Bar-winged Flycatcher-shrike",
+    "scientificName": "Hemipus picatus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Asian Tit",
+    "scientificName": "Parus cinereus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Willow Tit",
+    "scientificName": "Poecile montanus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "White-browed Tit",
+    "scientificName": "Poecile superciliosus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Tyrant",
+    "scientificName": "Colonia colonus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Pere David's Tit",
+    "scientificName": "Poecile davidi",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown-winged Parrotbill",
+    "scientificName": "Suthora brunnea",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Bullfinch",
+    "scientificName": "Pyrrhula nipalensis",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-backed Bush Tanager",
+    "scientificName": "Urothraupis stolzmanni",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "White-naped Yuhina",
+    "scientificName": "Yuhina bakeri",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Verdin",
+    "scientificName": "Auriparus flaviceps",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "New Hanover Munia",
+    "scientificName": "Lonchura nigerrima",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Indochinese Fulvetta",
+    "scientificName": "Fulvetta danisi",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Pipipi",
+    "scientificName": "Mohoua novaeseelandiae",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Manipur Fulvetta",
+    "scientificName": "Fulvetta manipurensis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Whitethroat",
+    "scientificName": "Curruca curruca",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "South Island Robin",
+    "scientificName": "Petroica australis",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Carolina Chickadee",
+    "scientificName": "Poecile carolinensis",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Waxbill",
+    "scientificName": "Estrilda atricapilla",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Serra do Mar Bristle-Tyrant",
+    "scientificName": "Pogonotriccus difficilis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Sichuan Tit",
+    "scientificName": "Poecile weigoldicus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Oasis Hummingbird",
+    "scientificName": "Rhodopis vesper",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Speckled Mousebird",
+    "scientificName": "Colius striatus",
+    "confidence": 0.0008,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

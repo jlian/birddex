@@ -1687,3 +1687,67 @@ more willing to force a bird label onto anything. Magnitude is trivial.
 Real WingDex failure cases are hard negatives: blurry branches, squirrels, a
 leaf at bird scale. 2.4% is a FLOOR, not a guarantee. A real hard-negative set
 would be needed for a shippable confidence number.
+
+### PHASE 4 — FIRST RUN, 2026-07-30 (and the false start that preceded it)
+
+⚠️ **FALSE START, recorded so nobody repeats it.** The first Phase 4 run scored
+78/78 and I nearly reported it. It was INVALID: `.tmp/range-priors/cells/` did
+not exist and there is no `.dev.vars`, so `RANGE_AVAILABLE` was false and every
+range lookup silently returned nothing. The harness does NOT warn. The reference
+numbers (GPT 83/87, ViT-L 87/96) were measured WITH range priors, so it was a
+rigged comparison. **Always confirm the cells directory is populated before
+trusting a pipeline number.**
+
+**Getting the cells without R2 keys:** `ml/scripts/download-range-cells.mjs`
+needs `CF_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`, which we do
+not have. But the **Pi has a live `wrangler` OAuth login**
+(`~/.config/.wrangler/config/default.toml`), and the Cloudflare REST API accepts
+that token directly:
+```
+GET https://api.cloudflare.com/client/v4/accounts/$ACCT/r2/buckets/
+    wingdex-range-priors/objects/range-priors%2F<row>-<col>.bin.gz
+```
+Key prefix is `range-priors/`, NOT `cells/`. `ml/scripts/list-cells.mjs` (added
+today) prints the 104 cell ids the benchmark needs. All 104 exist; 1.7 MB total.
+Cells are gitignored (`.tmp/`) and were never committed, so they must be
+re-fetched on any fresh checkout.
+
+**CONTROL: the teacher reproduces 87/96 exactly**, confirming harness + cells +
+golden set are all faithful to the July measurement. Numbers below are trusted.
+
+| model | strategy | top-1 | top-5 |
+|---|---|---|---|
+| BioCLIP-2 ViT-L (teacher) | F_gated_dom0.5 | **87%** | **96%** |
+| GPT-5.4-mini (current prod) | — | 83% | 87% |
+| **WingCLIP-0.1 @ alpha=0.90** | **F_gated_dom0.5** | **78%** | **91%** |
+| WingCLIP-0.1 @ alpha=0.90 | D_tiered_nogate | 74% | **96%** |
+
+**VERDICT: Phase 4 does NOT pass yet.** 78% vs GPT's 83% and the teacher's 87%.
+
+**Diagnosis: it is a RANKING/CALIBRATION problem, not a recognition problem.**
+- On **top-5 we MATCH the teacher (96%)** under Strategy D — the right answer is
+  in our candidate list exactly as often. We just rank it worse at position 1.
+- Confidence distributions differ sharply: teacher median top-1 conf **0.915**,
+  14/27 images above 0.9. Ours: median **0.715**, **0/27** above 0.9.
+- Strategy F trusts vision when the top candidate dominates #2 by >=0.5. That
+  gate fires constantly for the teacher and almost never for us, so we fall
+  through to range tiering while the teacher gets to trust its vision.
+- **Strategy D beats F for us (96 vs 91 top-5) while F beats D for the teacher.**
+  The production strategy is mis-tuned for our confidence distribution.
+
+**Why this contradicts NABirds (89.93, beats the teacher's 86.41):** NABirds
+scores raw argmax over the taxonomy. Distillation matched the teacher's
+EMBEDDING GEOMETRY (which is why argmax is excellent) but nobody ever checked
+that the SOFTMAX CONFIDENCE DISTRIBUTION survived — and it did not. Cosine
+distillation has no term that preserves score scale or peakiness.
+
+**NEXT (do NOT skip step 1):**
+1. Build the large pipeline-scored eval. The 27-image set is n=23; one image is
+   worth 4.3 pts, so tuning thresholds on it would be pure overfitting.
+   `groundtruth_heldout_distilled.parquet` carries `latitude`, `longitude` and
+   `observed_on` on all 151,042 rows — everything the range prior needs.
+2. THEN re-run the Strategy A-G recalibration against OUR confidence
+   distribution (the same exercise that took BioCLIP from 70/70 to 87/96).
+   Expect the fix to be a lower dominance margin and/or temperature scaling.
+3. Consider a calibration fix at the source: temperature-tune the student's
+   softmax so its confidence distribution matches the teacher's.

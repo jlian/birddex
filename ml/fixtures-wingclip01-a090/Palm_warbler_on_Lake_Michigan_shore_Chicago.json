@@ -1,0 +1,317 @@
+{
+ "imageFile": "Palm_warbler_on_Lake_Michigan_shore_Chicago.jpg",
+ "context": {
+  "lat": 41.9632,
+  "lon": -87.6342,
+  "month": 8,
+  "locationName": "Lake Michigan shore, Chicago, IL"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Palm Warbler",
+    "scientificName": "Setophaga palmarum",
+    "confidence": 0.519,
+    "plumage": null
+   },
+   {
+    "commonName": "Water Pipit",
+    "scientificName": "Anthus spinoletta",
+    "confidence": 0.0984,
+    "plumage": null
+   },
+   {
+    "commonName": "Rock Pipit",
+    "scientificName": "Anthus petrosus",
+    "confidence": 0.0284,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape Wagtail",
+    "scientificName": "Motacilla capensis",
+    "confidence": 0.0238,
+    "plumage": null
+   },
+   {
+    "commonName": "Pine Warbler",
+    "scientificName": "Setophaga pinus",
+    "confidence": 0.0162,
+    "plumage": null
+   },
+   {
+    "commonName": "Grayish Miner",
+    "scientificName": "Geositta maritima",
+    "confidence": 0.0149,
+    "plumage": null
+   },
+   {
+    "commonName": "Smoky Warbler",
+    "scientificName": "Phylloscopus fuligiventer",
+    "confidence": 0.0124,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Yellow Wagtail",
+    "scientificName": "Motacilla flava",
+    "confidence": 0.0108,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Miner",
+    "scientificName": "Geositta cunicularia",
+    "confidence": 0.0096,
+    "plumage": null
+   },
+   {
+    "commonName": "Dusky Warbler",
+    "scientificName": "Phylloscopus fuscatus",
+    "confidence": 0.0096,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Yellow Wagtail",
+    "scientificName": "Motacilla tschutschensis",
+    "confidence": 0.0083,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-rumped Warbler",
+    "scientificName": "Setophaga coronata",
+    "confidence": 0.0067,
+    "plumage": null
+   },
+   {
+    "commonName": "Seychelles Warbler",
+    "scientificName": "Acrocephalus sechellensis",
+    "confidence": 0.0059,
+    "plumage": null
+   },
+   {
+    "commonName": "Boulder Finch",
+    "scientificName": "Idiopsar brachyurus",
+    "confidence": 0.0055,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-legged Pipit",
+    "scientificName": "Anthus pallidiventris",
+    "confidence": 0.0054,
+    "plumage": null
+   },
+   {
+    "commonName": "Plain-backed Pipit",
+    "scientificName": "Anthus leucophrys",
+    "confidence": 0.0052,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-billed Pipit",
+    "scientificName": "Anthus similis",
+    "confidence": 0.0051,
+    "plumage": null
+   },
+   {
+    "commonName": "Sulphur-bellied Warbler",
+    "scientificName": "Phylloscopus griseolus",
+    "confidence": 0.0044,
+    "plumage": null
+   },
+   {
+    "commonName": "Cape May Warbler",
+    "scientificName": "Setophaga tigrina",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "Tawny Pipit",
+    "scientificName": "Anthus campestris",
+    "confidence": 0.0039,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand Pipit",
+    "scientificName": "Anthus novaeseelandiae",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Drab Water Tyrant",
+    "scientificName": "Ochthornis littoralis",
+    "confidence": 0.0034,
+    "plumage": null
+   },
+   {
+    "commonName": "Hume's Warbler",
+    "scientificName": "Phylloscopus humei",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Rand's Warbler",
+    "scientificName": "Randia pseudozosterops",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Swainson's Warbler",
+    "scientificName": "Limnothlypis swainsonii",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Karoo Scrub-Robin",
+    "scientificName": "Tychaedon coryphoeus",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "American Pipit",
+    "scientificName": "Anthus rubescens",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Mangrove Finch",
+    "scientificName": "Camarhynchus heliobates",
+    "confidence": 0.0024,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-flanked Cinclodes",
+    "scientificName": "Cinclodes oustaleti",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Chiffchaff",
+    "scientificName": "Phylloscopus collybita",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Nicholson's Pipit",
+    "scientificName": "Anthus nicholsoni",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-winged Cinclodes",
+    "scientificName": "Cinclodes fuscus",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Coastal Miner",
+    "scientificName": "Geositta peruviana",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Lemon-rumped Warbler",
+    "scientificName": "Phylloscopus chloronotus",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Cinclodes",
+    "scientificName": "Cinclodes pabsti",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Woodland Pipit",
+    "scientificName": "Anthus nyassae",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Rodrigues Warbler",
+    "scientificName": "Acrocephalus rodericanus",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Waterthrush",
+    "scientificName": "Parkesia noveboracensis",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Pampas Pipit",
+    "scientificName": "Anthus chacoensis",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Mekong Wagtail",
+    "scientificName": "Motacilla samveasnae",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Malindi Pipit",
+    "scientificName": "Anthus melindae",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Cobb's Wren",
+    "scientificName": "Troglodytes cobbi",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Thick-billed Miner",
+    "scientificName": "Geositta crassirostris",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Prairie Warbler",
+    "scientificName": "Setophaga discolor",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Iberian Chiffchaff",
+    "scientificName": "Phylloscopus ibericus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Buff-rumped Warbler",
+    "scientificName": "Myiothlypis fulvicauda",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Drab Whistler",
+    "scientificName": "Pachycephala griseonota",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Tyrannulet",
+    "scientificName": "Serpophaga nigricans",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocos Finch",
+    "scientificName": "Pinaroloxias inornata",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Buffy Pipit",
+    "scientificName": "Anthus vaalensis",
+    "confidence": 0.001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

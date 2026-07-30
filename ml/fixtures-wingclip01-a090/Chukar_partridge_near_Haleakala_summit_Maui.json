@@ -1,0 +1,317 @@
+{
+ "imageFile": "Chukar_partridge_near_Haleakala_summit_Maui.jpg",
+ "context": {
+  "lat": 20.7148,
+  "lon": -156.2502,
+  "month": 11,
+  "locationName": "Haleakala, Maui, HI"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Chukar",
+    "scientificName": "Alectoris chukar",
+    "confidence": 0.4832,
+    "plumage": null
+   },
+   {
+    "commonName": "Xinjiang Ground-Jay",
+    "scientificName": "Podoces biddulphi",
+    "confidence": 0.2402,
+    "plumage": null
+   },
+   {
+    "commonName": "Rock Partridge",
+    "scientificName": "Alectoris graeca",
+    "confidence": 0.0432,
+    "plumage": null
+   },
+   {
+    "commonName": "Altai Snowcock",
+    "scientificName": "Tetraogallus altaicus",
+    "confidence": 0.0149,
+    "plumage": null
+   },
+   {
+    "commonName": "Turkestan Ground-Jay",
+    "scientificName": "Podoces panderi",
+    "confidence": 0.0144,
+    "plumage": null
+   },
+   {
+    "commonName": "Tibetan Snowcock",
+    "scientificName": "Tetraogallus tibetanus",
+    "confidence": 0.0114,
+    "plumage": null
+   },
+   {
+    "commonName": "Przevalski's Partridge",
+    "scientificName": "Alectoris magna",
+    "confidence": 0.0103,
+    "plumage": null
+   },
+   {
+    "commonName": "Arabian Partridge",
+    "scientificName": "Alectoris melanocephala",
+    "confidence": 0.0064,
+    "plumage": null
+   },
+   {
+    "commonName": "Sand Partridge",
+    "scientificName": "Ammoperdix heyi",
+    "confidence": 0.0054,
+    "plumage": null
+   },
+   {
+    "commonName": "Caucasian Snowcock",
+    "scientificName": "Tetraogallus caucasicus",
+    "confidence": 0.0048,
+    "plumage": null
+   },
+   {
+    "commonName": "Highland Lark",
+    "scientificName": "Corypha kurrae",
+    "confidence": 0.0037,
+    "plumage": null
+   },
+   {
+    "commonName": "Himalayan Snowcock",
+    "scientificName": "Tetraogallus himalayensis",
+    "confidence": 0.0036,
+    "plumage": null
+   },
+   {
+    "commonName": "Barbary Partridge",
+    "scientificName": "Alectoris barbara",
+    "confidence": 0.0033,
+    "plumage": null
+   },
+   {
+    "commonName": "Afghan Snowfinch",
+    "scientificName": "Pyrgilauda theresae",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Sumatran Partridge",
+    "scientificName": "Arborophila sumatrana",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Iranian Ground-Jay",
+    "scientificName": "Podoces pleskei",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Kagu",
+    "scientificName": "Rhynochetos jubatus",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Southern White-faced Owl",
+    "scientificName": "Ptilopsis granti",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Lichtenstein's Sandgrouse",
+    "scientificName": "Pterocles lichtensteinii",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray's Lark",
+    "scientificName": "Ammomanopsis grayi",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Philby's Partridge",
+    "scientificName": "Alectoris philbyi",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Snow Partridge",
+    "scientificName": "Lerwa lerwa",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Socotra Grosbeak",
+    "scientificName": "Rhynchostruthus socotranus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Sclater's Lark",
+    "scientificName": "Spizocorys sclateri",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Mongolian Ground-Jay",
+    "scientificName": "Podoces hendersoni",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Kauai Nukupuu",
+    "scientificName": "Hemignathus hanapepe",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Cheer Pheasant",
+    "scientificName": "Catreus wallichii",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-legged Partridge",
+    "scientificName": "Alectoris rufa",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Naretha Bluebonnet",
+    "scientificName": "Northiella narethae",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-naped Antpitta",
+    "scientificName": "Grallaria griseonucha",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Tibetan Partridge",
+    "scientificName": "Perdix hodgsoniae",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Luzon Striped-Babbler",
+    "scientificName": "Zosterornis striatus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Hoopoe-Lark",
+    "scientificName": "Alaemon alaudipes",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "See-see Partridge",
+    "scientificName": "Ammoperdix griseogularis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Silvery Wood-Pigeon",
+    "scientificName": "Columba argentina",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Striped Pipit",
+    "scientificName": "Anthus lineiventris",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Partridge",
+    "scientificName": "Arborophila rubrirostris",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-billed Helmetshrike",
+    "scientificName": "Prionops caniceps",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "White Eared-Pheasant",
+    "scientificName": "Crossoptilon crossoptilon",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Zebra Finch",
+    "scientificName": "Taeniopygia guttata",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Patagonian Tinamou",
+    "scientificName": "Tinamotis ingoufi",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Java Sparrow",
+    "scientificName": "Padda oryzivora",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Desert Sparrow",
+    "scientificName": "Passer simplex",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Mauritius Gray Parrot",
+    "scientificName": "Psittacula bensoni",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Sandgrouse",
+    "scientificName": "Pterocles decoratus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Silver Pheasant",
+    "scientificName": "Lophura nycthemera",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Sierra Finch",
+    "scientificName": "Idiopsar erythronotus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Collared Warbling Finch",
+    "scientificName": "Poospiza hispaniolensis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Spinifex Pigeon",
+    "scientificName": "Geophaps plumifera",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly Weaver",
+    "scientificName": "Sporopipes squamifrons",
+    "confidence": 0.0005,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

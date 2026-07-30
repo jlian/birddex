@@ -23,9 +23,9 @@ import { fileURLToPath } from 'url'
 import {
   lonLatToEqualEarth as eeProj, xyToCell, nearestNeighborCell,
   parseCellBlob, adjustConfidence,
-} from '../../../functions/lib/range-adjust.js'
+} from '../../functions/lib/range-adjust.js'
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TAXONOMY = JSON.parse(readFileSync(join(ROOT, 'src/lib/taxonomy.json'), 'utf8'))
 const byCommonLower = new Map(), byScientificLower = new Map()
 for (const [common, scientific, ebirdCode] of TAXONOMY) {

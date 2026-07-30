@@ -1,0 +1,317 @@
+{
+ "imageFile": "Great_blue_heron_roosting_at_Carkeek_Park.jpg",
+ "context": {
+  "lat": 47.7117,
+  "lon": -122.3771,
+  "month": 7,
+  "locationName": "Carkeek Park, Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.8961,
+    "plumage": null
+   },
+   {
+    "commonName": "Humblot's Heron",
+    "scientificName": "Ardea humbloti",
+    "confidence": 0.0098,
+    "plumage": null
+   },
+   {
+    "commonName": "Goliath Heron",
+    "scientificName": "Ardea goliath",
+    "confidence": 0.0031,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Heron",
+    "scientificName": "Ardea sumatrana",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Heron",
+    "scientificName": "Ardea purpurea",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Heron",
+    "scientificName": "Ardea melanocephala",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "American Bittern",
+    "scientificName": "Botaurus lentiginosus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Green Heron",
+    "scientificName": "Butorides virescens",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Cardinal",
+    "scientificName": "Cardinalis cardinalis",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Heron",
+    "scientificName": "Ardea cinerea",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-winged Blackbird",
+    "scientificName": "Agelaius phoeniceus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Eastern Bluebird",
+    "scientificName": "Sialia sialis",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Egret",
+    "scientificName": "Ardea alba",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Spix's Macaw",
+    "scientificName": "Cyanopsitta spixii",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruby-throated Hummingbird",
+    "scientificName": "Archilochus colubris",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "American Goldfinch",
+    "scientificName": "Spinus tristis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Golden-crowned Kinglet",
+    "scientificName": "Regulus satrapa",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Mockingbird",
+    "scientificName": "Mimus polyglottos",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Dickcissel",
+    "scientificName": "Spiza americana",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bald Eagle",
+    "scientificName": "Haliaeetus leucocephalus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Killdeer",
+    "scientificName": "Charadrius vociferus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Townsend's Solitaire",
+    "scientificName": "Myadestes townsendi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Reddish Egret",
+    "scientificName": "Egretta rufescens",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Anhinga",
+    "scientificName": "Anhinga anhinga",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Sandhill Crane",
+    "scientificName": "Antigone canadensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bare-throated Tiger-Heron",
+    "scientificName": "Tigrisoma mexicanum",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Barred Owl",
+    "scientificName": "Strix varia",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Mourning Dove",
+    "scientificName": "Zenaida macroura",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Parula",
+    "scientificName": "Setophaga americana",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Flamingo",
+    "scientificName": "Phoenicopterus ruber",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Flicker",
+    "scientificName": "Colaptes auratus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocoi Heron",
+    "scientificName": "Ardea cocoi",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Horned Owl",
+    "scientificName": "Bubo virginianus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Chipping Sparrow",
+    "scientificName": "Spizella passerina",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Finch",
+    "scientificName": "Haemorhous purpureus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Plate-billed Mountain-Toucan",
+    "scientificName": "Andigena laminirostris",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Shoebill",
+    "scientificName": "Balaeniceps rex",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Hermit Thrush",
+    "scientificName": "Catharus guttatus",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Prairie Warbler",
+    "scientificName": "Setophaga discolor",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Grosbeak",
+    "scientificName": "Passerina caerulea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Cedar Waxwing",
+    "scientificName": "Bombycilla cedrorum",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Savannah Sparrow",
+    "scientificName": "Passerculus sandwichensis",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Indigo Bunting",
+    "scientificName": "Passerina cyanea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Robin",
+    "scientificName": "Turdus migratorius",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "American Tree Sparrow",
+    "scientificName": "Spizelloides arborea",
+    "confidence": 0.0003,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Heron",
+    "scientificName": "Ardea pacifica",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "Tricolored Heron",
+    "scientificName": "Egretta tricolor",
+    "confidence": 0.0002,
+    "plumage": null
+   },
+   {
+    "commonName": "White-faced Ibis",
+    "scientificName": "Plegadis chihi",
+    "confidence": 0.0002,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

@@ -1,0 +1,317 @@
+{
+ "imageFile": "Pigeons_near_Museumplein_Amsterdam.jpg",
+ "context": {
+  "lat": 52.3581,
+  "lon": 4.8826,
+  "month": 11,
+  "locationName": "Museumplein, Amsterdam, Netherlands"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Rock Pigeon",
+    "scientificName": "Columba livia",
+    "confidence": 0.6687,
+    "plumage": null
+   },
+   {
+    "commonName": "Hill Pigeon",
+    "scientificName": "Columba rupestris",
+    "confidence": 0.1043,
+    "plumage": null
+   },
+   {
+    "commonName": "Speckled Pigeon",
+    "scientificName": "Columba guinea",
+    "confidence": 0.0159,
+    "plumage": null
+   },
+   {
+    "commonName": "Spot-winged Pigeon",
+    "scientificName": "Patagioenas maculosa",
+    "confidence": 0.0075,
+    "plumage": null
+   },
+   {
+    "commonName": "Bonin Pigeon",
+    "scientificName": "Columba versicolor",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "Maroon Pigeon",
+    "scientificName": "Columba thomensis",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Somali Pigeon",
+    "scientificName": "Columba oliviae",
+    "confidence": 0.003,
+    "plumage": null
+   },
+   {
+    "commonName": "Snow Pigeon",
+    "scientificName": "Columba leuconota",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-eyed Pigeon",
+    "scientificName": "Columba eversmanni",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Comoro Pigeon",
+    "scientificName": "Columba pollenii",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Sao Tome Pigeon",
+    "scientificName": "Columba malherbii",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Speckled Wood-Pigeon",
+    "scientificName": "Columba hodgsonii",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Silvery Wood-Pigeon",
+    "scientificName": "Columba argentina",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Peruvian Pigeon",
+    "scientificName": "Patagioenas oenops",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Naretha Bluebonnet",
+    "scientificName": "Northiella narethae",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Picazuro Pigeon",
+    "scientificName": "Patagioenas picazuro",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Sri Lanka Wood-Pigeon",
+    "scientificName": "Columba torringtoniae",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Wallcreeper",
+    "scientificName": "Tichodroma muraria",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Cameroon Pigeon",
+    "scientificName": "Columba sjostedti",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Siberian House-Martin",
+    "scientificName": "Delichon lagopodum",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Bolle's Pigeon",
+    "scientificName": "Columba bollii",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Hyacinth Macaw",
+    "scientificName": "Anodorhynchus hyacinthinus",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly-naped Pigeon",
+    "scientificName": "Patagioenas squamosa",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Passenger Pigeon",
+    "scientificName": "Ectopistes migratorius",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied-crested Tit-Tyrant",
+    "scientificName": "Anairetes reguloides",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "West Peruvian Dove",
+    "scientificName": "Zenaida meloda",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Andaman Wood-Pigeon",
+    "scientificName": "Columba palumboides",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "White-naped Swift",
+    "scientificName": "Streptoprocne semicollaris",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-naped Pigeon",
+    "scientificName": "Columba albinucha",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous Limestone Babbler",
+    "scientificName": "Gypsophila calcicola",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Chatham Islands Pigeon",
+    "scientificName": "Hemiphaga chathamensis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Antillean Swift",
+    "scientificName": "Chaetura martinica",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Seychelles Blue-Pigeon",
+    "scientificName": "Alectroenas pulcherrimus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Pale-legged Hornero",
+    "scientificName": "Furnarius leucopus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-and-white Swallow",
+    "scientificName": "Pygochelidon cyanoleuca",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-cheeked Tit",
+    "scientificName": "Aegithalos leucogenys",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Stock Dove",
+    "scientificName": "Columba oenas",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Cockatiel",
+    "scientificName": "Nymphicus hollandicus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "White-collared Pigeon",
+    "scientificName": "Columba albitorques",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Magenta Petrel",
+    "scientificName": "Pterodroma magentae",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Manus Cicadabird",
+    "scientificName": "Edolisoma admiralitatis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "White-tipped Swift",
+    "scientificName": "Aeronautes montivagus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "White-crowned Pigeon",
+    "scientificName": "Patagioenas leucocephala",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Mauritius Wood-Pigeon",
+    "scientificName": "Columba thiriouxi",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Sombre Pigeon",
+    "scientificName": "Cryptophaps poecilorrhoa",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Hornero",
+    "scientificName": "Furnarius minor",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Crested Pigeon",
+    "scientificName": "Ocyphaps lophotes",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bare-eyed Pigeon",
+    "scientificName": "Patagioenas corensis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Daurian Jackdaw",
+    "scientificName": "Coloeus dauuricus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Sparrowhawk",
+    "scientificName": "Tachyspiza nanus",
+    "confidence": 0.0003,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

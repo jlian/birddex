@@ -1,0 +1,317 @@
+{
+ "imageFile": "Common_kingfisher_at_Taipei_Zoo.jpeg",
+ "context": {
+  "lat": 24.998,
+  "lon": 121.581,
+  "month": 11,
+  "locationName": "Taipei Zoo, Taiwan"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Common Kingfisher",
+    "scientificName": "Alcedo atthis",
+    "confidence": 0.8428,
+    "plumage": null
+   },
+   {
+    "commonName": "Half-collared Kingfisher",
+    "scientificName": "Alcedo semitorquata",
+    "confidence": 0.0212,
+    "plumage": null
+   },
+   {
+    "commonName": "Blyth's Kingfisher",
+    "scientificName": "Alcedo hercules",
+    "confidence": 0.0045,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Kingfisher",
+    "scientificName": "Halcyon smyrnensis",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Dipper",
+    "scientificName": "Cinclus cinclus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-eared Kingfisher",
+    "scientificName": "Alcedo meninting",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-and-rufous Kingfisher",
+    "scientificName": "Chloroceryle inda",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Northern Shoveler",
+    "scientificName": "Spatula clypeata",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Kingfisher",
+    "scientificName": "Actenoides lindsayi",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Tit",
+    "scientificName": "Aegithalos caudatus",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Rufous-tailed Jacamar",
+    "scientificName": "Galbula ruficauda",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Malagasy Kingfisher",
+    "scientificName": "Corythornis vintsioides",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Javan Blue-banded Kingfisher",
+    "scientificName": "Alcedo euryzona",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Indigo-banded Kingfisher",
+    "scientificName": "Ceyx cyanopectus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Redstart",
+    "scientificName": "Phoenicurus phoenicurus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Shining-blue Kingfisher",
+    "scientificName": "Alcedo quadribrachys",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Sedge Warbler",
+    "scientificName": "Acrocephalus schoenobaenus",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Kingfisher",
+    "scientificName": "Todiramphus sacer",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Nuthatch",
+    "scientificName": "Sitta europaea",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Sacred Kingfisher",
+    "scientificName": "Todiramphus sanctus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Small Blue Kingfisher",
+    "scientificName": "Alcedo coerulescens",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Woodland Kingfisher",
+    "scientificName": "Halcyon senegalensis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "European Bee-eater",
+    "scientificName": "Merops apiaster",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Sula Dwarf-Kingfisher",
+    "scientificName": "Ceyx wallacii",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "European Stonechat",
+    "scientificName": "Saxicola rubicola",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Malachite Kingfisher",
+    "scientificName": "Corythornis cristatus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Redshank",
+    "scientificName": "Tringa totanus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Vanuatu Kingfisher",
+    "scientificName": "Todiramphus farquhari",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Water Rail",
+    "scientificName": "Rallus aquaticus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Crested Grebe",
+    "scientificName": "Podiceps cristatus",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "European Robin",
+    "scientificName": "Erithacus rubecula",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Stork-billed Kingfisher",
+    "scientificName": "Pelargopsis capensis",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Grebe",
+    "scientificName": "Tachybaptus ruficollis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "New Britain Kingfisher",
+    "scientificName": "Todiramphus albonotatus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Chattering Kingfisher",
+    "scientificName": "Todiramphus tutus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Azure Kingfisher",
+    "scientificName": "Ceyx azureus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue-capped Kingfisher",
+    "scientificName": "Actenoides hombroni",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly-breasted Kingfisher",
+    "scientificName": "Actenoides princeps",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Ruddy Shelduck",
+    "scientificName": "Tadorna ferruginea",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Egret",
+    "scientificName": "Egretta garzetta",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Common Scoter",
+    "scientificName": "Melanitta nigra",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Blue Tit",
+    "scientificName": "Cyanistes caeruleus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Marsh Warbler",
+    "scientificName": "Acrocephalus palustris",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Rose-ringed Parakeet",
+    "scientificName": "Psittacula krameri",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Tufted Duck",
+    "scientificName": "Aythya fuligula",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Eurasian Sparrowhawk",
+    "scientificName": "Accipiter nisus",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-tailed Sylph",
+    "scientificName": "Aglaiocercus kingii",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Spotted Woodpecker",
+    "scientificName": "Dendrocopos major",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Gadwall",
+    "scientificName": "Mareca strepera",
+    "confidence": 0.0004,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

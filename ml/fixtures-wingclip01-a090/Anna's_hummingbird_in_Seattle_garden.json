@@ -1,0 +1,317 @@
+{
+ "imageFile": "Anna's_hummingbird_in_Seattle_garden.jpg",
+ "context": {
+  "lat": 47.6399,
+  "lon": -122.4039,
+  "month": 6,
+  "locationName": "Seattle, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Anna's Hummingbird",
+    "scientificName": "Calypte anna",
+    "confidence": 0.7907,
+    "plumage": null
+   },
+   {
+    "commonName": "Costa's Hummingbird",
+    "scientificName": "Calypte costae",
+    "confidence": 0.0123,
+    "plumage": null
+   },
+   {
+    "commonName": "Amethyst-throated Sunangel",
+    "scientificName": "Heliangelus amethysticollis",
+    "confidence": 0.0043,
+    "plumage": null
+   },
+   {
+    "commonName": "Long-billed Starthroat",
+    "scientificName": "Heliomaster longirostris",
+    "confidence": 0.0038,
+    "plumage": null
+   },
+   {
+    "commonName": "Garnet-throated Hummingbird",
+    "scientificName": "Lamprolaima rhami",
+    "confidence": 0.0026,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Berrypecker",
+    "scientificName": "Melanocharis piperata",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Pesquet's Parrot",
+    "scientificName": "Psittrichas fulgidus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Hoary Puffleg",
+    "scientificName": "Haplophaedia lugens",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Tres Marias Hummingbird",
+    "scientificName": "Cynanthus lawrencei",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-backed Firecrown",
+    "scientificName": "Sephanoides sephaniodes",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Whiskered Flowerpecker",
+    "scientificName": "Pachyglossa propria",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Green-fronted Lancebill",
+    "scientificName": "Doryfera ludovicae",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Amethyst Woodstar",
+    "scientificName": "Calliphlox amethystina",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Outcrop Sabrewing",
+    "scientificName": "Campylopterus calcirupicola",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Crimsonwing",
+    "scientificName": "Cryptospiza reichenovii",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Matsudaira's Storm-Petrel",
+    "scientificName": "Hydrobates matsudairae",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Scaly-breasted Kingfisher",
+    "scientificName": "Actenoides princeps",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Bee Hummingbird",
+    "scientificName": "Mellisuga helenae",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Flowerpiercer",
+    "scientificName": "Diglossa plumbea",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "R\u00fcppell's Parrot",
+    "scientificName": "Poicephalus rueppellii",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty-backed Hemispingus",
+    "scientificName": "Poospiza goeringi",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Volcano Hummingbird",
+    "scientificName": "Selasphorus flammula",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Stripe-breasted Starthroat",
+    "scientificName": "Heliomaster squamosus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Ashy Storm-Petrel",
+    "scientificName": "Hydrobates homochroa",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Amethyst-throated Mountain-gem",
+    "scientificName": "Lampornis amethystinus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-thighed Puffleg",
+    "scientificName": "Eriocnemis derbyi",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Jocotoco Antpitta",
+    "scientificName": "Grallaria ridgelyi",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Blue Duck",
+    "scientificName": "Hymenolaimus malacorhynchos",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Violet-headed Hummingbird",
+    "scientificName": "Klais guimeti",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Large-tailed Antshrike",
+    "scientificName": "Mackenziaena leachii",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Sword-billed Hummingbird",
+    "scientificName": "Ensifera ensifera",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Crimson-crowned Flowerpecker",
+    "scientificName": "Dicaeum nehrkorni",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple-breasted Sunbird",
+    "scientificName": "Nectarinia purpureiventris",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Longuemare's Sunangel",
+    "scientificName": "Heliangelus clarisse",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Humboldt's Sapphire",
+    "scientificName": "Chrysuronia humboldtii",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Drab Swiftlet",
+    "scientificName": "Collocalia neglecta",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Whitehead's Swiftlet",
+    "scientificName": "Aerodramus whiteheadi",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Magenta-throated Woodstar",
+    "scientificName": "Philodice bryantae",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Barbthroat",
+    "scientificName": "Threnetes niger",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Bat Hawk",
+    "scientificName": "Macheiramphus alcinus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-breasted Greenfinch",
+    "scientificName": "Chloris spinoides",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Reischek's Parakeet",
+    "scientificName": "Cyanoramphus hochstetteri",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Deep-blue Flowerpiercer",
+    "scientificName": "Diglossa glauca",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Fiery-throated Hummingbird",
+    "scientificName": "Panterpe insignis",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Bar-breasted Firefinch",
+    "scientificName": "Lagonosticta rufopicta",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "White-cheeked Cotinga",
+    "scientificName": "Zaratornis stresemanni",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray-rumped Swiftlet",
+    "scientificName": "Collocalia marginata",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Gilded Hummingbird",
+    "scientificName": "Hylocharis chrysura",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Sharpe's Rosefinch",
+    "scientificName": "Carpodacus verreauxii",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Band-tailed Pigeon",
+    "scientificName": "Patagioenas fasciata",
+    "confidence": 0.0004,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

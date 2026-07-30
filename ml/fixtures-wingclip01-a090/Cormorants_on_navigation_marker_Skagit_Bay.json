@@ -1,0 +1,317 @@
+{
+ "imageFile": "Cormorants_on_navigation_marker_Skagit_Bay.jpg",
+ "context": {
+  "lat": 48.3918,
+  "lon": -122.4885,
+  "month": 6,
+  "locationName": "Skagit Bay, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Pelagic Cormorant",
+    "scientificName": "Urile pelagicus",
+    "confidence": 0.157,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.1216,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.1121,
+    "plumage": null
+   },
+   {
+    "commonName": "Pitt Island Shag",
+    "scientificName": "Phalacrocorax featherstoni",
+    "confidence": 0.1049,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Shag",
+    "scientificName": "Phalacrocorax punctatus",
+    "confidence": 0.1019,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.0724,
+    "plumage": null
+   },
+   {
+    "commonName": "Stewart Island Shag",
+    "scientificName": "Leucocarbo chalconotus",
+    "confidence": 0.0628,
+    "plumage": null
+   },
+   {
+    "commonName": "Campbell Islands Shag",
+    "scientificName": "Leucocarbo campbelli",
+    "confidence": 0.0554,
+    "plumage": null
+   },
+   {
+    "commonName": "Chatham Islands Shag",
+    "scientificName": "Leucocarbo onslowi",
+    "confidence": 0.0296,
+    "plumage": null
+   },
+   {
+    "commonName": "Bounty Islands Shag",
+    "scientificName": "Leucocarbo ranfurlyi",
+    "confidence": 0.0224,
+    "plumage": null
+   },
+   {
+    "commonName": "Imperial Cormorant",
+    "scientificName": "Leucocarbo atriceps",
+    "confidence": 0.015,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Black Cormorant",
+    "scientificName": "Phalacrocorax sulcirostris",
+    "confidence": 0.0127,
+    "plumage": null
+   },
+   {
+    "commonName": "Auckland Islands Shag",
+    "scientificName": "Leucocarbo colensoi",
+    "confidence": 0.012,
+    "plumage": null
+   },
+   {
+    "commonName": "Pigeon Guillemot",
+    "scientificName": "Cepphus columba",
+    "confidence": 0.0116,
+    "plumage": null
+   },
+   {
+    "commonName": "Double-crested Cormorant",
+    "scientificName": "Nannopterum auritum",
+    "confidence": 0.0088,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-faced Cormorant",
+    "scientificName": "Phalacrocorax fuscescens",
+    "confidence": 0.0088,
+    "plumage": null
+   },
+   {
+    "commonName": "New Zealand King Shag",
+    "scientificName": "Leucocarbo carunculatus",
+    "confidence": 0.0084,
+    "plumage": null
+   },
+   {
+    "commonName": "European Shag",
+    "scientificName": "Gulosus aristotelis",
+    "confidence": 0.0076,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Twinspot",
+    "scientificName": "Clytospiza monteiri",
+    "confidence": 0.0033,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Hutton's Shearwater",
+    "scientificName": "Puffinus huttoni",
+    "confidence": 0.0029,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Booby",
+    "scientificName": "Sula leucogaster",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Magellanic Cormorant",
+    "scientificName": "Leucocarbo magellanicus",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Surf Scoter",
+    "scientificName": "Melanitta perspicillata",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Lewis's Woodpecker",
+    "scientificName": "Melanerpes lewis",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocos Booby",
+    "scientificName": "Sula brewsteri",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Pygmy Cormorant",
+    "scientificName": "Microcarbo pygmaeus",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Elegant Tern",
+    "scientificName": "Thalasseus elegans",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Crowned Cormorant",
+    "scientificName": "Microcarbo coronatus",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Inca Tern",
+    "scientificName": "Larosterna inca",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Cormorant",
+    "scientificName": "Phalacrocorax carbo",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Rhinoceros Auklet",
+    "scientificName": "Cerorhinca monocerata",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Japanese Cormorant",
+    "scientificName": "Phalacrocorax capillatus",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Australasian Gannet",
+    "scientificName": "Morus serrator",
+    "confidence": 0.0009,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Bank Cormorant",
+    "scientificName": "Phalacrocorax neglectus",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-legged Cormorant",
+    "scientificName": "Poikilocarbo gaimardi",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-footed Booby",
+    "scientificName": "Sula sula",
+    "confidence": 0.0008,
+    "plumage": null
+   },
+   {
+    "commonName": "Neotropic Cormorant",
+    "scientificName": "Nannopterum brasilianum",
+    "confidence": 0.0007,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Turnstone",
+    "scientificName": "Arenaria melanocephala",
+    "confidence": 0.0006,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Scoter",
+    "scientificName": "Melanitta americana",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "White-fronted Tern",
+    "scientificName": "Sterna striata",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Cormorant",
+    "scientificName": "Phalacrocorax varius",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Heermann's Gull",
+    "scientificName": "Larus heermanni",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Lesser Noddy",
+    "scientificName": "Anous tenuirostris",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Indian Cormorant",
+    "scientificName": "Phalacrocorax fuscicollis",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Sooty Oystercatcher",
+    "scientificName": "Haematopus fuliginosus",
+    "confidence": 0.0005,
+    "plumage": null
+   },
+   {
+    "commonName": "Parakeet Auklet",
+    "scientificName": "Aethia psittacula",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Guanay Cormorant",
+    "scientificName": "Leucocarbo bougainvilliorum",
+    "confidence": 0.0004,
+    "plumage": null
+   },
+   {
+    "commonName": "Auckland Islands Merganser",
+    "scientificName": "Mergus australis",
+    "confidence": 0.0004,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}

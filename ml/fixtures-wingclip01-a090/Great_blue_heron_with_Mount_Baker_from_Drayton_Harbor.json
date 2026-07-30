@@ -1,0 +1,317 @@
+{
+ "imageFile": "Great_blue_heron_with_Mount_Baker_from_Drayton_Harbor.jpg",
+ "context": {
+  "lat": 48.9784,
+  "lon": -122.7913,
+  "month": 9,
+  "locationName": "Drayton Harbor, Blaine, WA"
+ },
+ "parsed": {
+  "candidates": [
+   {
+    "commonName": "Great Blue Heron",
+    "scientificName": "Ardea herodias",
+    "confidence": 0.1773,
+    "plumage": null
+   },
+   {
+    "commonName": "Great-billed Heron",
+    "scientificName": "Ardea sumatrana",
+    "confidence": 0.1346,
+    "plumage": null
+   },
+   {
+    "commonName": "Reddish Egret",
+    "scientificName": "Egretta rufescens",
+    "confidence": 0.0938,
+    "plumage": null
+   },
+   {
+    "commonName": "Tricolored Heron",
+    "scientificName": "Egretta tricolor",
+    "confidence": 0.0736,
+    "plumage": null
+   },
+   {
+    "commonName": "Humblot's Heron",
+    "scientificName": "Ardea humbloti",
+    "confidence": 0.0449,
+    "plumage": null
+   },
+   {
+    "commonName": "Goliath Heron",
+    "scientificName": "Ardea goliath",
+    "confidence": 0.0363,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Reef-Heron",
+    "scientificName": "Egretta gularis",
+    "confidence": 0.0329,
+    "plumage": null
+   },
+   {
+    "commonName": "Agami Heron",
+    "scientificName": "Agamia agami",
+    "confidence": 0.0252,
+    "plumage": null
+   },
+   {
+    "commonName": "White-bellied Heron",
+    "scientificName": "Ardea insignis",
+    "confidence": 0.0209,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Reef-Heron",
+    "scientificName": "Egretta sacra",
+    "confidence": 0.0209,
+    "plumage": null
+   },
+   {
+    "commonName": "Purple Heron",
+    "scientificName": "Ardea purpurea",
+    "confidence": 0.019,
+    "plumage": null
+   },
+   {
+    "commonName": "Gray Heron",
+    "scientificName": "Ardea cinerea",
+    "confidence": 0.0131,
+    "plumage": null
+   },
+   {
+    "commonName": "Slaty Egret",
+    "scientificName": "Egretta vinaceigula",
+    "confidence": 0.0117,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Blue Heron",
+    "scientificName": "Egretta caerulea",
+    "confidence": 0.0111,
+    "plumage": null
+   },
+   {
+    "commonName": "Pacific Heron",
+    "scientificName": "Ardea pacifica",
+    "confidence": 0.0105,
+    "plumage": null
+   },
+   {
+    "commonName": "Pelagic Cormorant",
+    "scientificName": "Urile pelagicus",
+    "confidence": 0.0069,
+    "plumage": null
+   },
+   {
+    "commonName": "White-faced Heron",
+    "scientificName": "Egretta novaehollandiae",
+    "confidence": 0.0066,
+    "plumage": null
+   },
+   {
+    "commonName": "Black-headed Heron",
+    "scientificName": "Ardea melanocephala",
+    "confidence": 0.0065,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-faced Cormorant",
+    "scientificName": "Urile urile",
+    "confidence": 0.004,
+    "plumage": null
+   },
+   {
+    "commonName": "Great Egret",
+    "scientificName": "Ardea alba",
+    "confidence": 0.0032,
+    "plumage": null
+   },
+   {
+    "commonName": "Flying Steamer-Duck",
+    "scientificName": "Tachyeres patachonicus",
+    "confidence": 0.0028,
+    "plumage": null
+   },
+   {
+    "commonName": "Glaucous-winged Gull",
+    "scientificName": "Larus glaucescens",
+    "confidence": 0.0027,
+    "plumage": null
+   },
+   {
+    "commonName": "Plumed Egret",
+    "scientificName": "Ardea plumifera",
+    "confidence": 0.0023,
+    "plumage": null
+   },
+   {
+    "commonName": "Pied Heron",
+    "scientificName": "Egretta picata",
+    "confidence": 0.0022,
+    "plumage": null
+   },
+   {
+    "commonName": "Brandt's Cormorant",
+    "scientificName": "Urile penicillatus",
+    "confidence": 0.0021,
+    "plumage": null
+   },
+   {
+    "commonName": "Yellow-billed Egret",
+    "scientificName": "Ardea brachyrhyncha",
+    "confidence": 0.002,
+    "plumage": null
+   },
+   {
+    "commonName": "Bald Eagle",
+    "scientificName": "Haliaeetus leucocephalus",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Black Oystercatcher",
+    "scientificName": "Haematopus bachmani",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-legged Cormorant",
+    "scientificName": "Poikilocarbo gaimardi",
+    "confidence": 0.0019,
+    "plumage": null
+   },
+   {
+    "commonName": "Lilac-breasted Roller",
+    "scientificName": "Coracias caudatus",
+    "confidence": 0.0018,
+    "plumage": null
+   },
+   {
+    "commonName": "Little Heron",
+    "scientificName": "Butorides atricapilla",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Red-breasted Sapsucker",
+    "scientificName": "Sphyrapicus ruber",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Pallas's Cormorant",
+    "scientificName": "Urile perspicillatus",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Heermann's Gull",
+    "scientificName": "Larus heermanni",
+    "confidence": 0.0017,
+    "plumage": null
+   },
+   {
+    "commonName": "Guanay Cormorant",
+    "scientificName": "Leucocarbo bougainvilliorum",
+    "confidence": 0.0016,
+    "plumage": null
+   },
+   {
+    "commonName": "Clark's Nutcracker",
+    "scientificName": "Nucifraga columbiana",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "White-throated Kingfisher",
+    "scientificName": "Halcyon smyrnensis",
+    "confidence": 0.0015,
+    "plumage": null
+   },
+   {
+    "commonName": "Firethroat",
+    "scientificName": "Calliope pectardens",
+    "confidence": 0.0014,
+    "plumage": null
+   },
+   {
+    "commonName": "Cocoi Heron",
+    "scientificName": "Ardea cocoi",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Belted Kingfisher",
+    "scientificName": "Megaceryle alcyon",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Steller's Jay",
+    "scientificName": "Cyanocitta stelleri",
+    "confidence": 0.0013,
+    "plumage": null
+   },
+   {
+    "commonName": "Brown Pelican",
+    "scientificName": "Pelecanus occidentalis",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Pale-mandibled Aracari",
+    "scientificName": "Pteroglossus erythropygius",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "White-headed Steamer-Duck",
+    "scientificName": "Tachyeres leucocephalus",
+    "confidence": 0.0012,
+    "plumage": null
+   },
+   {
+    "commonName": "Spotted Shag",
+    "scientificName": "Phalacrocorax punctatus",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Western Cattle-Egret",
+    "scientificName": "Ardea ibis",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Greater Scaup",
+    "scientificName": "Aythya marila",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Fire-throated Metaltail",
+    "scientificName": "Metallura eupogon",
+    "confidence": 0.0011,
+    "plumage": null
+   },
+   {
+    "commonName": "Anna's Hummingbird",
+    "scientificName": "Calypte anna",
+    "confidence": 0.001,
+    "plumage": null
+   },
+   {
+    "commonName": "Falkland Steamer-Duck",
+    "scientificName": "Tachyeres brachypterus",
+    "confidence": 0.001,
+    "plumage": null
+   }
+  ],
+  "birdCenter": null,
+  "birdSize": null,
+  "multipleBirds": false
+ },
+ "model": "wise_a0.90.pt"
+}
