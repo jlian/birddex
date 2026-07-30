@@ -150,14 +150,28 @@ So the fine-tune trains on 5,908 classes of which only 3,850 were ever distilled
 The 2,058 extras are data-starved species that should not have been included at
 all (see the correction above).
 
-⚠️ **Queued follow-ups (both cheap, both gate the headline claim):**
-1. Fix the sampler to intersect with the distilled species, re-run the fine-tune
-   on a clean 3,850-class set, and see whether OOD retention goes UP (the 2,058
-   starved classes were diluting it) or DOWN (they were contributing).
-2. Split the NABirds gain by whether a species was in the distillation set --
-   NABirds is North American so most of its species are well-populated, meaning
-   the 2,058 probably contribute little there and the +7.6pt OOD gain is likely
-   real. Verify rather than assume.
+⚠️ **Follow-ups:**
+1. [ ] Fix the sampler to intersect with the distilled species, re-run the
+   fine-tune on a clean 3,850-class set, and see whether OOD retention goes UP
+   (the 2,058 starved classes were diluting it) or DOWN (they were contributing).
+2. [x] **RESOLVED 2026-07-30 (T1): the NABirds gain is RECOGNITION, not coverage.**
+   Split the NABirds test set by whether each species was in
+   `train_manifest.parquet`. Result: **all 24,633 test images belong to distilled
+   species; ZERO come from the 2,058 never-distilled ones.** So the coverage
+   confound cannot touch the NABirds number at all.
+
+   | model | overall | distilled sp. | never-distilled |
+   |---|---|---|---|
+   | WingCLIP-0.1-alpha (base) | 81.84 | 81.84 | n/a (0 imgs) |
+   | WingCLIP-0.1 (WiSE-FT a=0.75) | **89.45** | **89.45** | n/a (0 imgs) |
+   | delta | **+7.61** | **+7.61** | — |
+
+   **"The ground-truth fine-tune beats the teacher on OOD data" stands as stated**
+   — the entire +7.61pt gain is on species the base model already knew. (It also
+   independently reproduced the sweep's 81.83/89.45, a nice cross-check.) Script:
+   `t1_coverage_split.py`; results `runs/ft_full7555_gt/t1_coverage_split.json`.
+   NOTE this does NOT excuse the sampler bug — follow-up 1 still matters for the
+   in-distribution 72.88% figure and for any future fine-tune.
 
 ### Why the WiSE-FT curve is flat at the top: the fine-tune was GENTLE (2026-07-27)
 
@@ -417,7 +431,12 @@ finding, not a failure. **Nothing below is blocked on this** — T1/T2 run again
 0.1-alpha / 0.1-beta / 0.1.
 
 ---
-**T1 — Diagnose the fine-tune coverage question** (~30 min, CPU/GPU-light)
+**T1 — ✅ DONE 2026-07-30: coverage question RESOLVED — the gain is recognition**
+All 24,633 NABirds test images are distilled species; zero are from the 2,058
+never-distilled ones, so the +7.61pt gain (81.84 → 89.45) cannot be coverage.
+"Beats the teacher on OOD" stands. Details in the fine-tune section above.
+
+~~**T1 — Diagnose the fine-tune coverage question** (~30 min, CPU/GPU-light)~~
 The fine-tune trained on 5,908 classes but only 3,850 were ever distilled; the
 other 2,058 have 5-49 photos worldwide (median 24) and were pulled in by a
 sampler bug, not a decision. Before trusting "fine-tune beats the teacher":
