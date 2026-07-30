@@ -448,7 +448,32 @@ sampler bug, not a decision. Before trusting "fine-tune beats the teacher":
 *Why first:* it is cheap and it gates how we describe the headline result.
 
 ---
-**T2 — IN PROGRESS 2026-07-30 — Fix the sampler + A/B both bases** (~30 min + 2x~2h)
+**T2 — RUNNING 2026-07-30 10:20 — sampler FIXED, A/B fine-tunes launched**
+
+✅ **Sampler fixed.** `build_groundtruth_split.py` gains `--distilled-only`
+(default ON) which ANDs `inat_taxon_id IN (SELECT DISTINCT inat_taxon_id FROM
+train_manifest)` into the taxa CTE. Rationale: `target_taxa.csv` is the PRE-filter
+list of all 11,167 taxonomy species (3,612 under the >=50-photo floor), so
+membership there proves nothing — the train manifest is the authority.
+
+✅ **Clean set built WITHOUT re-running the 25-min 19GB join** — it is a pure
+subset of the existing parquet (`filter_gt.py`, seconds):
+`groundtruth_heldout_distilled.parquet` = **151,042 photos / 3,850 species**
+(was 178,852 / 5,908). Dropped 27,810 photos / 2,058 species. Verified 0
+undistilled species remain. Images already on disk, no re-pull needed.
+
+⏳ **A/B fine-tunes running** (sequential, ~1.5-2h each, ~14:00 both):
+identical clean data on BOTH bases, to answer whether the weaker base still
+fine-tunes to the same place:
+  - `runs/ft_clean_01` from 0.1-alpha (NABirds 81.83 / 94.7%)
+  - `runs/ft_clean_02` from 0.2-alpha (NABirds 78.40 / 90.7%, lost the retrain)
+Then WiSE-FT alpha {0.50, 0.75, 1.00} + `eval_nabirds --pilot-species 0` on each.
+Watched by cron `t2-ab-finetune`. Log `/tmp/t2ab.log`.
+
+**Expectation:** NABirds should be ~unchanged (T1 proved the 2,058 dropped
+species contribute ZERO NABirds test images); the in-distribution number should
+move (old 72.88% was on 5,908 classes, not comparable to the new 3,850-class one)
+and may improve by removing unlearnable classes.
 
 ⏳ RESUME NOTES (written mid-task at 95% context):
 - Patch drafted, NOT applied. Adds `--distilled-only` (default True) +

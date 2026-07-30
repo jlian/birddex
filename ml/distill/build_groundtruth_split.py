@@ -65,6 +65,18 @@ def main():
                     help="species list from build_manifest.py")
     ap.add_argument("--per-species", type=int, default=40,
                     help="held-out photos to sample per species")
+    ap.add_argument("--distilled-only", action="store_true", default=True,
+                    help="keep ONLY species that appear in --train-manifest, i.e. "
+                         "species the distillation actually trained on. Without "
+                         "this the sampler pulls in species that FAILED the "
+                         "corpus's >=50-photo floor (measured 2026-07-27: 2,058 "
+                         "such species, median 24 photos worldwide, 15.5%% of the "
+                         "sampled set). Those classes cannot be learned from 5-49 "
+                         "examples and just dilute the classifier.")
+    ap.add_argument("--allow-undistilled", dest="distilled_only",
+                    action="store_false",
+                    help="opt out of --distilled-only (reproduces the old buggy "
+                         "behaviour; not recommended)")
     ap.add_argument("--min-per-species", type=int, default=5,
                     help="drop species that cannot reach this many untouched photos")
     ap.add_argument("--out", default="groundtruth_heldout.parquet")
@@ -132,6 +144,16 @@ def main():
     # carry app_idx/scientific/common through: pull_images.py writes them into
     # its per-photo record, so the sampled manifest must match the schema of
     # train_manifest.parquet or the pull dies AFTER downloading each file.
+    distilled_clause = ""
+    if a.distilled_only:
+        # ONLY species the distillation actually trained on. target_taxa.csv is
+        # the PRE-filter list of all 11,167 taxonomy species (3,612 of them under
+        # the >=50-photo floor), so passing it proves nothing about whether a
+        # species was distilled -- the train manifest is the authority.
+        distilled_clause = (
+            f" AND CAST(inat_taxon_id AS BIGINT) IN "
+            f"(SELECT DISTINCT inat_taxon_id FROM read_parquet('{a.train_manifest}'))")
+        log("--distilled-only: restricting to species present in the train manifest")
     con.execute(f"""
         CREATE TEMP TABLE taxa AS
         SELECT DISTINCT
@@ -140,7 +162,7 @@ def main():
                scientific,
                common
         FROM read_csv('{a.target_taxa}', header=true, all_varchar=true)
-        WHERE inat_taxon_id IS NOT NULL
+        WHERE inat_taxon_id IS NOT NULL{distilled_clause}
     """)
     n_sp = con.execute("SELECT count(*) FROM taxa").fetchone()[0]
     log(f"  {n_sp:,} target species")
