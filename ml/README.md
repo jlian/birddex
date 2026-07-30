@@ -448,7 +448,26 @@ sampler bug, not a decision. Before trusting "fine-tune beats the teacher":
 *Why first:* it is cheap and it gates how we describe the headline result.
 
 ---
-**T2 — Fix the sampler + decide the species floor** (~30 min + ~2h re-run)
+**T2 — IN PROGRESS 2026-07-30 — Fix the sampler + A/B both bases** (~30 min + 2x~2h)
+
+⏳ RESUME NOTES (written mid-task at 95% context):
+- Patch drafted, NOT applied. Adds `--distilled-only` (default True) +
+  `--allow-undistilled`, ANDing into the taxa CTE:
+  `AND CAST(inat_taxon_id AS BIGINT) IN (SELECT DISTINCT inat_taxon_id FROM read_parquet('<train_manifest>'))`
+- **Cheaper path, prefer it:** do NOT re-run the 25-min 19GB join. Just filter the
+  EXISTING `groundtruth_heldout.parquet` down to distilled species — pure subset
+  op, seconds. The 178k images are already on disk.
+- **John's ask (2026-07-30): run the re-fine-tune on BOTH bases**, identical
+  fine-tune data, for a controlled A/B:
+  `full7555_vitb/best.pt` (0.1-alpha, won) vs `full7555_locked_ep25/best.pt`
+  (0.2-alpha, lost at NABirds 90.7%). Answers: does the weaker base still
+  fine-tune to the same place, i.e. does the fine-tune wash out the base gap?
+- Expected: 5,908 classes → ~3,850. Should NOT move NABirds (T1 proved 0 test
+  images come from the dropped species) but SHOULD move the in-distribution
+  72.88%, possibly up, by removing 2,058 unlearnable classes.
+
+(original plan below)
+
 `build_groundtruth_split.py` never intersects with the distilled species. Add
 that intersection AND make the floor a deliberate choice, not an accident.
 Proposal: `--min-per-species 20` (a class needs enough to learn; 5 is hopeless)
