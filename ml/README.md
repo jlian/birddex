@@ -12,8 +12,17 @@ Tracks issue [#260](https://github.com/jlian/wingdex/issues/260). Branch:
 
 ## STATUS + QUEUE (read this first)
 
-🟢 **Baseline done, recipe chosen, infrastructure consolidated.** Next concrete
-step is the **combined confirmation run** (see "NEXT STEP" below).
+🟢 **Distillation + fine-tune are DONE and the recipe is settled.**
+Ship candidate: **WingCLIP-0.1 @ WiSE-FT alpha=0.90 = 89.93 NABirds top-1**
+(teacher BioCLIP-2 ViT-L = 86.41, so 104.1% retention).
+
+⚠ **The ONLY thing standing between here and 1.0 is PHASE 4** (benchmark vs
+GPT 83/87 and ViT-L 87/96 on the shared gated+range pipeline). It has NEVER
+been run and it is the go/no-go the whole project exists to answer.
+
+No distillation-recipe lever with known upside remains -- LR, epochs, recipe
+bundle and augmentation strength are all settled and measured. Do not start
+another training experiment before Phase 4 runs.
 
 **Working location: ONE directory** — `~/wingdex/ml/distill/` on tomahawk (repo +
 data + uv venv). The Pi checkout and the `~/spikes` scratch dir are both gone.
@@ -419,131 +428,73 @@ BioCLIP-2 ViT-L/14 `hf-hub:imageomics/bioclip-2` — NABirds **86.41** top-1 at
 full species; **57.69** on the 5,908-sp ground-truth val split. (NABirds at the
 `--pilot-species 500` default reads 91.49 — do not mix the two.)
 
-### ⭐ TASK QUEUE (concrete, rewritten 2026-07-27 17:55)
+### ⭐ TASK QUEUE (rewritten 2026-07-30 15:45 after the T1-T4 batch)
 
-Ordering principle: **unblock Phase 4 first.** Phase 4 is the go/no-go the whole
-project exists to answer and it has never been run; everything else is polish
-that keeps crowding it out. Tasks below are sized and have explicit exit criteria
-so they can be run unattended.
+Ordering principle: **Phase 4 is the only thing that matters now.** Every
+distillation/fine-tune question that was blocking it has been answered.
 
----
-**T0 — IN FLIGHT: build WingCLIP-0.2-alpha** (full retrain, locked recipe, ~Thu AM)
-`runs/full7555_locked_ep25`, started Mon 16:05, ~2.4h/epoch x 25.
-Watched by cron `full-retrain-pipeline` (reports at ep20 + on completion, then
-runs full-species evals).
-*Exit:* val_cos + NABirds (`--pilot-species 0`) for **0.2-alpha vs 0.1-alpha**
-(0.9650 / 94.7%).
-A flat or negative result means "scale dominates recipe", which is a legitimate
-finding, not a failure. **Nothing below is blocked on this** — T1/T2 run against
-0.1-alpha / 0.1-beta / 0.1.
+⚠ **NUMBERING NOTE:** an earlier version of this queue used T0-T5 for a
+different set of tasks, and the 2026-07-30 work ALSO used T1-T4 for its own
+(unrelated) investigation. To stop the collision, tasks are now named, not
+numbered. The 2026-07-30 batch is written up as INV-1..INV-4 below.
 
 ---
-**T1 — ✅ DONE 2026-07-30: coverage question RESOLVED — the gain is recognition**
-All 24,633 NABirds test images are distilled species; zero are from the 2,058
-never-distilled ones, so the +7.61pt gain (81.84 → 89.45) cannot be coverage.
-"Beats the teacher on OOD" stands. Details in the fine-tune section above.
-
-~~**T1 — Diagnose the fine-tune coverage question** (~30 min, CPU/GPU-light)~~
-The fine-tune trained on 5,908 classes but only 3,850 were ever distilled; the
-other 2,058 have 5-49 photos worldwide (median 24) and were pulled in by a
-sampler bug, not a decision. Before trusting "fine-tune beats the teacher":
-1. Split the NABirds gain by whether each species was in `train_manifest.parquet`.
-   NABirds is North American so its species are well-populated — expectation is
-   the 2,058 contribute ~nothing there and the +7.6pt OOD gain is real. **Verify.**
-2. Report per-species top-1 for the 2,058 starved classes specifically.
-*Exit:* a clear statement of how much of the gain is recognition vs coverage.
-*Why first:* it is cheap and it gates how we describe the headline result.
-
----
-**T2 — RUNNING 2026-07-30 10:20 — sampler FIXED, A/B fine-tunes launched**
-
-✅ **Sampler fixed.** `build_groundtruth_split.py` gains `--distilled-only`
-(default ON) which ANDs `inat_taxon_id IN (SELECT DISTINCT inat_taxon_id FROM
-train_manifest)` into the taxa CTE. Rationale: `target_taxa.csv` is the PRE-filter
-list of all 11,167 taxonomy species (3,612 under the >=50-photo floor), so
-membership there proves nothing — the train manifest is the authority.
-
-✅ **Clean set built WITHOUT re-running the 25-min 19GB join** — it is a pure
-subset of the existing parquet (`filter_gt.py`, seconds):
-`groundtruth_heldout_distilled.parquet` = **151,042 photos / 3,850 species**
-(was 178,852 / 5,908). Dropped 27,810 photos / 2,058 species. Verified 0
-undistilled species remain. Images already on disk, no re-pull needed.
-
-⏳ **A/B fine-tunes running** (sequential, ~1.5-2h each, ~14:00 both):
-identical clean data on BOTH bases, to answer whether the weaker base still
-fine-tunes to the same place:
-  - `runs/ft_clean_01` from 0.1-alpha (NABirds 81.83 / 94.7%)
-  - `runs/ft_clean_02` from 0.2-alpha (NABirds 78.40 / 90.7%, lost the retrain)
-Then WiSE-FT alpha {0.50, 0.75, 1.00} + `eval_nabirds --pilot-species 0` on each.
-Watched by cron `t2-ab-finetune`. Log `/tmp/t2ab.log`.
-
-**Expectation:** NABirds should be ~unchanged (T1 proved the 2,058 dropped
-species contribute ZERO NABirds test images); the in-distribution number should
-move (old 72.88% was on 5,908 classes, not comparable to the new 3,850-class one)
-and may improve by removing unlearnable classes.
-
-⏳ RESUME NOTES (written mid-task at 95% context):
-- Patch drafted, NOT applied. Adds `--distilled-only` (default True) +
-  `--allow-undistilled`, ANDing into the taxa CTE:
-  `AND CAST(inat_taxon_id AS BIGINT) IN (SELECT DISTINCT inat_taxon_id FROM read_parquet('<train_manifest>'))`
-- **Cheaper path, prefer it:** do NOT re-run the 25-min 19GB join. Just filter the
-  EXISTING `groundtruth_heldout.parquet` down to distilled species — pure subset
-  op, seconds. The 178k images are already on disk.
-- **John's ask (2026-07-30): run the re-fine-tune on BOTH bases**, identical
-  fine-tune data, for a controlled A/B:
-  `full7555_vitb/best.pt` (0.1-alpha, won) vs `full7555_locked_ep25/best.pt`
-  (0.2-alpha, lost at NABirds 90.7%). Answers: does the weaker base still
-  fine-tune to the same place, i.e. does the fine-tune wash out the base gap?
-- Expected: 5,908 classes → ~3,850. Should NOT move NABirds (T1 proved 0 test
-  images come from the dropped species) but SHOULD move the in-distribution
-  72.88%, possibly up, by removing 2,058 unlearnable classes.
-
-(original plan below)
-
-`build_groundtruth_split.py` never intersects with the distilled species. Add
-that intersection AND make the floor a deliberate choice, not an accident.
-Proposal: `--min-per-species 20` (a class needs enough to learn; 5 is hopeless)
-and an explicit `--distilled-only` flag defaulting ON.
-Then re-run the fine-tune on the clean set and re-sweep alpha.
-*Exit:* does OOD retention go UP (the starved classes were diluting) or DOWN
-(they were contributing)? Either answer is useful and settles T1's ambiguity.
-*Note:* the distilled student inherits BioCLIP-2's open-vocab text tower, so
-rare species already get a sensible zero-shot answer. Training a 20-example
-classifier head on top may be WORSE than leaving them to zero-shot.
-
----
-**T3 — PHASE 4: benchmark vs GPT (83/87) and ViT-L (87/96)** ⬅ THE ACTUAL GOAL
-Run the shipped candidate through the shared gated+range pipeline on the golden
+**[NEXT] PHASE 4 -- benchmark vs GPT (83/87) and ViT-L (87/96)** ⬅ THE ACTUAL GOAL
+Run the ship candidate through the shared gated+range pipeline on the golden
 set. This is the go/no-go for the whole project and has NEVER been run.
-Use the best registry model available when T3 starts: **WingCLIP-0.1** today, or
-**WingCLIP-0.2** if T0/T2/T5 have landed. State which one the numbers came from.
+Use **WingCLIP-0.1 @ alpha=0.90** (`runs/ft_clean_01/wise_a0.90.pt`, 89.93
+NABirds). State explicitly which artifact the numbers came from.
 **Passing Phase 4 is what promotes a basis to 1.0.**
 *Exit:* a go/no-go writeup with the head-to-head numbers.
-**Do not let T4+ delay this.**
+**Nothing below should delay this.**
 
 ---
-**T4 — Export + web** (after T3 says go)
+**[AFTER PHASE 4] Export + web**
 int8/ONNX/Core ML; then int4 on the fine-tuned ViT-B for web (~22MB, <25MB
-target). Measure golden-set + NABirds AFTER quantizing — the bar is "useful
+target). Measure golden-set + NABirds AFTER quantizing -- the bar is "useful
 (~GPT-level ok)", not "matches BioCLIP".
 
 ---
-**T5 — Build WingCLIP-0.2-beta and WingCLIP-0.2** (~2h)
-Fine-tune 0.2-alpha on T2's cleaned ground-truth set, then WiSE-FT blend. Only
-once T0 lands, so the artifact is internally consistent (locked recipe + clean
-fine-tune). **0.2 is the intended 1.0 candidate.**
+**[OPTIONAL] Build WingCLIP-0.2-beta / 0.2**
+⚠ **Value is now DOUBTFUL.** The A/B (INV-2) showed the 0.2 distillation base
+stays ~1.3-1.5 pts BEHIND 0.1 after identical clean fine-tuning, at every
+alpha. 0.2 was previously described as "the intended 1.0 candidate"; on the
+evidence it should NOT be, unless something other than accuracy justifies it.
+
+---
+### INV-1..INV-4 ✅ ALL DONE 2026-07-30 (see full writeups below)
+- **INV-1 (coverage):** all 24,633 NABirds test images are distilled species,
+  zero from the 2,058 never-distilled. The fine-tune gain is RECOGNITION.
+- **INV-2 (sampler fix + A/B):** clean set = 3,850 sp / 151,042 photos.
+  in-dist val 63.39->77.61 (base 01) and 61.75->76.28 (base 02).
+  **A weaker distillation base stays weaker after identical fine-tuning.**
+- **INV-3 (WiSE-FT):** interpolation verified bit-for-bit correct. The peak is
+  **alpha=0.90 on both bases**, not the paper's ~0.5 and not 1.0. Separately,
+  a non-bird eval showed fine-tuning costs ~8 pts of general capability that
+  NABirds is structurally blind to.
+- **INV-4 (abstention):** at alpha=0.90 / thr 0.5 only **2.4% of non-bird**
+  photos pass the confidence gate vs 88.4% of real birds. **No separate
+  bird/not-bird detector needed.** Caveat: Imagenette is easy negatives.
+
+⚠ **UNEXPLAINED, do not build on it:** base 02's general-OOD curve runs
+BACKWARDS (10.4 -> 14.0 rising with alpha) while base 01 collapses
+(17.4 -> 9.4). Two bases, opposite signs, same eval. No explanation yet.
 
 ---
 **BACKLOG (explicitly not blocking)**
-- aggressive fine-tune sweep: ours moved weights only 4.718% (lr 1e-5, 12ep), too
-  gentle to trigger the OOD damage WiSE-FT repairs. Try lr 3e-5..1e-4 / 25ep and
-  re-sweep alpha. May push past 103.5% AND make WiSE-FT actually earn its keep.
+- aggressive fine-tune sweep: ours moved weights gently (lr 1e-5, 12ep). Try
+  lr 3e-5..1e-4 / 25ep and re-sweep alpha. NOTE the premise that "WiSE-FT does
+  not earn its keep" is now WRONG (INV-3: peak is alpha=0.90 on both bases,
+  and a non-bird eval shows fine-tuning DOES cause real OOD damage). A harder
+  fine-tune would likely move the optimal alpha DOWN toward the paper's ~0.5.
 - `--per-species` sweep for the fine-tune set (40 was never tuned; we use ~0.4%
   of the ~49M untouched photos available)
 - shard the ground-truth corpus (178k loose JPEGs = ~9 min/epoch; sharding would
   pay for itself if the fine-tune becomes a sweep)
 - stock MobileCLIP-S2 vs our student (writeup comparison only; NOT a ship path)
-- co-occurrence hard-example weighting (built, never wired into training)
+- co-occurrence hard-example weighting (built, never wired into training).
+  NOTE: this is a DISTILLATION-time signal, so testing it costs a FULL RETRAIN
+  (~60h), not a fine-tune. Unvalidated -- no evidence yet that it helps.
 - cosine->accuracy curve (needs per-epoch checkpoints on a future run)
 
 ---
@@ -585,7 +536,7 @@ fine-tune). **0.2 is the intended 1.0 candidate.**
 - [x] ~~Final **MobileCLIP-S2** production run~~ — **CANCELLED 2026-07-25 (John's call). LICENSE GATE RESOLVED: we are NOT shipping anything based on MobileCLIP.** Only Apple `datacompdr` weights exist for MobileCLIP-S2 and they are research-only, so it was never commercially shippable without training FastViT from random init. **The shipped model is the LAION ViT-B/16 student** (clean license, ~45MB fp16 / ~22MB int4). MobileCLIP-S2 is demoted to a **BENCHMARK**: run stock Apple weights zero-shot on our bird benchmark and report how our distilled student compares. That is a nice-to-have comparison for the writeup, not a dependency.
 - [ ] **BENCHMARK (not a ship path): stock MobileCLIP-S2 vs our student.** Download Apple's research-only weights, zero-shot with its own text tower on the golden set + NABirds, and report the delta vs our ViT-B student. Inference-only, GPU-when-free. Research use of research-only weights is fine; nothing from it ships.
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
-- [ ] Phase 4 — benchmark vs GPT (83/87) + ViT-L (87/96) on shared gated+range pipeline; go/no-go writeup
+- [ ] **Phase 4 (THE go/no-go, still never run)** — benchmark WingCLIP-0.1 @ alpha=0.90 (89.93 NABirds) vs GPT (83/87) + ViT-L (87/96) on the shared gated+range pipeline; go/no-go writeup
 - [ ] Export: int8 + ONNX + Core ML; demo page real WebGPU numbers
 - [ ] **Test int4 on the FINE-TUNED ViT-B for web (~22MB, <25MB target):** measure golden-set + NABirds; bar is "useful (~GPT-level ok)," not "matches BioCLIP." Fine-tune int8 to ship-quality FIRST, then quantize. Levers if it drops too far: mixed precision, better calibration.
 - [x] **Consolidated to ONE directory 2026-07-25** — `~/wingdex/ml/distill/` (repo + data + uv venv). Pi checkout deleted, `~/spikes` scratch dir deleted, corpus deleted, 16 Phase-0 spike scripts + 162 fixtures rescued into `ml/spike/`. Corpus did not need moving to the NAS: the WebDataset shards there already contain every image byte-identically.
