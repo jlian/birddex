@@ -3222,3 +3222,60 @@ The obvious cheap swap fails: **ViT-B-32 is 87.8M params vs ViT-B-16's 86.2M —
 essentially identical.** Patch size changes the TOKEN COUNT (49 vs 196), not the
 parameter count, so B-32 is ~4x faster to run but buys ZERO size reduction.
 Do not spend a distillation run on it expecting a smaller artifact.
+
+### What TinyCLIP was actually built for (and the caveat that follows)
+
+From the paper (Wu et al., ICCV 2023 — MSR; Han Hu / Lu Yuan, the Swin group):
+TinyCLIP compresses **general-purpose CLIP for zero-shot retrieval and
+classification**. Headline results:
+- shrink CLIP ViT-B/32 by **50%** with comparable zero-shot performance
+- TinyCLIP ViT-8M/16 on YFCC-15M gets **41.1% ImageNet zero-shot**, beating the
+  original CLIP ViT-B/16 by 3.5% with **8.9% of the parameters**
+- weight inheritance **speeds training 1.4-7.8x vs from scratch**
+
+That 1.4-7.8x line is the whole reason this is viable for us: training from
+scratch was the blocker.
+
+⚠️ **But every headline number is zero-shot ImageNet — 1,000 COARSE classes.**
+We need fine-grained supervised transfer over **11,167 bird species** where
+congeners differ by subtle plumage. "Good transferability to downstream tasks"
+in the paper is not evidence for that regime. Their 8M model beating ViT-B/16 on
+ImageNet says little about separating two similar sparrows.
+
+**So: the METHOD is proven; the OPERATING REGIME is not proven for our task.**
+Treat the next step as a cheap experiment, not a commitment.
+
+### Loading TinyCLIP: use timm, not open_clip
+
+- ❌ `open_clip.create_model_and_transforms("hf-hub:wkcn/TinyCLIP-ViT-39M-16-Text-19M-YFCC15M")`
+  fails — the HF repo has no `open_clip_config.json`.
+- ✅ `timm.create_model("vit_medium_patch16_clip_224.tinyclip_yfcc15m",
+  pretrained=True, num_classes=0)` works: **38.3M params, 512-d output**,
+  forward verified.
+
+Note the 512-d output matches ViT-B-16's native dim, so `Student`'s existing
+`nn.Linear(student_dim, 768)` projection into the teacher space works unchanged.
+
+### Next steps (cheap first, commit later)
+
+The expensive asset already exists: **3.9 GB of cached BioCLIP-2 teacher
+embeddings in `embeddings/`**, which are architecture-INDEPENDENT and so are
+reusable for any student. `train_student.py` already exposes `--arch` and
+`--pretrained`, so no code change is needed for the swap.
+
+1. **Teach `Student` to build a timm backbone** when `--arch` starts with a timm
+   name (currently it only calls `open_clip.create_model_and_transforms`). Small
+   change: create via timm, read `student_dim` from the existing dry-forward
+   probe, keep the same projection + normalize.
+2. **Pilot distill TinyCLIP-39M** on the same 500-species pilot used for
+   WingCLIP-0.1, reusing the cached embeddings. Compare val_cos against the
+   0.1-alpha pilot at equal epochs. Cheap go/no-go.
+3. **If the pilot holds, full distill + WiSE-FT sweep**, then the real test:
+   NABirds top-1 vs WingCLIP-0.1's 89.93 and teacher's 86.41.
+4. **Then quantise and re-measure** — int4 at 19.2 MB is the prize, but the
+   accuracy cost of int4 must be re-measured on the smaller model, since a 39M
+   model has less redundancy to absorb quantisation than 86.6M did.
+
+Optional later: progressive distillation (86.6M -> ~60M -> 39M) if the direct
+2.2x jump loses too much, which is exactly the multi-stage scheme TinyCLIP uses
+for extreme compression.
