@@ -1,0 +1,11 @@
+{
+  "magic": "WDOP",
+  "version": 1,
+  "qbits": 5,
+  "scale": 2.5,
+  "grid_cols": 1276,
+  "n_cells": 99900,
+  "n_pairs": 3176965,
+  "raw_bytes": 7975927,
+  "gzip_bytes": 5673264
+}

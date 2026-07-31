@@ -2618,3 +2618,50 @@ top of iNat occurrence.** The signal is concentrated in one dataset. That
 simplifies shipping (one layer, 5.6 MiB, no licensed dependency) but it also
 means we have exactly one source of truth and no independent corroboration in
 the regime that matters.
+
+### SHIPPABLE PRIOR BLOB BUILT + VERIFIED (2026-07-31)
+
+`public/priors/occurrence-v1.bin.gz` — **5.41 MiB gzipped**, 7.61 MiB raw,
+99,900 cells, 3,176,965 (species,cell) pairs. Beats the 5.6 MiB 4x4-tile
+estimate because whole-file gzip sees cross-cell redundancy.
+
+**DECIDED: ONE binary blob, sliced client-side.** Not per-cell CDN objects, not
+tiles. Rationale: no deploy-time file-count ceiling (Cloudflare Pages caps at
+20,000 files; 4x4 tiling would have been 14,721), no boundary-straddling logic,
+one fetch, one immutable cache entry. Tile granularity becomes irrelevant — the
+index is a flat sorted cell list.
+
+Lives in `public/` so it deploys as a **Pages static asset**: no R2 bucket
+binding, no Worker to proxy, no egress accounting. Filename is version-stamped,
+so add an `immutable` Cache-Control entry to `public/_headers`.
+
+**FORMAT** (little-endian):
+```
+magic     4B   "WDOP"
+version   1B   1
+qbits     1B   5
+reserved  2B
+n_cells   4B   uint32
+index     n_cells * 8B, sorted ascending by cell_id:
+            cell_id  u32   = row * 1276 + col
+            offset   u32   = byte offset into payload
+sentinel  8B   (0xFFFFFFFF, payload_len)
+payload   per record: varint(delta of sorted species index) + 1B quantised logprob
+```
+- Species keyed by **2-byte taxonomy index** (`app_idx` into taxonomy.json), not
+  the 8-byte eBird code — measured 9.1 MiB vs 27.3 MiB raw.
+- Client recovers `log(p) = -q / 2.5`, with q in [0,31] (5-bit, measured FREE at
+  -0.03 pts vs float32).
+- The **sentinel row** means cell length is always
+  `index[i+1].offset - index[i].offset` with no special case for the last cell.
+- Lookup = binary search the index, slice, walk varint deltas.
+
+**VERIFIED** by `verify_prior_blob.py`, which decodes exactly as a client would
+and diffs against DuckDB: 40 random cells, 897 pairs, **0 mismatches**. Species
+indices are EXACT; only the log-prob is lossy by design (worst |log p| error
+0.1996, consistent with 5-bit quantisation).
+
+Rebuild: `build_prior_blob.py --occurrence occurrence_cells.parquet
+--target-taxa target_taxa.csv --out public/priors/occurrence-vN.bin.gz`
+(~40 s). Bump N and the `_headers` entry on each quarterly refresh.
+The uncompressed `.raw` sidecar is a build artifact and is gitignored.
