@@ -1809,3 +1809,116 @@ Strategy A-G is a bespoke heuristic. The literature has proven tools:
    close with zero retraining and zero argmax change.
 3. Only if a gap REMAINS, replace the tiering with the log-prior sum (2).
 4. Re-check the 0.1 vs 0.2 ordering on the large set before choosing a basis.
+
+### BAYESIAN RERANK PLAN (decided 2026-07-30 evening, NOT yet implemented)
+
+**Why:** Phase 4 failed (78 vs GPT 83, teacher 87) and the cause is calibration,
+not recognition — our top-5 MATCHES the teacher at 96%. The production pipeline
+(Strategy A-G) is a hand-rolled stack of constants: a 0.2 confidence floor,
+`slice(0,5)` before range adjustment, x0.65 / x0.25 multiplicative penalties, a
+TIER table, K=15, and a `dom>=0.5` dominance gate. That is an approximation of
+one equation:
+
+```
+score(species) = log P(image|species) + log P(species|location)
+               = sim/T                + log-prior term
+```
+
+No floor, no tiers, no dominance gate. Strong visual evidence produces a large
+enough likelihood term to overcome an unfavourable prior on its own; weak
+evidence does not. That is exactly what `dom>=0.5` is hand-faking.
+
+Prior art: iNaturalist's Geomodel does this in production; published as Cole et
+al. 2023, *Spatial Implicit Neural Representations for Global-Scale Species
+Mapping* (ICML). eBird/Merlin is conceptually the same. We reinvented it worse.
+
+**THE PARAMETERS (5, or 7 with the occurrence layer).** Every one is currently
+a hardcoded guess somewhere in the pipeline:
+1. `T` — vision temperature. FITTED: 0.0072 (was hardcoded 0.01).
+2. `w[present]` — log-prior when BirdLife says the species occurs in this cell
+3. `w[near-range]` — same, adjacent cell
+4. `w[no-data]` — do NOT punish ignorance like absence
+5. `w[out-of-range]` — fitted floor, replaces the hand-set x0.25. Means "rare",
+   never "impossible", so it avoids log(0).
+6. `alpha` — smoothing strength: how many observations a cell needs before
+   empirical counts outweigh the BirdLife fallback
+7. `beta` — scalar on the whole geography term. Lets the fit say how much
+   location should matter AT ALL, including "less than we assumed."
+
+**TWO DATASETS, TWO JOBS (do not conflate — this confused us once already):**
+- **Building the prior** uses the ENTIRE iNat corpus (`observations.csv.gz`,
+  all research-grade observations, worldwide, every species). Metadata only —
+  species + lat/lon, NO images. Verified the columns exist: `latitude`,
+  `longitude`, `taxon_id`, `observed_on`, `quality_grade`.
+- **Fitting the 5-7 scalars** uses the 11k leak-free calibration set. You need
+  known-correct answers AND real model predictions, so it must be photos.
+
+⚠️ **DO NOT build the prior from `train_manifest.parquet`.** It is the
+post-floor, post-cap download list (>=50 photo floor, 500/species cap, 7,555
+species), so abundance ratios are flattened: a Rock Pigeon and a moderately
+common warbler both sit near 500 when reality might be 100k vs 5k. Use the raw
+dump, which is uncapped and unfloored.
+(Related red herring, SOLVED: the 450-499 clustering in train_manifest is NOT a
+second cap — it is the ShareAlike removal. manifest 2,646,057 - train_manifest
+2,503,107 = 142,950 = CC-BY-NC-SA 79,411 + CC-BY-SA 63,539, exact match.)
+
+**BLENDING BirdLife + iNat = ONE FITTED MODEL, not a pipeline stage:**
+```
+log P(species|cell) = log( (count[species,cell] + alpha * birdlife[status])
+                           / (total[cell] + alpha) )
+```
+Standard smoothing-toward-a-prior. Dense cell -> real empirical abundance
+(pigeon >> hawk-owl). Sparse cell -> falls back to the BirdLife status class.
+BirdLife is authoritative on PRESENCE; iNat is informative on ABUNDANCE.
+Neither alone gives both. Fit jointly, because sequential stages are each
+optimal given the previous one but the combination is not.
+
+⚠️ Open question: the two are CORRELATED (a species with many iNat records in
+a cell is almost certainly BirdLife-`present`), so the fit may show BirdLife
+adding little once counts are in. That would be a real, simplifying result.
+
+**Does a rare in-range bird get buried?** No. The likelihood is also a ratio.
+A hawk-owl in Seattle might start ~7 log-units behind a crow on the prior, but
+"this is definitely an owl, definitely not a corvid" is worth far more than 7,
+so the owl wins. The prior only decides when the IMAGE is ambiguous (e.g. two
+look-alike sparrows, one resident one vagrant) — which is exactly when location
+SHOULD decide. Graceful degradation instead of the `dom>=0.5` cliff. The real
+failure mode is that a genuine rarity needs proportionally more visual
+confidence, which is the trade birders make anyway, and `beta` tunes it.
+
+**STORAGE / INFERENCE:**
+- Prototype as a SIDECAR `occurrence/{row}-{col}.bin.gz` alongside
+  `range-priors/{row}-{col}.bin.gz`. Same grid, same key scheme.
+- **Why sidecar even though John has the GeoPackage (9GB, on iCloud, can go to
+  the NAS):** regenerating the combined blobs re-runs the rasterization, which
+  took ~60GB of RAM. Tomahawk has 31GB. Do not pay that speculatively — the
+  sidecar needs NO GeoPackage at all (built from the iNat dump).
+- If the fit proves occurrence earns its place, THEN consider merging into one
+  blob for client latency (one fetch, one parse). Ranges barely change year to
+  year, so the "different refresh cadence" argument against merging is weak —
+  John would update annually at most.
+- Inference stays trivial either way: look up cell, add one number per
+  candidate, sort. Complexity lives in FITTING, not serving.
+
+**NEXT STEPS (in order):**
+1. Finish the full R2 range pull (681,023 objects / 260 MiB) so a missing cell
+   never silently reads as `no-data` — that is one of the parameters we fit.
+2. Attach BirdLife range status to all 25 candidates x 11,070 calibration
+   photos.
+3. Fit T + w[4] jointly. Evaluate on 11k, where 4 points = ~440 photos rather
+   than the 27-image set's one image.
+4. Only if that works: build the iNat occurrence layer, add alpha/beta, re-fit.
+5. Re-run the 27-image Phase 4 with fitted parameters as the historical anchor
+   vs GPT 83/87 and teacher 87/96.
+6. If Strategy H wins on 11k, port the log-sum into `bird-id.ts` and delete the
+   floor/tier/dominance stack.
+
+**FALSIFIABLE PREDICTION:** H should beat F *and* be less sensitive to exact
+parameter values (no cliff-edge thresholds). If it merely ties F, the Bayesian
+argument did not pay off in practice and we should say so plainly.
+
+⚠️ **Strategy H has been run ONCE with GUESSED weights** (present 0,
+near-range -0.5, no-data -0.5, out-of-range -3.0) and it TIED F at 78/91 on our
+model and LOST on the teacher (83 vs 87). That test means almost nothing: the
+weights were not fitted and n=23 cannot resolve 4 points. Not evidence against
+the approach; it is evidence the experiment has not been run yet.
