@@ -2754,3 +2754,25 @@ priors, ranking. 32 s for 11,070 photos.
 fixture set spans worldwide locations where our local 104-cell BirdLife subset
 has gaps, so those strategies may be mildly UNDERSTATED here. Strategy I uses no
 BirdLife at all and is unaffected.
+
+### ⚠️ CORRECTION (2026-07-31): "what ships today" was mislabelled above
+
+The table above labels `F_gated_dom0.5` as "WHAT SHIPS TODAY". **That is wrong.**
+
+Production today is **GPT-5.4-mini vision** feeding `bird-id.ts`. F_gated is the
+post-LLM *ranking* logic inside that path, NOT a vision model. In the table,
+every row except the GPT reference is scored on **WingCLIP** candidates, which
+production has never seen. So F_gated's 80% is "WingCLIP + the current ranking
+logic", a hypothetical, not the live system.
+
+**Correct reading of the 11k table:**
+- **Live production = the GPT-5.4mini reference row, 83 / 87.**
+- **Strategy I (WingCLIP + occurrence log-sum) = 89 / 94.**
+- **Real gain over production is +6 top-1 / +7 top-5**, not +9.
+- The +9 (80 -> 89) is an internal ABLATION: same WingCLIP candidates, old
+  ranker vs new ranker. It isolates the ranker's contribution and is a valid
+  number, but it is not a production delta.
+
+Both numbers are worth keeping because they answer different questions:
++6 is "should we ship this", +9 is "how much of the win came from the ranker
+rather than the vision model".
