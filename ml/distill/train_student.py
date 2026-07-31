@@ -154,20 +154,42 @@ def build_train_preprocess(eval_preprocess, mode):
 
 
 class Student(nn.Module):
-    """MobileCLIP visual tower + projection into the teacher's 768-d space."""
+    """Student visual tower + projection into the teacher's 768-d space.
+
+    Backbone comes from open_clip (default) or timm (arch prefixed
+    "timm:", needed for TinyCLIP). The native embed dim is discovered by a
+    dry forward, so any backbone works without hardcoding dims.
+    """
 
     def __init__(self, arch, pretrained, teacher_dim=768):
         super().__init__()
-        model, _, preprocess = open_clip.create_model_and_transforms(
-            arch, pretrained=pretrained
-        )
-        self.visual = model.visual
-        self.preprocess = preprocess
+        # Two backbone sources. open_clip is the default; timm is needed for
+        # TinyCLIP (wkcn/TinyCLIP-*), whose HF repos have no
+        # open_clip_config.json so create_model_and_transforms cannot load
+        # them. timm mirrors the same MIT-licensed weights as
+        # vit_*_clip_224.tinyclip_*.
+        if arch.startswith("timm:"):
+            import timm
+            from timm.data import resolve_data_config, create_transform
+            name = arch[len("timm:"):]
+            # num_classes=0 -> pooled features, no classifier head
+            self.visual = timm.create_model(
+                name, pretrained=(pretrained not in (None, "", "none")), num_classes=0)
+            cfg = resolve_data_config({}, model=self.visual)
+            self.preprocess = create_transform(**cfg, is_training=False)
+            log("timm backbone " + name + " (pretrained=" + str(pretrained) + ")")
+        else:
+            model, _, preprocess = open_clip.create_model_and_transforms(
+                arch, pretrained=pretrained
+            )
+            self.visual = model.visual
+            self.preprocess = preprocess
         # discover the student's native image embed dim with a dry forward,
-        # using the preprocess's own output size (authoritative for this arch:
-        # ViT-B/16->224, MobileCLIP-S2->256) so we never feed a wrong shape.
+        # using the preprocess's own output size (authoritative per arch,
+        # e.g. ViT-B/16->224) so we never feed a wrong shape. Use the
+        # ATTRIBUTE, not a local: the timm branch never binds a local one.
         with torch.no_grad():
-            probe = preprocess(Image.new("RGB", (64, 64))).unsqueeze(0)
+            probe = self.preprocess(Image.new("RGB", (64, 64))).unsqueeze(0)
             feat = self.visual(probe)
         self.student_dim = feat.shape[-1]
         self.proj = (nn.Identity() if self.student_dim == teacher_dim
