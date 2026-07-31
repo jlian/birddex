@@ -520,7 +520,24 @@ confidence distribution (median top-1 0.807 vs 0.715). Any model swap
 REQUIRES re-running emit_calib_candidates + fit_occurrence.
 
 ---
-**[NEXT-5] ABSTENTION REDESIGN under the new ranker** (big item, do properly)
+**[NEXT-5a] BBOX TEST: is the softmax gate a real small-bird detector?**
+Standalone, cheap, and it GATES the NEXT-5 design. NABirds ships
+`bounding_boxes.txt` and `sizes.txt`, so compute relative bird area
+(bbox area / image area) per test image and correlate it against the
+model's top-1 confidence.
+  - STRONG correlation -> low confidence really does mean "bird is small
+    or badly framed", the existing gate already encodes it, and the
+    crop prompt needs NO detector.
+  - WEAK correlation -> low confidence is mostly SPECIES AMBIGUITY, and
+    asking for a crop will not help. Crop-prompting then needs a real
+    signal (iOS Vision, ViT patch saliency, or multi-crop consistency).
+*Exit:* a correlation coefficient + a scatter, and a decision on whether
+a detector is needed at all.
+⚠ The claim that the softmax gate is a crude proxy for
+"ambiguous/multi/small" was written as DESIGN INTENT in the detection
+section and has never been validated. Do not treat it as measured.
+
+---**[NEXT-5] ABSTENTION REDESIGN under the new ranker** (big item, do properly)
 
 Abstention is NOT one decision. In WingDex it is two, and only the
 second is really about confidence:
