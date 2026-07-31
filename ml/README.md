@@ -2583,3 +2583,38 @@ confidence alone.
 
 ⚠️ These thresholds are tied to the fitted T (0.00845 in this run) and must be
 re-derived with T and beta if the model ever changes. See NEXT-4.
+
+### GBIF COMBINATION TESTED (2026-07-31): it adds NOTHING on top of iNat
+
+| prior | ABS top-1 | fitted beta |
+|---|---|---|
+| **iNat only** | **88.29** | 1.330 |
+| GBIF only | 84.62 | 0.407 |
+| naive sum (counts added) | 86.85 | 0.735 |
+| weighted (separate beta each) | 88.29 | iNat 1.329, **GBIF 0.000** |
+
+**The weighted fit drove beta_gbif to exactly 0.0** and reproduced iNat-only to
+two decimals. Given the freedom to use both, the optimiser ignored GBIF. Same
+shape as alpha=0 for BirdLife: not "slightly worse", but "contributes nothing
+once iNat is present".
+
+**Naive summing actively HURTS (-1.44 pts).** Confirms the swamping concern:
+GBIF's 2.16B records overwhelm iNat's 157M in well-covered cells and drag the
+prior toward systematic-survey behaviour rather than photo-taking behaviour.
+
+⚠️ **WHY THIS IS NOT THE WHOLE STORY.** GBIF adds 36.1% more nonzero candidate
+slots, so it genuinely has more data — but the extra coverage lands where it
+does not matter. Coverage on this eval set: **iNat 11,070/11,070 photos, GBIF
+11,024/11,070.** There was NO GAP for GBIF to fill, because every calibration
+photo IS an iNat observation and therefore its cell is covered by construction.
+
+So the honest claim is: **for photos taken where iNat users go, GBIF adds
+nothing.** Whether it helps in genuinely iNat-sparse areas is UNMEASURED and
+this eval set structurally cannot answer it. That is the same blind spot that
+voided the 1c-part-2 coverage test — third appearance.
+
+**Combined with the BirdLife ablation, both external sources add ~nothing on
+top of iNat occurrence.** The signal is concentrated in one dataset. That
+simplifies shipping (one layer, 5.6 MiB, no licensed dependency) but it also
+means we have exactly one source of truth and no independent corroboration in
+the regime that matters.
