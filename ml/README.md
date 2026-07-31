@@ -2396,3 +2396,41 @@ occurrence-only, dropping BirdLife from the client -- takes the payload from
 Real per-cell `.bin.gz` blobs compress WORSE (each gzip member carries its own
 header), so expect somewhat more than 8.5 MiB in practice. The conclusion is
 unaffected.
+
+### NEXT-1c PART 1 MEASURED (2026-07-31): 5-bit quantisation is free
+
+Re-scored the held-out split with the log-prior quantised to various bit depths
+(fit once at full precision; only the eval-time prior is quantised). Range of
+log P(species|cell) is -13.82 .. -0.34.
+
+| precision | ABS top-1 | delta |
+|---|---|---|
+| full float32 | 88.29 | — |
+| 8-bit (256 levels) | 88.38 | +0.09 |
+| 6-bit (64) | 88.32 | +0.03 |
+| **5-bit (32)** | **88.26** | **-0.03** |
+| 4-bit (16) | 87.84 | -0.45 |
+| 3-bit (8) | 87.48 | -0.81 |
+| 2-bit (4) | 84.50 | -3.79 |
+
+**5 bits costs 0.03 pts — noise.** So the 1-byte-per-pair assumption behind the
+8.5 MiB estimate is GENEROUS, not tight. 4 bits (-0.45) is even arguably
+shippable if size ever matters, which would halve the payload again. The small
+positive deltas at 6-8 bits are noise, not real gains.
+
+⚠️ **PART 2 (coverage gap) COULD NOT BE MEASURED THIS WAY — the test was
+structurally void.** 100% of val photos landed in covered cells, 0 uncovered.
+Obvious in hindsight: **every calibration photo IS an iNat observation, so its
+own cell necessarily contains at least one observation.** The calibration set
+cannot contain an uncovered cell by construction.
+
+The real question stands: what does a user in an area with no iNat coverage
+experience? It needs a different instrument, e.g.
+  - sample locations from a NON-observation source (population grid, or a road
+    network) and measure what fraction have zero occurrence data
+  - or weight the 99,900-occupied-of-681,023-cells gap by land area and
+    population rather than raw cell count (most of the gap is ocean and
+    uninhabited terrain, so the raw ratio badly overstates user-facing risk)
+
+Same run reconfirmed the headline on identical photos: prior ON 88.29 vs prior
+DISABLED 80.16 (+8.13 pts).
