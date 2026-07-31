@@ -399,7 +399,17 @@ console.log('-'.repeat(80))
 for (const [name, s] of Object.entries(results)) {
   console.log(`${name.padEnd(42)} top-1 ${s.t1}/${s.n}=${(s.t1 / s.n * 100).toFixed(0)}%  top-5 ${s.t5}/${s.n}=${(s.t5 / s.n * 100).toFixed(0)}%`)
 }
-console.log(`\nGPT-5.4mini (reference)                    top-1 83%  top-5 87%`)
+// The GPT-5.4-mini reference was measured ONLY on the 27-image golden set
+// (n=23 scorable). Running GPT over 11k photos is prohibitively expensive, so
+// there is NO GPT number at that scale. Printing it next to an 11k result
+// would invite comparing 11,070 photos against 23 -- so only show it when the
+// run is actually the golden set.
+const nScored = Object.values(results)[0]?.n ?? 0
+if (nScored <= 30) {
+  console.log(`\nGPT-5.4mini (reference, SAME 23 images)    top-1 83%  top-5 87%`)
+} else {
+  console.log(`\nGPT-5.4mini reference: n/a at this scale (only measured on the 27-image set)`)
+}
 
 // ── dominance-margin sweep to confirm the gate isn't overfit ──
 if (process.argv.includes('--sweep')) {

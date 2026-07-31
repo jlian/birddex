@@ -2776,3 +2776,36 @@ logic", a hypothetical, not the live system.
 Both numbers are worth keeping because they answer different questions:
 +6 is "should we ship this", +9 is "how much of the win came from the ranker
 rather than the vision model".
+
+### ⚠️ CORRECTION 2 (2026-07-31): there is NO GPT baseline at 11k
+
+The previous correction still got it wrong. It said "live production = the GPT
+reference row, 83/87" and computed a **+6 gain over production**. That
+comparison does not exist.
+
+**The GPT-5.4mini 83/87 was measured ONLY on the 27-image golden set (n=23
+scorable).** The harness was PRINTING it as a hardcoded string on every run
+regardless of fixture set, so the 11k table showed a 23-image result sitting
+directly beneath 11,070-photo results as if they were peers. Comparing those is
+comparing 11,070 photos against 23.
+
+Running GPT-5.4-mini over 11,070 photos is prohibitively expensive, so **no GPT
+number exists at that scale and none is planned.**
+
+**Harness fixed** so it cannot mislead again: the reference line only prints
+when the run is actually the golden set (n <= 30), otherwise it prints
+`GPT-5.4mini reference: n/a at this scale`.
+
+**What we can honestly say:**
+- On the SAME 23 images: GPT 83/87 vs Strategy I **83/100**. Equal top-1, better
+  top-5. n=23, self-labelled — a smoke test, NOT evidence (see the golden-set
+  warning above).
+- At 11k: Strategy I is **89/94**, and the only valid comparisons are the
+  internal ablations on identical WingCLIP candidates (F_gated 80/92,
+  H_bayes 82/93). Those isolate the RANKER's contribution: **+9 top-1**.
+- **The production delta is UNMEASURED at scale.** We know the ranker is worth
+  +9 over the old ranking logic on the same candidates. We do NOT have a
+  statistically meaningful WingCLIP-vs-GPT number.
+
+Kept as a standing rule: never print a baseline measured on one set beside
+results from another. Different n, different photos, different difficulty.
