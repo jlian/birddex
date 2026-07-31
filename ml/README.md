@@ -2143,3 +2143,36 @@ cause is genuine DRIFT.
 **Practical implication either way: refresh the occurrence layer more often than
 annually.** Quarterly is cheap — the full build is ~2 minutes in DuckDB and
 produces a 162 MB parquet, and it needs no images and no GeoPackage.
+
+#### DENSITY-MATCHED CONTROL: the staleness penalty is ~2/3 drift, ~1/3 density
+
+The temporal holdout above measured a 2.88 pt cost for a 2-year-stale prior, but
+"stale" and "sparse" were confounded: pre-2024 has only 56.33% of the
+observations (88.5M vs 157.1M) because iNat has grown fast.
+
+Control: thin the FULL (current) corpus to the SAME observation count via
+binomial thinning, then re-run identically. Matched well — 88.08M observations
+(vs pre-2024's 88.50M), 11.6% nonzero candidate slots (vs 11.2%), median cell
+total 3,753 (vs 3,503).
+
+| prior | observations | ABS top-1 | gain vs BirdLife-only |
+|---|---|---|---|
+| full corpus | 157.1M | 88.41 | +6.26 |
+| **thinned CURRENT** | 88.1M | **87.57** | **+5.42** |
+| pre-2024 | 88.5M | 85.53 | +3.39 |
+
+**Decomposition of the 2.88 pt staleness cost:**
+- **~0.84 pts is DENSITY** (simply having half the data)
+- **~2.04 pts is genuine DRIFT** (the data being two years old)
+
+So both effects are real but **freshness matters roughly 2.4x more than volume**.
+Halving the data costs under a point; ageing it two years costs twice that again.
+The fix is not "collect more observations", it is "refresh often".
+
+⚠️ Note `temporal_holdout.py` prints an automatic verdict line that reads
+"yearly refresh is plenty" on this run — that is comparing the thinned control
+against the full corpus (a DENSITY delta), not against the pre-2024 prior. The
+staleness number is the pre-2024 row. Do not quote the auto-verdict here.
+
+**Refresh cadence recommendation stands: quarterly.** The build is ~2 min in
+DuckDB, needs no images and no GeoPackage, and emits a 162 MB parquet.
