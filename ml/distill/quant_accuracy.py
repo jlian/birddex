@@ -111,44 +111,42 @@ def main():
     pp = fresh().preprocess
 
     # preprocess once, keep on CPU in uint8-free float16 to bound memory
-    log("preprocessing once into a memmap ...")
-    mmpath = "/tmp/qa_pixels.f16"
-    probe = pp(Image.open(samples[0][0]).convert("RGB"))
-    R = probe.shape[-1]
-    mm = np.memmap(mmpath, dtype=np.float16, mode="w+",
-                   shape=(len(samples), 3, R, R))
-    labs = []
-    k = 0
-    for i, (p, lab) in enumerate(samples):
-        try:
-            mm[k] = pp(Image.open(p).convert("RGB")).numpy().astype(np.float16)
-            labs.append(lab)
-            k += 1
-        except Exception:
-            pass
-        if (i + 1) % 6000 == 0:
-            log("  " + str(i + 1) + "/" + str(len(samples)))
-    mm.flush()
-    X = np.memmap(mmpath, dtype=np.float16, mode="r",
-                  shape=(len(samples), 3, R, R))[:k]
-    y = torch.tensor(labs)
-    log("pixels " + str(tuple(X.shape)) + "  {:.1f} GB on disk".format(
-        X.size * 2 / 1e9))
+    # Stream: preprocess a batch, embed it, discard. Peak RAM is one
+    # batch. This is how eval_nabirds.py has always worked and why it
+    # never OOMed; the 7.4 GB whole-dataset cache was self-inflicted.
+    paths = [x[0] for x in samples]
+    y_all = [x[1] for x in samples]
 
     def run(model, dtype):
         model = model.to(dev).eval()
         if dtype is not None:
             model = model.to(dtype)
-        outs = []
-        with torch.no_grad():
-            for i in range(0, len(X), args.batch):
-                b = torch.from_numpy(np.ascontiguousarray(X[i:i + args.batch])).to(dev)
-                b = b.to(dtype) if dtype is not None else b.float()
+        outs, labs, buf, bl = [], [], [], []
+
+        def flush():
+            if not buf:
+                return
+            b = torch.stack(buf).to(dev)
+            b = b.to(dtype) if dtype is not None else b.float()
+            with torch.no_grad():
                 e = model(b).float()
-                outs.append(torch.nn.functional.normalize(e, dim=-1).cpu())
+            outs.append(torch.nn.functional.normalize(e, dim=-1).cpu())
+            labs.extend(bl)
+            buf.clear()
+            bl.clear()
+
+        for pth, lab in zip(paths, y_all):
+            try:
+                buf.append(pp(Image.open(pth).convert("RGB")))
+                bl.append(lab)
+            except Exception:
+                continue
+            if len(buf) == args.batch:
+                flush()
+        flush()
         model.cpu()
         torch.cuda.empty_cache()
-        return torch.cat(outs)
+        return torch.cat(outs), torch.tensor(labs)
 
     variants = [
         ("fp32", lambda: fresh(), None, 0, 4.0),
@@ -171,7 +169,7 @@ def main():
             nq = apply_weight_quant(m, bits, block=128 if bits == 4 else 0)
             log(tag + ": fake-quantised " + str(nq) + " Linear/Conv layers")
         t0 = time.time()
-        E = run(m, dt)
+        E, y = run(m, dt)
         dt_s = time.time() - t0
         sims = E.to(dev) @ tf.T
         p1 = sims.argmax(dim=1).cpu()

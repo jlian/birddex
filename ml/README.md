@@ -3135,3 +3135,40 @@ preprocessed tensors to reuse them across quant variants is 7.4 GB, and
 `torch.stack` briefly doubles it to ~15 GB on a 31 GB box already holding torch,
 CUDA context and the text classifier. Fixed with a preallocated `np.memmap`.
 Self-inflicted, not a pre-existing problem.
+
+### Reverted to streaming (2026-07-31)
+
+`quant_accuracy.py` now preprocesses the way `eval_nabirds.py` always has:
+preprocess a batch, embed it, discard. Peak RAM is one batch.
+
+The whole-dataset cache (and the `np.memmap` workaround it needed) is gone. It
+was solving a problem it created:
+
+| | cached | streaming |
+|---|---|---|
+| peak RAM | ~15 GB (OOM-killed twice) | **3 GB** |
+| disk | 7.4 GB scratch file | none |
+| sec/variant | 64 | **22** |
+
+Streaming is FASTER despite re-preprocessing per variant, because reading a
+7.4 GB memmap off disk each pass costs more than decoding the JPEGs. The
+"optimisation" was slower, used 5x the RAM, and crashed. Results reproduce
+(int4 -0.70 vs -0.75, run-to-run jitter).
+
+### ⚠️ The attention-quantisation bug did NOT change the 43 MB
+
+Worth stating plainly, since it is easy to misread the correction above:
+**int4 was 43 MB before the fix and 43 MB after.** The size column is computed
+as `params x bits/8` from a constant table, so it never depended on which layers
+were actually quantised.
+
+What the bug changed was **honesty, not size**. Before the fix, 24.5% of the
+model (all attention `in_proj_weight`) was silently running at fp32 while being
+reported as int4 — so 43 MB was a FICTION for that measurement; the real
+artifact would have been ~76 MB (which is exactly what the ONNX
+`MatMulNBitsQuantizer` produced, 75.3 MB, for the same reason). After the fix
+the model genuinely is int4 throughout, so 43 MB is now the true size, and the
+accuracy cost moved -0.55 -> -0.75 as attention quantisation was priced in.
+
+Net: **same number, but it went from wrong to right.** No further shrinkage is
+available; 43 MB is the floor for 4-bit on 86.6M params.
