@@ -2478,3 +2478,52 @@ DOES show a confidence drop. So the correlation may well be real and useful in
 the small-bird regime; this dataset just cannot see it. Do not read this as
 "there is no relationship", read it as "there is none across the range NABirds
 covers".
+
+### NEXT-5 MEASURED (2026-07-31): the prior-dominance threshold is ~0.6
+
+Ranked every held-out photo twice (with and without the geographic term) and
+bucketed by VISION confidence -- softmax of sim/T alone, which is what the
+client can compute BEFORE applying geography, so it is usable as a gate.
+
+| vision conf | n | flip% | acc(vis) | acc(full) | net |
+|---|---|---|---|---|---|
+| 0.0-0.2 | 102 | 69.6 | 15.69 | 52.94 | +37.25 |
+| 0.2-0.4 | 468 | 61.1 | 28.85 | 67.95 | +39.10 |
+| 0.4-0.6 | 566 | 40.5 | 51.77 | 82.51 | +30.74 |
+| 0.6-0.8 | 603 | 20.6 | 75.29 | 90.38 | +15.09 |
+| 0.8-0.9 | 462 | 6.9 | 91.13 | 95.89 | +4.76 |
+| 0.9-0.95 | 365 | 1.1 | 97.81 | 98.36 | +0.55 |
+| **0.95-1.0** | **756** | **0.5** | **98.81** | **98.81** | **0.00** |
+
+**Three regimes:**
+- **< 0.4 — the prior IS the answer.** Vision alone 26.5%, with prior 65.3%,
+  and it flips 63% of top-1 predictions.
+- **0.4-0.8 — genuine collaboration.** Both signals contribute.
+- **> 0.9 — the prior is decorative.** Flip 1.1% then 0.5%; net gain +0.55 then
+  exactly 0.00 across 756 photos.
+
+**THREE PIPELINE CONSEQUENCES:**
+
+1. **Above 0.9, SKIP the range lookup entirely.** Zero measurable accuracy loss
+   on 34% of traffic. Saves a cell fetch + rerank per request. Free latency and
+   battery win.
+2. **Below 0.6, change the WORDING.** The prior is flipping 40-70% of answers
+   and supplying more accuracy than vision. "Probably a Crow" is misleading;
+   the honest phrasing is "crows are common here, and this is consistent with
+   what I can see". This is also where a life-list entry should be flagged as a
+   GUESS rather than a sighting.
+3. **0.6-0.9 — normal behaviour**, standard confidence display.
+
+**WHAT THIS DOES *NOT* SOLVE: cropping.** Per NEXT-5a (Spearman 0.032), low
+confidence is SPECIES AMBIGUITY, not bad framing, so vision confidence cannot
+trigger a crop prompt: those photos mostly show the bird perfectly well and it
+simply resembles three other species. Cropping a Downy tighter does not stop it
+looking like a Hairy. The crop path still needs a real framing signal (iOS
+Vision / ViT patch saliency / multi-crop consistency).
+*Hedge:* NABirds median bird area is 28%, so genuinely tiny birds are barely
+represented and the 0-2% bucket DID show a confidence drop. A crop prompt may
+still be right for truly distant birds; we just cannot detect that case from
+confidence alone.
+
+⚠️ These thresholds are tied to the fitted T (0.00845 in this run) and must be
+re-derived with T and beta if the model ever changes. See NEXT-4.
