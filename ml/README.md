@@ -2665,3 +2665,50 @@ Rebuild: `build_prior_blob.py --occurrence occurrence_cells.parquet
 --target-taxa target_taxa.csv --out public/priors/occurrence-vN.bin.gz`
 (~40 s). Bump N and the `_headers` entry on each quarterly refresh.
 The uncompressed `.raw` sidecar is a build artifact and is gitignored.
+
+### ⚠️ STRATEGY I: PLAN vs SHIPPED (reconciled 2026-07-31)
+
+The plan above (the 5-7 parameter section) describes a **7-parameter** model:
+T, w[4] BirdLife weights, alpha (smoothing), beta. **The shipped ranker has
+TWO: T and beta.** That divergence is a consequence of later findings, not
+sloppiness, but the plan text was stale and would mislead a reader:
+
+- **alpha was dropped** because it fitted to exactly 0.0 (never rescue a
+  zero-count species on BirdLife's say-so), verified not a small-n artifact.
+- **w[4] was dropped** because BirdLife is not shipped at all (+0.30 pts once
+  occurrence exists; see the ship decision).
+- So `score = sim/T + beta * log P(species|cell)` is the whole model.
+
+Name drift: proposed as `I_bayes_occurrence`, shipped as
+`I_occurrence_SHIPPING` in `pipeline-experiment.mjs`.
+
+### THE ABSENT-SPECIES FLOOR — was invented, now FITTED (2026-07-31)
+
+The harness assigns `log(1e-9)` ~ **-20.7** to a candidate with no occurrence
+record in the cell. That number was invented, never fitted, and it matters
+enormously: **87.2% of candidate slots have no occurrence record**, so the floor
+is the dominant term for most candidates.
+
+Swept it, refitting T and beta at each value:
+
+| floor | ABS top-1 | T | beta |
+|---|---|---|---|
+| -2.0 | 72.94 | 0.00719 | **0.000** |
+| -4.0 | 72.94 | 0.00719 | **0.000** |
+| -6.0 | 73.42 | 0.00723 | 0.350 |
+| -8.0 | 85.10 | 0.00791 | 1.648 |
+| -10.0 | 88.68 | 0.00859 | 1.386 |
+| -14.0 | 89.67 | 0.00913 | 0.904 |
+| **-20.7** | **90.04** | 0.00927 | 0.625 |
+| -30.0 | 90.04 | 0.00930 | 0.547 |
+
+**-20.7 is optimal and the curve plateaus there**, so the harness value stands.
+But the sweep exposes the mechanism: **a soft floor is catastrophic.** At -2/-4
+the optimiser drives beta to ZERO and abandons the prior entirely — a weak
+penalty for "never observed here" makes the whole signal worthless. The prior
+only works if absence is treated as strong evidence. Same lesson as alpha=0,
+reached from the other direction.
+
+⚠️ Note this run reports **90.04%**, above the 88.29 quoted elsewhere, because
+floor/T/beta are fitted JOINTLY here (beta lands at 0.625, not 1.33). The
+number moves with the parameterisation — always state which fit produced it.
