@@ -43,12 +43,28 @@ def fake_quant_int(w, bits, block=0):
 
 
 def apply_weight_quant(model, bits, block=0):
+    """Quantise EVERY weight matrix, not just nn.Linear/nn.Conv2d.
+
+    nn.MultiheadAttention stores its projections as a raw Parameter
+    (attn.in_proj_weight, 1.77M each x 12 blocks = 21.2M params, 24.5% of
+    the model). An isinstance(nn.Linear) filter SKIPS those entirely,
+    which both understates compression and overstates accuracy.
+    """
     n = 0
+    done = set()
     for m in model.modules():
         if isinstance(m, (nn.Linear, nn.Conv2d)):
             with torch.no_grad():
                 m.weight.copy_(fake_quant_int(m.weight.data, bits, block))
+            done.add(id(m.weight))
             n += 1
+    # sweep up every remaining 2-D weight (attention in_proj, etc.)
+    for name, prm in model.named_parameters():
+        if id(prm) in done or prm.dim() < 2:
+            continue
+        with torch.no_grad():
+            prm.copy_(fake_quant_int(prm.data, bits, block))
+        n += 1
     return n
 
 
@@ -140,6 +156,8 @@ def main():
         ("bf16", lambda: fresh(), torch.bfloat16, 0, 2.0),
         ("int8", lambda: fresh(), None, 8, 1.0),
         ("int4-blk128", lambda: fresh(), None, 4, 0.5),
+        ("int3-blk128", lambda: fresh(), None, 3, 0.375),
+        ("int2-blk128", lambda: fresh(), None, 2, 0.25),
     ]
 
     ref = None

@@ -3065,3 +3065,73 @@ and conflating them wasted the most time in this whole effort.
 `torch.stack` briefly doubles it, which OOM-killed the run twice at ~18k on a
 31 GB box. Fixed by writing straight into a preallocated `np.memmap`
 (`/tmp/qa_pixels.f16`): constant RAM, no copy.
+
+### ⚠️ CORRECTION: the earlier quant sweep SKIPPED 24.5% of the weights
+
+`apply_weight_quant` filtered on `isinstance(nn.Linear, nn.Conv2d)`. But
+`nn.MultiheadAttention` keeps its projections in a raw Parameter
+(`attn.in_proj_weight`, 1,769,472 params x 12 blocks = **21.2M, 24.5% of the
+model**), so **every attention projection was left at fp32.** That understated
+compression and overstated accuracy.
+
+Fixed to sweep all 2-D weights. Re-measured (2,000 images):
+
+| variant | ~MB | cos(fp32) | agree% | top-1 | d(top-1) |
+|---|---|---|---|---|---|
+| fp32 | 346 | 1.000000 | 100.00 | 89.95 | +0.00 |
+| fp16 | 173 | 1.000000 | 99.95 | 90.00 | +0.05 |
+| bf16 | 173 | 0.999987 | 99.90 | 90.05 | +0.10 |
+| int8 | 87 | 0.999958 | 99.60 | 89.90 | -0.05 |
+| int4-blk128 | 43 | 0.990657 | 95.00 | 89.20 | **-0.75** |
+| int3-blk128 | 32 | 0.739231 | 0.00 | **0.00** | -89.95 |
+| int2-blk128 | 22 | 0.732123 | 0.00 | **0.00** | -89.95 |
+
+int4 survives attention quantisation (-0.75, was -0.55 with attention left in
+fp32 — so the earlier number was mildly optimistic but the conclusion stands).
+
+### 🚫 SUB-25 MB IS NOT REACHABLE (answered 2026-07-31)
+
+**int3 and int2 do not degrade, they COLLAPSE to 0.00% top-1.** Cosine falls to
+~0.73, i.e. the embedding is destroyed, not merely noisy. There is no gentle
+slope below 4 bits with naive round-to-nearest.
+
+So the honest answer to "any chance of under 25 MB": **not with this backbone
+and not by quantisation alone.** int2 would be 22 MB but the model is dead.
+Options that could theoretically get there all cost real work and risk:
+QAT/GPTQ/AWQ at 3-bit (calibration-aware, might rescue int3 -> 32 MB, still not
+<25), pruning + distillation, or a smaller student — which is blocked by the
+MobileCLIP licence and the lack of basis weights.
+
+**Recommendation: stop chasing 25 MB.** It was a MobileCLIP-era target. int4 at
+43 MB for -0.75 pts is an excellent trade, and int8 at 87 MB for -0.05 is
+essentially free.
+
+### Should we just ship int4 everywhere?
+
+Tempting, but no — **-0.75 pts is not free when a runtime does not need it.**
+- **iOS**: app is downloaded once from the App Store; 87 MB int8 is unremarkable
+  for a photo app. Take the 0.7 pts back. Core ML does its own weight
+  palettisation, so ship the torch model and let `coremltools` compress.
+- **Web**: 43 MB int4 is defensible because the download is the UX, and it is
+  cached after first visit.
+
+Different constraints, so different artifacts. Same weights, different
+compression — not a maintenance burden.
+
+### Re: "Core ML needs fp16" — imprecise, correct that
+
+Core ML *prefers* fp16 and converts to it by default, but it also supports
+int8/int4 palettisation natively via `coremltools.optimize`. The earlier framing
+(fp16 is REQUIRED, so the failed ONNX fp16 export blocks iOS) was wrong on both
+halves: coremltools converts **from torch directly** and never touches ONNX, so
+the ONNX fp16 bug is irrelevant to the iOS path.
+
+### Why preprocessing OOMed now and never before
+
+`eval_nabirds.py` has always streamed: preprocess a batch of 64, embed, discard.
+Peak RAM is one batch. It ran fine "a million times" because it never held the
+dataset. The OOM was introduced by *my* optimisation — caching all 24,633
+preprocessed tensors to reuse them across quant variants is 7.4 GB, and
+`torch.stack` briefly doubles it to ~15 GB on a 31 GB box already holding torch,
+CUDA context and the text classifier. Fixed with a preallocated `np.memmap`.
+Self-inflicted, not a pre-existing problem.
