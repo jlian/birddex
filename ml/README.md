@@ -2434,3 +2434,47 @@ experience? It needs a different instrument, e.g.
 
 Same run reconfirmed the headline on identical photos: prior ON 88.29 vs prior
 DISABLED 80.16 (+8.13 pts).
+
+### NEXT-5a MEASURED (2026-07-31): the softmax gate is NOT a small-bird detector
+
+Tested the claim written as design intent in the detection section
+("softmax_top1 < ~0.6 flags ambiguous/multi/small") against NABirds ground-truth
+bounding boxes. 4,000 test images, relative bird area = bbox area / image area,
+confidence at the fitted T=0.007809.
+
+**Pearson r = 0.051, Spearman r = 0.032.** Essentially zero.
+
+| bird area | n | median conf |
+|---|---|---|
+| 0-2% | 15 | 0.749 |
+| 2-5% | 104 | 0.916 |
+| 5-10% | 301 | 0.959 |
+| 10-20% | 851 | 0.969 |
+| 20-40% | 1,646 | 0.971 |
+| 40-100% | 1,083 | 0.967 |
+
+Confidence SATURATES around 0.96-0.97 above ~5% area and is flat thereafter.
+There is a genuine drop in the 0-2% bucket, but that is **15 of 4,000 images**:
+the effect exists and is almost never triggered.
+
+**CONSEQUENCE: low confidence means SPECIES AMBIGUITY, not bad framing.**
+Prompting the user to crop when confidence is low will mostly NOT help — the
+model is not unsure *where* the bird is, it is unsure *which species* it is, and
+cropping a Downy vs Hairy Woodpecker tighter does not resolve Downy vs Hairy.
+
+So the NEXT-5 "ask for a crop" path needs a REAL framing signal, not the
+softmax gate:
+  - iOS **Vision framework** animal detection (boxes + count, on-device, free)
+  - **ViT patch saliency** (patch-token similarity to the predicted text
+    embedding -> crude bbox, no retraining, works on web too)
+  - **multi-crop consistency** (if a sub-crop scores much higher than the full
+    frame, the bird is small/off-centre)
+All three are validatable against these same NABirds boxes.
+
+⚠️ **Caveat on generalising this.** NABirds median bird area is **28%** — these
+are well-framed photos. The regime that actually matters for WingDex (a distant
+bird at ~1% of frame) is barely represented (15 images), and the 0-2% bucket
+DOES show a confidence drop. So the correlation may well be real and useful in
+the small-bird regime; this dataset just cannot see it. Do not read this as
+"there is no relationship", read it as "there is none across the range NABirds
+covers".
