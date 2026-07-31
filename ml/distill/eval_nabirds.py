@@ -135,6 +135,8 @@ def score(E, labs, text_feats, tag):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", required=True)
+    ap.add_argument("--onnx", default=None,
+                    help="score this ONNX graph instead of the torch model; checkpoint is still needed for its preprocess")
     ap.add_argument("--nabirds", default="nabirds")
     ap.add_argument("--nb-map", default="nabirds_to_taxo.json")
     ap.add_argument("--train-manifest", default="train_manifest.parquet")
@@ -206,8 +208,19 @@ def main():
         log(f"cached teacher embeddings -> {cache_path}")
 
     rt = score(t_emb, labs, text_feats, "bioclip-2-teacher")
+    student_fn = lambda x: student(x)
+    if args.onnx:
+        import onnxruntime as _ort
+        import numpy as _np
+        _sess = _ort.InferenceSession(args.onnx,
+                                      providers=["CPUExecutionProvider"])
+        _iname = _sess.get_inputs()[0].name
+        def student_fn(x):
+            o = _sess.run(None, {_iname: x.cpu().numpy().astype(_np.float32)})[0]
+            return torch.from_numpy(o).to(x.device)
+        log("scoring ONNX graph: " + args.onnx)
     log("scoring student...")
-    se, kept = embed(student_pp, lambda x: student(x), paths)
+    se, kept = embed(student_pp, student_fn, paths)
     s_lab = [l for l, k in zip(labs, kept) if k]
     rs = score(se.to(dev), s_lab, text_feats, "student")
 

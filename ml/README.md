@@ -2884,3 +2884,36 @@ and frozen — that 494.6 MB never ships.
 **DECISION: move the size target.** The sub-25 MB figure was a MobileCLIP-S2
 assumption that no longer applies; WingCLIP-0.1 is ViT-B-16 and stays that way.
 Measure int8 and int4 on the real tower and let the numbers set expectations.
+
+### int8 dynamic quantisation: 3.94x smaller (2026-07-31)
+
+```
+fp32 346.7 MB  ->  int8 88.0 MB   (3.94x)
+```
+
+Quantisation itself takes 3 s (`onnxruntime.quantization.quantize_dynamic`,
+QInt8 weights). Accuracy measurement is running.
+
+**Method note:** rather than reimplement scoring, `eval_nabirds.py` gained an
+`--onnx` flag that swaps the torch callable for an onnxruntime session. The
+label mapping, species filtering and scoring are then **byte-identical between
+the fp32 and int8 runs**, so the delta is attributable to quantisation alone and
+is directly comparable to the 89.93 PyTorch reference. The fp32 ONNX was already
+proven bit-exact against PyTorch, so the chain is: torch == fp32 onnx ?= int8.
+
+⚠️ ONNX Runtime evaluation is **CPU-only** here and slow (~700% CPU, 3 GB RSS,
+tens of minutes per full NABirds pass). Do not assume it hung; check `pcpu` in
+`ps` before concluding anything is stuck.
+
+**Expected budget after int8**, if accuracy holds:
+| component | fp32 | int8 |
+|---|---|---|
+| visual tower | 346.7 MB | 88.0 MB |
+| text classifier (11167 x 768) | 34.3 MB | ~8.6 MB |
+| occurrence prior blob | — | 5.4 MB (already gzipped) |
+| **total on device** | | **~102 MB** |
+
+That is comfortably shippable for iOS and a plausible one-time cached download
+for web, but it is ~4x the original (MobileCLIP-derived, now retired) sub-25 MB
+target. int4 would roughly halve the tower again if the accuracy cost is
+acceptable.
