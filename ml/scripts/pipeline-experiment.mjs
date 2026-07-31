@@ -215,6 +215,44 @@ function stratGated(fx, K = 15, opts = {}) {
 }
 
 // ── scoring ──
+// -- Strategy H: BAYESIAN log-sum. Replaces the hand-rolled gate/tier stack.
+//
+//   score = log P(image|species) + log P(species|location)
+//         = sim/T                + w[range_status]
+//
+// No confidence floor, no dominance margin, no tiers, no special cases. A
+// strong visual match produces a large enough likelihood term to overcome an
+// unfavourable prior on its own; a weak one does not. That is exactly the
+// behaviour Strategy F hand-codes with dom>=0.5.
+//
+// Our range data is CATEGORICAL (present/near-range/no-data/out-of-range), not
+// a probability, so w[] is a LEARNED log-prior per status rather than an
+// invented P. w[out-of-range] is a fitted floor, which also avoids log(0):
+// out-of-range means "rare", never "impossible".
+//
+// NOTE: fixtures store softmax(sim/0.01) probabilities, so we recover the
+// underlying sim as 0.01*log(p) (+const, which cancels in a softmax/argsort).
+function stratBayes(fx, K = 25, opts = {}) {
+  const T = opts.T ?? 0.0072
+  const w = opts.w ?? { present: 0.0, "near-range": -0.5, "no-data": -0.5, "out-of-range": -3.0 }
+  const ctx = fx.context || {}
+  const rangeLookup = opts.expanded ? lookupRangeExpanded : lookupRange
+  let c = ground(fx).sort((a, b) => b.score - a.score).slice(0, K)
+  if (!c.length) return []
+  // undo the fixture temperature to get back to a raw-similarity scale
+  c = c.map(x => ({ ...x, sim: 0.01 * Math.log(Math.max(x.score, 1e-12)) }))
+  if (ctx.lat == null || ctx.lon == null) {
+    return c.sort((a, b) => b.sim - a.sim).slice(0, 5).map(x => x.commonName)
+  }
+  const pr = rangeLookup(ctx.lat, ctx.lon, c.map(x => x.ebirdCode).filter(Boolean))
+  c = c.map(x => {
+    const st = (pr.get(x.ebirdCode) || { status: "no-data" }).status
+    const logprior = w[st] ?? w["no-data"]
+    return { ...x, post: x.sim / T + logprior }
+  })
+  return c.sort((a, b) => b.post - a.post).slice(0, 5).map(x => x.commonName)
+}
+
 const truth = JSON.parse(readFileSync(join(ROOT, 'ml/truth.json'), 'utf8'))
 const baseTruth = {}; for (const [k, v] of Object.entries(truth)) baseTruth[k.replace(/\.[^.]+$/, '')] = v
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -228,6 +266,7 @@ const strategies = {
   'D_tiered_nogate_8neighbor': fx => { TIERED_EXPANDED = true; return stratTiered(fx, 15) },
   'F_gated_dom0.5_1neighbor': fx => stratGated(fx, 15, { domMargin: 0.5 }),
   'G_gated_dom0.5_8neighbor': fx => stratGated(fx, 15, { domMargin: 0.5, expanded: true }),
+  'H_bayes_logsum': fx => stratBayes(fx, 25, { expanded: true }),
 }
 
 const results = {}

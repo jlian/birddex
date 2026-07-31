@@ -61,6 +61,8 @@ def main():
     ap.add_argument("--meta", required=True,
                     help="dir with iNat taxa/observations/photos .csv.gz")
     ap.add_argument("--train-manifest", default="train_manifest.parquet")
+    ap.add_argument("--exclude-manifest", default=None,
+                    help="extra parquet whose photo_ids AND ")
     ap.add_argument("--target-taxa", default="target_taxa.csv",
                     help="species list from build_manifest.py")
     ap.add_argument("--per-species", type=int, default=40,
@@ -140,6 +142,24 @@ def main():
         "SELECT count(DISTINCT observation_uuid) FROM train").fetchone()[0]
     log(f"  {n_tr:,} trained photos across {n_obs:,} observations (both excluded)")
 
+    # excl = train UNION any extra manifest (e.g. the FINE-TUNE set).
+    # Without this, a calibration set is clean w.r.t. distillation but can
+    # still overlap fine-tuning, which would bias a fitted temperature.
+    if a.exclude_manifest:
+        con.execute(f"""
+            CREATE TEMP TABLE excl AS
+            SELECT photo_id, observation_uuid FROM train
+            UNION
+            SELECT DISTINCT CAST(photo_id AS BIGINT), observation_uuid
+            FROM read_parquet('{a.exclude_manifest}')
+        """)
+        n_ex = con.execute("SELECT count(*) FROM excl").fetchone()[0]
+        n_eo = con.execute(
+            "SELECT count(DISTINCT observation_uuid) FROM excl").fetchone()[0]
+        log(f"  + exclude-manifest -> {n_ex:,} photos / {n_eo:,} obs excluded")
+    else:
+        con.execute("CREATE TEMP TABLE excl AS SELECT * FROM train")
+
     log("reading target species...")
     # carry app_idx/scientific/common through: pull_images.py writes them into
     # its per-photo record, so the sampled manifest must match the schema of
@@ -191,8 +211,8 @@ def main():
         WHERE o.quality_grade = 'research'
           AND p.license IN ('CC0','CC-BY','CC-BY-NC')
           {gps}
-          AND CAST(p.photo_id AS BIGINT) NOT IN (SELECT photo_id FROM train)
-          AND p.observation_uuid NOT IN (SELECT observation_uuid FROM train)
+          AND CAST(p.photo_id AS BIGINT) NOT IN (SELECT photo_id FROM excl)
+          AND p.observation_uuid NOT IN (SELECT observation_uuid FROM excl)
     """)
     n_cand = con.execute("SELECT count(*) FROM candidates").fetchone()[0]
     log(f"  {n_cand:,} untouched candidate photos "
