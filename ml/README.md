@@ -1704,3 +1704,49 @@ the 2.5M-image full corpus goes from **~4.8 h to ~67 min**.
 Flags: `--workers N` (default 8, 0 = old serial path) and `--fp16` / `--no-fp16`
 (default on). Multi-view (`--views N>1`) always uses the serial path, since it
 needs the raw PIL image to apply a different transform per view.
+
+### ⚠️ SELF-INFLICTED: the TinyCLIP pilot "slowness" was a wrong batch size
+
+The first two pilot launches appeared to hang (no epoch finished in 10 min).
+Root cause was **not** the script, WDS, the loader, or the model. It was that I
+launched at **batch 256** when every historical run used **batch 96** (verified
+from checkpoint `args`: `full7555_vitb`, `full7555_locked_ep25`, `exp7` — all
+`batch=96`, `workers=10-12`).
+
+Measured peak VRAM on the 10 GB RTX 3080, TinyCLIP-39M, AMP:
+
+| batch | peak VRAM | throughput |
+|---|---|---|
+| **96** | **5.15 GB** | **655 img/s** |
+| 128 | 6.62 GB | 686 img/s |
+| 256 | **10.01 / 10.24 GB** | thrashes, ~0 progress |
+
+At 256 the driver **thrashes rather than OOM-ing cleanly**, so the run *looks*
+slow instead of failing. That is a nasty failure mode worth remembering, but it
+only ever mattered because of the wrong batch size.
+
+**Two framing errors to avoid repeating:**
+1. I reported "batch 256 exceeds 10 GB" as *the answer*. It was the CONSEQUENCE
+   of a parameter I changed, not a root cause. Diagnosing self-inflicted damage
+   is not the same as diagnosing a problem.
+2. I claimed the run was "loading both TinyCLIP and ViT-B-16 plus AdamW states".
+   That was true only of my throwaway benchmark `/tmp/t4.py`, which looped over
+   both architectures and did not fully free the first before allocating the
+   second. **Training never loads a teacher at all** — it reads cached
+   embeddings, so only the 38M student is resident. I let a real bug in a test
+   harness stand in as an explanation for something else.
+
+**Rule: batch size is a RECIPE hyperparameter, not a free throughput knob.**
+Batch 96 + lr 1e-4 *is* the 0.1 recipe. Changing it alters the gradient-noise
+scale and breaks comparability with WingCLIP-0.1's 89.93 and with the 0.2
+comparison the A/B exists to settle.
+
+### Workers: 12 is correct, do NOT raise it
+
+The 876 img/s figure came from an **inference-only** loader benchmark (no
+backward pass, nothing else competing for CPU). It is not a training target.
+
+Measured during the live pilot: **GPU 97-98% sustained**, load average 6.46 on
+16 cores, loader steady-state ~1,012 img/s. **The GPU is the bottleneck, which
+is what you want during training** — the loader is comfortably ahead of it.
+More workers would only add CPU contention for no gain.
