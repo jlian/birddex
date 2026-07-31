@@ -463,7 +463,53 @@ sections below. It is no longer the blocker; it is the thing that
 uncovered the real blocker.
 
 ---
-**[NEXT-1] DECIDE: how does P(species|cell) ship?** ⬅ OPEN DECISION
+**[NEXT-1] ✅ DECIDED 2026-07-31: worldwide, 4x4 tiles, occurrence + folded BirdLife**
+
+John's call: **ship WORLDWIDE, not a region + on-demand fallback.**
+At these sizes regional bundling buys ~0.4 MiB and costs
+region-detection + travel-fallback logic. Not worth it.
+
+**Tile size 4x4** (measured, see the format table below). NOTE the tile
+size does NOT coarsen the data -- underlying cells stay 27 km either
+way, and a lookup still reads its exact cell + the 3x3 neighbour ring.
+Tiling only decides how many cells share one downloadable object, so
+there is NO accuracy cost to larger tiles, only transfer waste.
+4x4 keeps a future on-demand path viable (1.9 KiB p95 per object vs
+5.3 KiB at 8x8) for +0.4 MiB total.
+
+**Format:** per cell, sorted species index varint-delta + 5-bit
+quantised log-prob (5-bit measured free at -0.03 pts). Species keyed by
+2-byte taxonomy index, NOT the 8-byte eBird code.
+
+**Payload budget (gzipped, worldwide):**
+  occurrence @ 4x4 ........ 5.6 MiB
+  BirdLife folded in ...... ~2.3 MiB  (est, see caveat)
+  TOTAL ................... ~8 MiB
+vs the 260 MiB BirdLife layer shipping today.
+
+**Delivery:** static objects on R2 behind the CDN. No Worker, no D1,
+no compute -- it is a keyed lookup. iOS bundles it (8 MiB is nothing,
+works offline). Web fetches once and caches immutably (PWA Cache
+Storage); do NOT inline it in the JS bundle (base64 inflates ~33%,
+blocks parse, and penalises users who never take a photo).
+Version-prefix the keys so a quarterly refresh is a cheap swap.
+
+⚠ **BirdLife folding is worth doing after all.** Its only surviving
+job is distinguishing unobserved-and-implausible from
+unobserved-but-plausible, which cannot attach to an occurrence row
+(those species are absent from the blob), so it must be a per-cell SET
+of plausible species. Measured ~23.8 gzipped bytes/cell as a
+delta-encoded index list => ~2.3 MiB for our 99,900 occupied cells,
+i.e. 260 MiB -> 2.3 MiB (113x) because we need only cells we cover and
+only species IDENTITY, not the presence/origin/seasonal triple.
+So +0.30 pts costs 2.3 MiB, not 260 MiB.
+*Caveats:* extrapolated from 300 cells, and the encoder used a
+placeholder gap rather than a real code->index map, so treat 23.8
+B/cell as +/-50%. It also assumes shipping BirdLife ONLY for cells
+occurrence covers -- which is exactly wrong for the coverage-gap case
+where BirdLife would be the fallback. Resolve with 1c part 2.
+
+--- ⬅ OPEN DECISION
 The occurrence layer is built and validated but exists only as a local
 162 MB parquet. It has to reach the client somehow. Options:
 
