@@ -12,18 +12,36 @@ Tracks issue [#260](https://github.com/jlian/wingdex/issues/260). Branch:
 
 ## STATUS + QUEUE (read this first)
 
-🟢 **Distillation + fine-tune are DONE and the recipe is settled.**
-Ship candidate: **WingCLIP-0.1 @ WiSE-FT alpha=0.90 = 89.93 NABirds top-1**
+🟢 **Distillation, fine-tune, AND the rerank pipeline are settled.**
+Ship candidate: **WingCLIP-0.1 @ WiSE-FT alpha=0.90**, 89.93 NABirds top-1
 (teacher BioCLIP-2 ViT-L = 86.41, so 104.1% retention).
 
-⚠ **The ONLY thing standing between here and 1.0 is PHASE 4** (benchmark vs
-GPT 83/87 and ViT-L 87/96 on the shared gated+range pipeline). It has NEVER
-been run and it is the go/no-go the whole project exists to answer.
+✅ **Phase 4 HAS now been run** (2026-07-30). It FAILED at first:
+78/91 vs GPT 83/87 and teacher 87/96. Root cause was NOT recognition but
+**softmax calibration** -- our top-5 matched the teacher at 96%. That
+failure is what produced everything below, and it was worth it.
 
-No distillation-recipe lever with known upside remains -- LR, epochs, recipe
-bundle and augmentation strength are all settled and measured. Do not start
-another training experiment before Phase 4 runs.
+🔥 **THE BIG RESULT: a fitted Bayesian log-sum with an empirical
+P(species|cell) beats the shipped pipeline by +8.8 pts.**
+Absolute top-1 on 3,322 leak-free held-out photos:
 
+| ranker | ABS top-1 |
+|---|---|
+| raw argmax (vision only) | 72.94 |
+| **F: gated tiering (WHAT WE SHIP TODAY)** | **79.53** |
+| H: log-sum + BirdLife | 81.87 |
+| **I: log-sum + iNat occurrence** | **88.29** |
+
+Stress-tested: generalises to unseen geography (0.87 pt penalty), and a
+2-year-stale prior costs 2.88 pts of which ~2.04 is genuine drift.
+
+⚠ **Do NOT judge reranking on the 27-image golden set.** n=23,
+self-labelled, uncertain labels; one image is 4.3 pts. It disagreed with
+the 11k result and it was wrong. Keep it as a historical anchor only.
+
+No distillation-recipe lever with known upside remains -- LR, epochs,
+recipe bundle and augmentation are all settled. **Do not start another
+training experiment.** The remaining work is INTEGRATION, not modelling.
 **Working location: ONE directory** — `~/wingdex/ml/distill/` on tomahawk (repo +
 data + uv venv). The Pi checkout and the `~/spikes` scratch dir are both gone.
 Training data = WebDataset shards on the NAS.
@@ -439,30 +457,68 @@ different set of tasks, and the 2026-07-30 work ALSO used T1-T4 for its own
 numbered. The 2026-07-30 batch is written up as INV-1..INV-4 below.
 
 ---
-**[NEXT] PHASE 4 -- benchmark vs GPT (83/87) and ViT-L (87/96)** ⬅ THE ACTUAL GOAL
-Run the ship candidate through the shared gated+range pipeline on the golden
-set. This is the go/no-go for the whole project and has NEVER been run.
-Use **WingCLIP-0.1 @ alpha=0.90** (`runs/ft_clean_01/wise_a0.90.pt`, 89.93
-NABirds). State explicitly which artifact the numbers came from.
-**Passing Phase 4 is what promotes a basis to 1.0.**
-*Exit:* a go/no-go writeup with the head-to-head numbers.
-**Nothing below should delay this.**
+**[DONE 2026-07-30] PHASE 4** -- ran, FAILED (78/91 vs GPT 83/87,
+teacher 87/96), root-caused to softmax calibration. See the results
+sections below. It is no longer the blocker; it is the thing that
+uncovered the real blocker.
 
 ---
-**[AFTER PHASE 4] Export + web**
-int8/ONNX/Core ML; then int4 on the fine-tuned ViT-B for web (~22MB, <25MB
-target). Measure golden-set + NABirds AFTER quantizing -- the bar is "useful
-(~GPT-level ok)", not "matches BioCLIP".
+**[NEXT-1] DECIDE: how does P(species|cell) ship?** ⬅ OPEN DECISION
+The occurrence layer is built and validated but exists only as a local
+162 MB parquet. It has to reach the client somehow. Options:
+
+  a) **Sidecar in R2**: `occurrence/{row}-{col}.bin.gz` alongside the
+     existing `range-priors/{row}-{col}.bin.gz`. Two fetches per lookup.
+     Keeps the two datasets independent and reversible. NO GeoPackage
+     needed to rebuild.
+  b) **Merged blob**: fold occurrence into the existing range-prior blob
+     (11 bytes/species/cell -> 12-13). ONE fetch, lower client latency.
+     BUT rebuilding requires re-rasterising the BirdLife GeoPackage,
+     which took ~60 GB RAM (tomahawk has 31). Needs the DuckDB rewrite
+     first (see the rasterizer memory note).
+  c) **Occurrence ONLY, drop BirdLife from the client.** The ablation
+     says BirdLife adds just +0.30 pts once counts exist. This is the
+     SIMPLEST option and removes a licensed dependency, but it discards
+     the unobserved-but-plausible vs unobserved-and-impossible signal.
+
+  Size unknown and MUST be measured before deciding: 26.4M (species,cell)
+  pairs total, but only ~11,167 bird species matter and only 137,041
+  cells are occupied. Quantised log-probability is likely 1-2 bytes.
+  Also decide the REGIONAL subset for offline use (README already
+  contemplates shipping NA only, a few MB gzipped).
+
+  Refresh cadence: **quarterly**, not annual (drift costs ~2 pts/2yr).
+  Build is ~2 min in DuckDB, no images, no GeoPackage.
+
+---
+**[NEXT-2] Port the log-sum into `bird-id.ts`**
+Replace the floor/tier/dominance stack with:
+    score = sim/T + beta*log P(species|cell)   [+ w[status] if kept]
+Fitted params live in `ml/distill/calibration_occ_01.json`. Delete the
+0.2 floor, the slice-before-range, the x0.65/x0.25 multipliers, the TIER
+table and the dom>=0.5 gate. Expect +8.8 pts over what ships today.
+*Exit:* production pipeline reproduces the 88.29 offline number.
+
+---
+**[NEXT-3] GBIF as an INDEPENDENT-SOURCE check**
+Everything so far is iNat photos with an iNat-derived prior. Geographic
+and temporal transfer are verified; SOURCE transfer is not. eBird is
+unavailable (no reply to access requests) and NABirds has no GPS at all.
+GBIF aggregates iNat but ALSO eBird/EOD, museum specimens and national
+atlases; free, no permission, DOI-citable. Filter datasetKey != iNat to
+get a genuinely independent prior and re-run the ablation.
+
+---
+**[AFTER] Export + web**
+int8/ONNX/Core ML; then int4 on the fine-tuned ViT-B for web (~22MB,
+<25MB target). Measure golden-set + NABirds AFTER quantising.
 
 ---
 **[OPTIONAL] Build WingCLIP-0.2-beta / 0.2**
-⚠ **Value is now DOUBTFUL.** The A/B (INV-2) showed the 0.2 distillation base
-stays ~1.3-1.5 pts BEHIND 0.1 after identical clean fine-tuning, at every
-alpha. 0.2 was previously described as "the intended 1.0 candidate"; on the
-evidence it should NOT be, unless something other than accuracy justifies it.
+⚠ Value is DOUBTFUL: the A/B showed 0.2 stays ~1.3-1.5 pts behind
+0.1 after identical clean fine-tuning, at every alpha.
 
----
-### INV-1..INV-4 ✅ ALL DONE 2026-07-30 (see full writeups below)
+---### INV-1..INV-4 ✅ ALL DONE 2026-07-30 (see full writeups below)
 - **INV-1 (coverage):** all 24,633 NABirds test images are distilled species,
   zero from the 2,058 never-distilled. The fine-tune gain is RECOGNITION.
 - **INV-2 (sampler fix + A/B):** clean set = 3,850 sp / 151,042 photos.
