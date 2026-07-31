@@ -28,11 +28,11 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TAXONOMY = JSON.parse(readFileSync(join(ROOT, 'src/lib/taxonomy.json'), 'utf8'))
 const byCommonLower = new Map(), byScientificLower = new Map()
-for (const [common, scientific, ebirdCode] of TAXONOMY) {
-  const e = { common, scientific, ebirdCode: ebirdCode || '' }
+TAXONOMY.forEach(([common, scientific, ebirdCode], appIdx) => {
+  const e = { common, scientific, ebirdCode: ebirdCode || '', appIdx }
   byCommonLower.set(common.toLowerCase(), e)
   byScientificLower.set(scientific.toLowerCase(), e)
-}
+})
 function findBestMatch(name) {
   if (!name) return null
   const raw = name.trim(), rl = raw.toLowerCase()
@@ -108,7 +108,7 @@ function ground(fx) {
     if (!m) continue
     if (seen.has(m.common)) continue
     seen.add(m.common)
-    out.push({ commonName: m.common, ebirdCode: m.ebirdCode, score: Number(c.confidence) })
+    out.push({ commonName: m.common, ebirdCode: m.ebirdCode, appIdx: m.appIdx, score: Number(c.confidence) })
   }
   return out
 }
@@ -257,6 +257,89 @@ function stratBayes(fx, K = 25, opts = {}) {
   return c.sort((a, b) => b.post - a.post).slice(0, 5).map(x => x.commonName)
 }
 
+// -- Strategy I: the SHIPPING ranker. Bayesian log-sum over an EMPIRICAL
+// P(species|cell) read from the real blob at public/priors/occurrence-v1.bin.gz.
+//
+//   score = sim/T + beta * log P(species | cell)
+//
+// No BirdLife: the ablation showed it adds +0.30 pts once occurrence counts
+// exist, so it is not shipped. Cells with no occurrence data fall back to
+// vision-only ranking, which is a graceful degradation (72.94 vs 88.29 abs)
+// rather than a confident wrong answer.
+//
+// This decodes the blob EXACTLY as the client will: binary-search the sorted
+// cell index, slice, walk varint deltas. Verified against DuckDB (0 mismatches).
+let OCC = null
+function loadOccurrence() {
+  if (OCC !== null) return OCC
+  const p = join(ROOT, "public/priors/occurrence-v1.bin.gz")
+  if (!existsSync(p)) { OCC = false; return OCC }
+  const raw = gunzipSync(readFileSync(p))
+  if (raw.subarray(0, 4).toString("ascii") !== "WDOP") throw new Error("bad magic")
+  const qbits = raw[5]
+  const nCells = raw.readUInt32LE(8)
+  // index starts at 12; nCells entries plus one sentinel row
+  const idxStart = 12
+  const payloadStart = idxStart + (nCells + 1) * 8
+  OCC = { raw, nCells, idxStart, payloadStart, qbits, scale: 2.5 }
+  return OCC
+}
+
+// Returns Map<appIdx, logProb> for one cell, or null when the cell is absent.
+function occCell(row, col) {
+  const o = loadOccurrence()
+  if (!o) return null
+  const want = row * 1276 + col
+  let lo = 0, hi = o.nCells - 1, found = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    const key = o.raw.readUInt32LE(o.idxStart + mid * 8)
+    if (key === want) { found = mid; break }
+    if (key < want) lo = mid + 1; else hi = mid - 1
+  }
+  if (found < 0) return null
+  const start = o.raw.readUInt32LE(o.idxStart + found * 8 + 4)
+  const end = o.raw.readUInt32LE(o.idxStart + (found + 1) * 8 + 4)
+  const out = new Map()
+  let p = o.payloadStart + start
+  const stop = o.payloadStart + end
+  let cur = 0
+  while (p < stop) {
+    let shift = 0, v = 0, b
+    do { b = o.raw[p++]; v |= (b & 0x7f) << shift; shift += 7 } while (b & 0x80)
+    cur += v
+    const q = o.raw[p++]
+    out.set(cur, -q / o.scale)
+  }
+  return out
+}
+
+function stratOccurrence(fx, K = 25, opts = {}) {
+  const T = opts.T ?? 0.00845     // FITTED with beta on the 11k leak-free set
+  const beta = opts.beta ?? 1.33  // weight on log P(species|cell)
+  const ctx = fx.context || {}
+  let c = ground(fx).sort((a, b) => b.score - a.score).slice(0, K)
+  if (!c.length) return []
+  // fixtures store softmax(sim/0.01); recover the raw-similarity scale
+  c = c.map(x => ({ ...x, sim: 0.01 * Math.log(Math.max(x.score, 1e-12)) }))
+  if (ctx.lat == null || ctx.lon == null) {
+    return c.sort((a, b) => b.sim - a.sim).slice(0, 5).map(x => x.commonName)
+  }
+  const { x, y } = eeProj(ctx.lon, ctx.lat)
+  const cell = xyToCell(x, y)
+  const m = cell ? occCell(cell.row, cell.col) : null
+  if (!m) {
+    // no coverage -> vision only, by design
+    return c.sort((a, b) => b.sim - a.sim).slice(0, 5).map(x => x.commonName)
+  }
+  const FLOOR = Math.log(1e-9)
+  c = c.map(x => {
+    const lp = x.appIdx != null && m.has(x.appIdx) ? m.get(x.appIdx) : FLOOR
+    return { ...x, post: x.sim / T + beta * lp }
+  })
+  return c.sort((a, b) => b.post - a.post).slice(0, 5).map(x => x.commonName)
+}
+
 const truth = JSON.parse(readFileSync(join(ROOT, 'ml/truth.json'), 'utf8'))
 const baseTruth = {}; for (const [k, v] of Object.entries(truth)) baseTruth[k.replace(/\.[^.]+$/, '')] = v
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -271,6 +354,7 @@ const strategies = {
   'F_gated_dom0.5_1neighbor': fx => stratGated(fx, 15, { domMargin: 0.5 }),
   'G_gated_dom0.5_8neighbor': fx => stratGated(fx, 15, { domMargin: 0.5, expanded: true }),
   'H_bayes_logsum': fx => stratBayes(fx, 25, { expanded: true }),
+  'I_occurrence_SHIPPING': fx => stratOccurrence(fx, 25),
 }
 
 const results = {}
