@@ -1517,13 +1517,55 @@ that was measured for TRAINING (loader alone ~640 img/s but end-to-end
 and CPU preprocessing becomes half the cost.
 
 **Second finding: GPU forward is only 234 img/s, slower than training's ~300.**
-Unexpected for a forward-only pass. Most likely this script runs **fp32** while
-training used AMP/fp16. Given the quantisation sweep showed **fp16 is exactly
-free** (identical NABirds top-1), running the teacher in fp16 is safe and should
-roughly double the GPU half.
+⚠️ **My first explanation for this was WRONG.** I claimed training used
+AMP/fp16 while this script runs fp32. It does not: `train_student.py` has
+**no `autocast`, no `GradScaler`, no `.half()` anywhere** — training is
+**fp32 too**. Verified by grep, after John pushed back on the claim.
 
-**Fix before the FULL corpus run** (pilot is only ~28 min, not worth restarting):
-1. wrap the stream in a `DataLoader` with `num_workers` (overlap CPU and GPU)
-2. run the teacher under `torch.autocast` / fp16
-Estimated: 147 -> ~400+ img/s, taking the 2.5M-image full re-embed from **~4.7 h
-to ~1.5 h**.
+**The real explanation is the same one as the first finding: WORKERS.**
+`train_student.py` defaults to **`--workers 12`**, so its ~302-320 img/s is
+an END-TO-END number with 12 parallel decode processes keeping the GPU fed
+*while* it does a backward pass. `precompute_embeddings.py` has **zero**
+workers. So the honest comparison is:
+
+| | workers | precision | throughput |
+|---|---|---|---|
+| training (fwd+bwd) | 12 | fp32 | 302-320 img/s |
+| precompute (fwd only) | **0** | fp32 | **147 img/s** |
+
+234 img/s is simply what an fp32 ViT-B/16 forward costs on this (contended)
+3080 at batch 256. There was never a pure-GPU 300 img/s number to compare
+against; the 300 always included the loader.
+
+**Fix before the FULL corpus run** (pilot is only ~28 min, not worth
+restarting): wrap the stream in a `DataLoader` with `num_workers` so CPU
+decode overlaps GPU compute. That alone should take 147 -> ~225 img/s (the
+GPU-only rate), cutting the 2.5M-image re-embed from **~4.7 h to ~3.1 h**.
+
+**fp16 is a SEPARATE and much BIGGER lever than expected — measured, not
+assumed** (batch 256, same 3080):
+
+```
+fp32 (current)     235 img/s
+autocast fp16      655 img/s   (2.8x)
+true .half()       755 img/s   (3.2x)
+```
+
+Nothing in this repo uses AMP today, so this is free performance. And the
+quantisation sweep already proved **fp16 costs exactly 0.00 top-1** on
+NABirds, so it is safe for generating teacher targets.
+
+**Consequence: with fp16 the GPU stops being the constraint entirely.**
+CPU decode (224 img/s single-threaded) becomes the ONLY bottleneck, so
+**DataLoader workers matter MORE than fp16** — one serial stage at 224
+img/s caps everything until it is parallelised.
+
+**Fix before the FULL 2.5M-image run** (pilot is ~28 min, not worth
+restarting):
+1. `DataLoader` with `num_workers` (~12, matching training) — removes the
+   224 img/s serial decode ceiling
+2. `torch.autocast("cuda", dtype=torch.float16)` — 235 -> 655 img/s GPU
+
+Together these should take the re-embed from **147 img/s** to roughly the
+aggregate decode rate of 12 workers (600+ img/s), i.e. the 2.5M-image full
+corpus from **~4.7 h to well under 1.5 h**.
