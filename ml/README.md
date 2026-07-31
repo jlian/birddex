@@ -2917,3 +2917,55 @@ That is comfortably shippable for iOS and a plausible one-time cached download
 for web, but it is ~4x the original (MobileCLIP-derived, now retired) sub-25 MB
 target. int4 would roughly halve the tower again if the accuracy cost is
 acceptable.
+
+### ⚠️ TARGET RUNTIME IS UNDECIDED — and the format was chosen before the target
+
+Checked the app for on-device inference infrastructure: **there is none.** No
+`onnxruntime-web`, no transformers.js, no WebGPU code, no Core ML. Inference
+today is a server-side call to GPT-5.4-mini from `functions/`.
+
+So "what are we shipping" has no settled answer yet, and **dynamic int8 was
+chosen before that decision existed.** Dynamic quantisation implicitly assumes a
+CPU runtime. Per target:
+
+| target | wants | is dynamic int8 right? |
+|---|---|---|
+| iOS Core ML | fp16 / palettisation | **no** |
+| Web WebGPU | fp16 (GPU ignores dynamic int8) | **no** |
+| Web WASM/CPU | dynamic int8 | **yes** |
+
+Only the third matches the artifact built. That is one of three, chosen by
+accident rather than analysis.
+
+### CPU latency (measured 2026-07-31)
+
+Desktop Ryzen under WSL, *contending with a running eval job*, so treat as
+optimistic for a phone and pessimistic vs an idle box:
+
+```
+threads   fp32      int8
+  1      612.2 ms  472.2 ms
+  2      388.1 ms  245.4 ms
+  4      247.5 ms  143.6 ms
+```
+
+**int8 is ~1.7x faster than fp32 on CPU**, so quantisation buys speed as well as
+the 3.94x size cut.
+
+**Verdict: 144 ms at 4 threads is fine for this product.** The user picks a
+photo and waits; 150-500 ms is imperceptible beside the network round-trip to a
+hosted VLM that it replaces. CPU/WASM is therefore a *viable* web target on
+latency grounds, not merely a fallback — which retroactively justifies the int8
+artifact even though it was picked for the wrong reason.
+
+### On "CPU-only, no CUDA provider"
+
+Poorly worded earlier. The machine has CUDA (RTX 3080, CUDA 13.1) and PyTorch
+uses it. What is missing is **onnxruntime's CUDA execution provider**, because
+the venv has the `onnxruntime` package rather than `onnxruntime-gpu`. That is a
+package choice, not a hardware limitation.
+
+Note it is also **not needed for the int8 measurement**: ORT's CUDA provider
+does not accelerate dynamically-quantised weights (it largely falls back to
+fp32), so the CPU run measures the format that would actually ship. Install
+`onnxruntime-gpu` when fp16/int4 GPU paths are explored.
