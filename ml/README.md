@@ -3018,3 +3018,50 @@ work.** Likely fixes to try: newer `onnxruntime`/`onnxscript` for the dynamo
 path, exporting fp32 then converting with `onnxslim`/`onnxruntime-tools`, or
 going to Core ML via `coremltools` directly from torch (which does its own fp16
 conversion and never touches ONNX).
+
+## ✅ QUANTISATION COST: MEASURED, AND IT IS NEARLY FREE (2026-07-31)
+
+**NABirds, all 24,633 images, GPU, PyTorch weight fake-quantisation.**
+`ml/distill/quant_accuracy.py`
+
+| variant | ~MB | cos(fp32) | agree% | top-1 | top-5 | d(top-1) |
+|---|---|---|---|---|---|---|
+| fp32 | 346 | 1.000000 | 100.00 | **89.94** | 97.80 | +0.00 |
+| fp16 | 173 | 1.000000 | 99.98 | **89.94** | 97.80 | **+0.00** |
+| bf16 | 173 | 0.999987 | 99.75 | 89.92 | 97.81 | -0.02 |
+| int8 | 87 | 0.999967 | 99.63 | **89.89** | 97.82 | **-0.05** |
+| int4-blk128 | 43 | 0.993095 | 95.27 | 89.06 | 97.51 | -0.88 |
+
+fp32 lands at 89.94 vs the 89.93 torch reference, so the harness is sound.
+
+**Conclusion: quantisation is NOT a risk to this project.**
+- **fp16 is exactly free** (identical top-1, half the size)
+- **int8 costs 0.05 pts for 4x** — inside noise
+- **int4 costs 0.88 pts for 8x**, and top-5 barely moves
+
+The on-device premise holds comfortably. The remaining choice is deployment
+convenience, not accuracy: iOS can take fp16 (173 MB) or int8 (87 MB); web wants
+int8 (87 MB), or int4 (43 MB) if download size dominates.
+
+### ⚠️ METHOD LESSON: measure in torch on GPU, not through ONNX
+
+This took **~6 s per variant on GPU**. The preceding ONNX detour cost hours and
+produced two WRONG numbers, both tool artifacts rather than real effects:
+
+1. **"int4 = 75.3 MB"** — `MatMulNBitsQuantizer` only quantises MatMul weights,
+   leaving embeddings/LayerNorm/bias at fp32. Quantising *all* weights gives the
+   expected **43 MB**. The ONNX figure understated the compression badly.
+2. **"fp16 cannot be built"** — true of the ONNX converters
+   (`onnxconverter_common` emits an invalid Cast; torch cannot export
+   `aten::_native_multi_head_attention` in half), but **irrelevant to the
+   question**: fp16 in torch is one `.half()` call and works perfectly.
+
+**Rule: to answer "what does precision cost", quantise weights in torch and run
+the normal eval. Only involve ONNX/Core ML when the deliverable is the artifact
+itself.** Export-format problems are deployment problems, not accuracy problems,
+and conflating them wasted the most time in this whole effort.
+
+**OOM gotcha:** stacking all 24,633 preprocessed images is 7.4 GB and
+`torch.stack` briefly doubles it, which OOM-killed the run twice at ~18k on a
+31 GB box. Fixed by writing straight into a preallocated `np.memmap`
+(`/tmp/qa_pixels.f16`): constant RAM, no copy.
