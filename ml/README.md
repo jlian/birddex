@@ -1482,6 +1482,112 @@ if the direct jump loses too much. WingCLIP-0.1 is the better teacher (beats Bio
 on NABirds); the BioCLIP-2 cache stays the control. Watch the second-fine-tune
 redundancy trap (the 178k GT photos were already absorbed by WingCLIP-0.1).
 
+## Throughput: precompute and training (settled 2026-07-31)
+
+### precompute_embeddings.py: 144 → 626 img/s
+
+Two fixes, both now default: `--workers 8` (parallel JPEG decode) and `--fp16`
+(autocast). Measured on 10 pilot shards / 100,000 images.
+
+| config | throughput |
+|---|---|
+| serial, fp32 (old) | 144 img/s |
+| **8 workers + autocast fp16** | **626 img/s** (4.3x) |
+
+Full 2.5M-image corpus: **~4.8 h → ~67 min**.
+
+**Verified numerically identical**, not assumed. Against 50,171 overlapping
+photos from the pre-existing serial-fp32 cache: cosine **1.000000** mean /
+0.999973 min, max abs diff 0.00122, **0 of 3000** samples below 0.999. Consistent
+with the quantisation sweep's 0.00 top-1 delta for fp16. **The existing pilot
+cache does NOT need regenerating.**
+
+Multi-view (`--views N>1`) keeps the serial path: it needs the raw PIL image to
+apply a different transform per view.
+
+**Isolated loader ceiling (inference only, 25 shards / 24k images):**
+
+```
+workers  fp32     fp16
+  0      231.0    219.9
+  4      344.5    642.7
+  8      361.7    876.3   <- ceiling
+ 12      349.8    870.1
+```
+
+Shape of that table is the useful part:
+- fp32 plateaus ~350 regardless of workers → GPU-bound there
+- fp16 keeps scaling → a faster GPU absorbs what more workers feed it
+- **fp16 is SLOWER than fp32 at 0 workers** (219.9 vs 231.0) → classic
+  starved-GPU signature; a faster GPU just waits longer on one decode thread
+- 12 ≈ 8 → decode saturates ~8 on this 16-core box
+- **Neither lever works alone**: workers-only 361, fp16-only 220, together 876
+
+⚠️ **876 is an INFERENCE-ONLY number** (no backward pass, nothing else competing
+for CPU). Do not use it as a training target. Production `precompute` lands at
+626 rather than 876 because of its per-sample manifest filtering and `.npz`
+accumulation.
+
+**Two implementation traps, both cost real time:**
+1. **`batch_size=None` collapses throughput to 174 img/s even with 8 workers** —
+   every image then pays its own IPC round trip between worker and main process.
+   Batching *inside* the DataLoader (`batch_size=N` + a `collate_fn` returning
+   `(ids, stacked)`) was worth ~3.6x on its own. IPC, not decode, was the cost.
+2. **One shard starves N workers** (231 img/s with 8). Shards are assigned
+   round-robin whole-file, so a single `.tar` gives one worker everything. Needs
+   10+ shards to reach full rate. An early 1-shard/512-image benchmark produced a
+   bogus "more workers = slower" table for exactly this reason.
+
+### Training throughput and batch size
+
+`train_student.py` uses AMP (`GradScaler` line 445, `autocast` 486/505). It loads
+**no teacher** — targets come from the cached embeddings, so only the student is
+resident in VRAM.
+
+**Batch size is a RECIPE hyperparameter, not a throughput knob.** Batch 96 +
+lr 1e-4 *is* the 0.1 recipe. Changing it alters the gradient-noise scale and
+breaks comparability with WingCLIP-0.1's 89.93 and with the 0.2 A/B. Every
+historical run used **batch 96** (checkpoint `args`: `full7555_vitb`,
+`full7555_locked_ep25`, `exp7` — all `batch=96`, `workers=10-12`).
+
+Measured, TinyCLIP-39M + AMP on the 10 GB RTX 3080:
+
+| batch | peak VRAM | throughput |
+|---|---|---|
+| **96 (use this)** | **5.15 GB** | **655 img/s** |
+| 128 | 6.62 GB | 686 img/s |
+| 256 | **10.01 / 10.24 GB** | thrashes, ~0 progress |
+
+⚠️ **At batch 256 the driver THRASHES rather than OOM-ing cleanly**, so a run
+merely *looks* slow (no epoch completing) instead of failing loudly. Worth
+recognising: a training run making no visible progress at ~98% GPU and ~0% CPU
+is a VRAM-pressure signature, not a hang.
+
+Note bigger batches buy almost nothing here anyway: 96 → 128 is +4.7% throughput
+for 33% more memory, because we are near the loader's practical ceiling once
+training competes for CPU.
+
+**Workers: 12 is correct, do not raise it.** Measured during the live pilot: GPU
+**97-98% sustained**, load average 6.46 on 16 cores, loader steady-state ~1,012
+img/s. The GPU is the bottleneck — which is what you want during training — and
+the loader is comfortably ahead of it. More workers would only add contention.
+
+### TRAP: WDS shards carry BioCLIP-2 targets baked in
+
+`pack_webdataset.py` wrote `<key>.emb` (the BioCLIP-2 target) INTO each shard.
+For sequential distillation the teacher changes but the images do not, so a
+`--wds` run would **silently train against the OLD teacher**. `--mv-embeddings`
+does not help — it hard-rejects single-view caches.
+
+**Fix: `--sv-embeddings <dir>`.** `SingleViewTargets` loads a normal `--views 1`
+precompute and overrides the shard-baked target per sample; samples absent from
+the override are dropped. It logs `TEACHER OVERRIDE ... (shard .emb ignored)` —
+check for that line before trusting any sequential-distillation run.
+
+Cost is negligible: loader does 705 img/s without the override, 695 with it
+(~1.4%). The 385 MB pickle shipped to each worker sounds alarming but costs
+**2.9 s once** at startup; steady-state is 1,012 img/s.
+
 ## Consolidation history
 
 Scripts were briefly split across `bioclip-birdid`/`bioclip-distill` branches
@@ -1490,263 +1596,11 @@ checkout deleted + scratch scripts symlinked 2026-07-24; full consolidation into
 directory + corpus deletion 2026-07-25; this reorganization (current-truth-first)
 2026-07-31.
 
-### ⚡ precompute_embeddings.py is ~2x slower than it should be (measured 2026-07-31)
-
-Observed **147 img/s** re-embedding with the WingCLIP teacher, vs ~300 img/s
-during *training* — which is backwards, since inference has no backward pass.
-
-**Profiled it (512 real pilot JPEGs, batch 256, fp32):**
-
-```
-decode + preprocess :  224 img/s   (51% of wall time)
-GPU forward only    :  234 img/s   (49% of wall time)
-serial total        :  114 img/s   <- matches the observed 147
-```
-
-**Root cause: no DataLoader.** `precompute_embeddings.py` decodes and
-preprocesses inline in a single-threaded generator
-(`Image.open(io.BytesIO(data)).convert("RGB")` at line ~119), then runs the GPU
-forward, then repeats. Every stage blocks the next, so a near-perfect 50/50 CPU
-/GPU split yields roughly HALF of either. Training does not have this problem
-because its WebDataset DataLoader decodes in parallel worker processes while the
-GPU computes.
-
-⚠️ Note this REFINES the earlier "we are GPU-bound, not I/O-bound" conclusion:
-that was measured for TRAINING (loader alone ~640 img/s but end-to-end
-~302-320). For pure INFERENCE there is no backward pass, so the balance flips
-and CPU preprocessing becomes half the cost.
-
-**Second finding: GPU forward is only 234 img/s, slower than training's ~300.**
-⚠️ **My first explanation for this was WRONG.** I claimed training used
-AMP/fp16 while this script runs fp32. It does not: `train_student.py` has
-**no `autocast`, no `GradScaler`, no `.half()` anywhere** — training is
-**fp32 too**. Verified by grep, after John pushed back on the claim.
-
-**The real explanation is the same one as the first finding: WORKERS.**
-`train_student.py` defaults to **`--workers 12`**, so its ~302-320 img/s is
-an END-TO-END number with 12 parallel decode processes keeping the GPU fed
-*while* it does a backward pass. `precompute_embeddings.py` has **zero**
-workers. So the honest comparison is:
-
-| | workers | precision | throughput |
-|---|---|---|---|
-| training (fwd+bwd) | 12 | fp32 | 302-320 img/s |
-| precompute (fwd only) | **0** | fp32 | **147 img/s** |
-
-234 img/s is simply what an fp32 ViT-B/16 forward costs on this (contended)
-3080 at batch 256. There was never a pure-GPU 300 img/s number to compare
-against; the 300 always included the loader.
-
-**Fix before the FULL corpus run** (pilot is only ~28 min, not worth
-restarting): wrap the stream in a `DataLoader` with `num_workers` so CPU
-decode overlaps GPU compute. That alone should take 147 -> ~225 img/s (the
-GPU-only rate), cutting the 2.5M-image re-embed from **~4.7 h to ~3.1 h**.
-
-**fp16 is a SEPARATE and much BIGGER lever than expected — measured, not
-assumed** (batch 256, same 3080):
-
-```
-fp32 (current)     235 img/s
-autocast fp16      655 img/s   (2.8x)
-true .half()       755 img/s   (3.2x)
-```
-
-Nothing in this repo uses AMP today, so this is free performance. And the
-quantisation sweep already proved **fp16 costs exactly 0.00 top-1** on
-NABirds, so it is safe for generating teacher targets.
-
-**Consequence: with fp16 the GPU stops being the constraint entirely.**
-CPU decode (224 img/s single-threaded) becomes the ONLY bottleneck, so
-**DataLoader workers matter MORE than fp16** — one serial stage at 224
-img/s caps everything until it is parallelised.
-
-**Fix before the FULL 2.5M-image run** (pilot is ~28 min, not worth
-restarting):
-1. `DataLoader` with `num_workers` (~12, matching training) — removes the
-   224 img/s serial decode ceiling
-2. `torch.autocast("cuda", dtype=torch.float16)` — 235 -> 655 img/s GPU
-
-Together these should take the re-embed from **147 img/s** to roughly the
-aggregate decode rate of 12 workers (600+ img/s), i.e. the 2.5M-image full
-corpus from **~4.7 h to well under 1.5 h**.
-
-### ⚠️ CORRECTION: training DOES use AMP — my "correction" was itself wrong
-
-Earlier I claimed training used fp16, then "corrected" myself to say
-`train_student.py` has no AMP and is fp32. **The correction was the error.**
-Verified by line number:
-
-```
-445:    scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
-486:                with torch.cuda.amp.autocast(enabled=dev == "cuda"):
-505:            with torch.cuda.amp.autocast(enabled=dev == "cuda"):
-```
-
-**Training is AMP/fp16. The original hypothesis was right.** The bad grep
-printed matches but I read my own "(none above means fp32)" echo as the verdict.
-Lesson: do not let a convenience echo in a command stand in for reading output.
-
-So the throughput picture is:
-
-| | workers | precision | throughput |
-|---|---|---|---|
-| training (fwd+bwd) | 12 | **AMP fp16** | 302-320 img/s |
-| precompute (fwd only) | 0 | **fp32** | 144-147 img/s |
-
-**Both differences are real** — precompute is missing AMP *and* missing workers.
-Adding autocast to `precompute_embeddings.py` remains the single biggest win
-(235 -> 655 img/s measured on the GPU alone), and fp16 is free on accuracy
-(0.00 top-1 delta on NABirds).
-
-### ⚠️ DataLoader workers made it SLOWER (measured, 512 imgs, 1 shard)
-
-```
-workers  fp32    fp16
-  0      123.2   194.7
-  8       89.8   110.0
- 12       70.0    79.7
-```
-
-Monotonically worse with more workers, the OPPOSITE of the prediction. **The
-benchmark is mis-specified, not DataLoader.** `bench_loader.py` shards whole
-`.tar` files across workers, so with ONE shard only one worker has data while
-the rest pay startup + IPC for nothing; a 512-image run makes fixed costs
-dominate. A 25-shard / 24k-image rerun is in flight. Do not conclude "workers
-are bad" from the table above.
-
-### ⚠️ TRAP: WDS shards carry BioCLIP-2 targets baked in
-
-`pack_webdataset.py` wrote `<key>.emb` (the BioCLIP-2 target) INTO each shard.
-For sequential distillation the teacher changes but the images do not, so a
-`--wds` run would **silently train against the OLD teacher**. `--mv-embeddings`
-does not help: it hard-rejects single-view caches.
-
-**Fix: `--sv-embeddings <dir>`** (new). `SingleViewTargets` loads a normal
-`--views 1` precompute and overrides the shard-baked target per sample; samples
-absent from the override are dropped. Smoke-tested: loads 244,699 WingCLIP
-embeddings, logs `TEACHER OVERRIDE ... (shard .emb ignored)`, and TinyCLIP-39M
-trains (loss 0.7703, val_cos 0.4978 after 1 epoch on 2,048 samples).
-
-### ✅ LOADER BENCHMARK, PROPERLY SPECIFIED (25 shards, 24k images)
-
-```
-workers  fp32     fp16
-  0      231.0    219.9
-  4      344.5    642.7
-  8      361.7    876.3   <- BEST
- 12      349.8    870.1
-```
-
-**Best: 8 workers + fp16 = 876.3 img/s.** That is **6.1x** the production
-script's 144 img/s and **~2.7x** training's 302-320.
-
-Discard the earlier 1-shard/512-image table entirely: it showed workers making
-things monotonically *slower*, which was pure startup + IPC overhead with only
-one worker holding data. Note even the 0-worker row moved 123.2 -> 231.0 between
-the two runs, i.e. the first benchmark was measuring fixed cost, not throughput.
-
-**The shape confirms the CPU-bound diagnosis:**
-- **fp32 plateaus at ~350** no matter how many workers -> GPU-bound there
-- **fp16 keeps scaling to 876** -> the faster GPU can absorb what more workers feed
-- **fp16 is SLOWER than fp32 at 0 workers** (219.9 vs 231.0) -> classic starved-GPU
-  signature; a faster GPU just waits longer on a single decode thread
-- **12 workers ≈ 8 workers** -> decode saturates ~8 on this 16-core box
-- Neither lever works alone: workers-only gets 361, fp16-only gets 220. Together
-  876. **This is why measuring one bottleneck at a time was misleading all day.**
-
-⚠️ **Still unexplained: production gets 144 img/s where this benchmark gets 231
-with the SAME 0-worker fp32 config.** ~1.6x of overhead unaccounted for, likely
-`precompute_embeddings.py`'s per-sample manifest lookup, the `.npz` shard
-accumulation/writes, or NAS read patterns. Worth a look before the full run,
-since it is a real cost on top of the missing workers/AMP.
-
-**Action for the 2.5M-image full-corpus re-embed:** add `num_workers=8` and
-`torch.autocast` to `precompute_embeddings.py`. At 876 img/s that is **~48
-minutes** instead of **~4.8 hours** at 144.
-
-### ✅ precompute_embeddings.py: 144 -> 626 img/s (4.3x), verified identical
-
-Applied the two fixes and measured on 10 pilot shards / 100,000 images:
-
-```
-before (serial, fp32)          144 img/s
-after  (8 workers + autocast)  626 img/s     4.3x
-```
-
-**Correctness verified, not assumed.** Compared against the existing serial-fp32
-`embeddings_wingclip_pilot500` cache over **50,171 overlapping photos**:
-
-```
-cos(fast, serial): mean 1.000000  min 0.999973
-max abs diff:      0.00122
-samples < 0.999:   0 / 3000
-```
-
-fp16 loss is negligible, consistent with the quantisation sweep's 0.00 top-1
-delta. **The existing pilot cache does NOT need regenerating.**
-
-**Two traps hit while implementing this, both worth remembering:**
-
-1. **`batch_size=None` collapses throughput to 174 img/s even with 8 workers.**
-   Every image then pays its own IPC round trip between worker and main process.
-   Batching *inside* the DataLoader (`batch_size=args.batch` + a `collate_fn`
-   returning `(ids, stacked)`) was worth ~3.6x on its own. The IPC cost, not
-   decode, was the real bottleneck.
-2. **One shard starves 8 workers** (231 img/s). Shards are assigned round-robin
-   whole-file, so a single `.tar` gives one worker everything and the other
-   seven idle. Only with 10+ shards does it reach 626. Same mis-specification
-   that produced the bogus "workers make it slower" table earlier.
-
-Note 626 < the 876 the isolated loader benchmark hit; the remainder is this
-script's per-sample manifest filtering and `.npz` accumulation. Good enough:
-the 2.5M-image full corpus goes from **~4.8 h to ~67 min**.
-
-Flags: `--workers N` (default 8, 0 = old serial path) and `--fp16` / `--no-fp16`
-(default on). Multi-view (`--views N>1`) always uses the serial path, since it
-needs the raw PIL image to apply a different transform per view.
-
-### ⚠️ SELF-INFLICTED: the TinyCLIP pilot "slowness" was a wrong batch size
-
-The first two pilot launches appeared to hang (no epoch finished in 10 min).
-Root cause was **not** the script, WDS, the loader, or the model. It was that I
-launched at **batch 256** when every historical run used **batch 96** (verified
-from checkpoint `args`: `full7555_vitb`, `full7555_locked_ep25`, `exp7` — all
-`batch=96`, `workers=10-12`).
-
-Measured peak VRAM on the 10 GB RTX 3080, TinyCLIP-39M, AMP:
-
-| batch | peak VRAM | throughput |
-|---|---|---|
-| **96** | **5.15 GB** | **655 img/s** |
-| 128 | 6.62 GB | 686 img/s |
-| 256 | **10.01 / 10.24 GB** | thrashes, ~0 progress |
-
-At 256 the driver **thrashes rather than OOM-ing cleanly**, so the run *looks*
-slow instead of failing. That is a nasty failure mode worth remembering, but it
-only ever mattered because of the wrong batch size.
-
-**Two framing errors to avoid repeating:**
-1. I reported "batch 256 exceeds 10 GB" as *the answer*. It was the CONSEQUENCE
-   of a parameter I changed, not a root cause. Diagnosing self-inflicted damage
-   is not the same as diagnosing a problem.
-2. I claimed the run was "loading both TinyCLIP and ViT-B-16 plus AdamW states".
-   That was true only of my throwaway benchmark `/tmp/t4.py`, which looped over
-   both architectures and did not fully free the first before allocating the
-   second. **Training never loads a teacher at all** — it reads cached
-   embeddings, so only the 38M student is resident. I let a real bug in a test
-   harness stand in as an explanation for something else.
-
-**Rule: batch size is a RECIPE hyperparameter, not a free throughput knob.**
-Batch 96 + lr 1e-4 *is* the 0.1 recipe. Changing it alters the gradient-noise
-scale and breaks comparability with WingCLIP-0.1's 89.93 and with the 0.2
-comparison the A/B exists to settle.
-
-### Workers: 12 is correct, do NOT raise it
-
-The 876 img/s figure came from an **inference-only** loader benchmark (no
-backward pass, nothing else competing for CPU). It is not a training target.
-
-Measured during the live pilot: **GPU 97-98% sustained**, load average 6.46 on
-16 cores, loader steady-state ~1,012 img/s. **The GPU is the bottleneck, which
-is what you want during training** — the loader is comfortably ahead of it.
-More workers would only add CPU contention for no gain.
+**Convention (set 2026-07-31): NO CORRECTION STACKS.** When a claim in this file
+turns out wrong, EDIT IT IN PLACE to the current truth. Do not append a
+"⚠️ CORRECTION" section below it. You would never fix a bug by leaving the broken
+function and adding a comment saying "actually this is wrong, see below" — the
+same applies here. Git holds the history; this file holds the truth. Keep a
+mistake only when the mistake itself is instructive (e.g. a failure mode that
+looks like something else), and then state it as a warning in the settled text,
+not as a chronological correction.
