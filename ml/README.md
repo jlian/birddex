@@ -2809,3 +2809,43 @@ when the run is actually the golden set (n <= 30), otherwise it prints
 
 Kept as a standing rule: never print a baseline measured on one set beside
 results from another. Different n, different photos, different difficulty.
+
+## EXPORT TRACK (started 2026-07-31)
+
+### Architecture, and the REAL on-device budget
+
+Reading `train_student.py`: the student is a **ViT-B-16 visual tower** whose
+512-d output is projected by a `nn.Linear(512, 768)` into the teacher's space,
+then L2-normalised. `Student.forward()` IS the exportable graph (visual -> proj
+-> normalize); no wrapper needed, and `encode_image` does not exist on it.
+
+Classification is cosine similarity against an **11,167 x 768 matrix of
+BioCLIP-2 TEXT embeddings**. Those are computed ONCE at build time and shipped
+frozen, so **the text encoder never runs on device.**
+
+| component | shape | fp32 |
+|---|---|---|
+| visual tower | 86.6M params | **346 MB** |
+| text classifier | 11,167 x 768 | **34 MB** |
+
+⚠️ The tower is far bigger than the ~22 MB web target implies. int4 on 86.6M
+params is ~43 MB for weights alone, so **the <25 MB target is NOT reachable with
+ViT-B-16 at int4.** Either the target moves, or a smaller backbone is needed
+(MobileCLIP-S2 was in the original arch options). This needs a decision before
+more export work. Input resolution is 224 (read from the preprocess, not
+assumed).
+
+### fp32 ONNX export: EXACT parity (`ml/distill/export_onnx.py`)
+
+Exported opset 17, dynamic batch. Verified against PyTorch on 16 random inputs:
+
+```
+worst cosine(pytorch, onnx) = 1.00000000
+worst |abs diff|            = 9.183e-07
+top-1 disagreements         = 0/16
+```
+
+Bit-exact to float rounding. **This matters because it makes the fp32 ONNX a
+trustworthy baseline**: any accuracy lost at int8/int4 is attributable to
+quantisation, not to a broken export. The script exits non-zero on mismatch so
+it cannot silently pass.
