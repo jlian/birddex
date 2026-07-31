@@ -2002,3 +2002,107 @@ to append flat rows to Parquet and aggregate in DuckDB
 which spills to disk and makes peak RAM a configurable memory_limit.
 GeoPackage now lives at `/mnt/nas/WingDex-Distill/birdlife-shp/BOTW_2025.gpkg`
 (9.31GB) with the crosswalk + attribute docs alongside.
+
+### STRATEGY I: EMPIRICAL P(species|cell) — THE BIG WIN (2026-07-30 night)
+
+⚠️ **FIRST, A CORRECTION THAT AFFECTS EVERY EARLIER NUMBER IN THIS DOC.**
+The reranking evaluations score only photos where the true species is inside the
+top-K candidate list. That is *conditional* accuracy, not absolute. Earlier
+write-ups quoted conditional numbers against an absolute recall ceiling, which
+is why "86.62%" appeared to exceed the 94.61% ceiling. Corrected, over ALL 3,322
+val photos:
+
+| strategy | conditional | ABSOLUTE |
+|---|---|---|
+| raw argmax (vision only) | 77.17 | **72.94** |
+| F gated dom=0.5 (shipped) | 84.14 | **79.53** |
+| H bayes + BirdLife | 86.62 | **81.87** |
+| I bayes + iNat occurrence | 93.41 | **88.29** |
+
+Always report ABSOLUTE. Recall ceiling is 94.52% on this split.
+
+**The occurrence layer is built from the FULL iNat corpus** (`observations.csv.gz`,
+12.3GB — the 31GB figure is the whole dump including photos.csv.gz which we do
+NOT need here). 157,114,210 research-grade observations with GPS ->
+26,396,703 (species,cell) pairs across 137,041 occupied cells, 522,006 taxa.
+Ran in **2 minutes** in DuckDB. No images, no GeoPackage, no rasterization.
+
+Sanity check on the Seattle cell (96,273): top taxa are Mallard, Great Blue
+Heron, Sword Fern, American Crow, Salmonberry. Unmistakably Seattle, and the
+ferns confirm it is all of iNat rather than birds only.
+
+⚠️ **PROJECTION BUG CAUGHT BEFORE IT SHIPPED.** The first DuckDB port used a
+SPHERICAL Equal Earth; production `range-adjust.js` uses the **WGS84 ellipsoid**
+(authalic latitude). That was off by a full cell in several places and would
+have silently misaligned occurrence counts against the range priors while
+looking entirely plausible. Now verified **12/12 exact cell-id matches** against
+the JS across Seattle, Chicago, Maui, Amsterdam, Taipei, Sydney, Nairobi,
+Reykjavik and the origin (`ml/scripts/js-cells-check.mjs`).
+
+**ABLATION — is BirdLife redundant?**
+
+| model | ABS top-1 |
+|---|---|
+| 1. vision only | 72.94 |
+| 2. + BirdLife (= H) | 81.88 |
+| 3. + iNat occurrence ONLY | 87.99 |
+| 4. + both (= I) | 88.29 |
+
+- BirdLife alone: **+8.94 pts**
+- occurrence alone: **+15.05 pts**
+- BirdLife ON TOP of occurrence: **+0.30 pts** (~10 photos)
+- occurrence ON TOP of BirdLife: **+6.41 pts**
+
+**BirdLife is NOT useless — it is REDUNDANT.** Alone it is worth ~9 points, but
+almost all of that information is already implied by the counts (a species with
+many iNat records in a cell is nearly always BirdLife-`present`). Whether 0.3
+points justifies shipping a second data layer to clients is a product call, now
+measured rather than assumed.
+
+**What alpha=0 means, precisely.** BirdLife enters the score TWICE:
+```
+score = sim/T + w[status] + beta*log((count + alpha*exp(w[status])) / (total + alpha*sum))
+                └ term A ┘                      └ term B ┘
+```
+alpha=0 kills **term B only** (the pseudo-count / smoothing role). **Term A
+survives** as a flat per-status bump, and it fitted to `w[out-of-range] = -8.98`.
+So BirdLife still separates *unobserved-but-plausible* from
+*unobserved-and-impossible*; it just no longer rescues zero-count species. If
+nobody has photographed a species in a cell, treat it as absent.
+
+**alpha=0 IS NOT A SMALL-n ARTIFACT** (checked, because it is a strong claim):
+- alpha sweep is MONOTONIC, not flat: 89.95 (alpha=0), 89.34 (0.1), 88.26 (1),
+  85.70 (20), 84.26 (100), 82.72 (1000). A real optimum, and every unit of
+  BirdLife smoothing actively hurts.
+- fitted alpha is **stable at exactly 0.0** across 1,937 / 3,874 / 7,748
+  training photos (held-out 89.92 / 90.01 / 89.95). No drift with n.
+
+**GEOGRAPHIC HOLDOUT — does the prior transfer or memorise?**
+Split by CELL so the fit never sees the test regions (4,085 train cells /
+1,751 val cells; 7,845 / 3,225 photos):
+
+| model | unseen cells | random split |
+|---|---|---|
+| vision only | 73.86 | 72.87 |
+| + BirdLife | 82.36 | — |
+| + occurrence | 88.22 | 88.09 |
+| + both | 88.50 | 88.53 |
+
+Occurrence gain **+14.36 pts on unseen geography** vs +15.22 on a random split:
+**transfer penalty 0.87 pts.** The prior GENERALISES rather than memorising
+region-specific structure. BirdLife redundancy reproduces independently here
+(+0.28 vs +0.30).
+
+**REMAINING CONFIDENCE GAPS (honest):**
+- Everything is still iNat *photos* with an iNat-derived prior. This tests
+  GEOGRAPHIC transfer, not SOURCE transfer.
+- **eBird is unavailable** (no response to access requests). The real substitute
+  is **GBIF**: it aggregates iNat but ALSO eBird/EOD, museum specimens and
+  national atlases; free, no permission, DOI-citable. Filtering
+  `datasetKey != iNaturalist` yields a genuinely independent prior.
+- **NABirds has no GPS and no GPS'd variant exists**, so it cannot test this.
+- Cheap next check: **temporal holdout** — build the prior from pre-2024
+  observations, evaluate on 2025+ photos. Free, tests drift.
+
+**NEXT:** temporal holdout, then GBIF as the independent-source test, then port
+the log-sum into `bird-id.ts` and delete the floor/tier/dominance stack.
