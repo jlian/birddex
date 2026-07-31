@@ -2352,3 +2352,47 @@ staleness number is the pre-2024 row. Do not quote the auto-verdict here.
 
 **Refresh cadence recommendation stands: quarterly.** The build is ~2 min in
 DuckDB, needs no images and no GeoPackage, and emits a 162 MB parquet.
+
+### NEXT-1b MEASURED (2026-07-31): the occurrence layer is TINY
+
+**Birds only** (filtering the 522,006-taxon corpus to our 11,167 bird species):
+
+| metric | value |
+|---|---|
+| (species,cell) pairs | 3,176,965 |
+| occupied cells | 99,900 |
+| species present | 10,615 |
+| observations | 31,439,746 |
+| mean species per cell | 31.8 |
+
+(The 26.4M pairs quoted earlier was ALL taxa. Birds are 8x smaller.)
+
+**Measured gzipped size** (4-byte taxon id + 1-byte quantised log-prob, real
+gzip on a 2,000-cell / 152,793-pair sample -> 2.82 gzipped bytes per pair):
+
+| scope | gzipped |
+|---|---|
+| **GLOBAL** | **8.5 MiB** |
+| **NORTH AMERICA** | **3.0 MiB** |
+| *(existing BirdLife range-priors, for comparison)* | *260 MiB* |
+
+**The occurrence layer is ~30x SMALLER than the BirdLife layer we already
+ship**, and it carries most of the signal (+6.41 pts vs BirdLife's +0.30 on top
+of it).
+
+**This substantially changes the NEXT-1 decision.** "Ship a second data layer"
+was treated as a real cost; at 8.5 MiB it is not. And option (c) --
+occurrence-only, dropping BirdLife from the client -- takes the payload from
+260 MiB to 8.5 MiB **while gaining accuracy**.
+
+**Format notes:**
+- A **2-byte taxonomy index** beats the 8-byte eBird code: 9.1 MiB vs 27.3 MiB
+  raw. We control the format, so use the index.
+- **Keep sparse cells.** Cells with <10 observations are 47.5% of cells but only
+  4.0% of pairs -- dropping them saves ~nothing and creates a fallback path that
+  would then need handling.
+
+⚠️ **Caveat:** 2.82 bytes/pair is extrapolated from one concatenated stream.
+Real per-cell `.bin.gz` blobs compress WORSE (each gzip member carries its own
+header), so expect somewhat more than 8.5 MiB in practice. The conclusion is
+unaffected.
