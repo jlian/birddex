@@ -1663,3 +1663,44 @@ since it is a real cost on top of the missing workers/AMP.
 **Action for the 2.5M-image full-corpus re-embed:** add `num_workers=8` and
 `torch.autocast` to `precompute_embeddings.py`. At 876 img/s that is **~48
 minutes** instead of **~4.8 hours** at 144.
+
+### ✅ precompute_embeddings.py: 144 -> 626 img/s (4.3x), verified identical
+
+Applied the two fixes and measured on 10 pilot shards / 100,000 images:
+
+```
+before (serial, fp32)          144 img/s
+after  (8 workers + autocast)  626 img/s     4.3x
+```
+
+**Correctness verified, not assumed.** Compared against the existing serial-fp32
+`embeddings_wingclip_pilot500` cache over **50,171 overlapping photos**:
+
+```
+cos(fast, serial): mean 1.000000  min 0.999973
+max abs diff:      0.00122
+samples < 0.999:   0 / 3000
+```
+
+fp16 loss is negligible, consistent with the quantisation sweep's 0.00 top-1
+delta. **The existing pilot cache does NOT need regenerating.**
+
+**Two traps hit while implementing this, both worth remembering:**
+
+1. **`batch_size=None` collapses throughput to 174 img/s even with 8 workers.**
+   Every image then pays its own IPC round trip between worker and main process.
+   Batching *inside* the DataLoader (`batch_size=args.batch` + a `collate_fn`
+   returning `(ids, stacked)`) was worth ~3.6x on its own. The IPC cost, not
+   decode, was the real bottleneck.
+2. **One shard starves 8 workers** (231 img/s). Shards are assigned round-robin
+   whole-file, so a single `.tar` gives one worker everything and the other
+   seven idle. Only with 10+ shards does it reach 626. Same mis-specification
+   that produced the bogus "workers make it slower" table earlier.
+
+Note 626 < the 876 the isolated loader benchmark hit; the remainder is this
+script's per-sample manifest filtering and `.npz` accumulation. Good enough:
+the 2.5M-image full corpus goes from **~4.8 h to ~67 min**.
+
+Flags: `--workers N` (default 8, 0 = old serial path) and `--fp16` / `--no-fp16`
+(default on). Multi-view (`--views N>1`) always uses the serial path, since it
+needs the raw PIL image to apply a different transform per view.
