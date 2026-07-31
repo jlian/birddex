@@ -1604,3 +1604,110 @@ same applies here. Git holds the history; this file holds the truth. Keep a
 mistake only when the mistake itself is instructive (e.g. a failure mode that
 looks like something else), and then state it as a warning in the settled text,
 not as a chronological correction.
+
+## TinyCLIP paper: what applies to us (read 2026-07-31)
+
+Wu et al., ICCV 2023 (MSR). Read for actionable technique, not summary.
+`https://openaccess.thecvf.com/content/ICCV2023/papers/Wu_TinyCLIP_CLIP_Distillation_via_Affinity_Mimicking_and_Weight_Inheritance_ICCV_2023_paper.pdf`
+
+### ⚠️ FINDING THAT CONTRADICTS OUR PLAN: a BETTER teacher is a WORSE teacher
+
+Their Table 4 — student TinyCLIP ViT-40M/32 (59M params), inherited from
+different teachers, then trained 1 epoch on LAION-400M **without distillation**:
+
+| teacher | teacher acc | student acc |
+|---|---|---|
+| *(no inheritance)* | — | 36.2 |
+| CLIP ViT-B/32 | 63.2 | 52.4 (+16.2) |
+| **OpenCLIP ViT-B/32** | **62.9** | **53.5 (+17.3)** |
+| OpenCLIP ViT-B/16 | 67.1 | 52.8 (+16.6) |
+| OpenCLIP ViT-L/14 | 75.3 | 45.1 (+8.9) |
+| OpenCLIP ViT-H/14 | **78.0** | **41.1 (+4.9)** |
+
+Their words: *"although ViT-H/14 ranks as the highest-performing teacher model,
+it lags behind other models in terms of weight inheritance."* **Architectural
+proximity beats teacher accuracy** — the best teacher (78.0) produced the WORST
+student (41.1), 12.4 points below the weakest teacher.
+
+**Implication for us:** this is specifically about *weight inheritance*, which we
+are NOT doing (we take TinyCLIP's own pretrained weights, not surgery on
+WingCLIP). So it does not directly invalidate WingCLIP-0.1 as our distillation
+teacher. But it is a caution: WingCLIP-0.1 is ViT-B/16 and TinyCLIP-39M is
+`vit_medium_patch16` — close enough that the concern is mild, and our teacher is
+86.6M not 300M+. Worth re-reading if the pilot underperforms.
+
+### Affinity mimicking — NOT applicable to our setup, and why
+
+Their loss (Eq. 1-3) distills the **image-text affinity matrix**, not features:
+
+```
+L_distill = L_I2T + L_T2I
+          = CE(A^s_I2T, A^t_I2T) + CE(A^s_T2I, A^t_T2I)
+A_I2T(i,j) = softmax over texts of (I_i · T_j / tau)
+A_T2I(i,j) = softmax over images of (I_i · T_j / tau)
+```
+
+Ablation (Table 2, ViT-40M/32, 1 epoch LAION-400M, zero-shot IN-1k):
+
+| mode | loss | top-1 |
+|---|---|---|
+| contrastive (CLIP baseline) | `CE(<Is,Ts>, I)` | 53.4 |
+| **affinity mimicking** | `CE(<Is,Ts>, <It,Tt>)` | **55.5** |
+| cross-modality | `CE(<Is,Tt>, <It,Tt>)` | 55.3 |
+| **single modality** | `CE(<Is,It>, I)` | **19.2** |
+
+**+2.1 pts over contrastive.** The headline is real but **requires a TEXT TOWER
+and paired captions in the batch** — it distills relationships between negative
+pairs across modalities. We do **feature distillation** (cosine to a cached 768-d
+target) with **no text tower at training time and no captions**, so affinity
+mimicking is not available to us without re-architecting Phase 3 entirely.
+
+⚠️ Note their "single modality" row (19.2) is NOT our setup either — that is
+`CE(<Is,It>, I)`, an identity-matrix target on student-vs-teacher image features.
+Ours is cosine regression onto the teacher embedding, which is closer to their
+"cross modalities" family. Do not read 19.2 as evidence our approach fails; it is
+a different loss.
+
+### Hyperparameters they used
+
+- Ablations: **1 epoch, lr 5e-4**, 32x V100/A100, PyTorch + OpenCLIP + timm +
+  gradient cache.
+- Teacher for distillation: OpenCLIP ViT-B/32 on LAION-2B (65.6% IN-1k) —
+  chosen for *high throughput*, not for being the strongest model available.
+- Note lr 5e-4 is **5x our 1e-4**. Ours is a much smaller dataset with cached
+  targets, so not directly transferable, but flags that our LR may be
+  conservative for a 39M model. Cheap to test after the A/B.
+
+### Multi-stage progressive distillation — the applicable lesson
+
+One-shot extreme compression causes **"divergence failure ... most weights of the
+large model are directly discarded, including those that are important for
+ensuring model quality and convergence."** Their fix: **~25% compression per
+stage**, each stage = inherit + distil.
+
+**Applicable to us as a fallback:** if TinyCLIP-39M underperforms from a single
+86.6M→38.3M jump (2.26x), the paper's own remedy is to go in smaller steps. We
+have `vit_betwixt_patch32` (61.1M) available as an intermediate: 86.6 → 61.1 →
+38.3 is ~30% per step. Only worth the extra GPU-days if the direct jump fails.
+
+### Redundancy finding (informative, we cannot act on it directly)
+
+Fig. 4/5: **the text encoder is redundant in DEPTH (layer-wise), the image
+encoder is redundant in WIDTH (channel-wise).** So they prune text by dropping
+layers and image by dropping channels/heads. We ship no text tower and do not
+prune, so this is background — but it explains why TinyCLIP's *image* variants
+keep depth and shrink width, which is what `vit_medium` is.
+
+### Net: what we should actually adopt
+
+1. **Nothing changes for the running pilot.** Affinity mimicking needs a text
+   tower we do not have; weight inheritance is already baked into the pretrained
+   TinyCLIP checkpoints we load from timm.
+2. **Keep progressive distillation (86.6 → 61.1 → 38.3) as the documented
+   fallback** if the direct 2.26x jump loses too much.
+3. **Consider testing lr 5e-4** (or at least 2-3e-4) for the 39M student after
+   the A/B settles — smaller models often want higher LR, and 1e-4 was tuned for
+   the 86.6M ViT-B.
+4. **Do NOT assume a stronger teacher is better.** Their Table 4 is the opposite
+   for inheritance, and it is a live question for distillation too. If TinyCLIP
+   from WingCLIP-0.1 disappoints, the BioCLIP-2 cache is a ready control.
