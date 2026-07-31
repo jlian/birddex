@@ -2849,3 +2849,38 @@ Bit-exact to float rounding. **This matters because it makes the fp32 ONNX a
 trustworthy baseline**: any accuracy lost at int8/int4 is attributable to
 quantisation, not to a broken export. The script exits non-zero on mismatch so
 it cannot silently pass.
+
+### Size reality check: 304M PARAMS, not 300 MB (2026-07-31)
+
+Measured the teacher rather than guessing. The "BioCLIP is ~300" figure is a
+**parameter count**, not megabytes:
+
+| model | params | fp32 |
+|---|---|---|
+| BioCLIP-2 TOTAL (ViT-L-14) | 427.6M | 1710.5 MB |
+| ...visual tower | 304.0M | 1215.9 MB |
+| ...text tower | 123.7M | 494.6 MB |
+| **WingCLIP student (ViT-B-16)** | **86.6M** | **346.3 MB** |
+
+So the student is already a **3.5x compression of the teacher's visual tower**
+(304M -> 86.6M) and 346 MB is the correct fp32 size. Note the full teacher is
+1.7 GB with its text tower, which is exactly why the text matrix is precomputed
+and frozen — that 494.6 MB never ships.
+
+### Why a smaller backbone is NOT an option (decided 2026-07-31)
+
+`train_student.py` supports MobileCLIP-S2 and it would hit the size target, but:
+
+1. **Licence.** The `datacompdr` / `dfndr2b` MobileCLIP weights in open_clip are
+   Apple ML Research licensed, restricting commercial use. WingDex is a public
+   app, so this is a genuine blocker.
+2. **No basis weights = no distillation.** More fundamental: the whole method
+   depends on starting from strong pretrained weights (we use LAION2B). Without
+   a usable pretrained MobileCLIP checkpoint you would be training the
+   architecture from scratch, which needs orders of magnitude more compute and
+   would not land near 89%. **The method cannot simply be "adapted" to an
+   architecture we have no basis weights for.**
+
+**DECISION: move the size target.** The sub-25 MB figure was a MobileCLIP-S2
+assumption that no longer applies; WingCLIP-0.1 is ViT-B-16 and stays that way.
+Measure int8 and int4 on the real tower and let the numbers set expectations.
