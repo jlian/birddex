@@ -233,8 +233,12 @@ function stratGated(fx, K = 15, opts = {}) {
 // NOTE: fixtures store softmax(sim/0.01) probabilities, so we recover the
 // underlying sim as 0.01*log(p) (+const, which cancels in a softmax/argsort).
 function stratBayes(fx, K = 25, opts = {}) {
-  const T = opts.T ?? 0.0072
-  const w = opts.w ?? { present: 0.0, "near-range": -0.5, "no-data": -0.5, "out-of-range": -3.0 }
+  const T = opts.T ?? 0.007809  // FITTED 2026-07-30 on 11k leak-free set
+  // FITTED jointly with T by max-likelihood on 11,070 leak-free photos.
+  // Note w[no-data] fitted to EXACTLY 0: do not punish ignorance like
+  // absence. And w[out-of-range] = -3.86 is far harsher than the
+  // hand-set 0.25x multiplier (~-1.39 in log space).
+  const w = opts.w ?? { present: 0.0, "near-range": -0.5726, "no-data": 0.0, "out-of-range": -3.8552 }
   const ctx = fx.context || {}
   const rangeLookup = opts.expanded ? lookupRangeExpanded : lookupRange
   let c = ground(fx).sort((a, b) => b.score - a.score).slice(0, K)

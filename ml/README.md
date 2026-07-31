@@ -1922,3 +1922,83 @@ near-range -0.5, no-data -0.5, out-of-range -3.0) and it TIED F at 78/91 on our
 model and LOST on the teacher (83 vs 87). That test means almost nothing: the
 weights were not fitted and n=23 cannot resolve 4 points. Not evidence against
 the approach; it is evidence the experiment has not been run yet.
+
+### BAYESIAN RERANK: FITTED AND MEASURED (2026-07-30 evening)
+
+**Steps 1-3 of the plan are DONE.** Full R2 range set pulled (all 681,023 cells,
+260 MiB, via rclone over the S3 endpoint using .dev.vars creds -- the REST API
+throttles at ~8 req/s and silently returns 429s that look like missing cells).
+
+Range status attached to all 25 candidates x 11,070 calibration photos in 15s.
+Tally is itself informative:
+  out-of-range 232,974 (84%) | present 34,942 (13%) | near-range 8,809 (3%)
+  no-data 25 (~0%, which validates pulling the FULL cell set)
+84% of the top-25 being geographically implausible is exactly the signal a
+prior should exploit.
+
+**FITTED PARAMETERS** (joint max-likelihood, T + 4 log-priors, on the leak-free
+11k set; w[present] pinned to 0 as reference since only differences are
+identifiable):
+```
+T                = 0.007809
+w[present]       =  0.0      (reference)
+w[near-range]    = -0.5726
+w[no-data]       =  0.0      <- fitted to EXACTLY zero
+w[out-of-range]  = -3.8552
+```
+Two findings in those numbers:
+- `w[no-data] = 0` means **do not punish ignorance like absence**. The old
+  pipeline's 1.0x for no-data was accidentally right.
+- `w[out-of-range] = -3.86` (~47x downweight) is **far harsher** than the
+  hand-set 0.25x multiplier (~-1.39 in log space). The hand-tuned constant was
+  nearly 2.5 log-units too gentle.
+
+**HEAD-TO-HEAD, 3,140 held-out photos (1 pt = ~31 photos):**
+
+| strategy | top-1 | top-5 |
+|---|---|---|
+| raw argmax (no geography) | 77.17 | 94.33 |
+| D hard tiering (no gate) | 77.42 | 95.19 |
+| F gated dom=0.5 + tiering | 84.14 | 96.94 |
+| **H bayes log-sum (fitted)** | **86.62** | **97.99** |
+
+**H BEATS F by +2.48 top-1 (~78 photos) and +1.05 top-5.** The prediction held
+at n=3,140. Ceiling is 94.61% (top-25 recall), so H closes **54%** of the gap
+between raw argmax and the theoretical maximum.
+
+Second half of the prediction also held: **H is less parameter-sensitive.** F
+swings 83.03-84.14 across domMargin 0.3/0.5/0.7 and its best value depends on a
+hand-picked constant; H has no threshold at all.
+
+⚠️ **Strategy D is nearly worthless (77.42 vs 77.17 raw).** The tiering
+machinery contributes almost nothing by itself -- essentially ALL of F's gain
+comes from the dominance gate deciding *when to ignore* the tiering. Evidence
+the tier approach was structurally wrong, not merely mistuned.
+
+⚠️ **THE 27-IMAGE GOLDEN SET DISAGREES, AND IT IS WRONG.** With the same fitted
+parameters, on n=23: H ties F at 78% on 0.1, and LOSES on the teacher (83 vs
+87). It also produced the only 100% top-5 in the matrix (23/23 on 0.1 vs F's
+91%). At n=23 one image is 4.3 pts, so it cannot resolve a 2.5 pt difference.
+**Do not tune or judge reranking on the golden set.** Keep it only as the
+historical anchor vs GPT 83/87 and teacher 87/96.
+
+⚠️ **Caveat: the 86.62% is IN-DISTRIBUTION iNat data.** It validates the
+mechanism and gives trustworthy parameters, but the absolute number will not
+transfer to NABirds or real user photos. What transfers is the RANKING of
+strategies and the fitted weights.
+
+**NEXT:** (4) build the iNat occurrence layer for a real P(species|cell), add
+alpha/beta, re-fit -- the four weights cannot tell a Rock Pigeon from a Northern
+Hawk-Owl when both are merely `present`. (5) then port the log-sum into
+`bird-id.ts` and delete the floor/tier/dominance stack.
+
+**Rasterizer memory note (for whenever the GeoPackage is regenerated):** the
+60GB peak is NOT the geometries -- that streaming fix worked. It is the
+accumulator `dict[(row,col) -> dict[code -> [presence, origin, seasonal]]]`, a
+nested Python dict holding a 3-element list per (cell, species) pair; object
+overhead alone is ~120 bytes each across hundreds of millions of pairs. Fix is
+to append flat rows to Parquet and aggregate in DuckDB
+(`min(presence), bit_or(origin), bit_or(seasonal) GROUP BY row, col, code`),
+which spills to disk and makes peak RAM a configurable memory_limit.
+GeoPackage now lives at `/mnt/nas/WingDex-Distill/birdlife-shp/BOTW_2025.gpkg`
+(9.31GB) with the crosswalk + attribute docs alongside.
