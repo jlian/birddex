@@ -3391,3 +3391,43 @@ WebDataset shards on the NAS") and the 2026-07-25 consolidation entry ("corpus
 deleted... the WebDataset shards there already contain every image
 byte-identically"). It is the intended design, not a recovery. Lesson: grep this
 file before treating anything as missing.
+
+### ⚠️⚠️ CORRECTION (2026-07-31): 0.1 used **aug=none**, NOT aug light
+
+The section immediately above claims "Both 0.1 and 0.2 use aug light" and
+concludes aug cannot explain the regression. **That is WRONG.** Read from the
+actual checkpoint `args`, not the prose:
+
+| run | aug | lr | wd | beta2 | warmup | clip | ep |
+|---|---|---|---|---|---|---|---|
+| `full7555_vitb` (**0.1 distill**) | **none** | 1e-4 | 0.1 | — | — | — | 20 |
+| `full7555_locked_ep25` (**0.2 distill**) | **light** | 7e-5 | 0.2 | 0.95 | 500 | 1.0 | 25 |
+| `ft_clean_01` (**0.1 FINE-TUNE**, ship candidate) | light | 1e-5 | 0.1 | — | 200 | 1.0 | 12 |
+
+**Aug IS one of the changed variables between 0.1 and 0.2.** My error came from
+conflating the FINE-TUNE stage (`ft_clean_01`, which does use aug light) with
+the DISTILLATION stage (`full7555_vitb`, which uses none). Different stages.
+
+**Consequence: "0.2 recipe without aug light" is a LEGITIMATE ablation after
+all**, and John's original instinct was right.
+
+**Bigger consequence: 0.2 changed SIX variables at once vs 0.1** — aug, lr, wd,
+beta2, warmup, grad clip. So the recorded blame on "aug light + wd 0.2" is a
+GUESS across six confounded variables, not an isolated finding. We know 0.2 lost
+(90.7% vs 94.7% NABirds retention); we do NOT know which knob did it.
+
+**Revised ablation priority for the TinyCLIP pilot** (pilot-500, cheap):
+1. **0.1 recipe** — aug none, lr 1e-4, wd 0.1 (known-good baseline at 86.6M)
+2. **0.2 recipe** — full locked recipe (may win at 39M: less capacity, so
+   regularization has more to do)
+3. **0.2 minus aug** (aug none, everything else 0.2) — isolates augmentation
+4. **0.2 with wd 0.1** — isolates weight decay
+
+Runs 3 and 4 are only worth it if 1-vs-2 is close or inverts; if 0.2 wins
+cleanly at 39M the confound stops mattering for the decision at hand.
+
+Note also `exp1` vs `exp2` (pilot, ep15) already isolate the non-aug recipe
+change at **aug=none for both**: exp1 = old recipe (lr 1e-4, wd 0.1), exp2 = new
+recipe (lr 1e-4, wd 0.2, beta2 .95, warmup 500, clip 1.0). That pair is the
+cleanest existing evidence on the recipe change minus augmentation, and is worth
+re-reading before spending GPU time.
