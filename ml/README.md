@@ -2106,3 +2106,40 @@ region-specific structure. BirdLife redundancy reproduces independently here
 
 **NEXT:** temporal holdout, then GBIF as the independent-source test, then port
 the log-sum into `bird-id.ts` and delete the floor/tier/dominance stack.
+
+### TEMPORAL HOLDOUT — a stale prior DOES cost accuracy (2026-07-30 night)
+
+Geographic holdout said the prior transfers to unseen cells (0.87 pt penalty).
+This tests a different failure: does it survive TIME?
+
+Built a second occurrence layer from **pre-2024 observations only**, fitted on
+calibration photos observed before 2025 (n=6,178), evaluated on photos observed
+2025+ (n=4,892). Same photos, same candidates, same fitting — only the counts
+differ.
+
+| prior | ABS top-1 |
+|---|---|
+| BirdLife only (no occurrence) | 82.13 |
+| occurrence: FULL corpus | **88.41** (+6.28) |
+| occurrence: PRE-2024 only | 85.53 (+3.39) |
+
+**Cost of a 2-year-stale prior: 2.88 pts.** It retains only **54%** of the
+benefit. That is much worse than the geographic transfer penalty and it
+CONTRADICTS the earlier assumption (mine and John's) that a yearly refresh would
+be plenty.
+
+⚠️ **Two explanations, NOT yet separated:**
+1. **Genuine drift** — distributions and/or iNat usage patterns shifting.
+2. **Data density** — the pre-2024 prior simply has less data (11.2% nonzero
+   candidate slots vs 12.8%; median cell total 3,503 vs 6,677). iNat has grown
+   fast, so dropping two years drops a disproportionate share of observations.
+   "Less data" and "stale data" are different problems with different fixes.
+
+**Distinguishing test:** density-matched control — randomly subsample the FULL
+corpus down to the pre-2024 observation volume and re-run. If a thinned-but-
+current prior does equally badly, the cause is DENSITY. If it holds up, the
+cause is genuine DRIFT.
+
+**Practical implication either way: refresh the occurrence layer more often than
+annually.** Quarterly is cheap — the full build is ~2 minutes in DuckDB and
+produces a 162 MB parquet, and it needs no images and no GeoPackage.
