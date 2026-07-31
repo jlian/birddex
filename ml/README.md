@@ -1569,3 +1569,60 @@ restarting):
 Together these should take the re-embed from **147 img/s** to roughly the
 aggregate decode rate of 12 workers (600+ img/s), i.e. the 2.5M-image full
 corpus from **~4.7 h to well under 1.5 h**.
+
+### ⚠️ CORRECTION: training DOES use AMP — my "correction" was itself wrong
+
+Earlier I claimed training used fp16, then "corrected" myself to say
+`train_student.py` has no AMP and is fp32. **The correction was the error.**
+Verified by line number:
+
+```
+445:    scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
+486:                with torch.cuda.amp.autocast(enabled=dev == "cuda"):
+505:            with torch.cuda.amp.autocast(enabled=dev == "cuda"):
+```
+
+**Training is AMP/fp16. The original hypothesis was right.** The bad grep
+printed matches but I read my own "(none above means fp32)" echo as the verdict.
+Lesson: do not let a convenience echo in a command stand in for reading output.
+
+So the throughput picture is:
+
+| | workers | precision | throughput |
+|---|---|---|---|
+| training (fwd+bwd) | 12 | **AMP fp16** | 302-320 img/s |
+| precompute (fwd only) | 0 | **fp32** | 144-147 img/s |
+
+**Both differences are real** — precompute is missing AMP *and* missing workers.
+Adding autocast to `precompute_embeddings.py` remains the single biggest win
+(235 -> 655 img/s measured on the GPU alone), and fp16 is free on accuracy
+(0.00 top-1 delta on NABirds).
+
+### ⚠️ DataLoader workers made it SLOWER (measured, 512 imgs, 1 shard)
+
+```
+workers  fp32    fp16
+  0      123.2   194.7
+  8       89.8   110.0
+ 12       70.0    79.7
+```
+
+Monotonically worse with more workers, the OPPOSITE of the prediction. **The
+benchmark is mis-specified, not DataLoader.** `bench_loader.py` shards whole
+`.tar` files across workers, so with ONE shard only one worker has data while
+the rest pay startup + IPC for nothing; a 512-image run makes fixed costs
+dominate. A 25-shard / 24k-image rerun is in flight. Do not conclude "workers
+are bad" from the table above.
+
+### ⚠️ TRAP: WDS shards carry BioCLIP-2 targets baked in
+
+`pack_webdataset.py` wrote `<key>.emb` (the BioCLIP-2 target) INTO each shard.
+For sequential distillation the teacher changes but the images do not, so a
+`--wds` run would **silently train against the OLD teacher**. `--mv-embeddings`
+does not help: it hard-rejects single-view caches.
+
+**Fix: `--sv-embeddings <dir>`** (new). `SingleViewTargets` loads a normal
+`--views 1` precompute and overrides the shard-baked target per sample; samples
+absent from the override are dropped. Smoke-tested: loads 244,699 WingCLIP
+embeddings, logs `TEACHER OVERRIDE ... (shard .emb ignored)`, and TinyCLIP-39M
+trains (loss 0.7703, val_cos 0.4978 after 1 epoch on 2,048 samples).

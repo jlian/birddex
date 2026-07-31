@@ -93,7 +93,8 @@ def _in_val(key, val_frac, seed=42):
     return (int.from_bytes(h, "big") % 1_000_000) < int(val_frac * 1_000_000)
 
 
-def _decode(sample, preprocess, mv=None, view_tf=None, rng=None):
+def _decode(sample, preprocess, mv=None, view_tf=None, rng=None,
+            sv_targets=None):
     """tar member dict -> (image_tensor, teacher_embedding).
 
     Single-view (mv=None): use the shard's baked-in center-crop `.emb`.
@@ -128,16 +129,52 @@ def _decode(sample, preprocess, mv=None, view_tf=None, rng=None):
         x = preprocess(img)
     except Exception:
         return None
+    if sv_targets is not None:
+        # override the shard-baked target with a different teacher
+        key = sample.get("__key__")
+        e = sv_targets.get(key) if key is not None else None
+        if e is None:
+            return None      # photo absent from the override cache
+        return x, torch.from_numpy(np.asarray(e, dtype=np.float32))
     emb = np.frombuffer(sample["emb"], dtype=np.float16)
     if emb.shape != (EMB_DIM,):
         return None
     return x, torch.from_numpy(emb.astype(np.float32))
 
 
+class SingleViewTargets:
+    """photo_id -> ONE 768-d teacher embedding, overriding the shard .emb.
+
+    The .tar shards were packed with BioCLIP-2 targets baked in. For
+    SEQUENTIAL distillation the teacher changes (WingCLIP-0.1 beats
+    BioCLIP-2 on NABirds, 89.93 vs 86.41) but the IMAGES do not, so we want
+    the same shards with different targets. Without this the run would
+    silently train against the old teacher.
+
+    Unlike MultiViewTargets this accepts a normal --views 1 cache.
+    """
+
+    def __init__(self, emb_dir):
+        shards = sorted(glob.glob(os.path.join(emb_dir, "shard_*.npz")))
+        if not shards:
+            raise SystemExit(f"no shard_*.npz in {emb_dir}")
+        self.by_pid = {}
+        for sp in shards:
+            with np.load(sp) as d:
+                for pid, e in zip(d["photo_ids"], d["embeddings"]):
+                    self.by_pid[int(pid)] = e
+        print("[wds] target override: " + format(len(self.by_pid), ",") +
+              " embeddings from " + str(emb_dir), flush=True)
+
+    def get(self, pid):
+        return self.by_pid.get(int(pid))
+
+
 def make_wds_loader(urls, preprocess, batch_size, workers,
                     shuffle=10000, is_train=True, epoch_samples=None,
                     val_frac=0.02, split_seed=42,
-                    mv_targets=None, view_transform=None):
+                    mv_targets=None, view_transform=None,
+                    sv_targets=None):
     """Build a DataLoader over WebDataset shards.
 
     Yields `(images, teacher_embeddings)` as stacked float32 tensors, i.e. the
@@ -174,7 +211,8 @@ def make_wds_loader(urls, preprocess, batch_size, workers,
     # so val_cos stays comparable across every run regardless of aug settings
     _mv = mv_targets if is_train else None
     _rng = np.random.default_rng(split_seed) if (is_train and mv_targets) else None
-    ds = ds.map(lambda s: _decode(s, preprocess, _mv, view_transform, _rng),
+    ds = ds.map(lambda s: _decode(s, preprocess, _mv, view_transform, _rng,
+                                  sv_targets),
                 handler=wds.ignore_and_continue)
     # drop samples that failed to decode
     ds = ds.select(lambda x: x is not None)

@@ -262,6 +262,8 @@ def main():
                          "hflip and REQUIRES --mv-embeddings, because each crop "
                          "must be paired with the teacher target computed for that "
                          "same crop")
+    ap.add_argument("--sv-embeddings", default="",
+                    help="override the shard-baked teacher targets with a SINGLE-view precompute dir. Needed for sequential distillation: the .tar shards carry BioCLIP-2 targets, but the teacher may now be WingCLIP.")
     ap.add_argument("--mv-embeddings", default="",
                     help="dir of a --views N precompute (shard_*.npz with a "
                          "'views' array). Enables per-view teacher targets: the "
@@ -347,17 +349,25 @@ def main():
             split_frac = args.val_frac
             log(f"wds: hash-based {split_frac:.1%} val split across ALL shards "
                 f"(stratified; covers every species)")
+        sv = None
+        if args.sv_embeddings:
+            from wds_loader import SingleViewTargets
+            sv = SingleViewTargets(args.sv_embeddings)
+            log("TEACHER OVERRIDE: targets from " + args.sv_embeddings +
+                "  (shard .emb ignored)")
+
         train_dl = make_wds_loader(train_urls, train_pp, args.batch,
                                    args.workers, shuffle=args.wds_shuffle,
                                    is_train=True,
                                    epoch_samples=args.wds_epoch_samples,
                                    val_frac=split_frac,
-                                   mv_targets=mv, view_transform=train_pp)
+                                   mv_targets=mv, view_transform=train_pp,
+                                   sv_targets=sv)
         val_samples = max(args.batch, args.wds_epoch_samples // 50)
         val_dl = make_wds_loader(val_urls, student.preprocess, args.batch,
                                  max(1, args.workers // 2), shuffle=0,
                                  is_train=False, epoch_samples=val_samples,
-                                 val_frac=split_frac)
+                                 val_frac=split_frac, sv_targets=sv)
         steps_per_epoch = max(1, args.wds_epoch_samples // args.batch)
         log(f"wds mode: {args.wds_epoch_samples:,} samples/epoch -> "
             f"{steps_per_epoch:,} steps/epoch, val~{val_samples:,} samples")
