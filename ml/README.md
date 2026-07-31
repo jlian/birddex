@@ -1489,3 +1489,41 @@ Scripts were briefly split across `bioclip-birdid`/`bioclip-distill` branches
 checkout deleted + scratch scripts symlinked 2026-07-24; full consolidation into one
 directory + corpus deletion 2026-07-25; this reorganization (current-truth-first)
 2026-07-31.
+
+### ⚡ precompute_embeddings.py is ~2x slower than it should be (measured 2026-07-31)
+
+Observed **147 img/s** re-embedding with the WingCLIP teacher, vs ~300 img/s
+during *training* — which is backwards, since inference has no backward pass.
+
+**Profiled it (512 real pilot JPEGs, batch 256, fp32):**
+
+```
+decode + preprocess :  224 img/s   (51% of wall time)
+GPU forward only    :  234 img/s   (49% of wall time)
+serial total        :  114 img/s   <- matches the observed 147
+```
+
+**Root cause: no DataLoader.** `precompute_embeddings.py` decodes and
+preprocesses inline in a single-threaded generator
+(`Image.open(io.BytesIO(data)).convert("RGB")` at line ~119), then runs the GPU
+forward, then repeats. Every stage blocks the next, so a near-perfect 50/50 CPU
+/GPU split yields roughly HALF of either. Training does not have this problem
+because its WebDataset DataLoader decodes in parallel worker processes while the
+GPU computes.
+
+⚠️ Note this REFINES the earlier "we are GPU-bound, not I/O-bound" conclusion:
+that was measured for TRAINING (loader alone ~640 img/s but end-to-end
+~302-320). For pure INFERENCE there is no backward pass, so the balance flips
+and CPU preprocessing becomes half the cost.
+
+**Second finding: GPU forward is only 234 img/s, slower than training's ~300.**
+Unexpected for a forward-only pass. Most likely this script runs **fp32** while
+training used AMP/fp16. Given the quantisation sweep showed **fp16 is exactly
+free** (identical NABirds top-1), running the teacher in fp16 is safe and should
+roughly double the GPU half.
+
+**Fix before the FULL corpus run** (pilot is only ~28 min, not worth restarting):
+1. wrap the stream in a `DataLoader` with `num_workers` (overlap CPU and GPU)
+2. run the teacher under `torch.autocast` / fp16
+Estimated: 147 -> ~400+ img/s, taking the 2.5M-image full re-embed from **~4.7 h
+to ~1.5 h**.
