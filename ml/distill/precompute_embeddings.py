@@ -190,8 +190,30 @@ def main():
             print("nothing to do (pull may still be in progress; re-run later)", flush=True)
             return
 
-    model, _, preprocess = open_clip.create_model_and_transforms(args.model)
-    model = model.to(dev).eval()
+    # Teacher can be either an open_clip hub model (BioCLIP-2, the original)
+    # or a local WingCLIP Student checkpoint. The latter enables SEQUENTIAL
+    # distillation: WingCLIP-0.1 scores 89.93 on NABirds vs BioCLIP-2
+    # 86.41, so it is the stronger teacher for this domain.
+    if args.model.endswith(".pt"):
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from train_student import Student
+        ck = torch.load(args.model, map_location="cpu")
+        ca = ck.get("args", {})
+        st = Student(ca.get("arch", "ViT-B-16"),
+                     ca.get("pretrained", "laion2b_s34b_b88k"))
+        st.load_state_dict(ck["model"])
+        model = st.to(dev).eval()
+        preprocess = st.preprocess
+        # Student.forward is already visual -> proj -> normalize, so the
+        # output is L2-normalised 768-d, same contract as encode_image
+        # followed by the normalise below.
+        model.encode_image = model.forward
+        print("teacher = WingCLIP checkpoint " + args.model, flush=True)
+    else:
+        model, _, preprocess = open_clip.create_model_and_transforms(args.model)
+        model = model.to(dev).eval()
+        print("teacher = open_clip " + args.model, flush=True)
 
     # next shard index
     existing = glob.glob(os.path.join(args.out, "shard_*.npz"))
