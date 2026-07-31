@@ -1626,3 +1626,40 @@ does not help: it hard-rejects single-view caches.
 absent from the override are dropped. Smoke-tested: loads 244,699 WingCLIP
 embeddings, logs `TEACHER OVERRIDE ... (shard .emb ignored)`, and TinyCLIP-39M
 trains (loss 0.7703, val_cos 0.4978 after 1 epoch on 2,048 samples).
+
+### ✅ LOADER BENCHMARK, PROPERLY SPECIFIED (25 shards, 24k images)
+
+```
+workers  fp32     fp16
+  0      231.0    219.9
+  4      344.5    642.7
+  8      361.7    876.3   <- BEST
+ 12      349.8    870.1
+```
+
+**Best: 8 workers + fp16 = 876.3 img/s.** That is **6.1x** the production
+script's 144 img/s and **~2.7x** training's 302-320.
+
+Discard the earlier 1-shard/512-image table entirely: it showed workers making
+things monotonically *slower*, which was pure startup + IPC overhead with only
+one worker holding data. Note even the 0-worker row moved 123.2 -> 231.0 between
+the two runs, i.e. the first benchmark was measuring fixed cost, not throughput.
+
+**The shape confirms the CPU-bound diagnosis:**
+- **fp32 plateaus at ~350** no matter how many workers -> GPU-bound there
+- **fp16 keeps scaling to 876** -> the faster GPU can absorb what more workers feed
+- **fp16 is SLOWER than fp32 at 0 workers** (219.9 vs 231.0) -> classic starved-GPU
+  signature; a faster GPU just waits longer on a single decode thread
+- **12 workers ≈ 8 workers** -> decode saturates ~8 on this 16-core box
+- Neither lever works alone: workers-only gets 361, fp16-only gets 220. Together
+  876. **This is why measuring one bottleneck at a time was misleading all day.**
+
+⚠️ **Still unexplained: production gets 144 img/s where this benchmark gets 231
+with the SAME 0-worker fp32 config.** ~1.6x of overhead unaccounted for, likely
+`precompute_embeddings.py`'s per-sample manifest lookup, the `.npz` shard
+accumulation/writes, or NAS read patterns. Worth a look before the full run,
+since it is a real cost on top of the missing workers/AMP.
+
+**Action for the 2.5M-image full-corpus re-embed:** add `num_workers=8` and
+`torch.autocast` to `precompute_embeddings.py`. At 876 img/s that is **~48
+minutes** instead of **~4.8 hours** at 144.
