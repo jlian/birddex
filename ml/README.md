@@ -520,7 +520,63 @@ confidence distribution (median top-1 0.807 vs 0.715). Any model swap
 REQUIRES re-running emit_calib_candidates + fit_occurrence.
 
 ---
-**[NEXT-5] Re-measure abstention under the new ranker**
+**[NEXT-5] ABSTENTION REDESIGN under the new ranker** (big item, do properly)
+
+Abstention is NOT one decision. In WingDex it is two, and only the
+second is really about confidence:
+
+  **(a) ASK FOR A CROP** -- fires when a BETTER VIEW probably exists.
+      This is a framing problem, not an uncertainty problem: the bird is
+      small in frame, off-centre, or one of several. GPT gave us
+      `birdCenter` / `birdSize` / `multipleBirds` for free; a pure
+      classifier does not.
+  **(b) GUESS WITH LOW CONFIDENCE** ("probably a crow") -- the
+      escalation once cropping is exhausted. Here the PRIOR is doing
+      most of the work by design, and that is correct: when the image
+      cannot decide, location is the best remaining evidence.
+      Requirements: the UI must be honest that it is a guess, and a
+      guess must NOT silently enter a life list as a confirmed sighting.
+
+**MEASURE THE PRIOR-DOMINANCE THRESHOLD.** At what confidence does the
+answer become mostly-prior rather than mostly-vision? Directly
+computable now: rank each photo WITH and WITHOUT the geographic term
+and find where the two orderings diverge. Below that point the honest
+phrasing is not "probably a crow" but "common here, and consistent
+with what I can see". This threshold decides BOTH the crop prompt and
+the wording change.
+
+**Degradation proxy for the unmeasurable regime.** We will never get a
+well-labelled corpus of bad phone shots -- if an expert cannot identify
+the bird there IS no ground truth, and any label just encodes the
+labeller's own geographic prior, i.e. the exact thing under test. Proxy:
+blur / downscale / bad-crop / darken photos where we DO know the answer
+(iNat or NABirds) and watch where confidence and top-1 fall off. Needs
+no new data and gives the prior-dominance curve directly.
+
+**How to get bird size / position WITHOUT retraining** (for (a)):
+  - iOS **Vision framework** animal detection: real boxes + count, free,
+    on-device. Already noted in the detection section below.
+  - **Attention/patch heatmap** from the ViT itself: patch-token
+    similarity to the predicted text embedding gives a crude saliency
+    map -> bbox, no retraining, works everywhere. Unvalidated.
+  - **Multi-crop consistency**: score centre crop vs a few sub-crops; if
+    a sub-crop is much more confident, the bird is small and off-centre.
+    Costs N forward passes but needs nothing new.
+  - NABirds ships **bounding boxes**, so any of these can be validated
+    against ground truth before shipping.
+
+⚠ **IS THE SOFTMAX GATE ACTUALLY CRUDE? UNKNOWN -- MEASURE IT.**
+It was asserted as a proxy for "ambiguous/multi/small" but never
+validated. NABirds has bounding boxes: correlate top-1 confidence
+against relative bird area. If they correlate strongly the gate is
+fine and no detector is needed; if not, (a) needs a real signal.
+
+⚠ **ALL EXISTING ABSTENTION NUMBERS ARE INVALID.** INV-4 measured a
+2.4% non-bird pass rate at thr 0.5 on the OLD uncalibrated softmax.
+Temperature moved median confidence 0.675 -> 0.85 and the log-sum moves
+it again, so every threshold must be re-measured. Also re-check
+non-bird rejection specifically: a geographic prior may make a dog look
+MORE like a locally-common bird, not less.
 The INV-4 abstention numbers (2.4% non-bird pass rate at thr 0.5) were
 measured on the OLD uncalibrated softmax. Temperature changed the
 confidence distribution (median 0.675 -> 0.85) and the log-sum changes
