@@ -2712,3 +2712,45 @@ reached from the other direction.
 ⚠️ Note this run reports **90.04%**, above the 88.29 quoted elsewhere, because
 floor/T/beta are fitted JOINTLY here (beta lands at 0.625, not 1.33). The
 number moves with the parameterisation — always state which fit produced it.
+
+### END-TO-END VALIDATION ON 11k (2026-07-31): the SHIPPING code reproduces the reference
+
+**Why this run matters.** Every previous number (88.29, 90.04) came from
+`fit_occurrence.py` / `ablate_priors.py` — **Python reimplementations** of the
+log-sum. `stratOccurrence` in `pipeline-experiment.mjs` is a **separate JS
+implementation** that reads the actual shipped blob. Those two had only ever
+been compared on the 27-image golden set (n=23). This is the first run of the
+real JS pipeline over 11,070 photos.
+
+Converted the calibration parquet to harness fixtures
+(`ml/distill/make_calib_fixtures.py` -> `ml/fixtures-calib11k` +
+`ml/truth-calib11k.json`) and added a `--truth` flag to the harness.
+
+| strategy | top-1 | top-5 |
+|---|---|---|
+| A_production (GPT-era pipeline) | 74% | 78% |
+| D_tiered_nogate_1neighbor | 74% | 91% |
+| D_tiered_nogate_8neighbor | 75% | 91% |
+| **F_gated_dom0.5 (WHAT SHIPS TODAY)** | **80%** | **92%** |
+| G_gated_dom0.5_8neighbor | 80% | 92% |
+| H_bayes_logsum (BirdLife) | 82% | 93% |
+| **I_occurrence_SHIPPING** | **89%** | **94%** |
+| *GPT-5.4mini (reference)* | *83%* | *87%* |
+
+**Strategy I beats the shipped pipeline by +9 pts top-1** (80 -> 89) and the GPT
+reference by +6.
+
+**THE CROSS-CHECK PASSES.** Python reference on the held-out third: 88.29.
+JS harness on the full 11,070: 89. Different splits so not an identical
+measurement, but close agreement means the shipping code and the reference math
+implement the same model. That is what could not be confirmed before, since all
+prior agreement was on n=23.
+
+This exercises the whole chain, not just the arithmetic: taxonomy matching,
+Equal Earth projection, blob binary search, varint decode, 5-bit quantised
+priors, ranking. 32 s for 11,070 photos.
+
+⚠️ **Comparability caveat:** A/D/F/G/H all read BirdLife range cells, and this
+fixture set spans worldwide locations where our local 104-cell BirdLife subset
+has gaps, so those strategies may be mildly UNDERSTATED here. Strategy I uses no
+BirdLife at all and is unaffected.

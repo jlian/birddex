@@ -352,7 +352,10 @@ function stratOccurrence(fx, K = 25, opts = {}) {
   return c.sort((a, b) => b.post - a.post).slice(0, 5).map(x => x.commonName)
 }
 
-const truth = JSON.parse(readFileSync(join(ROOT, 'ml/truth.json'), 'utf8'))
+const truthPath = process.argv.includes('--truth')
+  ? process.argv[process.argv.indexOf('--truth') + 1]
+  : join(ROOT, 'ml/truth.json')
+const truth = JSON.parse(readFileSync(truthPath, 'utf8'))
 const baseTruth = {}; for (const [k, v] of Object.entries(truth)) baseTruth[k.replace(/\.[^.]+$/, '')] = v
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
 
