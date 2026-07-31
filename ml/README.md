@@ -3279,3 +3279,70 @@ reusable for any student. `train_student.py` already exposes `--arch` and
 Optional later: progressive distillation (86.6M -> ~60M -> 39M) if the direct
 2.2x jump loses too much, which is exactly the multi-stage scheme TinyCLIP uses
 for extreme compression.
+
+### TEACHER CHOICE + THE SECOND FINE-TUNE (2026-07-31)
+
+**Correction to the plan above:** it said "reuse the cached embeddings", which
+are **BioCLIP-2**, while simultaneously arguing WingCLIP-0.1 is the better
+teacher. Those are two different experiments and were conflated.
+
+**Assets all confirmed present:**
+- `embeddings/` — 366 shards, ~12.4M BioCLIP-2 teacher embeddings (768-d fp16), 3.9 GB
+- `/mnt/nas/WingDex-Distill/wds/` — **252 GB, 252 WebDataset shards** (full corpus)
+- `/mnt/nas/WingDex-Distill/wds-pilot500/` — 25 GB, 26 shards (pilot-500)
+- `ml/groundtruth/corpus/` — **19 GB, 178,804 photos / 5,908 species** (the fine-tune set)
+- `calib_untouched.parquet` — the held-out calibration set
+
+So the WingCLIP-teacher route IS viable — the source images were NOT lost, they
+live on the NAS as WDS shards (`ml/distill/corpus/` is absent, which is what
+made it look otherwise).
+
+**Teacher: use WingCLIP-0.1, not BioCLIP-2.** BioCLIP-2 is 86.41 on NABirds and
+WingCLIP-0.1 is 89.93. Distilling TinyCLIP from BioCLIP-2 targets a teacher we
+already beat and would likely land BELOW 86.41 — i.e. a smaller model that is
+also worse than what we ship. Cost is one GPU re-embedding pass; WingCLIP-0.1
+emits 768-d (projected into teacher space), so the pipeline is unchanged. The
+BioCLIP-2 cache is not wasted: it remains the control for isolating whether a
+disappointing result is TinyCLIP's capacity or the teacher choice.
+
+### ⚠️ The second fine-tune has a REDUNDANCY trap
+
+Yes, TinyCLIP would still need the fine-tune + WiSE-FT stage. But note:
+**WingCLIP-0.1 was ALREADY fine-tuned on those 178,804 ground-truth photos.**
+If we then fine-tune the TinyCLIP student on the SAME photos, we are training on
+data the teacher already absorbed — the supervision is baked into the teacher's
+embeddings, so re-teaching it is at best redundant and risks double-counting
+those labels.
+
+This is NOT eval leakage (the held-out set stays held out), it is a wasted /
+double-dipped training signal. Three options, in order of preference:
+
+1. **Skip the second fine-tune, evaluate first.** The distillation target is
+   already a fine-tuned model, so the student may inherit the gains directly.
+   Measure NABirds before assuming another fine-tune is needed. Cheapest and
+   answers the question.
+2. **Fine-tune on a DISJOINT slice** of ground-truth data (John's instinct:
+   "different images"). Requires re-splitting the 178k by observation.
+3. **Fine-tune on the same set anyway** — acceptable if (1) shows a gap, since
+   a smaller student may not have absorbed everything, but expect diminishing
+   returns and watch for overfitting.
+
+### Which distillation recipe: BOTH, and the old result does NOT transfer
+
+The 0.2 "locked recipe" (lr 7e-5, wd 0.2, beta2 .95, warmup 500, clip 1.0, aug
+light, 25 ep) LOST at full scale: NABirds retention 90.7% vs 0.1-alpha's 94.7%.
+Recorded reason: **"scale dominates recipe"** — at 7,555 species / 2.5M images
+the extra regularization had little overfitting left to prevent and instead cost
+representation quality. So it was not aug alone; it was the whole
+regularization bundle (aug light + wd 0.2) meeting a high-capacity student.
+
+**Why that does not predict TinyCLIP:** the 0.2 recipe failed because there was
+too much CAPACITY relative to the regularization. TinyCLIP-39M is a **2.2x
+capacity cut** on the same data, which moves us back toward the regime where
+regularization helps. It is genuinely plausible the 0.2 recipe WINS on 39M even
+though it lost on 86.6M.
+
+**So run both, on the pilot-500 first.** This is not thoroughness for its own
+sake — the prior evidence comes from a different capacity regime and does not
+transfer. The pilot is cheap (25 GB, 26 shards) and gives a clean A/B before
+committing GPU-days to the full 252-shard corpus.
