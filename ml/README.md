@@ -2969,3 +2969,52 @@ Note it is also **not needed for the int8 measurement**: ORT's CUDA provider
 does not accelerate dynamically-quantised weights (it largely falls back to
 fp32), so the CPU run measures the format that would actually ship. Install
 `onnxruntime-gpu` when fp16/int4 GPU paths are explored.
+
+### QUANTISATION SWEEP: measure ALL formats, not just one (2026-07-31)
+
+Measuring int8 alone could not answer the runtime question, since each candidate
+target wants a different format. `ml/distill/quant_sweep.py` builds and scores
+every variant through identical logic.
+
+**Key speedup:** `eval_nabirds.py` re-decodes and re-preprocesses all 24,633
+JPEGs for *every* model, which dominates CPU runtime. The sweep preprocesses
+ONCE into a memmapped `.npy` cache and reuses it, taking a full-set pass from
+~30 min to ~40 s per variant.
+
+**Smoke test (256 images — n too small to rank, ±2% noise):**
+
+| variant | size MB | cos(fp32) | agree% | top-1 | top-5 |
+|---|---|---|---|---|---|
+| fp32 | 346.7 | 1.000000 | 100.00 | 91.02 | 97.66 |
+| int8 | 88.0 | 0.995871 | 94.92 | 90.23 | 97.66 |
+| uint8 | 88.0 | 0.995597 | 94.92 | 90.62 | 98.05 |
+| int4 | 75.3 | 0.996174 | 97.66 | 88.67 | 98.83 |
+
+Early read: **quantisation looks cheap.** Cosine stays >0.9956 for every format
+and top-1 moves within noise. Full 24,633-image run is in flight.
+
+⚠️ **int4 is 75.3 MB, NOT the ~43 MB projected.** `MatMulNBitsQuantizer` only
+quantises MatMul weights; embeddings, LayerNorm and biases stay fp32. So int4
+buys just 1.17x over int8 (88.0 -> 75.3), which is a poor trade if it costs
+accuracy. The earlier "int4 ~= 43 MB" estimate assumed all weights quantise.
+
+### ⚠️ fp16 EXPORT IS BLOCKED — matters for Core ML and WebGPU
+
+fp16 is the format iOS Core ML and WebGPU actually want, and **we cannot
+currently produce it.** Two independent failures:
+
+1. `onnxconverter_common.float16.convert_float_to_float16` emits an invalid
+   graph — ORT rejects it with `Type (tensor(float16)) of output arg
+   (/visual/Cast_output_0) of node (/visual/Cast) does not match expected type
+   (tensor(float))`. Fails with `keep_io_types` both True and False.
+2. Exporting `model.half()` straight from torch fails differently: in half
+   precision the ViT dispatches to `aten::_native_multi_head_attention`, which
+   the legacy torchscript exporter cannot lower to opset 17. The `dynamo=True`
+   path did not rescue it either.
+
+Not yet blocking, because int8/uint8/int4 all work and CPU/WASM is a viable
+target at 144 ms/image. But **fp16 must be solved before any Core ML or WebGPU
+work.** Likely fixes to try: newer `onnxruntime`/`onnxscript` for the dynamo
+path, exporting fp32 then converting with `onnxslim`/`onnxruntime-tools`, or
+going to Core ML via `coremltools` directly from torch (which does its own fp16
+conversion and never touches ONNX).
