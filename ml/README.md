@@ -3172,3 +3172,53 @@ accuracy cost moved -0.55 -> -0.75 as attention quantisation was priced in.
 
 Net: **same number, but it went from wrong to right.** No further shrinkage is
 available; 43 MB is the floor for 4-bit on 86.6M params.
+
+## SMALLER BACKBONE: TinyCLIP is the proven path (researched 2026-07-31)
+
+Question: can we get a smaller backbone without MobileCLIP? Answer: **yes, and
+there is established prior art rather than a hand-rolled approach.**
+
+**TinyCLIP** (Wu et al., ICCV 2023, Microsoft) — "CLIP Distillation via Affinity
+Mimicking and Weight Inheritance". <https://github.com/wkcn/TinyCLIP>
+
+Why it fits where MobileCLIP did not:
+1. **MIT licence** (Microsoft). No commercial-use restriction — this was the
+   blocker that killed MobileCLIP.
+2. **It supplies the basis weights.** Checkpoints are on HF (`wkcn/TinyCLIP-*`)
+   and mirrored in `timm`. So we fine-tune from strong CLIP-pretrained weights,
+   exactly as we did from LAION2B for ViT-B-16 — NOT training from scratch,
+   which was the other reason MobileCLIP was ruled out.
+3. **Weight inheritance requires teacher and student to share architecture
+   style (ViT -> ViT)** (noted explicitly in the CLIP-KD paper's discussion of
+   TinyCLIP). Our teacher and student are both ViT, so the method applies.
+
+**Sizes (visual tower only):**
+
+| timm model | vis M | fp32 | int8 | int4 |
+|---|---|---|---|---|
+| `vit_medium_patch16_clip_224.tinyclip_yfcc15m` | 38.3 | 153.3 | 38.3 | **19.2** |
+| `vit_medium_patch32_clip_224.tinyclip_laion400m` | 39.4 | 157.7 | 39.4 | **19.7** |
+| `vit_betwixt_patch32_clip_224.tinyclip_laion400m` | 61.1 | 244.3 | 61.1 | 30.5 |
+| `vit_xsmall_patch16_clip_224.tinyclip_yfcc15m` | 8.1 | 32.6 | 8.1 | 4.1 |
+| *(current)* WingCLIP ViT-B-16 | 86.6 | 346.3 | 86.6 | 43.3 |
+
+**TinyCLIP-ViT-39M at int4 = 19.2 MB, which CLEARS the 25 MB target.** At int8
+it is 38 MB, under half our current int4 artifact.
+
+**Progressive / sequential distillation from our own student is also valid** and
+is standard practice — TinyCLIP itself uses multi-stage progressive distillation
+to avoid large capacity drops in one step. WingCLIP-0.1 is arguably the BETTER
+teacher for this domain since it beats BioCLIP-2 on NABirds (89.93 vs 86.41),
+and the cached-teacher-embedding pipeline already exists.
+
+⚠️ **Unknown risk: 39M is a 2.2x capacity cut from 86.6M.** Fine-grained
+classification over 11,167 species is exactly where capacity matters most, and
+TinyCLIP's published numbers are general ImageNet-style retrieval, not
+fine-grained. This must be MEASURED before committing.
+
+### ❌ Dead end checked: ViT-B-32 does NOT save size
+
+The obvious cheap swap fails: **ViT-B-32 is 87.8M params vs ViT-B-16's 86.2M —
+essentially identical.** Patch size changes the TOKEN COUNT (49 vs 196), not the
+parameter count, so B-32 is ~4x faster to run but buys ZERO size reduction.
+Do not spend a distillation run on it expecting a smaller artifact.
