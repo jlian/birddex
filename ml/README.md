@@ -491,7 +491,54 @@ The occurrence layer is built and validated but exists only as a local
   Build is ~2 min in DuckDB, no images, no GeoPackage.
 
 ---
-**[NEXT-2] Port the log-sum into `bird-id.ts`**
+**[NEXT-1b] MEASURE the occurrence blob size** (blocks the NEXT-1 decision)
+Cannot choose sidecar vs merged vs occurrence-only without knowing what
+ships. Measure, for BIRDS ONLY (~11,167 species of the 522,006 taxa in
+the corpus):
+  - distinct (species,cell) pairs after filtering to birds
+  - bytes/cell at 1-byte and 2-byte quantised log-probability
+  - total gzipped size, global AND North-America-only
+  - how many cells have <5 bird observations (candidates for dropping)
+  Compare against the existing range-priors: 681,023 cells / 260 MiB.
+*Exit:* a table of sizes so the ship format is an informed choice.
+
+---
+**[NEXT-1c] Decide the quantisation + fallback for the prior**
+Related to NEXT-1b. Open sub-questions:
+  - log-prob resolution: how coarse can quantisation get before top-1
+    degrades? (re-run the eval with quantised counts to find out)
+  - what does the client do for a cell with NO occurrence data at all?
+    (fall back to BirdLife status, or to a global species prior?)
+  - regional subsetting: NA-only ships a few MB, but what happens when
+    a user travels outside the shipped region?
+
+---
+**[NEXT-4] Re-fit the ranker if the model ever changes**
+All fitted params (T, w, beta) are for **WingCLIP-0.1 @ alpha=0.90**.
+They are NOT transferable to a different backbone -- 0.2 has a different
+confidence distribution (median top-1 0.807 vs 0.715). Any model swap
+REQUIRES re-running emit_calib_candidates + fit_occurrence.
+
+---
+**[NEXT-5] Re-measure abstention under the new ranker**
+The INV-4 abstention numbers (2.4% non-bird pass rate at thr 0.5) were
+measured on the OLD uncalibrated softmax. Temperature changed the
+confidence distribution (median 0.675 -> 0.85) and the log-sum changes
+it again, so **every abstention threshold is now invalid** and must be
+re-measured. Also re-check non-bird rejection, since a geographic prior
+may make a dog look MORE like a locally-common bird.
+
+---
+**[NEXT-6] Rasterizer DuckDB rewrite** (only if NEXT-1 picks the merged blob)
+`scripts/build-range-priors.py` peaks at ~60 GB RAM; tomahawk has 31 GB.
+The hotspot is NOT the geometries (that streaming fix worked) but the
+accumulator `dict[(row,col) -> dict[code -> [presence,origin,seasonal]]]`.
+Fix: append flat rows to Parquet, then
+`min(presence), bit_or(origin), bit_or(seasonal) GROUP BY row,col,code`
+in DuckDB, which spills to disk. GeoPackage is at
+`/mnt/nas/WingDex-Distill/birdlife-shp/BOTW_2025.gpkg` (9.31 GB).
+
+---**[NEXT-2] Port the log-sum into `bird-id.ts`**
 Replace the floor/tier/dominance stack with:
     score = sim/T + beta*log P(species|cell)   [+ w[status] if kept]
 Fitted params live in `ml/distill/calibration_occ_01.json`. Delete the
@@ -575,9 +622,9 @@ BACKWARDS (10.4 -> 14.0 rising with alpha) while base 01 collapses
   - [x] **EXPERIMENT: augmentation strength — DONE 2026-07-25, light aug WON decisively.** +0.0048 val_cos (0.9512 vs 0.9464) AND the late-epoch overfit drift disappeared AND it was still climbing at ep15. Confirmed on accuracy, not just cosine: **held-out top-1 retention 100.4% (student 55.93 vs teacher 55.73) vs 92.2% for the same recipe without aug.** This is the biggest single lever found so far and it clears the gate for multi-view caching.
   - [x] **EXPERIMENT: multi-view teacher caching / TRUE strong aug -- DONE 2026-07-27 (exp9), and it LOST. CANCELLED, do not re-propose.** Tested on the 500-sp pilot exactly as planned. Strong aug (RRC [0.08,1.0] + 5-view per-view teacher targets) regularizes better (held-out retention 105.9% vs 104.1%) but LOSES the ship metric: NABirds 92.55 vs 93.26 for light aug, and val_cos 0.9434 vs 0.9540. The full-corpus 5-view precompute (~56 GPU-h) is NOT justified. See the exp9 section above. Light aug stays locked.
   - [ ] **co-occurrence hard-example weighting** wired into `train_student.py` + tested (built but NOT yet integrated)
-  - [ ] **ground-truth fine-tune recipe** (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, alpha=0.90 -- MEASURED 2026-07-30 T3.2, NOT 0.5) to keep OOD robustness
+  - [x] **ground-truth fine-tune recipe** -- DONE (see below) — same cheap-iteration harness; apply **WiSE-FT** (fine-tune from distilled ckpt, then weight-ensemble θ=(1−α)·distilled+α·finetuned, alpha=0.90 -- MEASURED 2026-07-30 T3.2, NOT 0.5) to keep OOD robustness
   - [ ] fine-tune lever to test: higher input res (256/336 via interpolated pos-emb, source is 500px)
-- [ ] Build **leak-free held-out ground-truth set** (sampler script, NOT built yet — see "Ground-truth fine-tune")
+- [x] Build **leak-free held-out ground-truth set** -- DONE (build_groundtruth_split.py — see "Ground-truth fine-tune")
 - [ ] One more full ViT-B run *only if* the sweep beats baseline meaningfully
 - [~] Re-benchmark **MobileCLIP-S2 (FastViT)** training speed on the 3080 (the ~17s/step figure is suspect). **DEMOTED 2026-07-25:** this existed to decide whether the 3080 could do the final MobileCLIP run. That run is cancelled, so this is now only curiosity / writeup material. Harness ready: `ml/distill/bench_fastvit.py` (warmup, cudnn.benchmark, AMP, batch sweep 64→512, channels_last both ways in synthetic mode, `--real` reuses the actual train_student dataloader for end-to-end img/s). RUN ONLY WHEN GPU IS FREE.
 - [ ] **Map the cosine→accuracy curve:** eval NABirds top-1/5 at epoch 1/5/10/final checkpoints. Answers "is early already usable?" and "minimum epochs needed" — could cut the expensive final MobileCLIP run short. (Needs per-epoch checkpoints saved; add to future runs.)
@@ -592,7 +639,7 @@ BACKWARDS (10.4 -> 14.0 rising with alpha) while base 01 collapses
 - [x] ~~Final **MobileCLIP-S2** production run~~ — **CANCELLED 2026-07-25 (John's call). LICENSE GATE RESOLVED: we are NOT shipping anything based on MobileCLIP.** Only Apple `datacompdr` weights exist for MobileCLIP-S2 and they are research-only, so it was never commercially shippable without training FastViT from random init. **The shipped model is the LAION ViT-B/16 student** (clean license, ~45MB fp16 / ~22MB int4). MobileCLIP-S2 is demoted to a **BENCHMARK**: run stock Apple weights zero-shot on our bird benchmark and report how our distilled student compares. That is a nice-to-have comparison for the writeup, not a dependency.
 - [ ] **BENCHMARK (not a ship path): stock MobileCLIP-S2 vs our student.** Download Apple's research-only weights, zero-shot with its own text tower on the golden set + NABirds, and report the delta vs our ViT-B student. Inference-only, GPU-when-free. Research use of research-only weights is fine; nothing from it ships.
 - [ ] Apply the proven fine-tune recipe to the shipped MobileCLIP student
-- [ ] **Phase 4 (THE go/no-go, still never run)** — benchmark WingCLIP-0.1 @ alpha=0.90 (89.93 NABirds) vs GPT (83/87) + ViT-L (87/96) on the shared gated+range pipeline; go/no-go writeup
+- [x] **Phase 4 -- RAN 2026-07-30, FAILED, root-caused.** 78/91 vs GPT 83/87 — benchmark WingCLIP-0.1 @ alpha=0.90 (89.93 NABirds) vs GPT (83/87) + ViT-L (87/96) on the shared gated+range pipeline; go/no-go writeup
 - [ ] Export: int8 + ONNX + Core ML; demo page real WebGPU numbers
 - [ ] **Test int4 on the FINE-TUNED ViT-B for web (~22MB, <25MB target):** measure golden-set + NABirds; bar is "useful (~GPT-level ok)," not "matches BioCLIP." Fine-tune int8 to ship-quality FIRST, then quantize. Levers if it drops too far: mixed precision, better calibration.
 - [x] **Consolidated to ONE directory 2026-07-25** — `~/wingdex/ml/distill/` (repo + data + uv venv). Pi checkout deleted, `~/spikes` scratch dir deleted, corpus deleted, 16 Phase-0 spike scripts + 162 fixtures rescued into `ml/spike/`. Corpus did not need moving to the NAS: the WebDataset shards there already contain every image byte-identically.
@@ -1132,11 +1179,11 @@ plus MORE epochs than 15 (aug light had not converged).
    rankings are short-horizon and should be re-confirmed at full length.
 
 ### Follow-on queue
-- [ ] confirmation run: aug light + lr 7e-5, 20–25 epochs (tests the interaction AND
+- [x] confirmation run (exp7): aug light + lr 7e-5, 25 epochs -- DONE (tests the interaction AND
       the "aug light hadn't converged" hypothesis in one run)
-- [ ] NABirds eval on exp3 + the confirmation run — the real verdict
+- [x] NABirds eval on exp3 + the confirmation run -- DONE — the real verdict
 - [ ] one-run ablation: wd 0.1 vs 0.2 at otherwise-fixed new recipe
-- [ ] only if light aug keeps winning: reconsider the ~56 GPU-hour multi-view
+- [x] CANCELLED (exp9: strong aug LOST). ~56 GPU-hour multi-view
       embedding caching that would unlock TRUE strong aug ([0.08,1.0]+RandAugment)
 
 ## Training recipe (as of the pilot)
