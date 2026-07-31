@@ -491,7 +491,7 @@ The occurrence layer is built and validated but exists only as a local
   Build is ~2 min in DuckDB, no images, no GeoPackage.
 
 ---
-**[NEXT-1b] MEASURE the occurrence blob size** (blocks the NEXT-1 decision)
+**[NEXT-1b] ✅ DONE 2026-07-31: 8.5 MiB global / 3.0 MiB NA gzipped.**
 Cannot choose sidecar vs merged vs occurrence-only without knowing what
 ships. Measure, for BIRDS ONLY (~11,167 species of the 522,006 taxa in
 the corpus):
@@ -503,7 +503,7 @@ the corpus):
 *Exit:* a table of sizes so the ship format is an informed choice.
 
 ---
-**[NEXT-1c] Decide the quantisation + fallback for the prior**
+**[NEXT-1c] ✅ PART 1 DONE: 5-bit quantisation is free (-0.03 pts). Part 2 (coverage fallback) still OPEN -- the test was structurally void.**
 Related to NEXT-1b. Open sub-questions:
   - log-prob resolution: how coarse can quantisation get before top-1
     degrades? (re-run the eval with quantised counts to find out)
@@ -520,7 +520,7 @@ confidence distribution (median top-1 0.807 vs 0.715). Any model swap
 REQUIRES re-running emit_calib_candidates + fit_occurrence.
 
 ---
-**[NEXT-5a] BBOX TEST: is the softmax gate a real small-bird detector?**
+**[NEXT-5a] ✅ DONE 2026-07-31: NO (Spearman 0.032). Low confidence is species ambiguity, not framing.**
 Standalone, cheap, and it GATES the NEXT-5 design. NABirds ships
 `bounding_boxes.txt` and `sizes.txt`, so compute relative bird area
 (bbox area / image area) per test image and correlate it against the
@@ -602,7 +602,7 @@ re-measured. Also re-check non-bird rejection, since a geographic prior
 may make a dog look MORE like a locally-common bird.
 
 ---
-**[NEXT-6] Rasterizer DuckDB rewrite** (only if NEXT-1 picks the merged blob)
+**[NEXT-6] 🚫 LIKELY DEAD.** Only needed for the merged-blob option, which the 1b size result makes unattractive. Keep the note, do not do the work.
 `scripts/build-range-priors.py` peaks at ~60 GB RAM; tomahawk has 31 GB.
 The hotspot is NOT the geometries (that streaming fix worked) but the
 accumulator `dict[(row,col) -> dict[code -> [presence,origin,seasonal]]]`.
@@ -620,7 +620,7 @@ table and the dom>=0.5 gate. Expect +8.8 pts over what ships today.
 *Exit:* production pipeline reproduces the 88.29 offline number.
 
 ---
-**[NEXT-3] GBIF as an INDEPENDENT-SOURCE check**
+**[NEXT-3] ✅ DONE 2026-07-31: partial reproduction (+10.78 alone, ~4 pts below the iNat prior).**
 Everything so far is iNat photos with an iNat-derived prior. Geographic
 and temporal transfer are verified; SOURCE transfer is not. eBird is
 unavailable (no reply to access requests) and NABirds has no GPS at all.
