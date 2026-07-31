@@ -481,10 +481,20 @@ there is NO accuracy cost to larger tiles, only transfer waste.
 quantised log-prob (5-bit measured free at -0.03 pts). Species keyed by
 2-byte taxonomy index, NOT the 8-byte eBird code.
 
+**🔴 DECIDED 2026-07-31: DO NOT SHIP BIRDLIFE. Occurrence only.**
+John's call. Rationale:
+  - The committed plan shipped BirdLife ONLY for cells occurrence
+    already covers, i.e. exactly where it is redundant (+0.30 pts).
+    Incoherent regardless of the coverage answer.
+  - In UNCOVERED cells the fallback without BirdLife is pure vision:
+    72.94 vs 88.29 abs top-1. A real degradation but a GRACEFUL one --
+    a worse ranking, not a wrong-and-confident answer.
+  - Removes a licensed dependency, the 60 GB rasterizer, and 2.3 MiB.
+  - Kills NEXT-6 (rasterizer rewrite) outright.
+
 **Payload budget (gzipped, worldwide):**
-  occurrence @ 4x4 ........ 5.6 MiB
-  BirdLife folded in ...... ~2.3 MiB  (est, see caveat)
-  TOTAL ................... ~8 MiB
+  occurrence @ 4x4 ........ 5.6 MiB   <- THIS IS THE WHOLE PAYLOAD
+  (BirdLife dropped, see the decision above)
 vs the 260 MiB BirdLife layer shipping today.
 
 **Delivery:** static objects on R2 behind the CDN. No Worker, no D1,
