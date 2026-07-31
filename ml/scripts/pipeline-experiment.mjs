@@ -19,6 +19,7 @@
 import { readFileSync, existsSync, readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { gunzipSync } from 'zlib'
+import { createHash } from 'crypto'
 import { fileURLToPath } from 'url'
 import {
   lonLatToEqualEarth as eeProj, xyToCell, nearestNeighborCell,
@@ -276,11 +277,22 @@ function loadOccurrence() {
   if (!existsSync(p)) { OCC = false; return OCC }
   const raw = gunzipSync(readFileSync(p))
   if (raw.subarray(0, 4).toString("ascii") !== "WDOP") throw new Error("bad magic")
+  const version = raw[4]
   const qbits = raw[5]
-  const nCells = raw.readUInt32LE(8)
-  // index starts at 12; nCells entries plus one sentinel row
-  const idxStart = 12
+  // v2 inserts an 8-byte taxonomy hash before n_cells. Species are keyed
+  // by ROW INDEX into taxonomy.json, so a reordered taxonomy would
+  // silently mis-key every prior -- the client MUST check this.
+  const hashLen = version >= 2 ? 8 : 0
+  const taxHash = version >= 2 ? raw.subarray(8, 16).toString('hex') : null
+  const nCells = raw.readUInt32LE(8 + hashLen)
+  const idxStart = 12 + hashLen
   const payloadStart = idxStart + (nCells + 1) * 8
+  if (taxHash) {
+    const want = createHash('sha256').update(readFileSync(join(ROOT, 'src/lib/taxonomy.json'))).digest('hex').slice(0, 16)
+    if (want !== taxHash) {
+      throw new Error(`prior blob taxonomy hash ${taxHash} != taxonomy.json ${want} -- rebuild the blob`)
+    }
+  }
   OCC = { raw, nCells, idxStart, payloadStart, qbits, scale: 2.5 }
   return OCC
 }

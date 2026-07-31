@@ -11,6 +11,11 @@ LAYOUT (little-endian throughout):
   version    1B   format version
   qbits      1B   quantisation bits for log-prob (5)
   reserved   2B
+  tax_hash   8B   sha256(taxonomy.json)[:8] -- species are keyed by ROW
+                  INDEX into taxonomy.json, so a reordered or extended
+                  taxonomy would silently mis-key EVERY prior with no
+                  error. The client MUST refuse a blob whose hash does
+                  not match the taxonomy it is running against.
   n_cells    4B   uint32
   INDEX      n_cells * 8B, sorted ascending by cell_id:
                cell_id  4B uint32  (row * 1276 + col)
@@ -34,10 +39,12 @@ import math
 import struct
 import time
 
+import hashlib
+
 import duckdb
 
 MAGIC = b"WDOP"
-VERSION = 1
+VERSION = 2
 QBITS = 5
 QMAX = (1 << QBITS) - 1
 SCALE = 2.5
@@ -65,8 +72,14 @@ def main():
     ap.add_argument("--occurrence", required=True)
     ap.add_argument("--target-taxa", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--taxonomy", required=True,
+                    help="src/lib/taxonomy.json -- hashed into the header so a reordered taxonomy cannot silently mis-key every prior")
     ap.add_argument("--min-count", type=int, default=1)
     args = ap.parse_args()
+
+    tx = open(args.taxonomy, "rb").read()
+    tx_hash = hashlib.sha256(tx).digest()[:8]
+    log("taxonomy sha256[:8] = " + tx_hash.hex())
 
     con = duckdb.connect()
     con.execute("SET memory_limit=" + chr(39) + "12GB" + chr(39))
@@ -112,6 +125,7 @@ def main():
     head = bytearray()
     head += MAGIC
     head += bytes([VERSION, QBITS, 0, 0])
+    head += tx_hash                      # 8B taxonomy guard
     head += struct.pack("<I", len(index))
     for key, off in index:
         head += struct.pack("<II", key, off)
@@ -127,6 +141,7 @@ def main():
 
     meta = {"magic": "WDOP", "version": VERSION, "qbits": QBITS,
             "scale": SCALE, "grid_cols": GRID_COLS,
+            "taxonomy_sha256_8": tx_hash.hex(),
             "n_cells": len(index), "n_pairs": len(rows),
             "raw_bytes": len(blob), "gzip_bytes": len(gz)}
     json.dump(meta, open(args.out + ".meta.json", "w"), indent=2)

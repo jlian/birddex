@@ -22,15 +22,21 @@ def read_blob(path):
     assert raw[:4] == b"WDOP", "bad magic"
     version = raw[4]
     qbits = raw[5]
-    n = struct.unpack("<I", raw[8:12])[0]
+    if version >= 2:
+        tax_hash = raw[8:16].hex()
+        n = struct.unpack("<I", raw[16:20])[0]
+        off = 20
+    else:
+        tax_hash = None
+        n = struct.unpack("<I", raw[8:12])[0]
+        off = 12
     idx = []
-    off = 12
     for i in range(n + 1):
         key, o = struct.unpack("<II", raw[off:off + 8])
         idx.append((key, o))
         off += 8
     payload = raw[off:]
-    return version, qbits, idx, payload
+    return version, qbits, idx, payload, tax_hash
 
 
 def decode_cell(idx, payload, cell_id):
@@ -71,10 +77,17 @@ def main():
     ap.add_argument("--occurrence", required=True)
     ap.add_argument("--target-taxa", required=True)
     ap.add_argument("--samples", type=int, default=40)
+    ap.add_argument("--taxonomy", default=None)
     ap.add_argument("--scale", type=float, default=2.5)
     args = ap.parse_args()
 
-    version, qbits, idx, payload = read_blob(args.blob)
+    version, qbits, idx, payload, tax_hash = read_blob(args.blob)
+    if tax_hash and args.taxonomy:
+        import hashlib
+        want = hashlib.sha256(open(args.taxonomy, "rb").read()).digest()[:8].hex()
+        print("taxonomy hash: blob=" + tax_hash + " file=" + want +
+              ("  MATCH" if want == tax_hash else "  *** MISMATCH ***"))
+        assert want == tax_hash, "taxonomy hash mismatch -- blob is stale"
     print("version", version, "qbits", qbits, "cells", len(idx) - 1,
           "payload", len(payload), "B")
 
