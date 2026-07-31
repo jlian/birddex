@@ -3293,9 +3293,12 @@ teacher. Those are two different experiments and were conflated.
 - `ml/groundtruth/corpus/` — **19 GB, 178,804 photos / 5,908 species** (the fine-tune set)
 - `calib_untouched.parquet` — the held-out calibration set
 
-So the WingCLIP-teacher route IS viable — the source images were NOT lost, they
-live on the NAS as WDS shards (`ml/distill/corpus/` is absent, which is what
-made it look otherwise).
+The WingCLIP-teacher route is viable. ⚠️ *Note to self: I briefly treated the
+NAS corpus as a lucky discovery. It is not — it is the DOCUMENTED DESIGN,
+stated at the top of this file ("Training data = WebDataset shards on the
+NAS") and in the 2026-07-25 consolidation note: the local corpus was
+deliberately deleted because the WDS shards contain every image
+byte-identically. Grep the SSOT before going hunting.*
 
 **Teacher: use WingCLIP-0.1, not BioCLIP-2.** BioCLIP-2 is 86.41 on NABirds and
 WingCLIP-0.1 is 89.93. Distilling TinyCLIP from BioCLIP-2 targets a teacher we
@@ -3346,3 +3349,45 @@ though it lost on 86.6M.
 sake — the prior evidence comes from a different capacity regime and does not
 transfer. The pilot is cheap (25 GB, 26 shards) and gives a clean A/B before
 committing GPU-days to the full 252-shard corpus.
+
+### Is "0.2 recipe without aug light" worth measuring? Not the right knob.
+
+Untested cell, yes — the aug ablation was **light vs strong** (exp7 vs exp9,
+light won on NABirds), never **light vs none**. So the answer is not "pointless".
+
+But it is the wrong variable to isolate. **Both 0.1 and 0.2 use aug light.** The
+0.2 "locked recipe" deltas vs 0.1 are: **lr 7e-5, wd 0.2, beta2 0.95, warmup
+500, grad clip 1.0**. The retrospective above blames "aug light + wd 0.2", but
+since aug light is COMMON TO BOTH recipes it cannot explain the regression —
+**wd 0.2 (2x the 0.1 recipe's 0.1) is the actual differentiator.**
+
+**So the informative ablation is 0.2-with-wd-0.1, not 0.2-without-aug.**
+Dropping aug tests a variable that did not change between the two recipes.
+
+Priority for the TinyCLIP pilot, cheapest-first on pilot-500:
+1. **0.1 recipe** (baseline — known-good at 86.6M)
+2. **0.2 recipe** (plausible winner at 39M: the capacity cut moves us back into
+   the regime where regularization helps)
+3. *only if 0.2 loses again:* **0.2 with wd 0.1** — isolates whether wd or the
+   rest of the bundle is responsible
+4. *low priority:* aug none — only interesting if 1-3 leave the question open
+
+### If a second fine-tune IS needed: pull more iNat photos
+
+John's instinct is right and it is the cleanest fix to the redundancy trap. The
+existing 178,804 ground-truth photos were already consumed by WingCLIP-0.1's
+fine-tune, so reusing them re-teaches the student what the teacher already
+encoded. Downloading a FRESH iNat slice (`download_inat.py` +
+`build_groundtruth_split.py` exist) gives genuinely new supervision.
+
+⚠️ Must be obs-split against BOTH the 178k fine-tune set AND
+`calib_untouched.parquet`, or we contaminate the held-out eval that every number
+in this document rests on.
+
+### SSOT accuracy note (2026-07-31)
+
+The NAS corpus location was **already documented** — line ~47 ("Training data =
+WebDataset shards on the NAS") and the 2026-07-25 consolidation entry ("corpus
+deleted... the WebDataset shards there already contain every image
+byte-identically"). It is the intended design, not a recovery. Lesson: grep this
+file before treating anything as missing.
