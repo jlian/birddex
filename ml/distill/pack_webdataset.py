@@ -85,7 +85,13 @@ def main():
                          "pilot shard set for cheap sweep iteration: the pilot "
                          "species are SCATTERED across taxon order, so filtering "
                          "at train time would mean reading the whole corpus to "
-                         "use ~10% of it")
+                         "use ~10%% of it")
+    ap.add_argument("--species-file", default="",
+                    help="JSON list of inat_taxon_id to pack (EXACT set, no "
+                         "ranking). Preferred over --pilot-species: the top-N "
+                         "query below has a TIE at the cutoff that duckdb "
+                         "breaks arbitrarily, so --pilot-species is NOT "
+                         "reproducible. Build one with build_nabirds_species.py")
     ap.add_argument("--start-shard", type=int, default=0)
     args = ap.parse_args()
 
@@ -94,10 +100,26 @@ def main():
     log("reading manifest via duckdb")
     con = duckdb.connect()
     where = "TRUE"
-    if args.pilot_species and args.pilot_species > 0:
+    if args.species_file:
+        ids_list = json.load(open(args.species_file))
+        ids = ",".join(str(int(i)) for i in ids_list)
+        where = f"inat_taxon_id IN ({ids})"
+        log(f"--species-file {args.species_file}: packing an EXACT set of "
+            f"{len(ids_list)} species (reproducible)")
+    elif args.pilot_species and args.pilot_species > 0:
+        # WARNING (2026-08-01): this is NOT reproducible. There is a tie at the
+        # cutoff (exactly 492 images) spanning more taxa than the remaining
+        # slots, and duckdb breaks it arbitrarily -- three consecutive runs
+        # returned three DIFFERENT species sets, and the pilot shards this
+        # produced hold 496 species despite LIMIT 500. The ORDER BY now
+        # tie-breaks on inat_taxon_id so at least repeated runs agree, but
+        # prefer --species-file for anything whose species set matters.
+        log("WARNING: --pilot-species uses a top-N ranking with an ambiguous "
+            "cutoff; prefer --species-file for a reproducible set")
         top = con.execute(f"""
             SELECT inat_taxon_id FROM read_parquet('{args.train_manifest}')
-            GROUP BY 1 ORDER BY count(*) DESC LIMIT {args.pilot_species}
+            GROUP BY 1 ORDER BY count(*) DESC, inat_taxon_id ASC
+            LIMIT {args.pilot_species}
         """).fetchall()
         ids = ",".join(str(r[0]) for r in top)
         where = f"inat_taxon_id IN ({ids})"

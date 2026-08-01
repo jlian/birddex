@@ -635,36 +635,32 @@ already exposes `--arch`/`--pretrained`.
 1. Teach `Student` to build a timm backbone when `--arch` is a timm name (currently
    only calls open_clip). Small change: create via timm, read `student_dim` from the
    dry-forward probe, keep the same projection + normalize.
-2. ⚠️ **Teacher choice is OPEN — the reasoning below was FALSIFIED 2026-08-01.**
-   The original plan read: *"use WingCLIP-0.1, not BioCLIP-2. BioCLIP-2 is 86.41 on
-   NABirds and WingCLIP-0.1 is 89.93 — distilling from BioCLIP-2 targets a teacher we
-   already beat and would likely land below 86.41."* We ran that control (exp3) and
-   the prediction did not hold: on the fixed 496-species NABirds subset, the
-   BioCLIP-2-taught student scored **92.55** vs the WingCLIP-taught student's
-   **88.65**, a **+3.90 pt win for BioCLIP-2** under an otherwise identical 0.1
-   recipe. It also **reversed val_cos**, which had ranked WingCLIP higher (0.9438 vs
-   0.9423) — a concrete instance of the proxy misleading on the decision that
-   matters.
-   - The "we already beat 86.41" argument confused two different evals. WingCLIP-0.1's
-     89.93 is the FULL 24,633-image NABirds set; the pilot students' 92.55 is 282
-     images restricted to the ~496 trained species, where the SAME BioCLIP-2 teacher
-     scores 91.49 rather than 86.41. Normalised as retention over the same teacher,
-     WingCLIP-0.1 (104.1%) still leads exp3/runB (101.2%) — because it has the
-     ground-truth fine-tune + WiSE-FT that TinyCLIP has not received yet.
-   - **NOT YET SETTLED.** n=282, 95% CI [88.9, 95.1], and exp3 ties runB (92.55) in a
-     CONFOUNDED comparison (recipe AND teacher both differ). The deciding run is the
-     2x2 missing cell (0.2 recipe + BioCLIP-2 teacher, `runs/tiny39_r02_bioclip`):
-     stacking implies BioCLIP-2 direct, redundancy implies the choice rests on
-     abstention behaviour instead (exp3 holds 78.7% coverage @ 99.10% acc at thr 0.7
-     vs runB's 63.8%).
-   - Either way the WingCLIP chain is NOT wasted: only which cached embeddings feed
-     `--sv-embeddings` changes. The re-embedding pass cost ~28 min of GPU and bought
-     the control that produced this answer. Recipe sweep, eval harness, occurrence
+2. ⚠️ **Teacher choice is OPEN, and the 2026-08-01 evidence on BOTH sides is
+   currently VOID.** The original plan read: *"use WingCLIP-0.1, not BioCLIP-2.
+   BioCLIP-2 is 86.41 on NABirds and WingCLIP-0.1 is 89.93 — distilling from
+   BioCLIP-2 targets a teacher we already beat and would likely land below
+   86.41."* We ran the control (exp3) and it appeared to falsify that, +3.90 pts
+   for BioCLIP-2. **That measurement was then itself invalidated** — see the
+   7-species trap below. Treat the teacher question as UNANSWERED.
+   - The pilot/NABirds species overlap is **7 species**, so the exp3-vs-runA
+     comparison was 7 species / 282 images, not the 496 it claimed. Not enough to
+     falsify anything.
+   - The "we already beat 86.41" argument was ALSO wrong, independently: it
+     compared a full-set number (24,633 img, 401 species) against a
+     species-restricted one. On the restricted subset the same BioCLIP-2 teacher
+     scores 91.49, not 86.41. Compare **retention over a common teacher**, never
+     raw top-1 across two different evals.
+   - Resolution: a NABirds-aligned 401-species pilot (`wds-nabirds401`, built
+     2026-08-01 via `build_nabirds_species.py` + `shard_subset.py`) makes the OOD
+     eval 401 species / 24,633 images. Then **2 runs** — WingCLIP vs BioCLIP-2 at
+     identical recipe — settle it. Only the teacher question needs re-running;
+     LR/recipe questions ride on in-distribution val_cos and are unaffected.
+   - Either way the WingCLIP chain is NOT wasted: only which cached embeddings
+     feed `--sv-embeddings` changes. Recipe sweep, eval harness, occurrence
      rerank, calibration fit, fine-tune set and WiSE-FT alpha are all
-     teacher-agnostic.
-   - WingCLIP-0.1 emits 768-d and BioCLIP-2 targets are baked into the shards, so
-     either teacher leaves the pipeline unchanged (omit `--sv-embeddings` for
-     BioCLIP-2).
+     teacher-agnostic. WingCLIP-0.1 emits 768-d and BioCLIP-2 targets are baked
+     into the shards, so either teacher leaves the pipeline unchanged (omit
+     `--sv-embeddings` for BioCLIP-2).
 3. Pilot distill TinyCLIP-39M on the ~496-species pilot, run BOTH the 0.1 and 0.2
    recipes (prior evidence is from a different capacity regime and does not transfer;
    ablation order above). Compare val_cos, then the real test: **NABirds top-1.**
@@ -1528,42 +1524,73 @@ redundancy trap (the 178k GT photos were already absorbed by WingCLIP-0.1).
 
 ## TinyCLIP-39M pilot results (2026-07-31 → 08-01)
 
+> 🚨 **EVERY NABirds NUMBER IN THIS SECTION IS VOID.** The pilot species set and
+> NABirds overlap on **7 species**, so all "NABirds top-1" figures below were
+> measured over 7 species / 282 images, not the 496 species claimed. See
+> "The 7-species trap" immediately after the table. The val_cos column is
+> unaffected (in-distribution, hash-split across all pilot species).
+
 Eight pilot runs on the ~496-species shards, TinyCLIP-39M
 (`vit_medium_patch16_clip_224.tinyclip_yfcc15m`, 38.3M params), batch 96, 244k
 samples/epoch, ~7.8 min/epoch.
 
-**NABirds OOD eval — all six on the IDENTICAL fixed 496-species set** (n=282 test
-images; teacher BioCLIP-2 = 91.49 top-1 on this subset). Re-run 2026-08-01 after the
-tie-break fix; the first sweep's numbers were invalid because checkpoints were scored
-on different image subsets.
+| run | ~~top1~~ VOID | ~~top5~~ | val_cos | config |
+|---|---|---|---|---|
+| runB | ~~92.55~~ | ~~98.23~~ | **0.9560** | 0.2 basis, lr 7e-5, WingCLIP |
+| exp3 | ~~92.55~~ | ~~98.58~~ | 0.9423 | 0.1 basis, lr 1e-4, **BioCLIP-2** |
+| runA | ~~88.65~~ | ~~96.45~~ | 0.9438 | 0.1 basis, lr 1e-4, WingCLIP |
+| exp4 | ~~74.47~~ | ~~82.98~~ | 0.9047 | 0.1 basis, 61M **patch32** |
+| exp2 | ~~50.00~~ | ~~56.38~~ | 0.8917 | 0.1 basis, lr 2.5e-4 |
+| exp1 | ~~39.01~~ | ~~44.68~~ | 0.8837 | 0.1 basis, lr 5e-4 |
 
-| run | top1 | 95% CI | top5 | retention | val_cos | config |
-|---|---|---|---|---|---|---|
-| runB | **92.55** | [88.9, 95.1] | 98.23 | 101.2% | 0.9560 | 0.2 basis, lr 7e-5, WingCLIP |
-| exp3 | **92.55** | [88.9, 95.1] | 98.58 | 101.2% | 0.9423 | 0.1 basis, lr 1e-4, **BioCLIP-2** |
-| runA | 88.65 | [84.4, 91.8] | 96.45 | 96.9% | 0.9438 | 0.1 basis, lr 1e-4, WingCLIP |
-| exp4 | 74.47 | [69.1, 79.2] | 82.98 | 81.4% | 0.9047 | 0.1 basis, 61M **patch32** |
-| exp2 | 50.00 | [44.2, 55.8] | 56.38 | 54.7% | 0.8917 | 0.1 basis, lr 2.5e-4 |
-| exp1 | 39.01 | [33.5, 44.8] | 44.68 | 42.6% | 0.8837 | 0.1 basis, lr 5e-4 |
+**What survives:** the val_cos ranking, and the fact that exp1/exp2 (lr 2.5e-4 and
+5e-4 on the 0.1 basis) are catastrophic by any measure. **What does not:** the
+"+3.90 for BioCLIP-2" teacher result and the "+3.90 for the 0.2 recipe" result,
+both of which were 7-species measurements.
 
-**Two paired single-factor contrasts, both +3.90 pts:**
-- **Teacher** (exp3 vs runA, only the teacher differs): BioCLIP-2 **beats**
-  WingCLIP-0.1. Falsifies the "Next steps" step-2 prediction, and **reverses val_cos**
-  (which ranked WingCLIP higher). See that section for the full correction.
-- **Recipe** (runB vs runA): 0.2 basis beats 0.1 basis. Here val_cos and NABirds agree.
-- runB vs exp3 is a **TIE at 92.55 and is CONFOUNDED** (recipe AND teacher differ).
-  Resolved by the 2x2 missing cell, `runs/tiny39_r02_bioclip`, running 2026-08-01.
+### 🚨 The 7-species trap (found 2026-08-01)
 
-**Abstention favours exp3 (BioCLIP-2 teacher) clearly**, which may matter more than
-top-1 parity for a product that declines to guess:
+The pilot was selected as **the top-500 species by GLOBAL iNat photo count** — a
+worldwide ranking, full of Greater Rhea, Hawaiian Duck, Swan Goose, piping-guans.
+**NABirds is North American.** The two sets intersect on exactly **7 species**:
+Rufous Hummingbird, Nuttall's Woodpecker, Yellow-billed Magpie, Oak Titmouse,
+Juniper Titmouse, California Thrasher, Abert's Towhee.
 
-| thr | exp3 cov / acc | runB cov / acc |
-|---|---|---|
-| 0.5 | 91.8% / 96.91 | 85.5% / 97.10 |
-| 0.7 | **78.7%** / 99.10 | 63.8% / 98.89 |
-| 0.9 | **63.8%** / 98.89 | 14.9% / 100.0 |
+So `eval_nabirds.py --pilot-species 500` found 282 images spread over **7**
+species (~40 each), while reporting "500 species" in its own header. The Wilson
+CIs quoted alongside those numbers were also **understated**, since they assume
+282 independent samples rather than 7 clustered groups.
 
-**⚠️ METHODOLOGY TRAPS, both hit during this sweep:**
+This reaches back further than the TinyCLIP work: `nabirds_ps500` was the metric
+used to rank the **2026-07-25 pilot sweep** too.
+
+**Why it was easy to miss:** the 7 overlap species sit at the very TOP of the
+global count ranking (Baeolophus ridgwayi 499 imgs, Melozone aberti 496,
+Toxostoma redivivum 495 ...), so they were the most-photographed species in the
+corpus and slipped into the top-500 naturally. The eval never errored; it just
+silently measured a tiny, unrepresentative slice.
+
+**Fix:** align the pilot species set TO NABirds. All 401 NABirds taxa exist in the
+corpus with 184,958 images (min 284/species), so the pilot stays roughly the same
+size (185k vs 244k) while the OOD eval grows from 282 images to the full
+**24,633-image / 401-species** NABirds test split — an ~87x bigger eval on the
+metric that decides things. Built by `build_nabirds_species.py` (species list,
+checksum-stable) + `shard_subset.py` (extracts from the packed shards, since the
+loose `corpus/` was deleted 2026-07-25) into
+`/mnt/nas/WingDex-Distill/wds-nabirds401/`.
+
+⚠️ **Tradeoff, recorded deliberately:** a NABirds-aligned pilot is
+North-American-biased and is NO LONGER a random slice of the 7,555-species corpus,
+so recipe conclusions drawn on it may not transfer perfectly to the full run. We
+accept that to get a trustworthy teacher/OOD signal. Do not silently treat the
+new pilot as representative.
+
+**Only the TEACHER question needs re-running** (2 runs, WingCLIP vs BioCLIP-2 at
+identical recipe). LR and recipe questions ride on in-distribution val_cos, which
+the species mismatch does not affect.
+
+### ⚠️ Two further methodology traps from this sweep
+
 1. **The LR sweep was run on the recipe we are abandoning.** EXP1–EXP4 were ALL 0.1
    basis (`--aug none --wd 0.1`, only `--lr` varied), while the winner (runB) is 0.2
    basis. runB also changed FOUR variables at once vs runA (lr, aug, wd, plus beta2
@@ -1577,15 +1604,12 @@ top-1 parity for a product that declines to guess:
    worse. It does NOT show 61M < 39M, and does NOT rule out progressive distillation —
    that needs a **patch16** intermediate.
 
-**⚠️ Do NOT compare pilot top-1 against WingCLIP-0.1's 89.93 or the teacher's 86.41.**
-Those are FULL-SET numbers (24,633 images, all species). The pilot subset is easier:
-the same teacher scores 91.49 there vs 86.41 full-set. Compare **retention over a
-common teacher** — on which WingCLIP-0.1 (104.1%) still leads every pilot student
-(101.2%), because it has the ground-truth fine-tune + WiSE-FT that TinyCLIP has not
-received yet.
-
-All numbers n=282 with ±3–4 pt CIs: gaps under ~3 points are not resolvable at this
-sample size. Expand the eval set before committing GPU-weeks on a small gap.
+**⚠️ Never compare pilot top-1 against WingCLIP-0.1's 89.93 or the teacher's 86.41.**
+Those are FULL-SET numbers (24,633 images, 401 species). A species-restricted eval
+is a different, easier exam — the same teacher scores 91.49 on the 282-image
+subset. Compare **retention over a common teacher**, on which WingCLIP-0.1 (104.1%)
+still leads every pilot student (101.2%), because it has the ground-truth fine-tune
++ WiSE-FT that TinyCLIP has not received yet.
 
 ## Throughput: precompute and training (settled 2026-07-31)
 
