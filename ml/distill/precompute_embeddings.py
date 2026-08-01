@@ -240,8 +240,16 @@ def main():
 
     # Teacher can be either an open_clip hub model (BioCLIP-2, the original)
     # or a local WingCLIP Student checkpoint. The latter enables SEQUENTIAL
-    # distillation: WingCLIP-0.1 scores 89.93 on NABirds vs BioCLIP-2
-    # 86.41, so it is the stronger teacher for this domain.
+    # distillation.
+    #
+    # NOTE (2026-08-01): this used to assert WingCLIP-0.1 is "the stronger
+    # teacher" because it scores 89.93 on NABirds vs BioCLIP-2's 86.41. That
+    # comparison is NOT evidence for the claim -- both are full-set numbers for
+    # the models themselves, which says nothing about which makes a better
+    # DISTILLATION TARGET. The pilot that was supposed to settle it overlapped
+    # NABirds on only 7 species and was void. Teacher choice is currently OPEN
+    # and is being re-measured on wds-nabirds401. Do not re-assert either
+    # direction here without a 401-species result.
     if args.model.endswith(".pt"):
         import sys
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
