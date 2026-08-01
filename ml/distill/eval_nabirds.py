@@ -100,14 +100,48 @@ def load_samples(nabirds, nb_to_taxo, pilot_idx, test_only=True):
     return samples
 
 
+# Cached, deterministic species set extracted from the ACTUAL packed shards.
+# Rebuild with: python build_pilot_index.py   (only needed if shards re-pack)
+PILOT_IDX_CACHE = "pilot500_taxo_idx.json"
+
+
 def pilot_species_indices(train_manifest, taxo, pilot_species):
+    """Return the taxonomy indices the pilot student was actually trained on.
+
+    BUG THIS FIXES (2026-08-01): the old implementation recomputed the species
+    set with
+        SELECT inat_taxon_id ... GROUP BY 1 ORDER BY count(*) DESC LIMIT 500
+    There is a TIE at exactly 492 images spanning more taxa than the remaining
+    slots, and duckdb breaks that tie arbitrarily -- running it three times in a
+    row produced three DIFFERENT 500-species sets. Consequence: checkpoints
+    evaluated in the same sweep were scored on DIFFERENT NABirds image subsets
+    (observed n=282 / n=255 / n=245), so their top-1 numbers were not
+    comparable to each other at all.
+
+    It was also simply wrong: pack_webdataset.py used the same nondeterministic
+    query, and the shards it actually produced contain 496 species, not 500.
+
+    Fix: read the ground-truth species set straight from the packed shards
+    (.cls entries) once via build_pilot_index.py, cache it, and use it verbatim.
+    Falls back to the old query only if the cache is missing, and shouts if it
+    has to. The fallback is now tie-broken by inat_taxon_id so it is at least
+    deterministic, but it still reproduces the WRONG 500-species set.
+    """
     if not pilot_species or pilot_species <= 0:
         return None
+    if os.path.exists(PILOT_IDX_CACHE):
+        idxs = set(json.load(open(PILOT_IDX_CACHE)))
+        log(f"pilot species from {PILOT_IDX_CACHE}: {len(idxs)} (deterministic)")
+        return idxs
+    log("WARNING: " + PILOT_IDX_CACHE + " missing; falling back to the "
+        "NONDETERMINISTIC top-N query. Results will NOT be comparable across "
+        "checkpoints. Rebuild the cache before trusting these numbers.")
     sci_to_idx = {r[1].lower(): i for i, r in enumerate(taxo)}
     con = duckdb.connect()
     M = f"read_parquet('{train_manifest}')"
     top = con.execute(f"SELECT inat_taxon_id FROM {M} GROUP BY 1 "
-                      f"ORDER BY count(*) DESC LIMIT {pilot_species}").fetchall()
+                      f"ORDER BY count(*) DESC, inat_taxon_id ASC "
+                      f"LIMIT {pilot_species}").fetchall()
     ids = [r[0] for r in top]
     rows = con.execute(f"SELECT DISTINCT scientific FROM {M} "
                        f"WHERE inat_taxon_id IN ({','.join(str(i) for i in ids)})").fetchall()

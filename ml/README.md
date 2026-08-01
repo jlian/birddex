@@ -49,7 +49,7 @@ prior costs 2.88 pts (~2.04 genuine drift, ~0.84 density) → refresh quarterly.
 quantisation alone (int3/int2 collapse the model to 0% top-1). TinyCLIP-ViT-39M
 (MIT-licensed, ships basis weights) is 38.3M params → **19.2 MB at int4**, which
 clears 25 MB. The METHOD is proven; the OPERATING REGIME (fine-grained 11,167-species
-ID at 2.2x less capacity) is NOT yet proven and must be measured on the 500-species
+ID at 2.2x less capacity) is NOT yet proven and must be measured on the ~496-species
 pilot first. See "Next steps" and "Smaller backbone: TinyCLIP".
 
 > ⚠️ **This supersedes the old header** which said "Do not start another training
@@ -435,7 +435,7 @@ distilled from BioCLIP-2 ViT-L/14** (attribution + licensing requirement).
 - **stage suffix** = pipeline position (all cheap post-processing): `-alpha` = raw
   distillation, `-beta` = + ground-truth fine-tune, *(no suffix)* = + WiSE-FT blend
   (complete pipeline).
-- **`-pilot`** = the 500-species version.
+- **`-pilot`** = the ~496-species version (directory says 500; see the tie-break bug).
 - **MAJOR 1.0 = earned** — a basis becomes 1.0 only when it PASSES Phase 4 vs GPT.
   Most likely a promotion of a 0.x, not a separate run.
 
@@ -635,15 +635,44 @@ already exposes `--arch`/`--pretrained`.
 1. Teach `Student` to build a timm backbone when `--arch` is a timm name (currently
    only calls open_clip). Small change: create via timm, read `student_dim` from the
    dry-forward probe, keep the same projection + normalize.
-2. **Teacher: use WingCLIP-0.1, not BioCLIP-2.** BioCLIP-2 is 86.41 on NABirds and
-   WingCLIP-0.1 is 89.93 — distilling from BioCLIP-2 targets a teacher we already
-   beat and would likely land below 86.41. Cost is one GPU re-embedding pass;
-   WingCLIP-0.1 emits 768-d, pipeline unchanged. The BioCLIP-2 cache remains the
-   CONTROL for isolating capacity-vs-teacher-choice.
-3. Pilot distill TinyCLIP-39M on the 500-species pilot, run BOTH the 0.1 and 0.2
+2. ⚠️ **Teacher choice is OPEN — the reasoning below was FALSIFIED 2026-08-01.**
+   The original plan read: *"use WingCLIP-0.1, not BioCLIP-2. BioCLIP-2 is 86.41 on
+   NABirds and WingCLIP-0.1 is 89.93 — distilling from BioCLIP-2 targets a teacher we
+   already beat and would likely land below 86.41."* We ran that control (exp3) and
+   the prediction did not hold: on the fixed 496-species NABirds subset, the
+   BioCLIP-2-taught student scored **92.55** vs the WingCLIP-taught student's
+   **88.65**, a **+3.90 pt win for BioCLIP-2** under an otherwise identical 0.1
+   recipe. It also **reversed val_cos**, which had ranked WingCLIP higher (0.9438 vs
+   0.9423) — a concrete instance of the proxy misleading on the decision that
+   matters.
+   - The "we already beat 86.41" argument confused two different evals. WingCLIP-0.1's
+     89.93 is the FULL 24,633-image NABirds set; the pilot students' 92.55 is 282
+     images restricted to the ~496 trained species, where the SAME BioCLIP-2 teacher
+     scores 91.49 rather than 86.41. Normalised as retention over the same teacher,
+     WingCLIP-0.1 (104.1%) still leads exp3/runB (101.2%) — because it has the
+     ground-truth fine-tune + WiSE-FT that TinyCLIP has not received yet.
+   - **NOT YET SETTLED.** n=282, 95% CI [88.9, 95.1], and exp3 ties runB (92.55) in a
+     CONFOUNDED comparison (recipe AND teacher both differ). The deciding run is the
+     2x2 missing cell (0.2 recipe + BioCLIP-2 teacher, `runs/tiny39_r02_bioclip`):
+     stacking implies BioCLIP-2 direct, redundancy implies the choice rests on
+     abstention behaviour instead (exp3 holds 78.7% coverage @ 99.10% acc at thr 0.7
+     vs runB's 63.8%).
+   - Either way the WingCLIP chain is NOT wasted: only which cached embeddings feed
+     `--sv-embeddings` changes. The re-embedding pass cost ~28 min of GPU and bought
+     the control that produced this answer. Recipe sweep, eval harness, occurrence
+     rerank, calibration fit, fine-tune set and WiSE-FT alpha are all
+     teacher-agnostic.
+   - WingCLIP-0.1 emits 768-d and BioCLIP-2 targets are baked into the shards, so
+     either teacher leaves the pipeline unchanged (omit `--sv-embeddings` for
+     BioCLIP-2).
+3. Pilot distill TinyCLIP-39M on the ~496-species pilot, run BOTH the 0.1 and 0.2
    recipes (prior evidence is from a different capacity regime and does not transfer;
-   ablation order above). Compare val_cos, then the real test: **NABirds top-1 vs
-   WingCLIP-0.1's 89.93 and teacher's 86.41.**
+   ablation order above). Compare val_cos, then the real test: **NABirds top-1.**
+   ⚠️ When comparing against WingCLIP-0.1's 89.93 or the teacher's 86.41, note those
+   are FULL-SET (24,633 img, all species) numbers; pilot students restricted to their
+   ~496 trained species are graded against a 282-image subset where the same teacher
+   scores 91.49. Compare RETENTION over a common teacher, never raw top-1 across the
+   two evals. DONE 2026-08-01, see the teacher note in step 2.
 4. ⚠️ **The second fine-tune has a REDUNDANCY trap.** WingCLIP-0.1 was ALREADY
    fine-tuned on the 178k ground-truth photos; re-fine-tuning the TinyCLIP student on
    the SAME photos re-teaches what the teacher already encoded (double-counted signal,
@@ -1131,7 +1160,8 @@ farm, no drift. Heavy work runs on tomahawk (RTX 3080).
   178,804 photos / 5,908 species — the fine-tune set), `calib_untouched.parquet`.
 - **Training data (NAS — the DOCUMENTED design, not a discovery):**
   `/mnt/nas/WingDex-Distill/wds/` (251–252 shards, 252GB, 2,502,898 samples) and
-  `/mnt/nas/WingDex-Distill/wds-pilot500/` (25–26 shards, 25GB, 247,400 samples). The
+  `/mnt/nas/WingDex-Distill/wds-pilot500/` (25–26 shards, 25GB, 247,400 samples; the
+  name says 500 but it packs **496 species** — see the tie-break bug below). The
   **262GB loose `corpus/` was DELETED 2026-07-25** (gated on exp1 reproducing the pilot
   baseline off shards, 0.9447 vs 0.9465); every image lives in the shards
   byte-identically and is re-downloadable via `pull_images.py`. Freed 261GB.
@@ -1261,6 +1291,19 @@ current truth. Correction chains are called out.
   so it covered ~15 of 500 species — every sweep's val_cos was on ~3% of species.
   Fixed to a deterministic blake2b hash split (val_frac 0.0202, 496/496 species, 4,948
   val samples — matches the local-corpus pilot, so numbers are comparable again).
+- **⚠️ THE PILOT IS 496 SPECIES, NOT 500** (found 2026-08-01). `pack_webdataset.py`
+  selected the pilot set with `... GROUP BY 1 ORDER BY count(*) DESC LIMIT 500`. There
+  is a TIE at exactly 492 images spanning more taxa than the remaining slots, and
+  duckdb breaks that tie ARBITRARILY — running the query three times returned three
+  DIFFERENT species sets. The shards that were actually packed contain **496 distinct
+  classes / 244,736 records** (ground truth read back from the `.cls` members, cached
+  to `pilot500_classes.json` → `pilot500_taxo_idx.json`).
+  - `eval_nabirds.py` recomputed the same nondeterministic query, so checkpoints in one
+    sweep were scored on DIFFERENT NABirds subsets (observed n=282 / 255 / 245) and
+    their top-1 numbers were NOT comparable. Fixed: it now loads the cached index set
+    and only falls back to the (now id-tie-broken) query with a loud warning.
+  - Directory name, the `-pilot` registry suffix and "500sp" labels are kept for
+    continuity but are all approximate. **Read them as ~496.**
 - **DATA QUALITY:** 1,368 duplicate photo_ids in the manifest (same photo under >1
   taxon; 0.05% of 2.5M, trained under two labels — negligible, dedup before any re-pack).
 - **Env: uv replaces the old venv** (absolute-path shebangs blocked moving it).
@@ -1478,9 +1521,71 @@ load via timm. Headline numbers are coarse zero-shot ImageNet (shrink ViT-B/32 5
 comparable zero-shot; 8M model beats ViT-B/16 by 3.5% on ImageNet with 8.9% of params;
 weight inheritance speeds training 1.4–7.8×) — NOT fine-grained, so the operating regime
 is unproven for us. Progressive distillation (86.6M→~60M→39M) is TinyCLIP's own scheme
-if the direct jump loses too much. WingCLIP-0.1 is the better teacher (beats BioCLIP-2
-on NABirds); the BioCLIP-2 cache stays the control. Watch the second-fine-tune
+if the direct jump loses too much. ~~WingCLIP-0.1 is the better teacher (beats BioCLIP-2
+on NABirds); the BioCLIP-2 cache stays the control.~~ ⚠️ **That teacher claim was
+FALSIFIED 2026-08-01 — see the pilot results below.** Watch the second-fine-tune
 redundancy trap (the 178k GT photos were already absorbed by WingCLIP-0.1).
+
+## TinyCLIP-39M pilot results (2026-07-31 → 08-01)
+
+Eight pilot runs on the ~496-species shards, TinyCLIP-39M
+(`vit_medium_patch16_clip_224.tinyclip_yfcc15m`, 38.3M params), batch 96, 244k
+samples/epoch, ~7.8 min/epoch.
+
+**NABirds OOD eval — all six on the IDENTICAL fixed 496-species set** (n=282 test
+images; teacher BioCLIP-2 = 91.49 top-1 on this subset). Re-run 2026-08-01 after the
+tie-break fix; the first sweep's numbers were invalid because checkpoints were scored
+on different image subsets.
+
+| run | top1 | 95% CI | top5 | retention | val_cos | config |
+|---|---|---|---|---|---|---|
+| runB | **92.55** | [88.9, 95.1] | 98.23 | 101.2% | 0.9560 | 0.2 basis, lr 7e-5, WingCLIP |
+| exp3 | **92.55** | [88.9, 95.1] | 98.58 | 101.2% | 0.9423 | 0.1 basis, lr 1e-4, **BioCLIP-2** |
+| runA | 88.65 | [84.4, 91.8] | 96.45 | 96.9% | 0.9438 | 0.1 basis, lr 1e-4, WingCLIP |
+| exp4 | 74.47 | [69.1, 79.2] | 82.98 | 81.4% | 0.9047 | 0.1 basis, 61M **patch32** |
+| exp2 | 50.00 | [44.2, 55.8] | 56.38 | 54.7% | 0.8917 | 0.1 basis, lr 2.5e-4 |
+| exp1 | 39.01 | [33.5, 44.8] | 44.68 | 42.6% | 0.8837 | 0.1 basis, lr 5e-4 |
+
+**Two paired single-factor contrasts, both +3.90 pts:**
+- **Teacher** (exp3 vs runA, only the teacher differs): BioCLIP-2 **beats**
+  WingCLIP-0.1. Falsifies the "Next steps" step-2 prediction, and **reverses val_cos**
+  (which ranked WingCLIP higher). See that section for the full correction.
+- **Recipe** (runB vs runA): 0.2 basis beats 0.1 basis. Here val_cos and NABirds agree.
+- runB vs exp3 is a **TIE at 92.55 and is CONFOUNDED** (recipe AND teacher differ).
+  Resolved by the 2x2 missing cell, `runs/tiny39_r02_bioclip`, running 2026-08-01.
+
+**Abstention favours exp3 (BioCLIP-2 teacher) clearly**, which may matter more than
+top-1 parity for a product that declines to guess:
+
+| thr | exp3 cov / acc | runB cov / acc |
+|---|---|---|
+| 0.5 | 91.8% / 96.91 | 85.5% / 97.10 |
+| 0.7 | **78.7%** / 99.10 | 63.8% / 98.89 |
+| 0.9 | **63.8%** / 98.89 | 14.9% / 100.0 |
+
+**⚠️ METHODOLOGY TRAPS, both hit during this sweep:**
+1. **The LR sweep was run on the recipe we are abandoning.** EXP1–EXP4 were ALL 0.1
+   basis (`--aug none --wd 0.1`, only `--lr` varied), while the winner (runB) is 0.2
+   basis. runB also changed FOUR variables at once vs runA (lr, aug, wd, plus beta2
+   0.95 / warmup 500 / grad-clip 1.0), so **"lr 7e-5 is optimal" was never tested on
+   the shipping recipe.** The 0.2-basis sweep (5e-5, 3e-5) runs 2026-08-01.
+   Lesson: sweep the basis you intend to ship, and change one variable at a time.
+2. **exp4 ("61M backbone") is CONFOUNDED and proves nothing about capacity.**
+   `vit_betwixt_patch32_clip_224` is **patch32 = 49 tokens**; the 39M
+   `vit_medium_patch16` is **patch16 = 196 tokens**. The "bigger" model has 4x less
+   spatial resolution, which is why it trained faster (355s vs 465s/epoch) and scored
+   worse. It does NOT show 61M < 39M, and does NOT rule out progressive distillation —
+   that needs a **patch16** intermediate.
+
+**⚠️ Do NOT compare pilot top-1 against WingCLIP-0.1's 89.93 or the teacher's 86.41.**
+Those are FULL-SET numbers (24,633 images, all species). The pilot subset is easier:
+the same teacher scores 91.49 there vs 86.41 full-set. Compare **retention over a
+common teacher** — on which WingCLIP-0.1 (104.1%) still leads every pilot student
+(101.2%), because it has the ground-truth fine-tune + WiSE-FT that TinyCLIP has not
+received yet.
+
+All numbers n=282 with ±3–4 pt CIs: gaps under ~3 points are not resolvable at this
+sample size. Expand the eval set before committing GPU-weeks on a small gap.
 
 ## Throughput: precompute and training (settled 2026-07-31)
 
