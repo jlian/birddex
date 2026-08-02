@@ -1,5 +1,23 @@
 import SwiftUI
 
+/// Wikipedia summaries are cached in memory because a context-menu preview and the view
+/// it pops into are separate `SpeciesDetailView` instances with separate state. Without
+/// this the pushed view refetches the summary, so it has no full-res URL on its first
+/// render and replays the blur-up even though the image is already decoded.
+@MainActor
+private final class WikiSummaryCache {
+    struct Summary {
+        let extract: String?
+        let imageUrl: String?
+    }
+
+    static let shared = WikiSummaryCache()
+    private var cache: [String: Summary] = [:]
+
+    func summary(for title: String) -> Summary? { cache[title] }
+    func set(_ summary: Summary, for title: String) { cache[title] = summary }
+}
+
 struct SpeciesDetailView: View {
     let speciesName: String
     @Environment(DataStore.self) private var store
@@ -15,6 +33,15 @@ struct SpeciesDetailView: View {
         store.sightings(for: speciesName)
     }
 
+    /// Read through to the cache so a preview-populated summary is available on the first
+    /// render, before `.task` has a chance to run.
+    private var cachedSummary: WikiSummaryCache.Summary? {
+        guard let wikiTitle = entry?.wikiTitle else { return nil }
+        return WikiSummaryCache.shared.summary(for: wikiTitle)
+    }
+    private var displayedExtract: String? { wikiExtract ?? cachedSummary?.extract }
+    private var displayedFullImageUrl: String? { fullImageUrl ?? cachedSummary?.imageUrl }
+
     var body: some View {
         VStack(spacing: 0) {
             CachedDataNotice()
@@ -27,7 +54,7 @@ struct SpeciesDetailView: View {
             .listRowSeparator(.hidden)
 
             // Wikipedia + links section
-            if wikiExtract != nil || entry != nil {
+            if displayedExtract != nil || entry != nil {
                 Section {
                     wikiSection
                 }
@@ -127,31 +154,17 @@ struct SpeciesDetailView: View {
     // MARK: - Hero
 
     private var heroSection: some View {
-        // WHY GeometryReader: AsyncImage with .scaledToFill() will overflow its
+        // WHY GeometryReader: the hero image uses .scaledToFill() and will overflow its
         // parent frame in a List row. GeometryReader constrains the width to the
         // actual available space so .clipped() works correctly on the hero image.
         GeometryReader { geo in
             ZStack(alignment: .bottomLeading) {
-                Group {
-                    let imageUrl = fullImageUrl ?? entry?.thumbnailUrl
-                    if let url = imageUrl, let imageURL = URL(string: url) {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable()
-                                    .scaledToFill()
-                                    .frame(width: geo.size.width, height: 280, alignment: .top)
-                                    .clipped()
-                            default:
-                                heroPlaceholder
-                            }
-                        }
-                    } else {
-                        heroPlaceholder
-                    }
-                }
-                .frame(width: geo.size.width, height: 280)
-                .clipped()
+                BirdHeroImage(
+                    thumbnailUrl: entry?.thumbnailUrl,
+                    fullImageUrl: displayedFullImageUrl,
+                    width: geo.size.width,
+                    height: 280
+                )
 
             // Gradient overlay
             LinearGradient(
@@ -210,21 +223,11 @@ struct SpeciesDetailView: View {
         }
     }
 
-    private var heroPlaceholder: some View {
-        Rectangle()
-            .fill(Color.warmBorder.opacity(0.3))
-            .overlay {
-                Image(systemName: "bird.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.mutedText.opacity(0.3))
-            }
-    }
-
     // MARK: - Wiki
 
     @ViewBuilder
     private var wikiSection: some View {
-        if let extract = wikiExtract {
+        if let extract = displayedExtract {
             VStack(alignment: .leading, spacing: 8) {
                 Text(extract)
                     .font(.system(size: 14))
@@ -265,29 +268,47 @@ struct SpeciesDetailView: View {
 
     // MARK: - Wikipedia Fetch
 
+    @MainActor
     private func fetchWikipediaData() async {
-        guard let wikiTitle = entry?.wikiTitle else { return }
+        // Falling back to the thumbnail URL tells the hero no larger image is coming,
+        // so it drops the blur instead of waiting forever.
+        let thumbnail = entry?.thumbnailUrl
+        guard let wikiTitle = entry?.wikiTitle else {
+            fullImageUrl = thumbnail
+            return
+        }
+        if let cached = WikiSummaryCache.shared.summary(for: wikiTitle) {
+            wikiExtract = cached.extract
+            fullImageUrl = cached.imageUrl
+            return
+        }
         let encoded = wikiTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wikiTitle
-        guard let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else { return }
+        guard let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else {
+            fullImageUrl = thumbnail
+            return
+        }
 
+        var summary = WikiSummaryCache.Summary(extract: nil, imageUrl: thumbnail)
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                await MainActor.run {
-                    wikiExtract = json["extract"] as? String
-                    if let original = json["originalimage"] as? [String: Any],
-                       let src = original["source"] as? String {
-                        fullImageUrl = src
-                    }
-                }
+                let original = json["originalimage"] as? [String: Any]
+                summary = WikiSummaryCache.Summary(
+                    extract: json["extract"] as? String,
+                    imageUrl: original?["source"] as? String ?? thumbnail
+                )
             }
+            WikiSummaryCache.shared.set(summary, for: wikiTitle)
         } catch {
-            // Silently fail - the thumbnail from dex is still shown
+            // Silently fail - the thumbnail from dex is still shown. Not cached, so a
+            // later visit retries.
         }
+        wikiExtract = summary.extract
+        fullImageUrl = summary.imageUrl
     }
 
     private var heroImageURL: URL? {
-        guard let value = fullImageUrl ?? entry?.thumbnailUrl else { return nil }
+        guard let value = displayedFullImageUrl ?? entry?.thumbnailUrl else { return nil }
         return URL(string: value)
     }
 

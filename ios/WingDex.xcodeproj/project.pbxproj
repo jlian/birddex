@@ -54,6 +54,7 @@
 		677BE6A554980C427B7EE3D0 /* IncomingShareStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 963619FEAD365BFF8CDC24E8 /* IncomingShareStore.swift */; };
 		6A3E3A8BE6F89235D4E0ED32 /* collage1.jpg in Resources */ = {isa = PBXBuildFile; fileRef = BC6ADC80E561240BA8BF7D7E /* collage1.jpg */; };
 		6CA4E3BBA3E8A52B27D20765 /* NavigationIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F672879223E1EC7DCBDEAA5 /* NavigationIntents.swift */; };
+		6CB86C867F60358E1861DB26 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D7C009C2D9A695FBE3C407 /* ImageLoader.swift */; };
 		6F963B1157CEB369EBDB2E3A /* CachedDataNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCBC6608B2BC3873131FB2D /* CachedDataNotice.swift */; };
 		701F62DDB95D5BDF65E3E23D /* CelebrationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1934AFCA827070FC4A689F84 /* CelebrationOverlay.swift */; };
 		71AE086D49EDD88D2294F2E1 /* demo-ebird-import.csv in Resources */ = {isa = PBXBuildFile; fileRef = 071E15B7BF7B6D9EA12130BA /* demo-ebird-import.csv */; };
@@ -164,6 +165,7 @@
 		305CCFA640186FBC5E19A9D5 /* WingDexTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WingDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		349758606369EA730FED5A51 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		34B8621A8E42D9A18A2125F8 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		34D7C009C2D9A695FBE3C407 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		36494465879ECB03DD6185CA /* collage14.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage14.jpg; sourceTree = "<group>"; };
 		38902C42A407AB194B63C757 /* PerPhotoConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerPhotoConfirmView.swift; sourceTree = "<group>"; };
 		3F672879223E1EC7DCBDEAA5 /* NavigationIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationIntents.swift; sourceTree = "<group>"; };
@@ -278,6 +280,7 @@
 				8DF3BE4EAF4D781A2029593E /* DataStore.swift */,
 				4DF1A6ED7B70FE77FAC9FA7D /* ExportFileFactory.swift */,
 				19D47136847CF32C6251A4BD /* FunNames.swift */,
+				34D7C009C2D9A695FBE3C407 /* ImageLoader.swift */,
 				CE51FF79B0CDBB3C4CADC3ED /* ImageSharingService.swift */,
 				963619FEAD365BFF8CDC24E8 /* IncomingShareStore.swift */,
 				5E4B3481B64AB6EC4E0E93EA /* LocationService.swift */,
@@ -704,6 +707,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				48572F12742996B68226EECF /* FunNames.swift in Sources */,
 				085CA0BF32A695F766CBB46B /* GitInfo.swift in Sources */,
 				6541BF20FA6B0465C6AA8204 /* HomeView.swift in Sources */,
+				6CB86C867F60358E1861DB26 /* ImageLoader.swift in Sources */,
 				5660BC7BFC7DF7AD837AEADA /* ImageSharingService.swift in Sources */,
 				1E0DCFBD872149C98D47DD51 /* IncomingShareStore.swift in Sources */,
 				929B61A185655FD636643F5F /* IntentDataProvider.swift in Sources */,
