@@ -1611,6 +1611,78 @@ subset. Compare **retention over a common teacher**, on which WingCLIP-0.1 (104.
 still leads every pilot student (101.2%), because it has the ground-truth fine-tune
 + WiSE-FT that TinyCLIP has not received yet.
 
+## Throughput: where the loader ceiling actually is (measured 2026-08-02)
+
+Do NOT buy a faster GPU or pre-resize the shards to fix training speed until
+this section is re-measured. Both were proposed on 2026-08-02 and both were
+argued down BY MEASUREMENT, not opinion.
+
+### `nvidia-smi` utilization is a liar for this workload
+
+A single sample showed **92%** and was quoted as "the GPU is busy". Sampling 20x
+over 20s during real training told a different story:
+
+```
+86 84 77 76 73 72 70 69 67 66 64 51 41 25   (% util)
+```
+
+That swing from 25% to 86% is the sawtooth of a GPU **waiting on the data
+loader** between batches. `utilization.gpu` means "percent of time at least one
+kernel was resident", NOT "percent of compute used", so a single reading catches
+a peak and looks saturated. **Always sample repeatedly.** Meanwhile 7 processes
+sat at ~105% CPU each (`pt_data_worker` x6 plus the trainer), i.e. ~7.5 of 16
+cores doing JPEG decode.
+
+### But decode is NOT the binding constraint either
+
+Benchmarked on real shard data (`jobs/bench_decode.py`, 300 jpegs from
+`wds-nabirds401/shard-00000.tar`), Pillow 12.2.0 with **libjpeg_turbo already
+enabled**:
+
+| decode path | throughput | vs today |
+|---|---|---|
+| full size (what we do today) | 440.8 img/s | 1.00x |
+| `Image.draft("RGB",(256,256))` | 445.0 img/s | **1.01x (nothing)** |
+| pre-resized to 384px | 898.5 img/s | 2.04x |
+
+**The source images are already only ~500px** (500x333, 500x375, ...; avg 80.6
+KB). They were downsampled at corpus-build time, so the "pre-resize to cut
+decode cost" premise is far weaker than it looks, and `draft()` -- the free
+option -- buys literally nothing because there is nothing left for libjpeg to
+skip.
+
+Arithmetic that settles it: one core does ~441 img/s, we run **12 workers**, so
+decode capacity is ~5,300 img/s theoretical against a measured loader ceiling of
+**~1,012 img/s** and actual training throughput of **~655 img/s**. Decode has
+~5x headroom over the ceiling. **The gap between 5,300 and 1,012 is tar I/O over
+SMB, tensor transforms, and collation -- not JPEG decode.**
+
+### Therefore
+
+- **Pre-resizing the shards is REJECTED for now.** ~1.1x realistic gain, and it
+  costs a re-pack, permanent loss of the higher-res fine-tune lever (README
+  calls it LAST resort for exactly this reason), and it would change the input
+  pixels mid-experiment -- making the teacher comparison non-comparable to RUN B.
+  Adding an uncontrolled variable is the specific mistake that voided two
+  experiments earlier the same day.
+- **Pillow-SIMD is pointless here**: libjpeg-turbo is already active.
+- **DALI / nvJPEG would move decode to the GPU**, but decode is not the wall, so
+  expect little. Revisit only after the real ceiling is identified.
+- **NEXT STEP (queued): profile what actually sets the ~1,012 img/s ceiling.**
+  Prime suspect is sequential tar reads over SMB from the NAS. Measure the
+  loader alone (no training, no decode: read raw tar members and discard) vs
+  loader+decode vs full training. That isolates I/O from decode from compute.
+  `jobs/bench_loader.py` does not exist yet; `bench_loader.py` in the repo root
+  is the older variant.
+
+### RTX PRO 4500 question (asked 2026-08-02)
+
+32GB GDDR7 / ~896 GB/s / 5th-gen tensor cores vs our 10GB 3080. Verdict:
+**buy it for CAPABILITY, not speed.** Training is loader-bound on a mobile-class
+i9-9980HK (16 threads), so a faster GPU would idle MORE, not finish sooner.
+It is the right purchase only if the goal is models that do not fit in 10GB
+(bigger students, multi-view targets, batch >128 which currently thrashes).
+
 ## Throughput: precompute and training (settled 2026-07-31)
 
 ### precompute_embeddings.py: 144 → 626 img/s
