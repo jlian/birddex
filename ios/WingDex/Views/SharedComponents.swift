@@ -193,27 +193,6 @@ func presentActivitySheet(items: [Any], sourceView: UIView? = nil) {
     presenter.present(controller, animated: true)
 }
 
-// MARK: - Image Cache
-
-/// In-memory image cache shared across all thumbnails to avoid re-downloads on scroll.
-@MainActor
-private final class ImageCache {
-    static let shared = ImageCache()
-    private var cache = NSCache<NSString, UIImage>()
-    init() { cache.countLimit = 200 }
-
-    func image(for key: String) -> UIImage? { cache.object(forKey: key as NSString) }
-    func set(_ image: UIImage, for key: String) { cache.setObject(image, forKey: key as NSString) }
-}
-
-private enum ImageDecoder {
-    static func decode(_ data: Data) async -> UIImage? {
-        await Task.detached(priority: .utility) {
-            UIImage(data: data)
-        }.value
-    }
-}
-
 // MARK: - Bird Thumbnail
 
 /// Portrait-aware bird thumbnail that crops tall images near the top (head area).
@@ -241,21 +220,7 @@ struct BirdThumbnail: View {
     }
 
     private func loadImage() async {
-        guard let url, let imageURL = URL(string: url) else { return }
-        if let cached = ImageCache.shared.image(for: url) {
-            uiImage = cached
-            return
-        }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: imageURL)
-            try Task.checkCancellation()
-            guard let loaded = await ImageDecoder.decode(data) else { return }
-            try Task.checkCancellation()
-            ImageCache.shared.set(loaded, for: url)
-            uiImage = loaded
-        } catch {
-            // Leave placeholder
-        }
+        if let loaded = await ImageLoader.shared.image(for: url, targetPoints: size) { uiImage = loaded }
     }
 
     private var placeholder: some View {
@@ -263,6 +228,93 @@ struct BirdThumbnail: View {
             .fill(Color.warmBorder.opacity(0.2))
             .overlay {
                 Image(systemName: "bird.fill")
+                    .foregroundStyle(Color.mutedText.opacity(0.3))
+            }
+    }
+}
+
+// MARK: - Bird Hero Image
+
+/// Full-bleed hero image with the web app's blur-up transition: the dex thumbnail shows
+/// immediately (blurred, since it is upscaled) and the full-resolution image cross-fades
+/// in once it finishes loading, so the hero is never blank.
+///
+/// Pass `fullImageUrl` equal to `thumbnailUrl` once it is known that no larger image
+/// exists; the blur is then removed instead of lingering forever.
+struct BirdHeroImage: View {
+    let thumbnailUrl: String?
+    let fullImageUrl: String?
+    let width: CGFloat
+    let height: CGFloat
+
+    @State private var thumbnailImage: UIImage?
+    @State private var fullImage: UIImage?
+
+    /// Seeding from the cache in `init` (rather than in `.task`, which runs after the first
+    /// render) is what lets a hero already loaded by a context-menu preview appear on frame
+    /// one when the view is pushed, with no blur-up replay.
+    @MainActor
+    init(thumbnailUrl: String?, fullImageUrl: String?, width: CGFloat, height: CGFloat) {
+        self.thumbnailUrl = thumbnailUrl
+        self.fullImageUrl = fullImageUrl
+        self.width = width
+        self.height = height
+        let target = max(width, height)
+        _thumbnailImage = State(initialValue: ImageLoader.shared.cached(thumbnailUrl, targetPoints: target))
+        _fullImage = State(initialValue: fullImageUrl == thumbnailUrl
+            ? nil
+            : ImageLoader.shared.cached(fullImageUrl, targetPoints: target))
+    }
+
+    private var awaitingFullRes: Bool { fullImageUrl == nil || fullImageUrl != thumbnailUrl }
+    private var targetPoints: CGFloat { max(width, height) }
+
+    var body: some View {
+        ZStack {
+            if let thumbnailImage {
+                layer(thumbnailImage)
+                    .blur(radius: awaitingFullRes ? 12 : 0, opaque: true)
+            } else if fullImage == nil {
+                placeholder
+            }
+
+            if let fullImage {
+                layer(fullImage)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: width, height: height)
+        .clipped()
+        .task(id: thumbnailUrl) {
+            if let loaded = await ImageLoader.shared.image(for: thumbnailUrl, targetPoints: targetPoints) {
+                thumbnailImage = loaded
+            }
+        }
+        .task(id: fullImageUrl) {
+            guard awaitingFullRes, let fullImageUrl else { return }
+            if let cached = ImageLoader.shared.cached(fullImageUrl, targetPoints: targetPoints) {
+                fullImage = cached
+                return
+            }
+            guard let loaded = await ImageLoader.shared.image(for: fullImageUrl, targetPoints: targetPoints) else { return }
+            withAnimation(.easeInOut(duration: 0.45)) { fullImage = loaded }
+        }
+    }
+
+    private func layer(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(width: width, height: height, alignment: .top)
+            .clipped()
+    }
+
+    private var placeholder: some View {
+        Rectangle()
+            .fill(Color.warmBorder.opacity(0.3))
+            .overlay {
+                Image(systemName: "bird.fill")
+                    .font(.system(size: 48))
                     .foregroundStyle(Color.mutedText.opacity(0.3))
             }
     }
