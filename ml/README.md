@@ -448,6 +448,8 @@ distilled from BioCLIP-2 ViT-L/14** (attribution + licensing requirement).
 | `WingCLIP-0.2-alpha-pilot` | 500sp distill, LOCKED pilot recipe | `exp7_combined_lr7e5_auglight_ep25` | val_cos 0.9540 |
 | `WingCLIP-0.2-alpha` | full distill, LOCKED recipe (aug light, lr 7e-5, wd 0.2, beta2 0.95, warmup 500, clip 1.0, 25ep) | `full7555_locked_ep25` | val_cos 0.9618 · **NABirds 90.7%** (78.4/86.41) — **LOST to 0.1-alpha, RETIRED** |
 | `WingCLIP-0.2-beta` / `0.2` | 0.2-alpha + clean fine-tune + WiSE-FT | *tbd* | value DOUBTFUL: 0.2 stays ~1.3–1.5 pts behind 0.1 after identical clean fine-tuning at every alpha |
+| `WingCLIP-0.1-tiny-pilot` | **TinyCLIP-39M distilled FROM WingCLIP-0.1**, NABirds-401 pilot, 0.2 recipe lr 7e-5 | `nb401_teach_wingclip` | val_cos 0.9612 - NABirds **89.09** (vs teacher 89.93, 38.3M vs 86.6M params) |
+| `-` (control, not shipped) | same student, BioCLIP-2 teacher | `nb401_teach_bioclip` | val_cos 0.9616 - NABirds **83.44** - LOST by 5.65, teacher control |
 | `WingCLIP-1.0` | whichever basis first PASSES Phase 4 | *tbd* | earned, not automatic |
 
 > Historical note: the earlier registry listed `WingCLIP-0.1` as the alpha=0.75
@@ -635,32 +637,13 @@ already exposes `--arch`/`--pretrained`.
 1. Teach `Student` to build a timm backbone when `--arch` is a timm name (currently
    only calls open_clip). Small change: create via timm, read `student_dim` from the
    dry-forward probe, keep the same projection + normalize.
-2. ⚠️ **Teacher choice is OPEN, and the 2026-08-01 evidence on BOTH sides is
-   currently VOID.** The original plan read: *"use WingCLIP-0.1, not BioCLIP-2.
-   BioCLIP-2 is 86.41 on NABirds and WingCLIP-0.1 is 89.93 — distilling from
-   BioCLIP-2 targets a teacher we already beat and would likely land below
-   86.41."* We ran the control (exp3) and it appeared to falsify that, +3.90 pts
-   for BioCLIP-2. **That measurement was then itself invalidated** — see the
-   7-species trap below. Treat the teacher question as UNANSWERED.
-   - The pilot/NABirds species overlap is **7 species**, so the exp3-vs-runA
-     comparison was 7 species / 282 images, not the 496 it claimed. Not enough to
-     falsify anything.
-   - The "we already beat 86.41" argument was ALSO wrong, independently: it
-     compared a full-set number (24,633 img, 401 species) against a
-     species-restricted one. On the restricted subset the same BioCLIP-2 teacher
-     scores 91.49, not 86.41. Compare **retention over a common teacher**, never
-     raw top-1 across two different evals.
-   - Resolution: a NABirds-aligned 401-species pilot (`wds-nabirds401`, built
-     2026-08-01 via `build_nabirds_species.py` + `shard_subset.py`) makes the OOD
-     eval 401 species / 24,633 images. Then **2 runs** — WingCLIP vs BioCLIP-2 at
-     identical recipe — settle it. Only the teacher question needs re-running;
-     LR/recipe questions ride on in-distribution val_cos and are unaffected.
-   - Either way the WingCLIP chain is NOT wasted: only which cached embeddings
-     feed `--sv-embeddings` changes. Recipe sweep, eval harness, occurrence
-     rerank, calibration fit, fine-tune set and WiSE-FT alpha are all
-     teacher-agnostic. WingCLIP-0.1 emits 768-d and BioCLIP-2 targets are baked
-     into the shards, so either teacher leaves the pipeline unchanged (omit
-     `--sv-embeddings` for BioCLIP-2).
+2. ✅ **Teacher: WingCLIP-0.1. SETTLED 2026-08-02.** Measured on the full
+   24,633-image NABirds eval: WingCLIP-0.1 teacher 89.09 vs BioCLIP-2 teacher
+   83.44, a +5.65 win, identical recipe, only the teacher differs. The
+   2026-08-01 claim that BioCLIP-2 won by +3.90 is RETRACTED: it was measured
+   on a 7-species / 282-image subset and was void. See the TEACHER SETTLED
+   section for the full result, including why val_cos is disqualified for
+   this decision (it ranked the LOSING teacher higher, again).
 3. Pilot distill TinyCLIP-39M on the ~496-species pilot, run BOTH the 0.1 and 0.2
    recipes (prior evidence is from a different capacity regime and does not transfer;
    ablation order above). Compare val_cos, then the real test: **NABirds top-1.**
@@ -1522,6 +1505,90 @@ on NABirds); the BioCLIP-2 cache stays the control.~~ ⚠️ **That teacher clai
 FALSIFIED 2026-08-01 — see the pilot results below.** Watch the second-fine-tune
 redundancy trap (the 178k GT photos were already absorbed by WingCLIP-0.1).
 
+## TEACHER SETTLED: WingCLIP-0.1 beats BioCLIP-2 as a distillation target (2026-08-02)
+
+Decided on the NABirds-401 pilot with the **full 24,633-image / 401-species**
+eval. Identical recipe (0.2 basis, lr 7e-5, batch 96, 25 ep, 185k samples/ep);
+**only the teacher differs.**
+
+| run | teacher | NABirds top1 | top5 | val_cos |
+|---|---|---|---|---|
+| **TEACH-W** | **WingCLIP-0.1** | **89.09** | 96.59 | 0.9612 |
+| TEACH-B | BioCLIP-2 | 83.44 | 95.08 | **0.9616** |
+
+**WingCLIP-0.1 wins by +5.65 top-1.** At n=24,633 that is far outside noise.
+This CONFIRMS the original "Next steps" step-2 plan and RETRACTS the 2026-08-01
+"+3.90 for BioCLIP-2" claim, which was measured on the 7-species/282-image eval
+and was void.
+
+### val_cos is DISQUALIFIED for teacher selection
+
+TEACH-B scored **higher** val_cos (0.9616 vs 0.9612) while **losing NABirds by
+5.65 points**. Third time val_cos pointed the wrong way. The reason is
+structural, not noise: val_cos measures how well a student mimics ITS OWN
+teacher targets, so each run is graded against a different target set. A student
+can mimic a worse teacher more faithfully and score better. **Never rank teachers
+by val_cos.** Use it only to watch a single run converge.
+
+### The chain, and what actually beat what
+
+All three on the SAME eval (24,633 imgs, all mapped species):
+
+```
+BioCLIP-2  (grandteacher)   86.41   <- the frozen ViT-L teacher
+WingCLIP-0.1 (teacher)      89.93   <- distill + GT fine-tune + WiSE-FT, 86.6M
+TEACH-W    (student)        89.09   <- 38.3M, 2.26x smaller
+```
+
+WARNING: **TEACH-W did NOT beat its direct teacher.** It is 0.84 BELOW
+WingCLIP-0.1. It beat the GRANDteacher by +2.68, which is a different and much
+weaker claim. Do not repeat "the student beat its teacher" about this run. The
+103.1% retention figure printed by `eval_nabirds.py` is measured against
+**BioCLIP-2** (the cached teacher), not against WingCLIP-0.1, which makes it
+easy to misread.
+
+**Why a student can exceed the grandteacher at all:** WingCLIP-0.1 is not a pure
+distillation of BioCLIP-2. It is distill -> **ground-truth fine-tune on 178k
+labeled photos** -> WiSE-FT blend. That fine-tune injects supervised signal
+BioCLIP-2 never had, and is where the +3.52 over BioCLIP-2 comes from. TEACH-W
+inherits it by mimicking embeddings that already encode it. Distillation itself
+still cannot exceed its own teacher here: the embedding IS the target.
+
+**The real headline: 99.1% of WingCLIP-0.1 at 2.26x fewer params** (38.3M vs
+86.6M), for 0.84 top-1.
+
+### Abstention
+
+| thr | TEACH-W cov / acc | TEACH-B cov / acc |
+|---|---|---|
+| 0.3 | 93.7% / 92.75 | 92.9% / 88.07 |
+| 0.5 | **85.7% / 95.61** | 82.6% / 92.41 |
+| 0.7 | 69.3% / 97.48 | 69.7% / 96.21 |
+| 0.9 | 9.8% / 98.64 | 48.0% / 98.22 |
+
+TEACH-W is better at the useful thresholds. The 0.9 row inverts sharply
+(9.8% vs 48.0% coverage), a calibration difference rather than a quality one.
+Re-tune thresholds per model; all existing ones are for WingCLIP-0.1 @ a=0.90.
+
+### LR: settled, and it is at the floor
+
+Full 0.2-basis sweep (old 500-sp pilot): 3e-5 = 0.9546, **5e-5 = 0.9563**,
+**7e-5 = 0.9560**; on the 0.1 basis 1e-4 = 0.9438, 2.5e-4 = 0.8917,
+5e-4 = 0.8837. 5e-5 and 7e-5 are indistinguishable (+0.0003); everything above
+1e-4 collapses. **Keep lr 7e-5.** LR is no longer a useful lever.
+
+### Next
+
+1. **Ground-truth fine-tune + WiSE-FT on TEACH-W.** WingCLIP-0.1 gained +3.52
+   from this step; TEACH-W has not had it. Could plausibly reach ~89.9 at 2.26x
+   smaller. Mind the REDUNDANCY TRAP already documented in "Next steps": the
+   178k GT photos were ALREADY absorbed by WingCLIP-0.1, so re-teaching the same
+   photos double-counts the signal. Evaluate first, or use a disjoint slice.
+2. Batch 128 + lr 8.1e-5 (sqrt-scaled) vs batch 96 + lr 7e-5. Batch has NEVER
+   been swept; every run in project history used 96.
+3. Full 7,555-species distill with the WingCLIP-0.1 teacher, now that teacher
+   and LR are both settled.
+
 ## TinyCLIP-39M pilot results (2026-07-31 → 08-01)
 
 > 🚨 **EVERY NABirds NUMBER IN THIS SECTION IS VOID.** The pilot species set and
@@ -1529,6 +1596,10 @@ redundancy trap (the 178k GT photos were already absorbed by WingCLIP-0.1).
 > measured over 7 species / 282 images, not the 496 species claimed. See
 > "The 7-species trap" immediately after the table. The val_cos column is
 > unaffected (in-distribution, hash-split across all pilot species).
+>
+> The teacher question this section failed to answer was RE-RUN properly and is
+> now SETTLED: see "TEACHER SETTLED" above. WingCLIP-0.1 beats BioCLIP-2 by
+> +5.65 top-1 on the full 24,633-image eval.
 
 Eight pilot runs on the ~496-species shards, TinyCLIP-39M
 (`vit_medium_patch16_clip_224.tinyclip_yfcc15m`, 38.3M params), batch 96, 244k
