@@ -21,6 +21,7 @@
 		1B3D5823766242A3608DE553 /* collage2.jpg in Resources */ = {isa = PBXBuildFile; fileRef = B8A7A81D10BED074ED746634 /* collage2.jpg */; };
 		1C4FAD49E67E27240982D7B4 /* WingDexShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C50653C4D6271CE2B75296B2 /* WingDexShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1E0DCFBD872149C98D47DD51 /* IncomingShareStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 963619FEAD365BFF8CDC24E8 /* IncomingShareStore.swift */; };
+		1F40A38FB19DEF16444A4343 /* WikimediaURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41813CF0AC9DC3E311F21DD1 /* WikimediaURL.swift */; };
 		223DAEB5BCD5CAC52065CF13 /* taxonomy.json in Resources */ = {isa = PBXBuildFile; fileRef = F930B7A16F2B5C40B971D674 /* taxonomy.json */; };
 		2284F98CC028B45FC6FE48A5 /* AccountDataCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F5471006ACBF058737B455 /* AccountDataCache.swift */; };
 		2300C447E8E145BFE9E12FA5 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B8621A8E42D9A18A2125F8 /* Config.swift */; };
@@ -66,6 +67,7 @@
 		7FF4AB0E40E668062F651F9E /* collage18.jpg in Resources */ = {isa = PBXBuildFile; fileRef = D695216CCB35E38C87F3A7E3 /* collage18.jpg */; };
 		83E52AD5FC060393640D683A /* collage14.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 36494465879ECB03DD6185CA /* collage14.jpg */; };
 		85DC45536CC8552F75FE3F5E /* collage12.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 75459FB601E98570280E8BFB /* collage12.jpg */; };
+		8668EC3C4072BB264C7FE1E6 /* WikimediaURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E72665B257D80E572558029 /* WikimediaURLTests.swift */; };
 		8789AC9CBFD81D2B38495B2A /* OpenAPIURLSession in Frameworks */ = {isa = PBXBuildFile; productRef = B8A97988C95C91C186AFD127 /* OpenAPIURLSession */; };
 		8DB0081701C7F23291D5D5CC /* collage3.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 424A71F14D412EECDDFC67EE /* collage3.jpg */; };
 		8EE17A4E87495C877151768B /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE1613DCCF3480F9644D0D29 /* AuthServiceTests.swift */; };
@@ -170,6 +172,7 @@
 		38902C42A407AB194B63C757 /* PerPhotoConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerPhotoConfirmView.swift; sourceTree = "<group>"; };
 		3F672879223E1EC7DCBDEAA5 /* NavigationIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationIntents.swift; sourceTree = "<group>"; };
 		40E4A1B21654CC24CA891696 /* AuthIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthIntegrationTests.swift; sourceTree = "<group>"; };
+		41813CF0AC9DC3E311F21DD1 /* WikimediaURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikimediaURL.swift; sourceTree = "<group>"; };
 		424A71F14D412EECDDFC67EE /* collage3.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage3.jpg; sourceTree = "<group>"; };
 		452C55049EB9AB7E09E62CA9 /* FunNamesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunNamesTests.swift; sourceTree = "<group>"; };
 		487950E4852A38D4FFA3B405 /* collage24.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage24.jpg; sourceTree = "<group>"; };
@@ -195,6 +198,7 @@
 		75459FB601E98570280E8BFB /* collage12.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage12.jpg; sourceTree = "<group>"; };
 		79C773C10B5077F676FE0D9A /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		7A292B9762D444579B157E2C /* collage21.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage21.jpg; sourceTree = "<group>"; };
+		7E72665B257D80E572558029 /* WikimediaURLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikimediaURLTests.swift; sourceTree = "<group>"; };
 		839C24B2C567AC5C75E3844C /* Data+Base64URL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Base64URL.swift"; sourceTree = "<group>"; };
 		8820687DF86D539EF3275711 /* collage8.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage8.jpg; sourceTree = "<group>"; };
 		8BA379E90DE3BD99B508BCD7 /* DataManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManagementView.swift; sourceTree = "<group>"; };
@@ -411,6 +415,7 @@
 				839C24B2C567AC5C75E3844C /* Data+Base64URL.swift */,
 				AFB4D1BB4367DDC5F16A9D39 /* DateFormatting.swift */,
 				1A4472F76A8259376EBEA738 /* Theme.swift */,
+				41813CF0AC9DC3E311F21DD1 /* WikimediaURL.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -426,6 +431,7 @@
 				452C55049EB9AB7E09E62CA9 /* FunNamesTests.swift */,
 				1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */,
 				4C56DDD787BF000019EB3051 /* TaxonomyOrderTests.swift */,
+				7E72665B257D80E572558029 /* WikimediaURLTests.swift */,
 			);
 			path = WingDexTests;
 			sourceTree = "<group>";
@@ -729,6 +735,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				9E3F0C28882FAFAA45934BCF /* SignInView.swift in Sources */,
 				BE1BC5ECDCCA3BB2EAA10E79 /* SpeciesDetailView.swift in Sources */,
 				BFEEDFE99B8E9AE03FC3304F /* Theme.swift in Sources */,
+				1F40A38FB19DEF16444A4343 /* WikimediaURL.swift in Sources */,
 				0FED48A726585A89C3989A51 /* WingDexApp.swift in Sources */,
 				62E20235E21C294192F70AC4 /* WingDexShortcuts.swift in Sources */,
 				A50BC3771AA5086CA25A13B7 /* WingDexView.swift in Sources */,
@@ -756,6 +763,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				E2DEFBDD3B36FEB4C7CFCC96 /* FunNamesTests.swift in Sources */,
 				3EF5CB0983D37395F5272CFD /* Phase9FoundationTests.swift in Sources */,
 				735564E615ECED94D844C13B /* TaxonomyOrderTests.swift in Sources */,
+				8668EC3C4072BB264C7FE1E6 /* WikimediaURLTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
