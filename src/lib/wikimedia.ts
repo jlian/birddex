@@ -109,6 +109,32 @@ function extractFullImageUrl(data: RestSummary): string | undefined {
   return data.originalimage?.source ?? data.thumbnail?.source
 }
 
+/**
+ * Width Wikimedia renders hero thumbnails at. Only the widths in `$wgThumbnailSteps` are
+ * served; direct requests for any other width are rejected.
+ * https://www.mediawiki.org/wiki/Common_thumbnail_sizes
+ */
+const HERO_THUMBNAIL_STEP = 960
+
+/**
+ * Derive a hero-sized image URL from a dex thumbnail URL.
+ *
+ * The rendered width lives in the last path segment (`.../330px-Foo.jpg`, or
+ * `.../lossy-page1-330px-Foo.tif.jpg` for multi-page sources), so the hero URL is known
+ * synchronously with no Wikipedia round trip. Wikimedia upscales past the original width
+ * rather than failing, so every step resolves for every file.
+ *
+ * Returns undefined for originals served without a `/thumb/` segment, which have no
+ * rendered variants and are already full size.
+ */
+export function getHeroImageUrl(thumbnailUrl: string | undefined): string | undefined {
+  if (!thumbnailUrl?.includes('/thumb/')) return undefined
+  const slash = thumbnailUrl.lastIndexOf('/')
+  const filename = thumbnailUrl.slice(slash + 1)
+  if (!/\d+px-/.test(filename)) return undefined
+  return thumbnailUrl.slice(0, slash + 1) + filename.replace(/\d+px-/, `${HERO_THUMBNAIL_STEP}px-`)
+}
+
 /** Extract the common name from a species string like "Northern Cardinal (Cardinalis cardinalis)" */
 function getCommonName(speciesName: string): string {
   return getDisplayName(speciesName)

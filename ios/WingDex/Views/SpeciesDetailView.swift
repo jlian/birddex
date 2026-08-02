@@ -40,7 +40,13 @@ struct SpeciesDetailView: View {
         return WikiSummaryCache.shared.summary(for: wikiTitle)
     }
     private var displayedExtract: String? { wikiExtract ?? cachedSummary?.extract }
-    private var displayedFullImageUrl: String? { fullImageUrl ?? cachedSummary?.imageUrl }
+
+    /// Derived from the dex thumbnail so the hero has its final URL on the first frame
+    /// rather than waiting on the Wikipedia summary. The fetched URL stays as a fallback
+    /// for originals that have no rendered thumbnail variants.
+    private var displayedFullImageUrl: String? {
+        heroImageUrl(fromThumbnail: entry?.thumbnailUrl) ?? fullImageUrl ?? cachedSummary?.imageUrl
+    }
 
     var body: some View {
         VStack(spacing: 0) {

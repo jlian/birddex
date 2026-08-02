@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
 import { useBirdSummary } from '@/hooks/use-bird-image'
+import { getHeroImageUrl } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -397,7 +398,9 @@ function SpeciesDetail({
   }
 
   const thumbnailUrl = entry.thumbnailUrl
-  const fullResUrl = summary?.imageUrl
+  // Derived from the thumbnail so the hero has its final URL on first render instead of
+  // waiting on the Wikipedia summary, which returns an unbounded original.
+  const fullResUrl = getHeroImageUrl(thumbnailUrl) ?? summary?.imageUrl
   const baseImageUrl = thumbnailUrl || fullResUrl
   const [fullResLoaded, setFullResLoaded] = useState(false)
   const hasDistinctFullRes = !!(fullResUrl && thumbnailUrl && fullResUrl !== thumbnailUrl)
