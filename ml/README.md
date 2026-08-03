@@ -83,6 +83,16 @@ Keep a mistake only when the mistake ITSELF is instructive (a failure mode that 
 
 (Convention set 2026-07-31; moved to the top 2026-08-03 after being violated repeatedly while buried at the bottom.)
 
+## SHIP BAR for TinyCLIP-39M (set 2026-08-03, BEFORE the result is known)
+
+**The bar: after ground-truth fine-tune + WiSE-FT, beat BioCLIP-2 on NABirds top-1 = 86.41.** Absolute number, full 24,633-image / 401-species eval, `--pilot-species 0`. If it clears, the model is shippable and the open recipe questions become nice-to-have rather than blocking.
+
+Chosen deliberately over the alternatives: it does NOT depend on **val_cos** (which has now ranked the wrong option three times) and NOT on a **retention ratio** (whose denominator we already mixed up once). Beating BioCLIP-2 on NABirds IS the product claim: a phone-sized model that IDs North American birds better than the big research model.
+
+**Grade the distillation run against 81.83, NOT 86.41 or 89.93.** The full-corpus distill finishing 2026-08-04 is the analogue of 0.1-alpha (NABirds 81.83). The fine-tune + WiSE-FT is a SEPARATE, cheap follow-up (the clean ground-truth set already exists: 3,850 sp / 151,042 photos). On ViT-B that chain was worth about +8 NABirds (81.83 -> 89.93), so a distillation landing in the high 70s is on track for the bar.
+
+**Re-sweep the WiSE-FT alpha; do not reuse 0.90.** That optimum came from a gentle fine-tune (4.7% global weight movement) on an 86.6M model. A 38.3M model has less capacity to absorb true labels without OOD damage, and the more aggressive the fine-tune, the further the optimum moves toward ~0.5.
+
 ## The model + pipeline as it stands now
 
 ### Architecture
@@ -1375,6 +1385,8 @@ Six runs, ~16h, one-factor-at-a-time on the 500-sp pilot shards:
 
 **Scope, read this before citing it:** this result is for **ViT-B-16 (86.6M)** distilled from **BioCLIP-2** targets. It does NOT generalise to a smaller student or a different teacher. Verified from the checkpoint args of `full7555_locked_ep25`: `arch=ViT-B-16`, no `sv_embeddings` (so BioCLIP-2). The 0.2 recipe is MORE regularised (wd 0.2 vs 0.1), which plausibly hurts an 86.6M model already at capacity while helping an under-capacity 38.3M one -- and that is exactly what the TinyCLIP pilot later showed.
 
+
+**OPEN: was it AUG LIGHT specifically?** Never tested in isolation at full scale on ANY model, and a pilot A/B CANNOT answer it -- the hypothesis is that aug's sign DEPENDS on scale, so measuring at pilot scale (where we already believe it helps: +0.0048, the biggest single lever) is not evidence about full scale. Circumstantially aug is the prime suspect: the entire non-aug bundle (wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0) was worth only +0.0016 and those are near-universal optimizer defaults, whereas aug light is the experimental knob AND a regularizer -- and the stated explanation for the full-scale loss (2.5M imgs leave little overfitting to prevent, so regularization costs representation quality) applies to the regularizers, not to beta2 or warmup. Answering it properly costs a full-scale run (~29h student, plus ~62 GPU-h if the ViT-B teacher is also retrained). DEFERRED unless the ship bar is missed.
 
 Full 7,555-sp distillation with the locked pilot recipe → `full7555_locked_ep25`. RESULT:
 val_cos 0.9618 (vs 0.1-alpha 0.9650) and **NABirds full-species retention 90.7% (78.4)
