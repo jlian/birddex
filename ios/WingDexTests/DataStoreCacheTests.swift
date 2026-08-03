@@ -98,6 +98,7 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertTrue(store.hasReadableData)
         XCTAssertFalse(store.hasLoadedAll)
         XCTAssertNotNil(store.cachedAt)
+        XCTAssertFalse(store.isShowingCachedData)
         XCTAssertThrowsError(try storeMutationReadiness(store))
     }
 
@@ -114,6 +115,7 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(store.outings.first?.locationName, "Cached Marsh")
         XCTAssertEqual(store.error, .offline)
         XCTAssertFalse(store.hasLoadedAll)
+        XCTAssertTrue(store.isShowingCachedData)
     }
 
     func testFirstLaunchOfflineHasNoReadableSnapshot() async {
