@@ -1936,23 +1936,50 @@ halving, not measured here. A pure bf16 GEMM microbenchmark on an IDLE GPU would
 settle it empirically. If it lands near 59, this correction holds; near 110, it
 does not.
 
-### Batch size 96 vs 128 (running 2026-08-02)
+### Batch size: SETTLED, it is a free knob (2026-08-02)
 
-`jobs/batch_exp.sh` + `jobs/batch_curve.py`. Batch had NEVER been swept: every
-run in project history used 96. LR is sqrt-scaled for the larger batch
-(7e-5 * sqrt(128/96) = 8.1e-5); linear scaling would give 9.3e-5, likely too hot
-since val_cos collapses above 1e-4.
+Identical shards, teacher and recipe; only batch and its sqrt-scaled LR differ.
+Full 24,633-image NABirds eval.
 
-Through epoch 9 the curves are nearly identical (ep9: batch128 0.9449 vs batch96
-0.9443), i.e. tracking as a **wash on quality**, which is the useful outcome: it
-would make batch a free throughput knob rather than a recipe change.
+| run | batch | lr | val_cos | NABirds top1 | top5 |
+|---|---|---|---|---|---|
+| TEACH-W | 96 | 7e-5 | 0.9612 | **89.09** | 96.59 |
+| nb401_batch128 | 128 | 8.1e-5 | 0.9614 | **89.03** | 96.48 |
 
-⚠️ **Do not credit batch size for the epoch-time difference.** batch-128 runs
-~291s/epoch vs batch-96 at 339s, but batch-128 also has bf16 + channels_last +
-torch.compile enabled while TEACH-W ran plain fp16. Controlled testing put
-compile alone at ~1.15x of the ~1.17x total, so batch size contributes almost
-nothing to speed here. The comparison is clean for **val_cos and NABirds**,
-not for wall-clock.
+**A clean wash: -0.06 top-1**, well inside noise at n=24,633. So the README
+claim that batch size is "a RECIPE hyperparameter, not a throughput knob" whose
+change "breaks comparability" is **empirically false** as long as LR is scaled
+with it. sqrt scaling (7e-5 * sqrt(128/96) = 8.1e-5) held exactly; the two
+val_cos curves sat on top of each other from epoch 2 to 25.
+
+This matters for the full run: a larger batch is available if VRAM allows,
+and on a 32GB card batch 256+ becomes worth testing.
+
+⚠️ **Do not credit batch size for the speed.** batch-128 ran ~292s/epoch vs
+batch-96 at 339s, but batch-128 also had bf16 + channels_last + torch.compile.
+Controlled testing put compile alone at ~1.15x of the ~1.17x total, so batch
+size contributes roughly 2%.
+
+### ⚠️ torch.compile checkpoints (bug found the hard way, 2026-08-02)
+
+`torch.compile` wraps the module, so **every state_dict key gains an
+`_orig_mod.` prefix**. A checkpoint saved while compiled will NOT load into a
+plain module. This cost a full 2-hour run: batch-128 trained all 25 epochs
+correctly and only the eval blew up with 153 missing keys, which looks exactly
+like a failed experiment but was purely a load bug.
+
+Fixed on both sides so they cannot disagree:
+- `train_student.py` saves **unwrapped** via `_strip_compile()`
+- `eval_nabirds.py` strips the prefix on load, so older compiled checkpoints
+  stay usable
+
+Same trap applies to `--resume`: a compiled checkpoint requires the same
+`--compile` setting unless the prefix is stripped.
+
+⚠️ **Stale output files look identical to real ones.** After the failed eval,
+`runs/nbeval_nb401_batch128.json` still held a 17:56 file from an earlier
+aborted launch reading 28.42 top-1. It was nearly reported as the result.
+Check mtimes on eval outputs before trusting them.
 
 ### Cloud (RunPod) economics, measured 2026-08-02
 
