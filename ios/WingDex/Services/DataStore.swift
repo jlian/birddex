@@ -36,8 +36,11 @@ final class DataStore {
     private var outingObservationsByID: [String: [BirdObservation]] = [:]
     private var confirmedObservationsByOutingID: [String: [BirdObservation]] = [:]
     private var possibleObservationsByOutingID: [String: [BirdObservation]] = [:]
+    private var observationsBySpeciesName: [String: [BirdObservation]] = [:]
     private var speciesCountByOutingID: [String: Int] = [:]
+    private var outingsByID: [String: Outing] = [:]
     private var outingDateByID: [String: Date] = [:]
+    private var dexEntryBySpeciesName: [String: DexEntry] = [:]
     private var dexDateBySpeciesName: [String: Date] = [:]
     private var recentOutingsByDate: [Outing] = []
     private var recentSpeciesByDate: [DexEntry] = []
@@ -228,24 +231,22 @@ final class DataStore {
 
     /// All sightings of a species across outings.
     func sightings(for speciesName: String) -> [(observation: BirdObservation, outing: Outing)] {
-        var results: [(BirdObservation, Outing)] = []
-        let outingMap = Dictionary(uniqueKeysWithValues: outings.map { ($0.id, $0) })
-        for obs in observations where obs.speciesName == speciesName && obs.certainty != .rejected {
-            if let outing = outingMap[obs.outingId] {
-                results.append((obs, outing))
+        let matches = (observationsBySpeciesName[speciesName] ?? [])
+            .compactMap { observation -> (observation: BirdObservation, outing: Outing)? in
+                guard let outing = outingsByID[observation.outingId] else { return nil }
+                return (observation: observation, outing: outing)
             }
-        }
-        return results.sorted { DateFormatting.sortDate($0.1.startTime) > DateFormatting.sortDate($1.1.startTime) }
+        return matches.sorted { sortDate(for: $0.outing) > sortDate(for: $1.outing) }
     }
 
     /// Find an outing by ID.
     func outing(id: String) -> Outing? {
-        outings.first { $0.id == id }
+        outingsByID[id]
     }
 
     /// Find a dex entry by species name.
     func dexEntry(for speciesName: String) -> DexEntry? {
-        dex.first { $0.speciesName == speciesName }
+        dexEntryBySpeciesName[speciesName]
     }
 
     /// Search the server taxonomy for manual observation entry.
@@ -441,6 +442,7 @@ final class DataStore {
 
     private func rebuildOutingDerivedData() {
         let datedOutings = outings.map { (outing: $0, date: DateFormatting.sortDate($0.startTime)) }
+        outingsByID = Dictionary(outings.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         outingDateByID = Dictionary(uniqueKeysWithValues: datedOutings.map { ($0.outing.id, $0.date) })
         recentOutingsByDate = datedOutings
             .sorted { $0.date > $1.date }
@@ -451,6 +453,7 @@ final class DataStore {
         outingObservationsByID = Dictionary(grouping: observations.filter { $0.certainty != .rejected }, by: \.outingId)
         confirmedObservationsByOutingID = Dictionary(grouping: observations.filter { $0.certainty == .confirmed }, by: \.outingId)
         possibleObservationsByOutingID = Dictionary(grouping: observations.filter { $0.certainty == .possible }, by: \.outingId)
+        observationsBySpeciesName = Dictionary(grouping: observations.filter { $0.certainty != .rejected }, by: \.speciesName)
         speciesCountByOutingID = confirmedObservationsByOutingID.mapValues {
             Set($0.map(\.speciesName)).count
         }
@@ -458,6 +461,7 @@ final class DataStore {
 
     private func rebuildDexDerivedData() {
         let datedEntries = dex.map { (entry: $0, date: DateFormatting.sortDate($0.firstSeenDate)) }
+        dexEntryBySpeciesName = Dictionary(dex.map { ($0.speciesName, $0) }, uniquingKeysWith: { _, latest in latest })
         dexDateBySpeciesName = Dictionary(uniqueKeysWithValues: datedEntries.map { ($0.entry.speciesName, $0.date) })
         recentSpeciesByDate = datedEntries
             .sorted { $0.date > $1.date }

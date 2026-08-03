@@ -42,10 +42,13 @@ struct SpeciesDetailView: View {
     private var displayedExtract: String? { wikiExtract ?? cachedSummary?.extract }
 
     /// Derived from the dex thumbnail so the hero has its final URL on the first frame
-    /// rather than waiting on the Wikipedia summary. The fetched URL stays as a fallback
-    /// for originals that have no rendered thumbnail variants.
+    /// rather than waiting on the Wikipedia summary. Species served as originals have no
+    /// larger rendering, so only species with no dex thumbnail need the fetched URL.
     private var displayedFullImageUrl: String? {
-        heroImageUrl(fromThumbnail: entry?.thumbnailUrl) ?? fullImageUrl ?? cachedSummary?.imageUrl
+        heroImageUrl(fromThumbnail: entry?.thumbnailUrl)
+            ?? entry?.thumbnailUrl
+            ?? fullImageUrl
+            ?? cachedSummary?.imageUrl
     }
 
     var body: some View {
@@ -276,13 +279,7 @@ struct SpeciesDetailView: View {
 
     @MainActor
     private func fetchWikipediaData() async {
-        // Falling back to the thumbnail URL tells the hero no larger image is coming,
-        // so it drops the blur instead of waiting forever.
-        let thumbnail = entry?.thumbnailUrl
-        guard let wikiTitle = entry?.wikiTitle else {
-            fullImageUrl = thumbnail
-            return
-        }
+        guard let wikiTitle = entry?.wikiTitle else { return }
         if let cached = WikiSummaryCache.shared.summary(for: wikiTitle) {
             wikiExtract = cached.extract
             fullImageUrl = cached.imageUrl
@@ -290,27 +287,24 @@ struct SpeciesDetailView: View {
         }
         let encoded = wikiTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wikiTitle
         guard let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else {
-            fullImageUrl = thumbnail
             return
         }
 
-        var summary = WikiSummaryCache.Summary(extract: nil, imageUrl: thumbnail)
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                let original = json["originalimage"] as? [String: Any]
-                summary = WikiSummaryCache.Summary(
-                    extract: json["extract"] as? String,
-                    imageUrl: original?["source"] as? String ?? thumbnail
-                )
-            }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            let original = json["originalimage"] as? [String: Any]
+            let summary = WikiSummaryCache.Summary(
+                extract: json["extract"] as? String,
+                imageUrl: original?["source"] as? String
+            )
             WikiSummaryCache.shared.set(summary, for: wikiTitle)
+            wikiExtract = summary.extract
+            fullImageUrl = summary.imageUrl
         } catch {
-            // Silently fail - the thumbnail from dex is still shown. Not cached, so a
-            // later visit retries.
+            // Silently fail - the dex thumbnail is still shown. Not cached, so a later
+            // visit retries.
         }
-        wikiExtract = summary.extract
-        fullImageUrl = summary.imageUrl
     }
 
     private var heroImageURL: URL? {
