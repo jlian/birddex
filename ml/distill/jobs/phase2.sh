@@ -27,17 +27,6 @@ if [ ! -f "$RUN/best.pt" ]; then
   exit 3
 fi
 
-# Keep Windows awake: this is a multi-hour unattended job and standby idle
-# is 30 min. Self-expiring timed lock (6h), so nothing depends on cleanup.
-AWAKE="/mnt/c/Users/liang/AppData/Local/PowerToys/PowerToys.Awake.exe"
-if [ -f "$AWAKE" ]; then
-  /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command \
-    "Start-Process 'C:\Users\liang\AppData\Local\PowerToys\PowerToys.Awake.exe' -ArgumentList '--display-on false --time-limit 21600' -WindowStyle Hidden" \
-    >/dev/null 2>&1 && say "PowerToys Awake armed for 6h"
-else
-  say "WARNING: PowerToys Awake not found, machine may sleep mid-job"
-fi
-
 # ---------------------------------------------------------------- step 1
 # Ground-truth fine-tune on the CLEAN leak-free set (3,850 sp / 151,042 photos).
 # Same hyperparameters as ft_clean_01, which produced +14.22 in-dist on ViT-B.
