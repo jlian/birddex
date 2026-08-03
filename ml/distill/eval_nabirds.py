@@ -63,7 +63,16 @@ def load_student(checkpoint, device):
     ckpt = torch.load(checkpoint, map_location="cpu")
     a = ckpt.get("args", {})
     st = Student(a.get("arch", "ViT-B-16"), a.get("pretrained", "laion2b_s34b_b88k"))
-    st.load_state_dict(ckpt["model"])
+    sd = ckpt["model"]
+    # torch.compile wraps the module, so every key gains an _orig_mod. prefix.
+    # A checkpoint saved under --compile will not load into a plain module,
+    # which silently cost a full 2h run on 2026-08-02: training finished all
+    # 25 epochs and only the eval blew up. Strip it so compiled and
+    # uncompiled checkpoints stay interchangeable.
+    if any(k.startswith("_orig_mod.") for k in sd):
+        sd = {k.replace("_orig_mod.", "", 1): v for k, v in sd.items()}
+        log("stripped _orig_mod. prefix (checkpoint used torch.compile)")
+    st.load_state_dict(sd)
     st = st.to(device).eval()
     log(f"student {a.get('arch')} epoch {ckpt.get('epoch','?')} "
         f"val_cos_sim={ckpt.get('val_cos_sim','?')}")

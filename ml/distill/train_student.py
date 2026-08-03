@@ -37,6 +37,17 @@ from PIL import Image
 import open_clip
 
 
+def _strip_compile(sd):
+    """Drop the torch.compile _orig_mod. prefix from a state_dict.
+
+    A checkpoint saved while compiled cannot be loaded into a plain module
+    (eval_nabirds.py, export, resume without --compile). That silently cost
+    a full 2h run on 2026-08-02: training finished all 25 epochs and only
+    the eval blew up."""
+    if any(k.startswith("_orig_mod.") for k in sd):
+        return {k.replace("_orig_mod.", "", 1): v for k, v in sd.items()}
+    return sd
+
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
@@ -556,7 +567,7 @@ def main():
                     f"cos_sim={1-loss.item():.4f}")
                 val = run_val()
                 log(f"SMOKE val cos_sim={val:.4f}")
-                torch.save({"model": student.state_dict(), "args": vars(args)},
+                torch.save({"model": _strip_compile(student.state_dict()), "args": vars(args)},
                            os.path.join(args.out, "smoke.pt"))
                 log("SMOKE complete; checkpoint saved. Exiting.")
                 return
@@ -574,7 +585,7 @@ def main():
         else:
             epochs_since_best += 1
         # save FULL training state so --resume continues the exact same trajectory
-        ckpt = {"model": student.state_dict(), "args": vars(args),
+        ckpt = {"model": _strip_compile(student.state_dict()), "args": vars(args),
                 "epoch": ep + 1, "epochs": args.epochs, "val_cos_sim": val,
                 "opt": opt.state_dict(), "sched": sched.state_dict(),
                 "scaler": scaler.state_dict(), "gstep": gstep,
