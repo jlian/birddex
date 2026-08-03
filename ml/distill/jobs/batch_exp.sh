@@ -9,6 +9,11 @@
 # sqrt scaling: 7e-5 * sqrt(128/96) = 7e-5 * 1.155 = 8.1e-5. Linear scaling
 # would say 9.3e-5, which is likely too hot given val_cos collapses above 1e-4.
 #
+# NOTE: now runs with the measured-optimal GPU config (bf16 + channels_last +
+# torch.compile, ~1.48x once warm). Training is GPU-BOUND, so batch size now
+# matters for a DIFFERENT reason than originally assumed: it improves GPU
+# utilisation rather than loader throughput.
+#
 # Baseline for comparison is TEACH-W (runs/nb401_teach_wingclip): same shards,
 # same teacher, same everything except batch 96 / lr 7e-5, val_cos 0.9612,
 # NABirds 89.09. So this is a clean single-variable test (batch+its paired LR).
@@ -31,7 +36,8 @@ if [ ! -f "$STATE/batch128.done" ]; then
     --arch "$T39" --pretrained pretrained --out runs/nb401_batch128 \
     --epochs 25 --batch 128 --workers 12 --wds-shuffle 10000 \
     --aug light --wd 0.2 --beta2 0.95 --warmup 500 --grad-clip 1.0 \
-    --min-lr 0.0 --patience 3 --lr 8.1e-5 2>&1 | grep -viE "hf_hub|unauthenticated"
+    --min-lr 0.0 --patience 3 --lr 8.1e-5 \
+    --amp-dtype bf16 --channels-last --compile 2>&1 | grep -viE "hf_hub|unauthenticated"
   touch "$STATE/batch128.done"
 else
   say "STEP B1 already done, skipping"

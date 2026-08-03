@@ -1843,6 +1843,78 @@ Also migrated the deprecated `torch.cuda.amp.*` calls to `torch.amp.*`.
 **Use this for every run from now on.** The first epoch is ~50% slower while
 torch.compile traces; everything after is ~1.5x faster.
 
+### Why only 30% of peak? Roofline + what is already enabled (2026-08-02)
+
+Measured with `jobs/roofline.py`: the student is **38.7M params** and one
+forward pass costs **15.98 GFLOP/img**. Training is ~3x forward (fwd + bwd),
+so ~48 GFLOP/img.
+
+| config | img/s | achieved | % of dense bf16 peak |
+|---|---|---|---|
+| baseline fp16 | 700 | 33.6 TFLOP/s | 28% |
+| bf16 + channels_last + compile | 811 | 38.9 TFLOP/s | **33%** |
+
+RTX 3080 dense bf16 peak is ~119 TFLOP/s. **60-70% is typical for well-tuned
+ViT training**, so ~30% means roughly another 1.5-2x may be available in the
+model path. Note params are misleading here: 38.7M at 196 tokens / 224px is
+compute-heavy relative to its size.
+
+**Already enabled, so NOT the fix** (checked, do not re-investigate):
+- **Flash / SDPA attention is ON.** `timm.layers.use_fused_attn()` returns True
+  and every block has `fused_attn=True` (timm 1.0.28, torch 2.6.0+cu124).
+- `pin_memory`, `persistent_workers`, TF32, `cudnn.benchmark`.
+
+**Remaining candidates, cheapest first:**
+1. **Fused AdamW** (`torch.optim.AdamW(..., fused=True)`). We use the default,
+   which launches separate kernels per parameter tensor; a 38M model has many
+   small tensors, so launch overhead is plausible. One-word change.
+2. **Larger batch.** At batch 96 with 196 tokens the GEMMs may be too small to
+   saturate the tensor cores.
+3. **`torch.compile(mode="max-autotune")`** instead of default mode; it
+   benchmarks kernel variants and often adds another 1.1-1.2x.
+4. **Part of the gap is structural.** ViT training at 224px does a lot of
+   LayerNorm / GELU / residual-add work that is memory-bound rather than
+   tensor-core work. Do not expect to reach 70%.
+
+`jobs/profile_gpu_kernels.py` splits fwd/bwd/optimizer time and dumps the top
+kernels by self CUDA time. **Run it only when the GPU is otherwise IDLE** -- a
+concurrent training job silently contaminates the result (this produced a bogus
+80.5 img/s reading on 2026-08-02).
+
+### Cloud (RunPod) economics, measured 2026-08-02
+
+Upload from tomahawk measured at **~14 MB/s (~113 Mbit/s)**. That is the number
+that decides everything, because RunPod bills while you upload.
+
+| payload | size | upload time |
+|---|---|---|
+| NABirds-401 pilot (shards + embeddings + eval) | ~17 GB | ~20 min |
+| full 7,555-species corpus | 252 GB | **~5 hours** |
+
+So a naive full-corpus upload costs ~5h of GPU-rate billing before a single
+training step. Two ways around it:
+- **Network volume** (~$0.05-0.10/GB/month): upload once via a cheap CPU-only
+  pod, then attach to GPU pods. 252GB is ~$12-25/month standing.
+- **Upload from the NAS directly**, unattended, against a ~$0.10/hr CPU pod.
+
+Rule: **never pay GPU rates for data transfer.**
+
+Rough throughput expectations vs our 3080 (119 TFLOP/s dense bf16), discounted
+because our ~30% efficiency partly travels with us:
+
+| GPU | dense bf16 | naive | realistic |
+|---|---|---|---|
+| RTX PRO 4500 (32GB) | ~200 | 1.7x | 1.3-1.5x |
+| A100 80GB | ~312 | 2.6x | ~2-2.5x |
+| H100 80GB | ~990 | 8x | 3-4x |
+
+⚠️ On an H100 our loader (~1,383 img/s measured) would become the bottleneck,
+and only THEN would DALI / GPU decode start to matter.
+
+Pilot-scale verdict: ~20 min upload + ~1h on an A100 is roughly **$2-3/run** at
+~2.5x. Worth it for the full run; for 2.4h pilots, fixing the 30% locally is
+cheaper and simpler.
+
 ### RTX PRO 4500 question (asked 2026-08-02)
 
 32GB GDDR7 / ~896 GB/s / 5th-gen tensor cores vs our 10GB 3080. Verdict:
