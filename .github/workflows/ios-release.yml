@@ -178,6 +178,12 @@ jobs:
           script: |
             const crypto = require('crypto');
 
+            const missing = ['ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_PRIVATE_KEY'].filter((k) => !process.env[k]);
+            if (missing.length) {
+              core.setFailed(`Missing required App Store Connect secrets: ${missing.join(', ')}`);
+              return;
+            }
+
             const privateKey = Buffer.from(process.env.ASC_PRIVATE_KEY, 'base64').toString('utf8');
             const now = Math.floor(Date.now() / 1000);
             const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
@@ -210,9 +216,20 @@ jobs:
             );
 
             core.info(`${data.length} certificate(s) on the account, ${stale.length} CI-created`);
+
+            // Best effort per certificate: one failure must not strand the rest.
+            let failed = 0;
             for (const cert of stale) {
-              await asc(`/v1/certificates/${cert.id}`, 'DELETE');
-              core.info(`Revoked ${cert.attributes.certificateType} ${cert.id} (expiry ${cert.attributes.expirationDate})`);
+              try {
+                await asc(`/v1/certificates/${cert.id}`, 'DELETE');
+                core.info(`Revoked ${cert.attributes.certificateType} ${cert.id} (expiry ${cert.attributes.expirationDate})`);
+              } catch (err) {
+                failed += 1;
+                core.warning(`Could not revoke ${cert.id}: ${err.message}`);
+              }
+            }
+            if (failed) {
+              core.setFailed(`${failed} of ${stale.length} certificate(s) could not be revoked`);
             }
 
       - name: Clean up API key
