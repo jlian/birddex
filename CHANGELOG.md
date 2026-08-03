@@ -1,3 +1,10 @@
+## [1.22.3](https://github.com/jlian/wingdex/compare/v1.22.2...v1.22.3) (2026-08-03)
+
+
+### Bug Fixes
+
+* address review feedback on hero blur and image loading ([153f717](https://github.com/jlian/wingdex/commit/153f717752aa42ea770fbb415db78d5bd5697908))
+
 ## [1.22.2](https://github.com/jlian/wingdex/compare/v1.22.1...v1.22.2) (2026-08-03)
 
 
