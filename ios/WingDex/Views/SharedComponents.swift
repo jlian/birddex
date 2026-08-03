@@ -220,7 +220,11 @@ struct BirdThumbnail: View {
     }
 
     private func loadImage() async {
-        if let loaded = await ImageLoader.shared.image(for: url, targetPoints: size) { uiImage = loaded }
+        guard let loaded = await ImageLoader.shared.image(for: url, targetPoints: size) else { return }
+        // The loader deliberately outlives its caller, so a load for a previous `url` can
+        // still land here and overwrite the current row's image.
+        guard !Task.isCancelled else { return }
+        uiImage = loaded
     }
 
     private var placeholder: some View {
