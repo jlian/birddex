@@ -52,8 +52,10 @@ final class DataStore {
     private(set) var hasLoadedAll = false
     private(set) var cachedAt: Date?
     private(set) var activeAccountID: String?
+    private(set) var refreshFailed = false
     var hasReadableData: Bool { cachedAt != nil || hasLoadedAll }
-    var isShowingCachedData: Bool { cachedAt != nil && !hasLoadedAll }
+    /// Stale data is only worth calling out once a refresh has actually failed.
+    var isShowingCachedData: Bool { cachedAt != nil && !hasLoadedAll && refreshFailed }
 
     // MARK: - Dependencies
 
@@ -129,6 +131,7 @@ final class DataStore {
             confirmedSnapshot = response
             hasLoadedAll = true
             cachedAt = nil
+            refreshFailed = false
             do {
                 try cache?.replace(accountID: accountID, response: response, refreshedAt: .now)
             } catch {
@@ -140,8 +143,12 @@ final class DataStore {
                   activeAccountID == accountID,
                   loadRequestID == requestID
             else { return }
-            self.error = AppError.map(error)
-            log.error("Failed to load account data")
+            // A cancellation maps to nil and isn't a refresh failure.
+            if let mappedError = AppError.map(error) {
+                self.error = mappedError
+                refreshFailed = true
+                log.error("Failed to load account data")
+            }
         }
         if generation == loadGeneration,
            activeAccountID == accountID,
@@ -164,6 +171,7 @@ final class DataStore {
         error = nil
         hasLoadedAll = false
         cachedAt = nil
+        refreshFailed = false
         activeAccountID = nil
         confirmedSnapshot = nil
         loadRequestID = UUID()

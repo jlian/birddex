@@ -98,6 +98,7 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertTrue(store.hasReadableData)
         XCTAssertFalse(store.hasLoadedAll)
         XCTAssertNotNil(store.cachedAt)
+        XCTAssertFalse(store.isShowingCachedData)
         XCTAssertThrowsError(try storeMutationReadiness(store))
     }
 
@@ -114,6 +115,21 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(store.outings.first?.locationName, "Cached Marsh")
         XCTAssertEqual(store.error, .offline)
         XCTAssertFalse(store.hasLoadedAll)
+        XCTAssertTrue(store.isShowingCachedData)
+    }
+
+    func testCancelledRefreshDoesNotFlagCachedData() async {
+        let cache = CacheStub(snapshot: AccountDataSnapshot(
+            response: fixtureResponse(locationName: "Cached Marsh"),
+            refreshedAt: .now
+        ))
+        let store = DataStore(service: ServiceStub(result: .failure(URLError(.cancelled))), cache: cache)
+        store.activate(accountID: "account-a")
+
+        await store.loadAll()
+
+        XCTAssertNil(store.error)
+        XCTAssertFalse(store.isShowingCachedData)
     }
 
     func testFirstLaunchOfflineHasNoReadableSnapshot() async {
