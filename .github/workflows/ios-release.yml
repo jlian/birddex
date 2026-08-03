@@ -163,6 +163,58 @@ jobs:
             --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
             --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
 
+      # Runners start with an empty keychain, so -allowProvisioningUpdates mints a fresh
+      # development certificate every run. Left alone they pile up until the account cap
+      # is hit. Their private keys die with the runner, so revoking them is always safe.
+      - name: Revoke CI-created signing certificates
+        if: always() && steps.semrel.outputs.released == 'true' && inputs.dry_run != true
+        continue-on-error: true
+        uses: actions/github-script@v9
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        with:
+          script: |
+            const crypto = require('crypto');
+
+            const privateKey = Buffer.from(process.env.ASC_PRIVATE_KEY, 'base64').toString('utf8');
+            const now = Math.floor(Date.now() / 1000);
+            const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+            const signingInput = [
+              b64({ alg: 'ES256', kid: process.env.ASC_KEY_ID, typ: 'JWT' }),
+              b64({ iss: process.env.ASC_ISSUER_ID, iat: now, exp: now + 600, aud: 'appstoreconnect-v1' }),
+            ].join('.');
+            const sig = crypto.sign('sha256', Buffer.from(signingInput), {
+              key: crypto.createPrivateKey(privateKey),
+              dsaEncoding: 'ieee-p1363',
+            });
+            const token = `${signingInput}.${sig.toString('base64url')}`;
+
+            async function asc(path, method = 'GET') {
+              const res = await fetch(`https://api.appstoreconnect.apple.com${path}`, {
+                method,
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) {
+                throw new Error(`${method} ${path} -> ${res.status} ${await res.text()}`);
+              }
+              return res.status === 204 ? null : res.json();
+            }
+
+            // Xcode names every certificate it creates through the API "Created via API".
+            const REVOCABLE = new Set(['DEVELOPMENT', 'IOS_DEVELOPMENT', 'MAC_APP_DEVELOPMENT']);
+            const { data } = await asc('/v1/certificates?limit=200');
+            const stale = data.filter(
+              (c) => c.attributes.displayName === 'Created via API' && REVOCABLE.has(c.attributes.certificateType),
+            );
+
+            core.info(`${data.length} certificate(s) on the account, ${stale.length} CI-created`);
+            for (const cert of stale) {
+              await asc(`/v1/certificates/${cert.id}`, 'DELETE');
+              core.info(`Revoked ${cert.attributes.certificateType} ${cert.id} (expiry ${cert.attributes.expirationDate})`);
+            }
+
       - name: Clean up API key
         if: always()
         run: rm -rf ~/.appstoreconnect
