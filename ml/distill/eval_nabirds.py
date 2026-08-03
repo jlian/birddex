@@ -188,6 +188,15 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--teacher-cache", default="nabirds_teacher_cache.npz")
+    # Option B (2026-08-03): also report retention against the ACTUAL teacher
+    # the student distilled from. BioCLIP-2 stays the historical reference so
+    # every existing README number stays comparable. Default OFF: omitting
+    # --ref-teacher reproduces the previous behaviour exactly.
+    ap.add_argument("--ref-teacher", default="",
+                    help="checkpoint of the real distillation teacher")
+    ap.add_argument("--ref-cache", default="nabirds_refteacher_cache.npz",
+                    help="SEPARATE cache; the BioCLIP-2 cache is keyed by image "
+                         "path only, so reusing it would silently mix teachers")
     ap.add_argument("--out", default="eval_nabirds_results.json")
     args = ap.parse_args()
 
@@ -267,17 +276,56 @@ def main():
     s_lab = [l for l, k in zip(labs, kept) if k]
     rs = score(se.to(dev), s_lab, text_feats, "student")
 
+    # ---- optional: score the REAL distillation teacher on the same images
+    rr = None
+    if args.ref_teacher:
+        ref_cache = os.path.join(os.path.dirname(args.out) or ".", args.ref_cache)
+        r_emb = None
+        if os.path.exists(ref_cache):
+            d2 = np.load(ref_cache, allow_pickle=True)
+            c2 = {p: e for p, e in zip(d2["paths"].tolist(), d2["embeddings"])}
+            if all(p in c2 for p in paths):
+                r_emb = torch.from_numpy(
+                    np.stack([c2[p] for p in paths])).float().to(dev)
+                log("ref-teacher embeddings from cache: %d" % len(paths))
+        if r_emb is None:
+            log("scoring ref-teacher %s ..." % args.ref_teacher)
+            rmod, rpp = load_student(args.ref_teacher, dev)
+            re_, rkept = embed(rpp, lambda x: rmod(x), paths)
+            if all(rkept):
+                np.savez(ref_cache, paths=np.array(paths, dtype=object),
+                         embeddings=re_.numpy().astype(np.float16))
+                log("cached ref-teacher embeddings -> %s" % ref_cache)
+            r_emb = re_.to(dev)
+        rr = score(r_emb, labs, text_feats, "ref-teacher")
+
     ret1 = round(100 * rs["top1"] / max(1e-9, rt["top1"]), 1)
     ret5 = round(100 * rs["top5"] / max(1e-9, rt["top5"]), 1)
     rep = {"checkpoint": args.checkpoint, "eval": "nabirds-test-ood",
            "pilot_species": args.pilot_species, "teacher": rt, "student": rs,
-           "retention_top1_pct": ret1, "retention_top5_pct": ret5}
+           "retention_top1_pct": ret1, "retention_top5_pct": ret5,
+           "retention_vs_bioclip2_top1_pct": ret1,
+           "retention_vs_bioclip2_top5_pct": ret5}
+    if rr is not None:
+        rep["ref_teacher"] = rr
+        rep["ref_teacher_checkpoint"] = args.ref_teacher
+        rep["retention_vs_teacher_top1_pct"] = round(
+            100 * rs["top1"] / max(1e-9, rr["top1"]), 1)
+        rep["retention_vs_teacher_top5_pct"] = round(
+            100 * rs["top5"] / max(1e-9, rr["top5"]), 1)
     json.dump(rep, open(args.out, "w"), indent=2)
     print("\n" + "=" * 60, flush=True)
     print(f"NABIRDS OOD EVAL ({rt['n']} imgs, {args.pilot_species or 'ALL'} species)", flush=True)
     print(f"  teacher top1/top5: {rt['top1']}/{rt['top5']}", flush=True)
     print(f"  student top1/top5: {rs['top1']}/{rs['top5']}", flush=True)
-    print(f"  retention:         top1 {ret1}%  top5 {ret5}%", flush=True)
+    print("  retention vs bioclip-2: top1 %s%%  top5 %s%%" % (ret1, ret5),
+          flush=True)
+    if rr is not None:
+        print("  ref-teacher top1/top5:  %s/%s" % (rr["top1"], rr["top5"]),
+              flush=True)
+        print("  retention vs TEACHER:   top1 %s%%  top5 %s%%" % (
+              rep["retention_vs_teacher_top1_pct"],
+              rep["retention_vs_teacher_top5_pct"]), flush=True)
     print("  student abstention (thr -> cov%, acc%):", flush=True)
     for gg in rs["abstention"]:
         print(f"    {gg['thr']}: cov {gg['coverage']}%  acc {gg['acc_on_kept']}%", flush=True)

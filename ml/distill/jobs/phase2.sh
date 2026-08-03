@@ -83,9 +83,12 @@ for A in 0.25 0.50 0.75 0.90 1.00; do
   if [ ! -f "$W" ]; then say "  alpha $A: merge FAILED, skipping"; continue; fi
   # --pilot-species 0 is MANDATORY: the default 500 silently evaluates a
   # 7-species subset and produced void numbers once already.
+  # --ref-teacher = option B: also report retention vs the ACTUAL teacher
+  # (WingCLIP-0.1), not just the legacy BioCLIP-2 reference. Separate cache.
   $V eval_nabirds.py --checkpoint "$W" \
     --taxonomy /home/jlian/wingdex/src/lib/taxonomy.json \
     --pilot-species 0 --batch 64 --out "$E" \
+    --ref-teacher runs/ft_clean_01/wise_a0.90.pt \
     >>"$LOG" 2>&1
   if [ -f "$E" ]; then say "  alpha $A evaluated"; else say "  alpha $A: EVAL FAILED"; fi
 done
