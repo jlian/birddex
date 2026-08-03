@@ -52,14 +52,7 @@ extension UICollectionViewListCell {
 
     open override func updateConfiguration(using state: UICellConfigurationState) {
         super.updateConfiguration(using: state)
-        guard let collectionView = plainListCollectionView else { return }
-
-        // WHY delaysContentTouches = false: UIScrollView otherwise withholds touches for
-        // ~150ms to decide whether the gesture is a scroll, which pushes the row highlight
-        // well past the point where a tap feels acknowledged. Content touches can still be
-        // cancelled, so beginning an actual scroll clears the highlight as usual.
-        collectionView.delaysContentTouches = false
-        collectionView.canCancelContentTouches = true
+        guard plainListCollectionView != nil else { return }
 
         var bg = UIBackgroundConfiguration.listCell()
         bg.backgroundColor = UIColor(Color.pageBg)
