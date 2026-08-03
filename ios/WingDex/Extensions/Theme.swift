@@ -37,21 +37,30 @@ extension Color {
 /// The isPlainListCell guard prevents this from breaking Form/grouped list styling
 /// (e.g., Settings) which has inset rows that don't span full width.
 extension UICollectionViewListCell {
-    private var isPlainListCell: Bool {
-        // Walk up to find the UICollectionView, then check if cell spans full width
+    /// The enclosing collection view, but only for plain full-width lists. Forms and grouped
+    /// lists inset their rows, so this returns nil for them and leaves their styling alone.
+    private var plainListCollectionView: UICollectionView? {
         var view: UIView? = superview
-        while let v = view {
-            if let cv = v as? UICollectionView {
-                return frame.width >= cv.bounds.width - 1
+        while let current = view {
+            if let collectionView = current as? UICollectionView {
+                return frame.width >= collectionView.bounds.width - 1 ? collectionView : nil
             }
-            view = v.superview
+            view = current.superview
         }
-        return false
+        return nil
     }
 
     open override func updateConfiguration(using state: UICellConfigurationState) {
         super.updateConfiguration(using: state)
-        guard isPlainListCell else { return }
+        guard let collectionView = plainListCollectionView else { return }
+
+        // WHY delaysContentTouches = false: UIScrollView otherwise withholds touches for
+        // ~150ms to decide whether the gesture is a scroll, which pushes the row highlight
+        // well past the point where a tap feels acknowledged. Content touches can still be
+        // cancelled, so beginning an actual scroll clears the highlight as usual.
+        collectionView.delaysContentTouches = false
+        collectionView.canCancelContentTouches = true
+
         var bg = UIBackgroundConfiguration.listCell()
         bg.backgroundColor = UIColor(Color.pageBg)
         if state.isHighlighted || state.isSelected {
