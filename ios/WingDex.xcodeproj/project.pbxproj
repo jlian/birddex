@@ -43,6 +43,7 @@
 		48572F12742996B68226EECF /* FunNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D47136847CF32C6251A4BD /* FunNames.swift */; };
 		4BF3798F0ADD7B34948B1C65 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494CD419AD323D541E04D2AB /* AuthService.swift */; };
 		4D2754D2E24874B1AB391719 /* collage19.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 1758F97178B6D85D64F1363D /* collage19.jpg */; };
+		4DE92EF687F50832C97545B4 /* SpeciesCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBA5EA8D67100F9A23FFBA36 /* SpeciesCarousel.swift */; };
 		4F4AEE471B77C7087B5DB09F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F34071627BDA774005F033 /* SettingsView.swift */; };
 		5660BC7BFC7DF7AD837AEADA /* ImageSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE51FF79B0CDBB3C4CADC3ED /* ImageSharingService.swift */; };
 		58B69A80EFAF3294811D2CE3 /* AuthIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E4A1B21654CC24CA891696 /* AuthIntegrationTests.swift */; };
@@ -227,6 +228,7 @@
 		C50653C4D6271CE2B75296B2 /* WingDexShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = WingDexShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C55734005BE9F01B6719A826 /* PasskeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyService.swift; sourceTree = "<group>"; };
 		C927A85FC167B684891346FD /* collage7.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage7.jpg; sourceTree = "<group>"; };
+		CBA5EA8D67100F9A23FFBA36 /* SpeciesCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesCarousel.swift; sourceTree = "<group>"; };
 		CE51FF79B0CDBB3C4CADC3ED /* ImageSharingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSharingService.swift; sourceTree = "<group>"; };
 		CFBE1598DFE8F27ED8313060 /* DataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataService.swift; sourceTree = "<group>"; };
 		D0102B85A0116EB696C3EBD1 /* SpeciesDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDetailView.swift; sourceTree = "<group>"; };
@@ -363,6 +365,7 @@
 				01F34071627BDA774005F033 /* SettingsView.swift */,
 				0A98BE3CB346AC4FFC28246D /* SharedComponents.swift */,
 				01FABF05EDCB9B13D4839648 /* SignInView.swift */,
+				CBA5EA8D67100F9A23FFBA36 /* SpeciesCarousel.swift */,
 				D0102B85A0116EB696C3EBD1 /* SpeciesDetailView.swift */,
 				6B5043AC2718CF99118DD12C /* WingDexView.swift */,
 				5353261569A9D1CF874CAF69 /* AddPhotosFlow */,
@@ -733,6 +736,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				5C8E32D0411E6668710AA918 /* SharePayload.swift in Sources */,
 				2314AD2B5AD2CAE6D1426754 /* SharedComponents.swift in Sources */,
 				9E3F0C28882FAFAA45934BCF /* SignInView.swift in Sources */,
+				4DE92EF687F50832C97545B4 /* SpeciesCarousel.swift in Sources */,
 				BE1BC5ECDCCA3BB2EAA10E79 /* SpeciesDetailView.swift in Sources */,
 				BFEEDFE99B8E9AE03FC3304F /* Theme.swift in Sources */,
 				1F40A38FB19DEF16444A4343 /* WikimediaURL.swift in Sources */,

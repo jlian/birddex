@@ -188,36 +188,14 @@ struct HomeView: View {
                         let spacing: CGFloat = 10
                         let padding: CGFloat = 16
                         let cardSize = (geo.size.width - padding * 2 - spacing * 2) / 2.25
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: spacing) {
-                                // WHY PeekPopContextMenu (UIKit) instead of SwiftUI .contextMenu:
-                                // SwiftUI's .contextMenu on a ScrollView applies to the entire
-                                // scroll container, not individual cards. There's no way to attach
-                                // a per-card context menu + preview commit (tap-to-navigate) with
-                                // pure SwiftUI. This UIKit wrapper gives each card its own
-                                // UIContextMenuInteraction so long-press targets the right species
-                                // and tapping the preview pushes to the detail view.
-                                ForEach(recentSpecies) { entry in
-                                    PeekPopContextMenu(
-                                        menu: speciesContextMenu(for: entry),
-                                        accessibilityLabel: getDisplayName(entry.speciesName),
-                                        accessibilityActions: speciesAccessibilityActions(for: entry),
-                                        onTap: {
-                                            committedSpeciesEntry = entry
-                                        }
-                                    ) {
-                                        SpeciesCard(entry: entry, size: cardSize)
-                                    } preview: {
-                                        NavigationStack {
-                                            SpeciesDetailView(speciesName: entry.speciesName)
-                                        }
-                                        .environment(store)
-                                    }
-                                    .frame(width: cardSize, height: cardSize)
-                                }
-                            }
-                            .padding(.horizontal, padding)
-                        }
+                        SpeciesCarousel(
+                            entries: recentSpecies,
+                            store: store,
+                            cardSize: cardSize,
+                            menu: { speciesContextMenu(for: $0) },
+                            accessibilityActions: { speciesAccessibilityActions(for: $0) },
+                            onSelect: { committedSpeciesEntry = $0 }
+                        )
                         .frame(height: cardSize)
                     }
                     .aspectRatio(2.25, contentMode: .fit)
