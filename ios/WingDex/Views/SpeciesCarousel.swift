@@ -167,8 +167,8 @@ struct SpeciesCarousel: UIViewRepresentable {
             willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
             animator: any UIContextMenuInteractionCommitAnimating
         ) {
-            guard let speciesName = configuration.identifier as? String,
-                  let entry = entries.first(where: { $0.id == speciesName })
+            guard let entryId = configuration.identifier as? String,
+                  let entry = entries.first(where: { $0.id == entryId })
             else { return }
             animator.preferredCommitStyle = .pop
             animator.addCompletion { [weak self] in self?.onSelect(entry) }

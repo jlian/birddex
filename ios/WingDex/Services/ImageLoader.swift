@@ -87,9 +87,16 @@ final class ImageLoader {
         "\(url)|\(Int(targetPoints.rounded()))"
     }
 
+    /// `UITraitCollection.current` is only populated while a view is updating, so it reads
+    /// 0 when a prefetch runs outside that window. The attached window's traits are the
+    /// reliable source.
     private static var displayScale: CGFloat {
-        let scale = UITraitCollection.current.displayScale
-        return scale > 0 ? scale : 3
+        let windowScale = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow?.traitCollection.displayScale }
+            .first { $0 > 0 }
+        if let windowScale { return windowScale }
+        let currentScale = UITraitCollection.current.displayScale
+        return currentScale > 0 ? currentScale : 2
     }
 }
 

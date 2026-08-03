@@ -1,21 +1,31 @@
 import SwiftUI
 
+/// Reference type because `NSCache` only stores class instances.
+private final class WikiSummary: Sendable {
+    let extract: String?
+    let imageUrl: String?
+
+    init(extract: String?, imageUrl: String?) {
+        self.extract = extract
+        self.imageUrl = imageUrl
+    }
+}
+
 /// Wikipedia summaries are cached in memory because a context-menu preview and the view
 /// it pops into are separate `SpeciesDetailView` instances with separate state. Without
 /// this the pushed view refetches the summary, so it has no full-res URL on its first
 /// render and replays the blur-up even though the image is already decoded.
 @MainActor
 private final class WikiSummaryCache {
-    struct Summary {
-        let extract: String?
-        let imageUrl: String?
+    static let shared = WikiSummaryCache()
+    private let cache = NSCache<NSString, WikiSummary>()
+
+    init(countLimit: Int = 128) {
+        cache.countLimit = countLimit
     }
 
-    static let shared = WikiSummaryCache()
-    private var cache: [String: Summary] = [:]
-
-    func summary(for title: String) -> Summary? { cache[title] }
-    func set(_ summary: Summary, for title: String) { cache[title] = summary }
+    func summary(for title: String) -> WikiSummary? { cache.object(forKey: title as NSString) }
+    func set(_ summary: WikiSummary, for title: String) { cache.setObject(summary, forKey: title as NSString) }
 }
 
 struct SpeciesDetailView: View {
@@ -35,7 +45,7 @@ struct SpeciesDetailView: View {
 
     /// Read through to the cache so a preview-populated summary is available on the first
     /// render, before `.task` has a chance to run.
-    private var cachedSummary: WikiSummaryCache.Summary? {
+    private var cachedSummary: WikiSummary? {
         guard let wikiTitle = entry?.wikiTitle else { return nil }
         return WikiSummaryCache.shared.summary(for: wikiTitle)
     }
@@ -292,12 +302,7 @@ struct SpeciesDetailView: View {
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-            let original = json["originalimage"] as? [String: Any]
-            let summary = WikiSummaryCache.Summary(
-                extract: json["extract"] as? String,
-                imageUrl: original?["source"] as? String
-            )
+            guard let summary = await Self.parseSummary(data) else { return }
             WikiSummaryCache.shared.set(summary, for: wikiTitle)
             wikiExtract = summary.extract
             fullImageUrl = summary.imageUrl
@@ -305,6 +310,21 @@ struct SpeciesDetailView: View {
             // Silently fail - the dex thumbnail is still shown. Not cached, so a later
             // visit retries.
         }
+    }
+
+    /// Off the main actor: extracts run to several KB, and this parse lands on the detail
+    /// push path where a hitch is visible.
+    private nonisolated static func parseSummary(_ data: Data) async -> WikiSummary? {
+        await Task.detached(priority: .utility) {
+            guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+                return nil
+            }
+            let original = json["originalimage"] as? [String: Any]
+            return WikiSummary(
+                extract: json["extract"] as? String,
+                imageUrl: original?["source"] as? String
+            )
+        }.value
     }
 
     private var heroImageURL: URL? {

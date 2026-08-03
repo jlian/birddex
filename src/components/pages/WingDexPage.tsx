@@ -445,7 +445,7 @@ function SpeciesDetail({
               src={baseImageUrl}
               alt={canShowOverlay ? '' : displayName}
               aria-hidden={canShowOverlay}
-              className={`absolute inset-0 w-full h-full object-cover object-[center_10%] ${thumbnailUrl ? 'blur-md scale-105' : ''}`}
+              className={`absolute inset-0 w-full h-full object-cover object-[center_10%] ${canShowOverlay ? 'blur-md scale-105' : ''}`}
             />
           )}
           {/* Full-res overlay fades in over the base layer */}
