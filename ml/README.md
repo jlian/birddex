@@ -73,6 +73,16 @@ golden set.
 
 ---
 
+## ⚠️ How to edit this file
+
+**NO CORRECTION STACKS.** When a claim here turns out wrong, EDIT IT IN PLACE to the current truth. Do NOT append a "CORRECTION" section below it. You would never fix a bug by leaving the broken function and adding a comment saying "actually this is wrong, see below" -- the same applies here. **Git holds the history; this file holds the truth.**
+
+Keep a mistake only when the mistake ITSELF is instructive (a failure mode that looks like something else), and then state it as a warning inside the settled text, not as a chronological correction.
+
+**Always state the CONDITIONS a result holds under.** "It LOST" is not a fact; "it lost on ViT-B with BioCLIP-2 targets" is. Unscoped verdicts get misapplied to experiments they do not cover.
+
+(Convention set 2026-07-31; moved to the top 2026-08-03 after being violated repeatedly while buried at the bottom.)
+
 ## The model + pipeline as it stands now
 
 ### Architecture
@@ -422,6 +432,15 @@ target_taxa.csv --out public/priors/occurrence-vN.bin.gz` (~40 s).
 
 ---
 
+### Checkpoint `args` can be STALE -- verify, do not trust
+
+A checkpoint's `args` dict records the flags of the invocation that CREATED it, and later processing steps do not update it. Two live examples:
+
+- `ft_clean_01/wise_a0.90.pt` has `alpha 0.5` in args, but the real WiSE blend is **0.90** (`wise_ft_alpha` key, confirmed by weight deltas: 6.4e-5 from `best.pt` vs 5.8e-4 from `distilled_ref.pt`, i.e. 9x closer to the fine-tuned model).
+- `full7555_locked_ep25` has `pilot_species 500` in args but was a genuine FULL run. In the `--wds` path `pick_rows()` is never called, so `pilot_species` is recorded but has no effect.
+
+Check the actual weights or the run log, not the args field.
+
 ## 🏷️ Model registry — WingCLIP versioning
 
 **Name:** WingCLIP. A legitimate CLIP variant — ViT-B/16 image tower, CLIP-contrastive
@@ -639,9 +658,7 @@ already exposes `--arch`/`--pretrained`.
    dry-forward probe, keep the same projection + normalize.
 2. ✅ **Teacher: WingCLIP-0.1. SETTLED 2026-08-02.** Measured on the full
    24,633-image NABirds eval: WingCLIP-0.1 teacher 89.09 vs BioCLIP-2 teacher
-   83.44, a +5.65 win, identical recipe, only the teacher differs. The
-   2026-08-01 claim that BioCLIP-2 won by +3.90 is RETRACTED: it was measured
-   on a 7-species / 282-image subset and was void. See the TEACHER SETTLED
+   83.44, a +5.65 win, identical recipe, only the teacher differs. See the TEACHER SETTLED
    section for the full result, including why val_cos is disqualified for
    this decision (it ranked the LOSING teacher higher, again).
 3. Pilot distill TinyCLIP-39M on the ~496-species pilot, run BOTH the 0.1 and 0.2
@@ -1354,7 +1371,10 @@ Six runs, ~16h, one-factor-at-a-time on the 500-sp pilot shards:
   (lr 1e-5, 12ep, aug light, wd 0.1). So alpha=1.0 is already a mild interpolation.
   Interpolation verified bit-exact (|W−W_prev| = 0.2012 identical across alpha steps).
 
-## FULL RETRAIN with the locked recipe (2026-07-27 → 30): it LOST
+## FULL RETRAIN, 0.2 recipe on ViT-B + BioCLIP-2 (2026-07-27 -> 30): it LOST
+
+**Scope, read this before citing it:** this result is for **ViT-B-16 (86.6M)** distilled from **BioCLIP-2** targets. It does NOT generalise to a smaller student or a different teacher. Verified from the checkpoint args of `full7555_locked_ep25`: `arch=ViT-B-16`, no `sv_embeddings` (so BioCLIP-2). The 0.2 recipe is MORE regularised (wd 0.2 vs 0.1), which plausibly hurts an 86.6M model already at capacity while helping an under-capacity 38.3M one -- and that is exactly what the TinyCLIP pilot later showed.
+
 
 Full 7,555-sp distillation with the locked pilot recipe → `full7555_locked_ep25`. RESULT:
 val_cos 0.9618 (vs 0.1-alpha 0.9650) and **NABirds full-species retention 90.7% (78.4)
@@ -1506,9 +1526,8 @@ load via timm. Headline numbers are coarse zero-shot ImageNet (shrink ViT-B/32 5
 comparable zero-shot; 8M model beats ViT-B/16 by 3.5% on ImageNet with 8.9% of params;
 weight inheritance speeds training 1.4–7.8×) — NOT fine-grained, so the operating regime
 is unproven for us. Progressive distillation (86.6M→~60M→39M) is TinyCLIP's own scheme
-if the direct jump loses too much. ~~WingCLIP-0.1 is the better teacher (beats BioCLIP-2
-on NABirds); the BioCLIP-2 cache stays the control.~~ ⚠️ **That teacher claim was
-FALSIFIED 2026-08-01 — see the pilot results below.** Watch the second-fine-tune
+if the direct jump loses too much. WingCLIP-0.1 is the better teacher: +5.65 NABirds top-1 over BioCLIP-2
+at n=24,633 (see TEACHER SETTLED); the BioCLIP-2 cache stays the control. Watch the second-fine-tune
 redundancy trap (the 178k GT photos were already absorbed by WingCLIP-0.1).
 
 ## TEACHER SETTLED: WingCLIP-0.1 beats BioCLIP-2 as a distillation target (2026-08-02)
@@ -1652,76 +1671,49 @@ Implementation notes:
    loader already delivers 2.1x what our GPU consumes), but decisive on RunPod
    where instances have 6-20 vCPUs vs our 16 threads.
 
-## TinyCLIP-39M pilot results (2026-07-31 → 08-01)
+## TinyCLIP-39M pilot results (2026-07-31 -> 08-01)
 
-> 🚨 **EVERY NABirds NUMBER IN THIS SECTION IS VOID.** The pilot species set and
-> NABirds overlap on **7 species**, so all "NABirds top-1" figures below were
-> measured over 7 species / 282 images, not the 496 species claimed. See
-> "The 7-species trap" immediately after the table. The val_cos column is
-> unaffected (in-distribution, hash-split across all pilot species).
->
-> The teacher question this section failed to answer was RE-RUN properly and is
-> now SETTLED: see "TEACHER SETTLED" above. WingCLIP-0.1 beats BioCLIP-2 by
-> +5.65 top-1 on the full 24,633-image eval.
+Eight pilot runs, TinyCLIP-39M (`vit_medium_patch16_clip_224.tinyclip_yfcc15m`,
+38.3M params), batch 96, 244k samples/epoch, ~7.8 min/epoch.
 
-Eight pilot runs on the ~496-species shards, TinyCLIP-39M
-(`vit_medium_patch16_clip_224.tinyclip_yfcc15m`, 38.3M params), batch 96, 244k
-samples/epoch, ~7.8 min/epoch.
+**val_cos ranking** (in-distribution, hash-split; this part is sound):
 
-| run | ~~top1~~ VOID | ~~top5~~ | val_cos | config |
-|---|---|---|---|---|
-| runB | ~~92.55~~ | ~~98.23~~ | **0.9560** | 0.2 basis, lr 7e-5, WingCLIP |
-| exp3 | ~~92.55~~ | ~~98.58~~ | 0.9423 | 0.1 basis, lr 1e-4, **BioCLIP-2** |
-| runA | ~~88.65~~ | ~~96.45~~ | 0.9438 | 0.1 basis, lr 1e-4, WingCLIP |
-| exp4 | ~~74.47~~ | ~~82.98~~ | 0.9047 | 0.1 basis, 61M **patch32** |
-| exp2 | ~~50.00~~ | ~~56.38~~ | 0.8917 | 0.1 basis, lr 2.5e-4 |
-| exp1 | ~~39.01~~ | ~~44.68~~ | 0.8837 | 0.1 basis, lr 5e-4 |
+| run | val_cos | config |
+|---|---|---|
+| runB | **0.9560** | 0.2 basis, lr 7e-5, WingCLIP |
+| runA | 0.9438 | 0.1 basis, lr 1e-4, WingCLIP |
+| exp3 | 0.9423 | 0.1 basis, lr 1e-4, BioCLIP-2 |
+| exp4 | 0.9047 | 0.1 basis, 61M **patch32** |
+| exp2 | 0.8917 | 0.1 basis, lr 2.5e-4 |
+| exp1 | 0.8837 | 0.1 basis, lr 5e-4 |
 
-**What survives:** the val_cos ranking, and the fact that exp1/exp2 (lr 2.5e-4 and
-5e-4 on the 0.1 basis) are catastrophic by any measure. **What does not:** the
-"+3.90 for BioCLIP-2" teacher result and the "+3.90 for the 0.2 recipe" result,
-both of which were 7-species measurements.
+lr 2.5e-4 and 5e-4 are catastrophic by any measure. The NABirds numbers from this
+sweep were discarded (see the 7-species trap) and the teacher question was re-run
+properly -- see TEACHER SETTLED above.
 
-### 🚨 The 7-species trap (found 2026-08-01)
+### The 7-species trap: check what your eval subset actually contains
 
-The pilot was selected as **the top-500 species by GLOBAL iNat photo count** — a
-worldwide ranking, full of Greater Rhea, Hawaiian Duck, Swan Goose, piping-guans.
-**NABirds is North American.** The two sets intersect on exactly **7 species**:
-Rufous Hummingbird, Nuttall's Woodpecker, Yellow-billed Magpie, Oak Titmouse,
-Juniper Titmouse, California Thrasher, Abert's Towhee.
+The pilot was **the top-500 species by GLOBAL iNat photo count** -- a worldwide
+ranking full of Greater Rhea, Hawaiian Duck, Swan Goose. **NABirds is North
+American.** The two sets intersect on exactly **7 species**.
 
-So `eval_nabirds.py --pilot-species 500` found 282 images spread over **7**
-species (~40 each), while reporting "500 species" in its own header. The Wilson
-CIs quoted alongside those numbers were also **understated**, since they assume
-282 independent samples rather than 7 clustered groups.
+So `eval_nabirds.py --pilot-species 500` scored 282 images over **7** species while
+printing "500 species" in its own header. Every OOD number from that sweep was void,
+and the quoted Wilson CIs were understated as well (7 clusters, not 282 independent
+samples). It reached back to the 2026-07-25 sweep too.
 
-This reaches back further than the TinyCLIP work: `nabirds_ps500` was the metric
-used to rank the **2026-07-25 pilot sweep** too.
+**Why it hid:** those 7 species sit at the very TOP of the global count ranking
+(Baeolophus ridgwayi 499 imgs, Melozone aberti 496), so they entered a top-500
+naturally. Nothing errored; the eval silently measured a tiny slice.
 
-**Why it was easy to miss:** the 7 overlap species sit at the very TOP of the
-global count ranking (Baeolophus ridgwayi 499 imgs, Melozone aberti 496,
-Toxostoma redivivum 495 ...), so they were the most-photographed species in the
-corpus and slipped into the top-500 naturally. The eval never errored; it just
-silently measured a tiny, unrepresentative slice.
+**Fix:** align the pilot species set TO the eval. All 401 NABirds taxa exist in the
+corpus with 184,958 images, so `wds-nabirds401` keeps the pilot the same size while
+the OOD eval grows from 282 images to the full **24,633 images / 401 species**. Built
+by `build_nabirds_species.py` + `shard_subset.py`.
 
-**Fix:** align the pilot species set TO NABirds. All 401 NABirds taxa exist in the
-corpus with 184,958 images (min 284/species), so the pilot stays roughly the same
-size (185k vs 244k) while the OOD eval grows from 282 images to the full
-**24,633-image / 401-species** NABirds test split — an ~87x bigger eval on the
-metric that decides things. Built by `build_nabirds_species.py` (species list,
-checksum-stable) + `shard_subset.py` (extracts from the packed shards, since the
-loose `corpus/` was deleted 2026-07-25) into
-`/mnt/nas/WingDex-Distill/wds-nabirds401/`.
-
-⚠️ **Tradeoff, recorded deliberately:** a NABirds-aligned pilot is
-North-American-biased and is NO LONGER a random slice of the 7,555-species corpus,
-so recipe conclusions drawn on it may not transfer perfectly to the full run. We
-accept that to get a trustworthy teacher/OOD signal. Do not silently treat the
-new pilot as representative.
-
-**Only the TEACHER question needs re-running** (2 runs, WingCLIP vs BioCLIP-2 at
-identical recipe). LR and recipe questions ride on in-distribution val_cos, which
-the species mismatch does not affect.
+**Tradeoff:** a NABirds-aligned pilot is North-American-biased and no longer a random
+slice of the 7,555-species corpus, so recipe conclusions from it may not transfer
+perfectly to the full run. Accepted for a trustworthy OOD signal.
 
 ### ⚠️ Two further methodology traps from this sweep
 
@@ -1729,7 +1721,8 @@ the species mismatch does not affect.
    basis (`--aug none --wd 0.1`, only `--lr` varied), while the winner (runB) is 0.2
    basis. runB also changed FOUR variables at once vs runA (lr, aug, wd, plus beta2
    0.95 / warmup 500 / grad-clip 1.0), so **"lr 7e-5 is optimal" was never tested on
-   the shipping recipe.** The 0.2-basis sweep (5e-5, 3e-5) runs 2026-08-01.
+   the shipping recipe.** Re-run on the 0.2 basis afterwards: 3e-5 = 0.9546,
+   5e-5 = 0.9563, 7e-5 = 0.9560, so 7e-5 stands.
    Lesson: sweep the basis you intend to ship, and change one variable at a time.
 2. **exp4 ("61M backbone") is CONFOUNDED and proves nothing about capacity.**
    `vit_betwixt_patch32_clip_224` is **patch32 = 49 tokens**; the 39M
@@ -1906,74 +1899,22 @@ Also migrated the deprecated `torch.cuda.amp.*` calls to `torch.amp.*`.
 **Use this for every run from now on.** The first epoch is ~50% slower while
 torch.compile traces; everything after is ~1.5x faster.
 
-### Why only 30% of peak? Roofline + what is already enabled (2026-08-02)
+### GPU efficiency: we run at 61% of the real ceiling (measured 2026-08-02)
 
-Measured with `jobs/roofline.py`: the student is **38.7M params** and one
-forward pass costs **15.98 GFLOP/img**. Training is ~3x forward (fwd + bwd),
-so ~48 GFLOP/img.
+The student is **38.7M params** and one forward costs **15.98 GFLOP/img**; training
+is ~3x forward, so ~48 GFLOP/img (`jobs/roofline.py`).
 
-| config | img/s | achieved | % of dense bf16 peak |
-|---|---|---|---|
-| baseline fp16 | 700 | 33.6 TFLOP/s | 28% |
-| bf16 + channels_last + compile | 811 | 38.9 TFLOP/s | **33%** |
-
-RTX 3080 dense bf16 peak is ~119 TFLOP/s. **60-70% is typical for well-tuned
-ViT training**, so ~30% means roughly another 1.5-2x may be available in the
-model path. Note params are misleading here: 38.7M at 196 tokens / 224px is
-compute-heavy relative to its size.
-
-**Already enabled, so NOT the fix** (checked, do not re-investigate):
-- **Flash / SDPA attention is ON.** `timm.layers.use_fused_attn()` returns True
-  and every block has `fused_attn=True` (timm 1.0.28, torch 2.6.0+cu124).
-- `pin_memory`, `persistent_workers`, TF32, `cudnn.benchmark`.
-
-**Remaining candidates, cheapest first:**
-1. **Fused AdamW** (`torch.optim.AdamW(..., fused=True)`). We use the default,
-   which launches separate kernels per parameter tensor; a 38M model has many
-   small tensors, so launch overhead is plausible. One-word change.
-2. **Larger batch.** At batch 96 with 196 tokens the GEMMs may be too small to
-   saturate the tensor cores.
-3. **`torch.compile(mode="max-autotune")`** instead of default mode; it
-   benchmarks kernel variants and often adds another 1.1-1.2x.
-4. **Part of the gap is structural.** ViT training at 224px does a lot of
-   LayerNorm / GELU / residual-add work that is memory-bound rather than
-   tensor-core work. Do not expect to reach 70%.
-
-`jobs/profile_gpu_kernels.py` splits fwd/bwd/optimizer time and dumps the top
-kernels by self CUDA time. **Run it only when the GPU is otherwise IDLE** -- a
-concurrent training job silently contaminates the result (this produced a bogus
-80.5 img/s reading on 2026-08-02).
-
-### CORRECTION (2026-08-02, later): the peak above is the WRONG COLUMN
-
-The "30% of peak" figure above divides by **119 TFLOP/s**, which is the RTX 3080
-fp16 spec with **fp16 accumulate**. AMP training accumulates in **fp32**, and on
-GeForce Ampere (GA102) fp32-accumulate tensor ops run at **half rate**. So our
-real ceiling is ~**59.5 TFLOP/s**, not 119.
-
-| | vs 119 (wrong) | vs 59.5 (right) |
+| config | img/s | achieved |
 |---|---|---|
-| baseline fp16, 700 img/s -> 33.6 TFLOP/s | 28% | **56%** |
-| bf16+cl+compile, 811 img/s -> 38.9 TFLOP/s | 33% | **65%** |
+| baseline fp16 | 700 | 33.6 TFLOP/s |
+| bf16 + channels_last + compile | 811 | 38.9 TFLOP/s |
 
-**65% is squarely in the well-tuned range**, so there is NOT a 1.5-2x sitting in
-the model path. Expect ~1.1-1.2x from the remaining knobs (fused AdamW,
-max-autotune), not a doubling. The "60-70% typical" figures quoted in papers
-come from A100/H100, which do NOT have the fp32-accumulate halving.
+**The RTX 3080 ceiling for AMP training is ~60 TFLOP/s, NOT the 119 on the spec
+sheet.** 119 is fp16 with **fp16 accumulate**; AMP accumulates in **fp32**, which
+runs at HALF RATE on GeForce Ampere (GA102). Datacenter parts (A100/H100) have no
+such halving, which is why papers quote 60-70% so casually.
 
-This also **raises** the value of better hardware rather than lowering it: we are
-near practical peak on a card whose practical peak is half its headline number.
-
-⚠️ STILL UNVERIFIED: the 59.5 figure is derived from the GA102 fp32-accumulate
-halving, not measured here. A pure bf16 GEMM microbenchmark on an IDLE GPU would
-settle it empirically. If it lands near 59, this correction holds; near 110, it
-does not.
-
-### ✅ VERIFIED: the ceiling really is ~60 TFLOP/s (GEMM measured 2026-08-02)
-
-The fp32-accumulate correction above was derived, not measured. `jobs/gemm_peak.py`
-settles it empirically with pure square matmuls on an idle GPU (2*N^3 FLOPs / time,
-nothing else in the loop):
+Measured directly with pure square matmuls on an idle GPU (`jobs/gemm_peak.py`):
 
 | GEMM | TFLOP/s |
 |---|---|
@@ -1981,34 +1922,30 @@ nothing else in the loop):
 | fp16 N=8192 | 63.2 |
 | tf32 N=8192 | 31.5 |
 
-Measured **63.7**, against a predicted 59.5 and a spec-sheet 119. **The half-rate
-fp32-accumulate behaviour on GeForce Ampere is REAL.** Never quote 119 for this
-card under AMP training.
+So we achieve **38.9 / 63.7 = 61% of measured peak**, a normal well-tuned figure for
+ViT training. **There is no 1.5-2x hiding in the model path.** Never quote 119
+TFLOP/s for this card under AMP.
 
-Our training achieves 38.9 TFLOP/s = **61% of the measured GEMM peak**. That is a
-normal, well-tuned figure for ViT training, where LayerNorm/GELU/residual work is
-memory-bound and cannot reach GEMM efficiency. **There is no 1.5-2x hiding in the
-model path.**
+**Already enabled, so NOT the fix** (checked; do not re-investigate):
+- **Flash / SDPA attention is ON.** `timm.layers.use_fused_attn()` is True and every
+  block reports `fused_attn=True` (timm 1.0.28, torch 2.6.0+cu124).
+- `pin_memory`, `persistent_workers`, TF32, `cudnn.benchmark`.
 
-### Kernel profile: where the time goes, and why fused AdamW does not help
-
-`jobs/profile_gpu_kernels.py`, batch 96, bf16 + channels_last + compile:
+**Kernel profile** (`jobs/profile_gpu_kernels.py`, batch 96, bf16+cl+compile):
 
 | optimizer | fwd | bwd | opt | img/s |
 |---|---|---|---|---|
 | AdamW default | 32.0% | 63.5% | 4.6% | 773.8 |
-| AdamW foreach | 31.9% | 63.5% | 4.6% | 774.2 |
-| **AdamW fused** | 32.1% | 63.8% | **4.1%** | **777.2** |
+| AdamW fused | 32.1% | 63.8% | 4.1% | 777.2 |
 
-**The optimizer is only ~4.6% of step time**, so fusing it can win at most ~0.5%
-(measured: 777.2 vs 773.8, i.e. +0.4%). The earlier guess that "a 38M model has
-many small tensors so launch overhead is plausible" was wrong: backward dominates
-at ~64%, forward is ~32%, and the optimizer is noise.
+Backward dominates at ~64%; **the optimizer is only ~4.6% of step time**, so fusing
+it measures **+0.4%**. GPU-side tuning is DONE: bf16 + channels_last + torch.compile
+captured the available ~1.17x. What remains is architectural (smaller model, fewer
+tokens, lower resolution) or hardware, not configuration.
 
-**Conclusion: GPU-side tuning is DONE.** bf16 + channels_last + torch.compile
-captured the available ~1.17x. Fused AdamW is free to enable but worth ~0.4%.
-Remaining options are architectural (smaller model, lower resolution, fewer
-tokens) or hardware, not configuration.
+Run `jobs/profile_gpu_kernels.py` and `jobs/gemm_peak.py` ONLY on an idle GPU. A
+concurrent training job silently contaminates them (this produced a bogus 80.5 img/s
+reading once).
 
 ### Batch size: SETTLED, it is a free knob (2026-08-02)
 
@@ -2210,16 +2147,6 @@ Scripts were briefly split across `bioclip-birdid`/`bioclip-distill` branches
 checkout deleted + scratch scripts symlinked 2026-07-24; full consolidation into one
 directory + corpus deletion 2026-07-25; this reorganization (current-truth-first)
 2026-07-31.
-
-**Convention (set 2026-07-31): NO CORRECTION STACKS.** When a claim in this file
-turns out wrong, EDIT IT IN PLACE to the current truth. Do not append a
-"⚠️ CORRECTION" section below it. You would never fix a bug by leaving the broken
-function and adding a comment saying "actually this is wrong, see below" — the
-same applies here. Git holds the history; this file holds the truth. Keep a
-mistake only when the mistake itself is instructive (e.g. a failure mode that
-looks like something else), and then state it as a warning in the settled text,
-not as a chronological correction.
-
 ## TinyCLIP paper: what applies to us (read 2026-07-31)
 
 Wu et al., ICCV 2023 (MSR). Read for actionable technique, not summary.
