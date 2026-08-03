@@ -10,33 +10,41 @@ Training data = WebDataset shards on the NAS.
 ## How to edit this file
 
 **NO CORRECTION STACKS.** When a claim here turns out wrong, EDIT IT IN PLACE. Do
-NOT append a "CORRECTION" section below it. You would never fix a bug by leaving the
-broken function and adding a comment saying "actually this is wrong, see below".
-**Git holds the history; this file holds the truth.**
+NOT append a "CORRECTION" section below it. In code you would delete the bad
+function. Do the same here. **Git holds the history. This file holds the truth.**
 
 **Phase tables use ONE schema: ID | Title | Description | ● | Findings.**
 
 - **Phases are letters** (Phase A, Phase B). **Item IDs are letter + number** (A1,
   B3). Never number a phase, or it reads like an item.
-- **ID** is permanent. Next ID = highest ever assigned in that phase + 1. Never
-  reuse, never renumber. Rows may move; the ID travels with the row.
-- **Title** is short and scannable. **Description** says what the work is AND why we
-  are doing it. Both are write-once.
+- **ID** is permanent. The next ID is the highest ever used in that phase, plus 1.
+  Do not reuse an ID. Do not renumber. A row can move. Its ID moves with it.
+- **Title** is short. **Description** gives the work AND the reason for it. Write
+  both one time only.
 - **Findings** is the ONLY mutable cell. Write a claim, not a diary entry.
 - **●** is one status emoji, nothing else.
 
-**Always state the CONDITIONS a result holds under.** "It LOST" is not a fact; "it
-lost on ViT-B with BioCLIP-2 targets" is. Unscoped verdicts get misapplied to
-experiments they do not cover.
+**Always give the CONDITIONS for a result.** "It LOST" is not a fact. "It lost on
+ViT-B with BioCLIP-2 targets" is a fact. A result without conditions gets applied
+to experiments that it does not cover.
 
-**Status:** ✅ settled · 🔬 running · ⬜ next · ❓ open · ⚠️ contested · 🗑️ rejected
+**Status values:**
 
-**The tables ARE the work queue.** There is no separate status section to go stale.
-Unfinished work keeps its row in the phase where it arose, marked ❓. When we commit
-to doing it, move it into the phase that will do it and mark it ⬜.
+- ✅ settled
+- 🔬 running
+- ⬜ next
+- ❓ open
+- ⚠️ contested
+- 🗑️ rejected
 
-**Writing style: simplified technical English.** One idea per sentence. Active voice.
-Present tense for current truth. Short common words. Long prose goes in an appendix.
+**The tables are the work queue.** There is no separate status section, because a
+status section goes stale. Open work keeps its row in the phase that found it.
+Mark it ❓. When you commit to the work, move the row to the phase that will do
+it. Then mark it ⬜.
+
+**Write in simplified technical English.** Use one idea in each sentence. Use the
+active voice. Use the present tense for current truth. Use short common words.
+Keep sentences to 20 words or less. Put long text in an appendix.
 
 ---
 
@@ -44,37 +52,39 @@ Present tense for current truth. Short common words. Long prose goes in an appen
 
 These are decisions, not findings. Do not re-litigate them without asking.
 
-- **Never run two GPU jobs at once on tomahawk.** Concurrent jobs wedged the host on
-  2026-07-25 and cost training progress. Every queue script is sequential and
-  marker-gated for this reason.
-- **Train locally on the 3080.** Cloud rental was evaluated and rejected: upload runs
-  at ~14 MB/s and RunPod bills during the upload. Do not re-pitch it.
-- **Do NOT ship BirdLife range data.** Its only unique job is the narrow "out of range
-  AND no occurrence record" case. Users in uncovered areas get vision-only ID, and
-  that is explicitly acceptable.
-- **WingDex is strictly non-commercial.** Data agreements with BirdLife, iNat and
-  eBird depend on it, and the licence analysis assumes it.
-- **Corpus floor 50, cap 500.** John chose maximum species coverage over disk and
-  time, and wants class imbalance handled at train time instead.
-- **Generate Python, never hand-write it to disk.** Build the file as a list of lines,
-  join with `chr(10)`, pass it through `bin/safepy`, then `py_compile` remotely. A
-  literal backslash-n leaking into source has broken working files more than once.
-## Phase A — Feasibility
+- **Never run two GPU jobs at once on tomahawk.** Two jobs locked up the host on
+  2026-07-25. We lost training progress. Each queue script therefore runs one step
+  at a time. Each step has a marker file as a gate.
+- **Train locally on the 3080.** We examined cloud rental and rejected it. Upload
+  runs at ~14 MB/s, and RunPod charges during the upload. Do not propose it again.
+- **Do NOT ship BirdLife range data.** It does one job that occurrence data cannot
+  do. That job is the "out of range AND no occurrence record" case. Users in those
+  areas get vision-only ID. That result is acceptable.
+- **WingDex is strictly non-commercial.** The data agreements with BirdLife, iNat and
+  eBird depend on this. The licence analysis also assumes it.
+- **Corpus floor 50, cap 500.** John selected maximum species coverage. Disk space
+  and time are less important. Correct the class imbalance at train time.
+- **Generate Python. Never hand-write it to disk.** Build the file as a list of lines.
+  Join them with `chr(10)`. Send the result through `bin/safepy`. Then run
+  `py_compile` on the remote host. A literal backslash-n in the source has broken
+  working files more than one time.
+## Phase A: Feasibility
 
-The app used a hosted VLM for every identification. That costs money per photo, needs
-a network round-trip, and cannot work offline. The question was whether a bird-ID
-model could run on the device at all.
+The app sends every photo to a hosted VLM. This costs money for each photo. It also
+needs a network connection, so it cannot work offline. The first question was
+simple: can a bird-ID model run on the device at all?
 
-**Why not an on-device general LLM:** iOS Foundation Models gained vision but is a
-generalist and weak at fine-grained species ID. Apple's own guidance routes species
-ID to a specialist via tool calling. **Why not Merlin:** the gold standard is a
-purpose-built Visipedia/Cornell CNN trained on eBird's private corpus, and is not
-obtainable.
+**Why not a general LLM on the device.** iOS Foundation Models can read images, but
+it is a generalist. It is weak at fine-grained species ID. Apple sends species ID
+to a specialist model through tool calling.
 
-**Why BioCLIP-2** (`imageomics/bioclip-2`, NeurIPS 2025): a CLIP ViT-L/14 retrained
-on TreeOfLife-200M (200M organism images, 952K taxa). MIT-licensed, exports to both
-ONNX and Core ML, and it is the SOTA open bird encoder. One model serves web, iOS
-and Android.
+**Why not Merlin.** Merlin is the gold standard. It uses a purpose-built CNN from
+Visipedia and Cornell, trained on the private eBird corpus. We cannot get it.
+
+**Why BioCLIP-2** (`imageomics/bioclip-2`, NeurIPS 2025). It is a CLIP ViT-L/14,
+trained again on TreeOfLife-200M: 200M organism images and 952K taxa. It has an
+MIT licence. It exports to ONNX and to Core ML. It is the best open bird encoder
+available. One model serves web, iOS and Android.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -83,10 +93,10 @@ and Android.
 | A3 | Choose the input resolution | Teacher runs at 224 but source photos are 500px, so a bigger student input might carry more detail | ✅ | Use 224 for both. Matching the teacher's own view is what makes the cached targets valid. |
 | A4 | Adopt an upstream training path | The first hand-rolled training loop ran at 40 img/s, which made every experiment too slow to iterate on | ✅ | Adopted the open_clip / DataCompDR reference structure instead of hand-rolling. Now ~720 img/s. |
 
-## Phase B — Corpus and first student
+## Phase B: Corpus and first student
 
-With the method settled, we needed data and a working baseline to measure everything
-else against.
+The method was now clear. Next we needed data, and a baseline to measure all later
+work against.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -95,11 +105,11 @@ else against.
 | B3 | Train the first ViT-B student | LAION ViT-B/16 init with a 512→768 projection into the teacher's space | ✅ | val_cos 0.9650, NABirds 81.83 = 94.7% retention. This checkpoint is WingCLIP-0.1-alpha. |
 | B4 | Check observation-level leakage | iNat users upload several photos of the same bird, so a naive split puts near-duplicates on both sides and inflates every held-out number | ✅ | Dedup by observation id before any held-out claim. |
 
-## Phase C — Recipe search on ViT-B
+## Phase C: Recipe search on ViT-B
 
-The baseline worked, so the question became how much a better training recipe was
-worth. We swept one factor at a time on a cheap 500-species pilot, then tried the
-winning combination at full scale.
+The baseline worked. The next question was the value of a better training recipe. We
+changed one factor at a time on a cheap 500-species pilot. Then we ran the best
+combination at full scale.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -111,11 +121,11 @@ winning combination at full scale.
 | C6 | Run the locked recipe at full scale | Combine C1-C3 and retrain on all 7,555 species, expecting the pilot gains to carry over | 🗑️ | LOST on ViT-B with BioCLIP-2 targets: 90.7% retention vs the old recipe's 94.7%. At 2.5M images the extra regularization has little overfitting left to prevent and instead costs representation quality. 0.1-alpha stays the base; 0.2-alpha is retired. |
 | C7 | Isolate which knob lost C6 | C6 changed SIX variables at once, so "aug light + wd 0.2 caused it" is a guess across confounded variables | ❓ | Untested at full scale on any model. Aug light is the prime suspect: it is the largest lever and a regularizer, while beta2, warmup and grad-clip are near-universal defaults that do not trade representation quality. A pilot A/B cannot settle it.[^augscale] Scoped as F9 if the current run misses the bar. |
 
-## Phase D — Beat the teacher
+## Phase D: Beat the teacher
 
-Distillation caps the student at roughly the teacher, because the teacher's embedding
-IS the training target. To go past it the student needs information the teacher never
-had: true species labels.
+Distillation holds the student at approximately the level of the teacher. This occurs
+because the embedding of the teacher IS the training target. To do better, the
+student needs data that the teacher never had: true species labels.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -126,11 +136,12 @@ had: true species labels.
 | D5 | Check what the fine-tune gained | Did it add new species (coverage) or sharpen known ones (recognition)? | ✅ | Recognition. All 24,633 NABirds test images are distilled species; zero come from the 2,058 starved ones. |
 | D6 | Measure catastrophic forgetting | NABirds is all birds, so it cannot see general-knowledge loss. Imagenette can | ⚠️ | Base 01 collapses 8.0 pts across the alpha sweep, exactly as WiSE-FT theory predicts. Base 02 runs BACKWARDS on the same eval with no explanation. Do not build on base-02 general numbers. |
 
-## Phase E — Integrate, and fix the ranker
+## Phase E: Integrate, and fix the ranker
 
-With a model that beat its teacher, we wired it into the app pipeline and benchmarked
-it. It scored worse than expected, which turned out to be a ranking problem rather
-than a recognition problem, and fixing it produced the project's largest single gain.
+The model now scored higher than its teacher. We connected it to the app pipeline and
+measured it. The score was lower than we expected. The cause was the ranking step,
+not the recognition step. The correction gave the largest single gain in the
+project.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -143,16 +154,17 @@ than a recognition problem, and fixing it produced the project's largest single 
 | E7 | Build the shippable prior blob | One binary sliced client-side, rather than per-cell CDN objects or map tiles | ✅ | 5.41 MiB gzipped, 99,900 cells, 5-bit quantised, which is free (−0.03 pts). Verified against DuckDB with 0 species mismatches. The BirdLife layer it replaces is 260 MiB. |
 | E8 | Test external sources where iNat is sparse | Every calibration photo IS an iNat observation, so its cell is covered by construction | ❓ | Unmeasured, and this eval set structurally cannot answer it. E3's conclusions hold only for photos taken where iNat users go. Needs a different eval set to close. |
 
-## Phase F — Shrink the model to clear the size gate
+## Phase F: Shrink the model to clear the size gate
 
-WingCLIP-0.1 is accurate but 86.6M params. Quantisation alone cannot make it small
-enough for the web, so this phase swaps in a smaller backbone. Changing the student
-also re-opened the teacher question, because the best teacher for an 86.6M student is
-not automatically the best teacher for a 38.3M one.
+WingCLIP-0.1 is accurate, but it has 86.6M parameters. Quantisation alone cannot make
+it small enough for the web. This phase installs a smaller backbone. A new student
+also opens the teacher question again. The best teacher for an 86.6M student is not
+always the best teacher for a 38.3M student.
 
-**Ship bar for this phase:** after fine-tune and WiSE-FT, beat BioCLIP-2's **86.41**
-NABirds top-1 on the full 24,633-image eval. Grade the distill-only stage against
-**81.83**, which is what 0.1-alpha scored before its own fine-tune added ~8 points.
+**Ship bar for this phase.** After the fine-tune and WiSE-FT, the model must score
+more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
+24,633-image eval. Compare the distill-only stage against **81.83** instead.
+0.1-alpha scored 81.83 before its fine-tune added approximately 8 points.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -166,15 +178,15 @@ NABirds top-1 on the full 24,633-image eval. Grade the distill-only stage agains
 | F8 | Fine-tune and sweep alpha | Same chain as D3/D4 applied to the new student, queued to run unattended when F7 finishes | ⬜ | Queued in `jobs/phase2.sh`, with a 5-point alpha sweep. Do NOT reuse alpha 0.90: it came from a gentle fine-tune on a 2.26x larger model, and a smaller model likely wants a lower alpha. |
 | F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests C7's suspect directly by changing ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
 
-## Phase G — Ship
+## Phase G: Ship
 
-Nothing here is blocking yet, but the runtime decision gates the export format, and
-the format was chosen before the target, which is backwards.
+No item here blocks the work today. But the runtime decision controls the export
+format. We selected the format before the target runtime, which is the wrong order.
 
-**Decided: ship WORLDWIDE, occurrence-only, one blob.** Regional bundling saves only
-~0.4 MiB and costs region detection plus travel fallback logic. One binary sliced
-client-side also avoids a file-count ceiling: Cloudflare Pages caps at 20,000 files
-and 4x4 tiling would have needed 14,721.
+**Decided: ship worldwide, occurrence data only, in one blob.** A regional bundle
+saves only ~0.4 MiB. It also adds region detection and travel fallback logic. One
+binary, cut on the client, keeps the file count low. Cloudflare Pages permits
+20,000 files, and 4x4 tiling needs 14,721 of them.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
@@ -192,44 +204,44 @@ and 4x4 tiling would have needed 14,721.
 
 ## Eval methodology
 
-Read this before trusting any number in this file. These traps produced wrong results
-that looked exactly like right ones.
+Read this before you use any number in this file. Each trap below gave a wrong
+result that looked correct.
 
-**Always pass `--pilot-species 0`.** The default is 500, and on the old global-ranked
-pilot that scored **7 species while printing "500 species"** in its own header. Every
-OOD number from that sweep was void. Full forensics in Appendix A.
+**Always give `--pilot-species 0`.** The default is 500. On the old global-ranked
+pilot, that setting scored **7 species** but printed **"500 species"** in the
+header. Every OOD number from that sweep was void. See Appendix A.
 
-**Read weights, not `args`.** A checkpoint's `args` dict records the flags of the
-invocation that created it and is never updated afterwards. `wise_a0.90.pt` says
-`alpha 0.5` while the real blend is 0.90. `full7555_locked_ep25` says
-`pilot_species 500` while being a genuine full run, because `pick_rows()` is never
-called in the `--wds` path.
+**Read the weights, not `args`.** The `args` dict holds the flags from the command
+that made the checkpoint. Nothing updates it later. `wise_a0.90.pt` shows
+`alpha 0.5`, but the true blend is 0.90. `full7555_locked_ep25` shows
+`pilot_species 500`, but it is a full run. The `--wds` path never calls
+`pick_rows()`.
 
-**Check output-file mtimes.** A failed eval leaves the previous JSON in place and it
-looks identical to a fresh one. A stale file reading 28.42 was nearly reported as a
-real result.
+**Check the mtime of each output file.** A failed eval keeps the JSON file from the
+last run. That file looks the same as a new one. An old file with the value 28.42
+almost went into a report as a true result.
 
-**Use one teacher cache per teacher.** The cache is keyed by image path only and its
-hit test is `all(path in cached)`, so a mismatched cache falls through to a silent
-recompute instead of erroring. `runs/full7555_vitb/` holds a 282-row cache from the
-void 7-species era; the correct one has 24,633 rows.
+**Use one cache for each teacher.** The cache key is the image path only. The hit
+test is `all(path in cached)`. A cache from a different teacher therefore starts a
+silent recompute. It does not give an error. `runs/full7555_vitb/` holds a 282-row
+cache from the void 7-species period. The correct cache has 24,633 rows.
 
-**val_cos does not decide anything that matters.** It has pointed the wrong way three
-times: teacher choice (F5), the batch-128 comparison, and the 0.2 recipe at full
-scale (C6). NABirds decides.
+**Do not use val_cos for a decision.** It gave the wrong answer three times. The
+three are the teacher choice (F5), the batch-128 comparison, and the 0.2 recipe at
+full scale (C6). Use NABirds to decide.
 
-**Never compare a golden-set number to a large-set number.** The GPT-5.4-mini 83/87
-baseline is n=23, self-labelled, where one image is worth 4.3 points. No GPT baseline
-exists at scale and none is planned.
+**Never compare a golden-set number with a large-set number.** The GPT-5.4-mini 83/87
+baseline uses n=23 self-labelled images. One image moves the score by 4.3 points.
+There is no GPT baseline at scale, and we do not plan one.
 
-**Report ABSOLUTE accuracy, not conditional.** Conditional numbers (accuracy over
-photos where the true species is in the top-K) once made a figure appear to exceed
-the recall ceiling.
+**Report ABSOLUTE accuracy, not conditional accuracy.** A conditional number counts
+only the photos with the true species in the top-K. One such number appeared to go
+above the recall ceiling.
 
-**Compare retention over a COMMON teacher.** A student distilled from WingCLIP-0.1
-but reported against BioCLIP-2 is a real number with a misleading label.
-`eval_nabirds.py` now emits `retention_vs_bioclip2_*` and `retention_vs_teacher_*`
-separately.
+**Compare retention against a COMMON teacher.** Measure a student from WingCLIP-0.1
+against BioCLIP-2, and the number is true but the label is wrong.
+`eval_nabirds.py` now writes `retention_vs_bioclip2_*` and
+`retention_vs_teacher_*` separately.
 
 ---
 
@@ -241,16 +253,17 @@ The student is a visual tower whose output is projected into BioCLIP-2's 768-d
 embedding space and L2-normalised. `Student.forward()` IS the exportable graph.
 Input resolution 224.
 
-Classification is zero-shot cosine similarity against an **11,167 × 768 matrix of
-BioCLIP-2 text embeddings**, computed once at build time and shipped frozen. **The
-text encoder never runs on device.**
+Classification uses zero-shot cosine similarity. It compares the student embedding
+against an **11,167 × 768 matrix of BioCLIP-2 text embeddings**. The build computes
+that matrix one time and ships it frozen. **The text encoder never runs on the
+device.**
 
 | component | shape | fp32 | int8 | int4 |
 |---|---|---|---|---|
 | ViT-B visual tower | 86.6M params | 346.3 MB | 87 MB | 43 MB |
 | TinyCLIP-39M visual tower | 38.3M params | 153.3 MB | 38.3 MB | 19.2 MB |
-| text classifier | 11,167 × 768 | 34.3 MB | ~8.6 MB | — |
-| occurrence prior blob | 99,900 cells | — | 5.4 MB gzipped | — |
+| text classifier | 11,167 × 768 | 34.3 MB | ~8.6 MB | - |
+| occurrence prior blob | 99,900 cells | - | 5.4 MB gzipped | - |
 
 ### The ranker (Strategy I, the shipped math)
 
@@ -264,12 +277,13 @@ score(species) = sim/T + beta · log P(species|cell)
 - Fitted params live in `calibration_occ_01.json` and are specific to WingCLIP-0.1 @
   alpha=0.90. **A model swap REQUIRES a refit.**
 
-`P(species|cell)` is empirical iNat occurrence: 157M research-grade observations →
-3,176,965 bird (species,cell) pairs over 99,900 cells. Grid is 27 km Equal Earth on
-the WGS84 ellipsoid, verified 12/12 against production `range-adjust.js`.
+`P(species|cell)` uses empirical iNat occurrence data. It comes from 157M
+research-grade observations. These give 3,176,965 bird (species,cell) pairs over
+99,900 cells. The grid is 27 km Equal Earth on the WGS84 ellipsoid. It matches
+production `range-adjust.js` on 12 of 12 checks.
 
-**Do NOT build the prior from `train_manifest.parquet`.** It is post-floor and
-post-cap, so abundance ratios are flattened. Use the raw dump.
+**Do NOT build the prior from `train_manifest.parquet`.** That file comes after the
+floor and the cap. It therefore flattens the abundance ratios. Use the raw dump.
 
 **Prior-dominance regimes**, tied to this fit's T:
 
@@ -281,14 +295,15 @@ post-cap, so abundance ratios are flattened. Use the raw dump.
 
 ### Abstention
 
-Ship the existing confidence gate at threshold 0.5. No separate bird detector is
-needed: 2.4% of non-bird photos pass versus 88.4% of real birds, from a model never
-trained to detect birds.
+Ship the existing confidence gate at threshold 0.5. We do not need a separate bird
+detector. Only 2.4% of non-bird photos pass the gate, against 88.4% of real birds.
+The model never had training to detect birds.
 
-- Measured on Imagenette, which has EASY negatives. 2.4% is a floor, not a guarantee.
-- **The gate is not a framing detector.** Correlation of top-1 confidence against
-  relative bird area is Pearson 0.051. Low confidence means species ambiguity, not
-  bad framing, so prompting the user to crop will mostly not help.
+- We measured this on Imagenette, which has EASY negatives. 2.4% is a floor value,
+  not a guarantee.
+- **The gate is not a framing detector.** The correlation of top-1 confidence against
+  relative bird area is Pearson 0.051. Low confidence shows species ambiguity, not
+  bad framing. A prompt to crop the photo will usually not help.
 
 ### Model registry
 
@@ -325,24 +340,25 @@ base 02:  0.25→83.20  0.50→86.40  0.75→88.19  0.90→88.46  1.00→88.26
 
 | variant | ~MB | top-1 | Δ |
 |---|---|---|---|
-| fp32 | 346 | 89.94 | — |
+| fp32 | 346 | 89.94 | - |
 | fp16 | 173 | 89.94 | +0.00 |
 | int8 | 87 | 89.89 | −0.05 |
 | int4-blk128 | 43 | 89.06 | −0.88 |
 | int3-blk128 | 32 | 0.00 | −89.95 |
 
-**Method lesson, and it cost the most time in the project:** to answer "what does
-precision cost", fake-quantise weights in torch and run the normal eval, about 6 s
-per variant. Only involve ONNX when the deliverable is the artifact itself. The ONNX
-detour produced two wrong numbers.
+**Method lesson.** This error cost more time than any other in the project. To find
+the cost of a precision level, fake-quantise the weights in torch. Then run the
+normal eval. Each variant needs approximately 6 s. Use ONNX only when the artifact
+itself is the deliverable. The ONNX work gave two wrong numbers.
 
 ### Cosine vs retention: the mental model
 
-val_cos measures how closely the student reproduces the teacher's embedding on data
-like the training set. Retention measures how much of the teacher's ACCURACY the
-student keeps on a different task. They are not the same axis, and a student can
-gain one while losing the other. Retention above 100% is normal once ground-truth
-fine-tuning adds knowledge the teacher never had.
+val_cos shows how closely the student copies the embedding of the teacher. It uses
+data that is similar to the training set. Retention shows how much of the ACCURACY
+of the teacher the student keeps on a different task. These are two different
+measurements. A student can increase one and decrease the other. Retention above
+100% is normal after a ground-truth fine-tune. The fine-tune adds knowledge that
+the teacher never had.
 
 ### CPU latency
 
@@ -373,22 +389,24 @@ sentinel  8B   (0xFFFFFFFF, payload_len)
 payload   per record: varint(delta of sorted species index) + 1B quantised logprob
 ```
 
-Species are keyed by a 2-byte taxonomy index, which beats the 8-byte eBird code
-(9.1 vs 27.3 MiB raw). The client recovers `log(p) = -q / 2.5`. The sentinel row
-means cell length is always `index[i+1].offset - index[i].offset`.
+The key for each species is a 2-byte taxonomy index. It is smaller than the 8-byte
+eBird code: 9.1 MiB against 27.3 MiB raw. The client computes `log(p) = -q / 2.5`.
+The sentinel row keeps the cell length at `index[i+1].offset - index[i].offset`.
 
-**Keep sparse cells.** Cells with under 10 observations are 47.5% of cells but only
-4.0% of pairs, so dropping them saves almost nothing and creates a fallback path.
+**Keep the sparse cells.** Cells with less than 10 observations are 47.5% of all
+cells. They hold only 4.0% of all pairs. To remove them saves almost nothing, and
+it adds a fallback path.
 
 ### Papers we actually use
 
-- **WiSE-FT** (Wortsman et al., CVPR 2022) is the handbook for D4. Fine-tuning
-  damages out-of-distribution accuracy; interpolating back toward the pre-finetune
-  weights recovers it. Our optimum sits at 0.90 rather than their ~0.5 because our
-  fine-tune is gentle: 4.7% global weight movement, concentrated in the projection
-  and last few blocks. A more aggressive fine-tune should move alpha DOWN.
-- **MobileCLIP2** supplied the C2 recipe bundle. Their dataset-reinforcement scheme
-  (multiple augmented-view embeddings per image) is what C4 tested and rejected.
+- **WiSE-FT** (Wortsman et al., CVPR 2022) is the handbook for D4. A fine-tune
+  decreases out-of-distribution accuracy. An interpolation back toward the
+  pre-finetune weights recovers it. Our optimum is 0.90, and theirs is ~0.5. The
+  reason is that our fine-tune is gentle. It moves only 4.7% of the weights, mostly
+  in the projection and the last blocks. A stronger fine-tune moves alpha DOWN.
+- **MobileCLIP2** gave us the C2 recipe bundle. Their dataset-reinforcement method
+  stores several augmented-view embeddings for each image. C4 tested that method
+  and rejected it.
 - **TinyCLIP** (Wu et al., ICCV 2023) supplied the F3 backbone. See Appendix B.
 
 ### Pipeline scripts
@@ -409,45 +427,46 @@ Run in order from `ml/distill/`:
 | `jobs/full_run.sh` | the full 3-step distill run |
 | `jobs/phase2.sh` | unattended fine-tune + alpha sweep |
 
-**Teacher targets are baked into the shards.** `pack_webdataset.py` wrote the
-BioCLIP-2 target into each shard, so a `--wds` run with a NEW teacher would silently
-train against the OLD one. Pass `--sv-embeddings <dir>` to override, and check the
-log for `TEACHER OVERRIDE` before trusting any sequential-distillation run.
+**The shards contain the teacher targets.** `pack_webdataset.py` wrote the BioCLIP-2
+target into each shard. A `--wds` run with a NEW teacher therefore trains against
+the OLD target, with no warning. Give `--sv-embeddings <dir>` to replace the
+target. Then find `TEACHER OVERRIDE` in the log before you use the result.
 
 ---
 
-## Appendix A — The 7-species trap
+## Appendix A: The 7-species trap
 
-The pilot was **the top-500 species by GLOBAL iNat photo count**, a worldwide ranking
-full of Greater Rhea, Hawaiian Duck and Swan Goose. **NABirds is North American.**
-The two sets intersect on exactly **7 species**: Rufous Hummingbird, Nuttall's
-Woodpecker, Yellow-billed Magpie, Oak Titmouse, Juniper Titmouse, California
-Thrasher, Abert's Towhee.
+The pilot used **the top-500 species by GLOBAL iNat photo count**. That is a
+worldwide list. It contains Greater Rhea, Hawaiian Duck and Swan Goose.
+**NABirds is North American.** The two sets share exactly **7 species**: Rufous
+Hummingbird, Nuttall's Woodpecker, Yellow-billed Magpie, Oak Titmouse, Juniper
+Titmouse, California Thrasher, and Abert's Towhee.
 
-So `eval_nabirds.py --pilot-species 500` scored 282 images over 7 species while
-printing "500 species". The Wilson CIs quoted alongside were understated too, since
-they assume 282 independent samples rather than 7 clusters. It reached back to the
-2026-07-25 sweep as well.
+So `eval_nabirds.py --pilot-species 500` scored 282 images from 7 species. It printed
+"500 species". The Wilson CIs beside those numbers are also too narrow. They assume
+282 independent samples, but the data has only 7 clusters. The same fault applies
+to the sweep of 2026-07-25.
 
-**Why it hid:** those 7 species sit at the very top of the global count ranking
-(Baeolophus ridgwayi 499 images, Melozone aberti 496), so they entered a top-500
-naturally. Nothing errored. The eval silently measured a tiny slice.
+**Why we did not see it.** Those 7 species are at the top of the global count list.
+Baeolophus ridgwayi has 499 images, and Melozone aberti has 496. They enter a
+top-500 list normally. Nothing gave an error. The eval measured a very small
+subset, with no warning.
 
-**Fix:** align the pilot species set TO the eval. All 401 NABirds taxa exist in the
-corpus with 184,958 images, so `wds-nabirds401` keeps the pilot the same size while
-the eval grows from 282 images to the full 24,633.
+**Correction.** Align the pilot species set TO the eval. The corpus holds all 401
+NABirds taxa, with 184,958 images. `wds-nabirds401` keeps the pilot at the same
+size. The eval increases from 282 images to the full 24,633.
 
-**Accepted tradeoff:** a NABirds-aligned pilot is North-American-biased and is no
-longer a random slice of the corpus, so recipe conclusions from it may not transfer
-perfectly to the full run.
+**Accepted trade-off.** A NABirds-aligned pilot has a North American bias. It is no
+longer a random subset of the corpus. Recipe results from it can therefore differ
+from the full run.
 
-## Appendix B — TinyCLIP paper notes
+## Appendix B: TinyCLIP paper notes
 
 Wu et al., ICCV 2023 (MSR), "CLIP Distillation via Affinity Mimicking and Weight
 Inheritance".
 
-**A better teacher can be a worse teacher.** Their Table 4, student TinyCLIP
-ViT-40M/32 inherited from different teachers:
+**A better teacher can be a worse teacher.** Their Table 4 shows one student,
+TinyCLIP ViT-40M/32, with weights inherited from different teachers:
 
 | teacher | teacher acc | student acc |
 |---|---|---|
@@ -456,81 +475,87 @@ ViT-40M/32 inherited from different teachers:
 | OpenCLIP ViT-L/14 | 75.3 | 45.1 |
 | OpenCLIP ViT-H/14 | **78.0** | **41.1** |
 
-Architectural proximity beats teacher accuracy. **This is about weight inheritance,
-which we do NOT do**, so it does not invalidate WingCLIP-0.1 as our teacher. It is a
-caution worth re-reading if F7 underperforms.
+A near architecture is more important than teacher accuracy. **This result applies to
+weight inheritance, which we do NOT use.** It therefore does not remove
+WingCLIP-0.1 as our teacher. Read it again if F7 gives a low score.
 
 **Affinity mimicking does not apply to us.** Their loss distils the image-text
-affinity matrix, which needs paired text per image. We distil features into a fixed
-embedding space and have no per-image text.
+affinity matrix. That method needs one text for each image. We distil features into
+a fixed embedding space, and we have no text for each image.
 
 **Multi-stage progressive distillation** (86.6M → ~60M → 39M) is their answer if a
 direct jump loses too much. Any intermediate must be **patch16**; see Appendix C.
 
-## Appendix C — Rejected and confounded experiments
+## Appendix C: Rejected and confounded experiments
 
-**exp4 proves nothing about capacity.** `vit_betwixt_patch32_clip_224` is patch32 =
-49 tokens, while the 39M `vit_medium_patch16` is patch16 = 196 tokens. The "bigger"
-model has 4x less spatial resolution, which is why it trained faster and scored
-worse. It does NOT show 61M < 39M.
+**exp4 shows nothing about capacity.** `vit_betwixt_patch32_clip_224` uses patch32,
+which gives 49 tokens. The 39M `vit_medium_patch16` uses patch16, which gives 196
+tokens. The larger model has 4x less spatial resolution. For that reason it trained
+faster and scored lower. The result does NOT show that 61M is worse than 39M.
 
-**The LR sweep was run on the recipe we abandoned.** exp1-exp4 were all 0.1 basis
-with only `--lr` varying, while the winner is 0.2 basis. Re-run on the 0.2 basis
-afterwards: 3e-5 = 0.9546, 5e-5 = 0.9563, 7e-5 = 0.9560, so 7e-5 stands.
+**The LR sweep used the recipe that we then abandoned.** exp1 to exp4 all used the
+0.1 basis. Only `--lr` changed. But the winner uses the 0.2 basis. A later sweep on
+the 0.2 basis gives 3e-5 = 0.9546, 5e-5 = 0.9563, and 7e-5 = 0.9560. So 7e-5
+remains correct.
 
-**Two ONNX numbers that were WRONG, and why.** "int4 = 75.3 MB" came from
-`MatMulNBitsQuantizer`, which quantises only MatMul weights and leaves embeddings,
-LayerNorm, bias and (in an earlier torch bug) all attention `in_proj_weight` at
-fp32. Quantising every weight in torch gives the true 43 MB. "fp16 cannot be built"
-is true only of the ONNX converters, not of accuracy: fp16 in torch is one `.half()`
-call and works perfectly. Export-format problems are DEPLOYMENT problems, not
-accuracy problems.
+**Two ONNX numbers were WRONG.** The first is "int4 = 75.3 MB". It came from
+`MatMulNBitsQuantizer`. That tool quantises only the MatMul weights. It leaves the
+embeddings, LayerNorm and bias at fp32. An earlier torch bug also left all
+attention `in_proj_weight` at fp32. Quantise every weight in torch, and the true
+size is 43 MB. The second is "fp16 cannot be built". That is true only for the ONNX
+converters. It says nothing about accuracy: fp16 in torch needs one `.half()` call
+and works correctly. An export-format problem is a DEPLOYMENT problem, not an
+accuracy problem.
 
-**Two aug facts that were repeatedly confused**, corrected from checkpoint `args`
-rather than prose: the 0.1 DISTILLATION used `aug none`, the 0.2 distillation used
-`aug light`, and the 0.1 FINE-TUNE used `aug light`. Distillation and fine-tuning are
-different stages. Conflating them once produced the wrong conclusion that "both
-recipes use aug light, so wd 0.2 is the differentiator".
+**Two augmentation facts that we confused more than one time.** These come from the
+checkpoint `args`, not from prose. The 0.1 DISTILLATION used `aug none`. The 0.2
+distillation used `aug light`. The 0.1 FINE-TUNE also used `aug light`. Distillation
+and fine-tuning are different stages. Do not mix them. That error gave the wrong
+conclusion that both recipes use `aug light`, and that wd 0.2 is the only
+difference.
 
-## Appendix D — Throughput and hardware
+## Appendix D: Throughput and hardware
 
 Real work, but not a link in the shipping chain.
 
 **The loader ceiling is the TRANSFORMS, not SMB.** Decode is not the binding
 constraint either.
 
-**`nvidia-smi` utilization is a liar for this workload.** It reports whether any
-kernel is resident, not whether the SMs are busy.
+**Do not trust `nvidia-smi` utilization for this workload.** It shows only that a
+kernel is resident. It does not show that the SMs do useful work.
 
-**We run at 61% of the real GPU ceiling.** The RTX 3080 ceiling for AMP training is
-~60 TFLOP/s, not the 119 on the spec sheet: 119 assumes fp16 accumulate, while AMP
-accumulates in fp32, which runs at half rate on GeForce Ampere. Measured directly
-with `jobs/gemm_peak.py`: bf16 N=8192 = **63.7 TFLOP/s**. We achieve 38.9, so 61%,
-which is normal for ViT training. **Never quote 119 for this card under AMP.**
+**We run at 61% of the true GPU ceiling.** The RTX 3080 ceiling for AMP training is
+~60 TFLOP/s. It is not the 119 TFLOP/s on the spec sheet. The 119 figure assumes
+fp16 accumulation. AMP accumulates in fp32, which runs at half speed on GeForce
+Ampere. `jobs/gemm_peak.py` measures bf16 N=8192 at **63.7 TFLOP/s**. We get 38.9,
+which is 61%. That value is normal for ViT training. **Never quote 119 TFLOP/s for
+this card with AMP.**
 
-**GPU-side tuning is DONE.** bf16 + channels_last + torch.compile captured ~1.17x.
-Backward is ~64% of step time and the optimizer only ~4.6%, so fused AdamW measures
-+0.4%. What remains is architectural or hardware, not configuration.
+**GPU tuning is COMPLETE.** bf16, channels_last and torch.compile together give
+~1.17x. The backward pass is ~64% of the step time. The optimizer is only ~4.6%,
+so fused AdamW gives +0.4%. Further gains need a different architecture or
+different hardware, not a different configuration.
 
 **Batch size is a free knob**, not a speed lever.
 
-**`torch.compile` checkpoints.** Compiling wraps the module, so every state_dict key
-gains an `_orig_mod.` prefix and will not load into a plain module. This cost a full
-2-hour run. Fixed on both sides: training saves unwrapped, eval strips the prefix.
+**`torch.compile` and checkpoints.** `torch.compile` puts a wrapper around the
+module. Each state_dict key then gets an `_orig_mod.` prefix. Such a checkpoint
+will not load into a plain module. This error lost a full 2-hour run. Both sides
+now agree: training saves the unwrapped keys, and the eval removes the prefix.
 
-**Run profiling only on an IDLE GPU.** A concurrent job silently contaminates the
-result. CPU-side work also contends with the dataloader: an eval run on CPU during
-training dropped throughput from 715 to 537 img/s.
+**Profile only on an IDLE GPU.** A second job changes the result, with no warning.
+CPU work also competes with the dataloader. An eval on the CPU during training
+decreased throughput from 715 to 537 img/s.
 
-**Better hardware is worth MORE than it looks, not less.** We are near practical peak
-on a card whose practical peak is half its headline number, so the remaining gains are
-in the hardware rather than in configuration. This is the context for the RTX PRO 4500
-question; no purchase has been made or recommended.
+**Better hardware has MORE value than it appears to have.** We are near the practical
+peak of this card. That peak is half of the headline number. The remaining gains
+are therefore in the hardware, not in the configuration. This is the background to
+the RTX PRO 4500 question. We have not bought or recommended anything.
 
-**Cloud economics.** Upload from tomahawk measures ~14 MB/s and RunPod bills during
-upload, which dominates the decision.
+**Cloud costs.** Upload from tomahawk measures ~14 MB/s. RunPod charges during the
+upload. That cost controls the decision.
 
-## Appendix E — Consolidation history
+## Appendix E: Consolidation history
 
 Scripts were split across two branches, consolidated 2026-07-22. Five ml docs merged
 into this file 2026-07-23. Pi checkout deleted 2026-07-24. One directory + corpus
@@ -541,7 +566,7 @@ phase-table schema 2026-08-03.
     1.0) was worth +0.0016 on pilot, and those are near-universal optimizer defaults.
     Aug light alone was +0.0048. The stated explanation for C6's loss is that 2.5M
     images leave little overfitting to prevent, so regularization costs representation
-    quality — an argument that applies to the regularizers (aug, wd), not to beta2 or
+    quality, an argument that applies to the regularizers (aug, wd), not to beta2 or
     warmup. A pilot A/B cannot settle it, because the hypothesis is that aug's sign
     DEPENDS on scale: measuring at pilot scale, where we already believe it helps,
     is not evidence about full scale.
