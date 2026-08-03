@@ -143,9 +143,12 @@ final class DataStore {
                   activeAccountID == accountID,
                   loadRequestID == requestID
             else { return }
-            self.error = AppError.map(error)
-            refreshFailed = true
-            log.error("Failed to load account data")
+            // A cancellation maps to nil and isn't a refresh failure.
+            if let mappedError = AppError.map(error) {
+                self.error = mappedError
+                refreshFailed = true
+                log.error("Failed to load account data")
+            }
         }
         if generation == loadGeneration,
            activeAccountID == accountID,
