@@ -1,3 +1,10 @@
+## [1.22.2](https://github.com/jlian/wingdex/compare/v1.22.1...v1.22.2) (2026-08-03)
+
+
+### Performance Improvements
+
+* **WingDex:** derive hero image URL from the dex thumbnail ([03b8ce5](https://github.com/jlian/wingdex/commit/03b8ce528e357068e6d1172f0fe282a7f222a8d8)), closes [#272](https://github.com/jlian/wingdex/issues/272)
+
 ## [1.22.1](https://github.com/jlian/wingdex/compare/v1.22.0...v1.22.1) (2026-07-23)
 
 
