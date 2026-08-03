@@ -27,6 +27,23 @@ if [ ! -f "$RUN/best.pt" ]; then
   exit 3
 fi
 
+# ---------------------------------------------------------------- cache
+# Seed the teacher cache. eval_nabirds.py resolves it to dirname(--out), so a
+# fresh run dir means a cold cache and a needless ~20-30 min BioCLIP-2 pass.
+# MUST be the 24,633-row cache: runs/full7555_vitb holds a 282-row one from the
+# void 7-species era, and the hit check (all paths present) fails SILENTLY to a
+# full recompute rather than erroring.
+SRC=runs/ft_clean_01/nabirds_teacher_cache.npz
+DST="$FT/nabirds_teacher_cache.npz"
+if [ ! -f "$DST" ] && [ -f "$SRC" ]; then
+  N=$($V -c "import numpy,sys; print(numpy.load(sys.argv[1],allow_pickle=True)[chr(39)+chr(112)+chr(97)+chr(116)+chr(104)+chr(115)+chr(39)].shape[0])" "$SRC" 2>/dev/null || echo 0)
+  if [ "$N" = "24633" ]; then
+    cp "$SRC" "$DST" && say "seeded teacher cache ($N rows)"
+  else
+    say "WARNING: $SRC has $N rows, not 24633 -- NOT seeding, eval will recompute"
+  fi
+fi
+
 # ---------------------------------------------------------------- step 1
 # Ground-truth fine-tune on the CLEAN leak-free set (3,850 sp / 151,042 photos).
 # Same hyperparameters as ft_clean_01, which produced +14.22 in-dist on ViT-B.
