@@ -293,6 +293,13 @@ def main():
     ap.add_argument("--wds-shuffle", type=int, default=10000,
                     help="within-shard shuffle buffer; shards are packed in taxon "
                          "order so a small buffer gives taxon-correlated batches")
+    ap.add_argument("--amp-dtype", choices=["fp16", "bf16"], default="fp16",
+                    help="autocast dtype. bf16 needs no GradScaler on Ampere+ "
+                         "and measured ~1.16x with channels_last+compile.")
+    ap.add_argument("--channels-last", action="store_true",
+                    help="NHWC memory format; pairs with AMP tensor cores")
+    ap.add_argument("--compile", action="store_true",
+                    help="torch.compile the student (~1.13x alone)")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny end-to-end validation: 3 species, 2 steps")
     args = ap.parse_args()
@@ -442,7 +449,22 @@ def main():
     if args.beta2 != 0.999 or args.grad_clip or args.aug != "none":
         log(f"recipe: beta2={args.beta2} wd={args.wd} grad_clip={args.grad_clip} "
             f"aug={args.aug}")
-    scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
+    # GPU-side perf knobs. Measured 2026-08-02 on the 3080: training is
+    # GPU-BOUND (GPU step 700 img/s vs loader 1,383), so these translate
+    # almost 1:1 into end-to-end throughput.
+    amp_dtype = torch.bfloat16 if args.amp_dtype == "bf16" else torch.float16
+    if args.channels_last:
+        student = student.to(memory_format=torch.channels_last)
+        log("channels_last memory format ON")
+    if args.compile:
+        student = torch.compile(student)
+        log("torch.compile ON (first epoch pays compile cost)")
+    # bf16 has fp32 dynamic range, so gradient scaling is unnecessary
+    use_scaler = (dev == "cuda") and amp_dtype == torch.float16
+    scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
+    if dev == "cuda":
+        torch.backends.cudnn.benchmark = True
+        log(f"amp={args.amp_dtype} scaler={use_scaler}")
 
     # --- resume: restore full training state so we continue the SAME schedule ---
     start_epoch = 0
@@ -483,7 +505,7 @@ def main():
                 if x.numel() == 0:
                     continue
                 x, t = x.to(dev, non_blocking=True), t.to(dev, non_blocking=True)
-                with torch.cuda.amp.autocast(enabled=dev == "cuda"):
+                with torch.amp.autocast("cuda", enabled=dev == "cuda", dtype=amp_dtype):
                     p = student(x)
                 t = F.normalize(t, dim=-1)
                 sims += (p * t).sum(-1).sum().item()
@@ -502,7 +524,7 @@ def main():
                 continue
             x, t = x.to(dev, non_blocking=True), t.to(dev, non_blocking=True)
             t = F.normalize(t, dim=-1)
-            with torch.cuda.amp.autocast(enabled=dev == "cuda"):
+            with torch.amp.autocast("cuda", enabled=dev == "cuda", dtype=amp_dtype):
                 p = student(x)
                 loss = (1 - (p * t).sum(-1)).mean()
             opt.zero_grad(set_to_none=True)

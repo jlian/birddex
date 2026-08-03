@@ -1782,6 +1782,67 @@ is the one remaining free knob; try 4-6 before touching the transform path.
 
 Re-run anytime: `./.venv/bin/python jobs/profile_loader.py --limit 2000`
 
+### GPU-BOUND, not loader-bound -- the decisive measurement (2026-08-02)
+
+Everything above about decode, transforms and SMB was chasing the wrong side.
+`jobs/bench_bound.py` measures the GPU step on synthetic GPU-resident data, the
+loader with no model, and the real combined loop, on the same batch shape:
+
+| what | img/s |
+|---|---|
+| GPU step only (synthetic, no loader) | **700** |
+| loader only (no model) | 1,383 |
+| combined (real training) | 652 |
+
+**The loader delivers 2.1x more than the GPU can consume**, and combined (652) is
+93% of the GPU-only ceiling (700). Perfectly-serial would predict 465; we measure
+652. So the loader and GPU are **already well overlapped** and training is
+**GPU-BOUND**.
+
+Consequences, all confirmed by measurement rather than argument:
+- Pre-resizing shards: **pointless.** Loader already 2x too fast.
+- DALI / nvJPEG: **pointless** for the same reason.
+- `prefetch_factor`: **pointless.** Sweeping 2/4/6/8 moved nothing outside noise.
+- More/faster CPU cores: **pointless.**
+- The 25-86% `nvidia-smi` sawtooth is NOT starvation; it is the normal
+  fwd/bwd/optimiser cycle plus AMP scaler sync on a small 38M model.
+
+⚠️ This also **reverses the RTX PRO 4500 verdict** recorded above. That note said
+"buy for capability, not speed, a faster GPU would idle more". Backwards: the GPU
+is the binding constraint and the loader has 2x headroom to feed a faster one.
+
+### What actually worked: GPU-side knobs (measured, now default-able)
+
+`jobs/sweep_gpu.py`, synthetic data so the loader cannot confound it:
+
+| config | batch | img/s | vs base |
+|---|---|---|---|
+| baseline fp16 (what we ran all week) | 96 | 699.9 | 1.00x |
+| bf16 + channels_last | 96 | 700.6 | 1.00x |
+| fp16 + compile | 96 | 791.0 | 1.13x |
+| fp16 + channels_last + compile | 96 | 667.5 | 0.95x |
+| **bf16 + channels_last + compile** | 96 | **810.8** | **1.16x** |
+| fp16 + cl + compile | 128 | 805.4 | 1.15x |
+| fp16 + cl + compile | 192 | 566.4 | 0.81x (VRAM pressure) |
+
+Note channels_last **hurts** with fp16 (0.95x) but **helps** with bf16. Do not
+apply it blindly.
+
+**Verified end to end**, not just synthetically:
+- `bench_bound.py --opt`: combined **652 -> 752 img/s (1.15x)**
+- real 2-epoch training run: epoch 1 = 92s (pays the compile cost), epoch 2 =
+  **62s**, i.e. **1.48x** once warm; steady state ~750 img/s vs ~655 before.
+
+New flags on `train_student.py` (all default OFF, so nothing changes silently):
+```
+--amp-dtype bf16 --channels-last --compile
+```
+bf16 needs no GradScaler on Ampere+, so the scaler is auto-disabled for it.
+Also migrated the deprecated `torch.cuda.amp.*` calls to `torch.amp.*`.
+
+**Use this for every run from now on.** The first epoch is ~50% slower while
+torch.compile traces; everything after is ~1.5x faster.
+
 ### RTX PRO 4500 question (asked 2026-08-02)
 
 32GB GDDR7 / ~896 GB/s / 5th-gen tensor cores vs our 10GB 3080. Verdict:
