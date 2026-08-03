@@ -1583,6 +1583,39 @@ Full 0.2-basis sweep (old 500-sp pilot): 3e-5 = 0.9546, **5e-5 = 0.9563**,
 5e-4 = 0.8837. 5e-5 and 7e-5 are indistinguishable (+0.0003); everything above
 1e-4 collapses. **Keep lr 7e-5.** LR is no longer a useful lever.
 
+### QUEUED: report retention against WingCLIP-0.1, not just BioCLIP-2
+
+`eval_nabirds.py` line 34 hardcodes the reference teacher as BioCLIP-2, so the
+`teacher` row and `retention_top1_pct` are ALWAYS relative to BioCLIP-2
+(86.41), the GRANDteacher, even when the student was distilled from
+WingCLIP-0.1 (89.93).
+
+The student score is NOT affected: the teacher embeddings are used only for
+the teacher row and the ratio. Every student top-1 we have reported is sound.
+
+But the retention number is misleading and already caused one wrong claim: the
+103.1% retention printed for TEACH-W was read as the student beating its
+teacher. It did not. It beat the GRANDteacher by +2.68 and LOST to its actual
+teacher by 0.84.
+
+**Decision (John, 2026-08-02): option B.** KEEP BioCLIP-2 as the reference row
+so every historical number and the 86.41 baseline stay comparable, and ADD a
+second row for the actual distillation teacher so retention against the real
+teacher is explicit. Do NOT swap the reference (option A): that would silently
+invalidate comparisons across the whole README.
+
+Deliberately NOT applied while the full 7,555 run is in flight, since that job
+invokes this script at the end of a ~24h run and editing it mid-flight risks a
+failure at hour 24. Apply after the run completes.
+
+Implementation notes:
+- Add `--ref-teacher <checkpoint>`, default `runs/ft_clean_01/wise_a0.90.pt`.
+- Cache it SEPARATELY, e.g. `nabirds_wingclip_cache.npz`. The existing
+  `nabirds_teacher_cache.npz` is keyed by image path and holds BioCLIP-2
+  vectors, so it must NOT be reused for a different teacher.
+- Emit `retention_vs_bioclip2` AND `retention_vs_teacher` instead of a bare
+  `retention_top1_pct`, so the ambiguity cannot recur.
+
 ### Next
 
 1. DO NOT fine-tune the pilot student. (Proposed 2026-08-02, ruled out by John
