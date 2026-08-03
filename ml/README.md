@@ -1,7 +1,7 @@
 # WingDex on-device bird ID: distillation → WingCLIP → occurrence rerank
 
 **Single source of truth** for the on-device / offline bird-ID effort. Tracks issue
-[#260](https://github.com/jlian/wingdex/issues/260). Branch: `bioclip-distill`.
+[#260](https://github.com/jlian/wingdex/issues/260). Branch: [`bioclip-distill`](https://github.com/jlian/wingdex/tree/bioclip-distill).
 Working location: `~/wingdex/ml/distill/` on tomahawk (repo + data + uv venv).
 Training data = WebDataset shards on the NAS.
 
@@ -81,7 +81,7 @@ to a specialist model through tool calling.
 **Why not Merlin.** Merlin is the gold standard. It uses a purpose-built CNN from
 Visipedia and Cornell, trained on the private eBird corpus. We cannot get it.
 
-**Why BioCLIP-2** (`imageomics/bioclip-2`, NeurIPS 2025). It is a CLIP ViT-L/14,
+**Why BioCLIP-2** ([`imageomics/bioclip-2`](https://huggingface.co/imageomics/bioclip-2), NeurIPS 2025). It is a CLIP ViT-L/14,
 trained again on TreeOfLife-200M: 200M organism images and 952K taxa. It has an
 MIT license. It exports to ONNX and to Core ML. It is the best open bird encoder
 available. One model serves web, iOS and Android.
@@ -117,8 +117,9 @@ combination at full scale.
 | C2 | Test the MobileCLIP recipe bundle | wd 0.2, beta2 0.95, warmup 500, grad-clip 1.0, borrowed wholesale from the MobileCLIP2 paper | ✅ | Worth +0.0016 val_cos on pilot. Marginal on its own. |
 | C3 | Test light augmentation | RRC 0.65-1.0 + hflip. Mild on purpose: the cached teacher target is a center crop, a heavy crop trains the student toward a target that no longer describes the image | ✅ | +0.0048 val_cos on pilot, the biggest single lever, three times the rest of the bundle combined. |
 | C4 | Test strong augmentation | RRC 0.08-1.0 with a 5-view teacher cache, which is the only sound way to use heavy crops since each view gets its own target | 🗑️ | Rejected. Regularizes best on held-out (105.9% vs 104.1%) but LOSES NABirds (92.55 vs 93.26). The cheap pilot saved a ~56 GPU-h full-corpus precompute. |
-| C5 | Test more epochs | 40 epochs against 25, to see if the pilot was undertrained | 🗑️ | Rejected. 40 does not help. |
+| C5 | Test more epochs | 40 epochs against 25, to see if the pilot was undertrained | ⚠️ | [exp8](#experiment-register) ran 40 epochs and peaked at epoch 38 with val_cos 0.9503. [exp7](#experiment-register) got 0.9540 in 25 epochs. But exp8 also used lr 1e-4 against exp7's 7e-5, so the learning rate is a second variable. The result holds for the 500-species pilot only. |
 | C6 | Run the locked recipe at full scale | Combine C1-C3 and retrain on all 7,555 species. We expected the pilot gains to carry over | 🗑️ | LOST on ViT-B with BioCLIP-2 targets: 90.7% retention vs the old recipe's 94.7%. At 2.5M images the extra regularization has little overfitting left to prevent and instead costs representation quality. 0.1-alpha stays the base. 0.2-alpha is retired. |
+| C8 | Test the epoch budget at full scale | Both finished full runs stopped at the epoch budget, not at a plateau, so the budget can be too small | ❓ | [full7555_vitb](#experiment-register) peaked at epoch 20 of 20. [full7555_locked_ep25](#experiment-register) peaked at 25 of 25. Neither had stopped improving. C5 rejected 40 epochs on the 500-species pilot, where the run DID plateau at epoch 38. We carried a pilot result to full scale, where it may not apply. C6 also compares 25 epochs against 20, which is one more difference between the two recipes. |
 | C7 | Isolate which knob lost C6 | C6 changed SIX variables at once, so "aug light + wd 0.2 caused it" is a guess across confounded variables | ❓ | Untested at full scale on any model. Aug light is the prime suspect: it is the largest lever and a regularizer, while beta2, warmup and grad-clip are near-universal defaults that do not trade representation quality. A pilot A/B cannot settle it.[^augscale] Scoped as F9 if the current run misses the bar. |
 
 ## Phase D: Beat the teacher
@@ -129,7 +130,7 @@ student needs data that the teacher never had: true species labels.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
-| D1 | Build a ground-truth held-out set | Real iNat species labels, deduped by observation so the fine-tune cannot be graded on photos it trained on | ✅ | 3,850 species / 151,042 photos after the D2 fix. |
+| D1 | Build a ground-truth held-out set | Real iNat species labels, deduped by observation so the fine-tune cannot be graded on photos it trained on | ✅ | 3,850 species / 151,042 photos after the [D2](#phase-d-beat-the-teacher) fix. |
 | D2 | Fix the species sampler bug | The split never intersected with the species distillation actually trained on, so it pulled species the student had never seen | ✅ | 2,058 data-starved species (5-49 photos worldwide) were pure dilution. Removing them RAISED NABirds 89.45 → 89.93. |
 | D3 | Fine-tune on true labels | Train on real labels while keeping the BioCLIP-2 text tower frozen as fixed class weights, so the model stays open-vocab and every existing eval stays valid | ✅ | In-distribution val 63.39 → 77.61 (+14.22). |
 | D4 | Sweep the WiSE-FT alpha | Fine-tuning damages out-of-distribution accuracy, so interpolate back toward the distilled weights: θ = (1-α)·distilled + α·finetuned | ✅ | alpha 0.90 peaks on both bases → **89.93 NABirds**, beating the 86.41 teacher. Retention 104.1%. |
@@ -145,14 +146,14 @@ project.
 
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
-| E1 | Run the golden-set benchmark | 27 hand-labelled photos through the full gated + range pipeline, against GPT and the teacher | ✅ | Scored 78/91 and looked like a recognition failure. Root cause was softmax CALIBRATION: top-5 matched the teacher at 96%, so the right answer was in the candidate list, just ranked below position 1. This failure started all of Phase E. |
+| E1 | Run the golden-set benchmark | 27 hand-labelled photos through the full gated + range pipeline, against GPT and the teacher | ✅ | Scored 78/91 and looked like a recognition failure. Root cause was softmax CALIBRATION: top-5 matched the teacher at 96%, so the right answer was in the candidate list, just ranked below position 1. This failure started all of [Phase E](#phase-e-integrate-and-fix-the-ranker). |
 | E2 | Replace the hand-rolled range rerank | The old logic was a stack of hand-tuned heuristics: a confidence floor, a tier table and a dominance gate | ✅ | Replaced by `score = sim/T + beta·log P(species\|cell)`. Two fitted parameters, no gates. Strong visual evidence now overcomes a bad prior on its own, which is what the dominance gate was hand-faking. |
 | E3 | Choose the occurrence data source | iNat observations, BirdLife range maps, or GBIF, and whether we need more than one | ✅ | iNat occurrence alone is worth +15.05. BirdLife adds only +0.30 on top, so it is redundant rather than useless. GBIF adds exactly nothing: the fit drove its weight to 0.0 and naive count-summing HURTS by 1.44. |
 | E4 | Set the absent-species floor | What probability to assign a species with no record in the cell. 87.2% of candidate slots have no record, so this value dominates | ✅ | log(1e-9) ≈ -20.7 is optimal and the curve plateaus there. A soft floor is catastrophic: at -2 or -4 the optimizer drives beta to 0 and abandons geography entirely. Absence must count as strong evidence. |
 | E5 | Validate in the shipping JS pipeline | All prior agreement between the Python reference and the shipping code was on n=23, which proves nothing | ✅ | 11,070 photos through `pipeline-experiment.mjs`: 89 top-1 / 94 top-5, agreeing with the 88.29 Python reference. |
 | E6 | Stress-test the prior | A geographic prior can memorize the training regions. It also goes stale as birds move | ✅ | Transfer penalty on unseen geography is only 0.87 pts, so it generalizes. A 2-year-stale prior costs 2.88 pts (~2.04 genuine drift, ~0.84 density), so freshness matters ~2.4x more than volume. Refresh quarterly. ⚠️ `temporal_holdout.py` prints an auto-verdict saying "yearly refresh is plenty" that compares the DENSITY delta, not the staleness delta. Ignore that verdict. The staleness number is the pre-2024 row. |
 | E7 | Build the shippable prior blob | One binary sliced client-side, rather than per-cell CDN objects or map tiles | ✅ | 5.41 MiB gzipped, 99,900 cells, 5-bit quantized, which is free (−0.03 pts). Verified against DuckDB with 0 species mismatches. The BirdLife layer it replaces is 260 MiB. |
-| E8 | Test external sources where iNat is sparse | Every calibration photo IS an iNat observation, so its cell is covered by construction | ❓ | Unmeasured, and this eval set structurally cannot answer it. E3's conclusions hold only for photos taken where iNat users go. Needs a different eval set to close. |
+| E8 | Test external sources where iNat is sparse | Every calibration photo IS an iNat observation, so its cell is covered by construction | ❓ | Unmeasured, and this eval set structurally cannot answer it. The [E3](#phase-e-integrate-and-fix-the-ranker) conclusions hold only for photos taken where iNat users go. Needs a different eval set to close. |
 
 ## Phase F: Shrink the model to clear the size gate
 
@@ -170,13 +171,13 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 |----|-------|-------------|---|----------|
 | F1 | Measure what quantization costs | Fake-quantize weights in torch and run the normal eval, to find the smallest format that keeps the accuracy | ✅ | fp16 is exactly free. int8 costs 0.05 pts at 87 MB. int4 costs 0.88 pts at 43 MB. int3 and int2 COLLAPSE to 0.00% top-1: the embedding is destroyed, not merely noisy. |
 | F2 | Decide the size target | Sub-25 MB came from a MobileCLIP-era assumption, so it can be the wrong goal now | ✅ | ViT-B cannot reach 25 MB by quantization alone. To clear it, we need a smaller backbone. int4 at 43 MB stays an excellent trade for iOS. |
-| F3 | Pick the smaller backbone | Needs a permissive license, published basis weights, and an output dim that fits the existing projection | ✅ | TinyCLIP-39M. MIT-licensed, ships weights on timm, 512-d output matches ViT-B-16, 19.2 MB at int4. MobileCLIP-S2 is research-license only. ViT-B-32 saves nothing: patch size changes token count, not param count. |
+| F3 | Pick the smaller backbone | Needs a permissive license, published basis weights, and an output dim that fits the existing projection | ✅ | [TinyCLIP-39M](https://huggingface.co/timm/vit_medium_patch16_clip_224.tinyclip_yfcc15m). MIT-licensed, ships weights on timm, 512-d output matches ViT-B-16, 19.2 MB at int4. MobileCLIP-S2 is research-license only. ViT-B-32 saves nothing: patch size changes token count, not param count. |
 | F4 | Re-pick the teacher for the new student | WingCLIP-0.1 now beats BioCLIP-2 on birds, so the original teacher can be the wrong target now | ✅ | WingCLIP-0.1 wins by **+5.65** NABirds top-1 (89.09 vs 83.44) at n=24,633, identical recipe, only the teacher differs. A student of WingCLIP-0.1 can beat BioCLIP-2 because WingCLIP-0.1 is not a pure distillation: it carries a ground-truth fine-tune BioCLIP-2 never had. Distillation still cannot exceed its OWN teacher, since that embedding is the target. |
 | F5 | Test val_cos as the teacher selector | val_cos is cheap and available every epoch, so it makes a convenient proxy for the expensive eval | ✅ | Disqualified. It ranked the LOSING teacher higher. It measures agreement with the teacher on in-distribution data, so it cannot see a teacher that is itself wrong. |
-| F6 | Choose the recipe basis for TinyCLIP | Phase C settled the recipe for ViT-B, but a 2.2x capacity cut can move back into the regime where regularization helps | ✅ | 0.2 basis wins on the pilot: val_cos 0.9560 vs 0.9438. This is the opposite of the C6 result at full scale on ViT-B, which is the expected direction for a smaller model. |
+| F6 | Choose the recipe basis for TinyCLIP | Phase C settled the recipe for ViT-B, but a 2.2x capacity cut can move back into the regime where regularization helps | ✅ | 0.2 basis wins on the pilot: val_cos 0.9560 vs 0.9438. This is the opposite of the [C6](#phase-c-recipe-search-on-vit-b) result at full scale on ViT-B, which is the expected direction for a smaller model. |
 | F7 | Run the full 7,555-species distill | TinyCLIP-39M, 0.2 basis, WingCLIP-0.1 teacher, 25 epochs | 🔬 | Running since 2026-08-02. ~720 img/s, ~29 h. |
-| F8 | Fine-tune and sweep alpha | Same chain as D3/D4 applied to the new student, queued to run unattended when F7 finishes | ⬜ | Queued in `jobs/phase2.sh`, with a 5-point alpha sweep. Do NOT reuse alpha 0.90: it came from a gentle fine-tune on a 2.26x larger model, and a smaller model needs a lower alpha. |
-| F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests C7's suspect directly by changing ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
+| F8 | Fine-tune and sweep alpha | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student, queued to run unattended when F7 finishes | ⬜ | Queued in [`jobs/phase2.sh`](jobs/phase2.sh), with a 5-point alpha sweep. Do NOT reuse alpha 0.90: it came from a gentle fine-tune on a 2.26x larger model, and a smaller model needs a lower alpha. |
+| F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests the [C7](#phase-c-recipe-search-on-vit-b) suspect directly. It changes ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
 
 ## Phase G: Ship
 
@@ -193,12 +194,83 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 | G1 | Choose the on-device runtime | onnxruntime-web, transformers.js, WebGPU, or Core ML. Each wants a different artifact | ❓ | Undecided, and no client code exists yet. The int8 format was picked before the target runtime. |
 | G2 | Export to ONNX | Any web runtime needs this. Core ML converts from torch directly and skips it | ⚠️ | fp32 export is bit-exact (worst cosine 1.00000000). **fp16 export is BLOCKED** by converter bugs and must be solved before any WebGPU work. |
 | G3 | Measure CPU latency | Decides whether WASM/CPU is a real target or only a fallback | ✅ | int8 at 4 threads = 143.6 ms, ~1.7x faster than fp32. Imperceptible beside the network round-trip it replaces, so CPU is a viable target. |
-| G4 | Clear the license gate | The app is public, so weights, corpus and derived artifacts all need clean licenses | ✅ | LAION ViT-B and TinyCLIP are both clean. Apple MobileCLIP weights are research-only, which is why F3 rejected them. |
+| G4 | Clear the license gate | The app is public, so weights, corpus and derived artifacts all need clean licenses | ✅ | LAION ViT-B and TinyCLIP are both clean. Apple MobileCLIP weights are research-only, which is why [F3](#phase-f-shrink-the-model-to-clear-the-size-gate) rejected them. |
 | G5 | Ship one artifact per runtime | Same weights, different precision per platform | ⬜ | Plan is iOS int8, web int4. TinyCLIP changes these numbers, so re-measure after F7. |
 | G6 | Replace GPT bird detection and framing | GPT returns `birdCenter`, `birdSize` and `multipleBirds`. A pure classifier returns none of these. The app loses features unless we replace them | ❓ | Candidates: iOS Vision framework animal detection (boxes and count, free) and the existing web manual-crop UX, which is model-agnostic. The softmax gate CANNOT stand in for this: Spearman 0.032 against bird area. The earlier "low confidence means crop" framing was design intent, never validated, and is disproven for the range NABirds covers. |
 | G7 | Ship the range data offline | On-device ID is pointless if the ranker still needs a network call for geography | ✅ | Ship the 5.41 MiB occurrence blob, not the 260 MiB BirdLife store. Lookup is a grid index plus a vector op on the 27 km Equal Earth grid (1276x618). |
 | G8 | Refresh the occurrence prior | The prior goes stale as bird distributions shift | ✅ | Quarterly. E6 measured 2.88 pts lost over 2 years, and freshness matters ~2.4x more than data volume. Version-stamp the blob filename and add an immutable Cache-Control entry. |
 | G9 | Prove the adaptive router in a browser | One pipeline, swappable front end: on-device model when cached, hosted VLM otherwise | ⚠️ | `ml/demo/` loads BioCLIP-2 ViT-L int8 (307 MB) via onnxruntime-web with a WASM fallback. Verified by `validate_node.js`: int8 ONNX loads, embeddings are faithful, raw 74/83 pre-range matches PyTorch, CPU ~335 ms/img. **WebGPU latency and download/cache timing are still unmeasured** and need a real browser session. Swapping in WingCLIP at 19-43 MB is what makes it pleasant. |
+
+---
+
+## Experiment register
+
+Every training run, from the checkpoint `args` and not from prose. Smoke tests and
+gate runs are in [Appendix F](#appendix-f-smoke-and-gate-runs).
+
+**best** is the epoch of the best val_cos. When **best** equals **ep**, the run stopped
+at its budget and not at a plateau. That run can improve with more epochs.
+
+### ViT-B pilot sweep, 500 species (Phase C)
+
+| run | ep | best | lr | wd | aug | val_cos | note |
+|---|---|---|---|---|---|---|---|
+| `exp1_baseline_oldrecipe_ep15` | 15 | 12 | 1e-4 | 0.1 | none | 0.9447 | foundation check |
+| `exp2_newrecipe_ep15` | 15 | 12 | 1e-4 | 0.2 | none | 0.9464 | recipe bundle, +0.0016 |
+| `exp3_newrecipe_auglight_ep15` | 15 | **15** | 1e-4 | 0.2 | light | 0.9512 | aug, +0.0048 |
+| `exp4_lr1e4_ep8` | 8 | **8** | 1e-4 | 0.2 | none | 0.9463 | LR control |
+| `exp5_lr7e5_ep8` | 8 | **8** | 7e-5 | 0.2 | none | 0.9483 | LR winner |
+| `exp6_lr5e5_ep8` | 8 | **8** | 5e-5 | 0.2 | none | 0.9475 | |
+| `exp7_combined_lr7e5_auglight_ep25` | 25 | **25** | 7e-5 | 0.2 | light | **0.9540** | the locked recipe |
+| `exp8_locked_ep40` | 40 | 38 | 1e-4 | 0.2 | light | 0.9503 | plateaued, but lr differs from exp7 |
+| `exp9_strongaug_mv5_ep25` | 25 | **25** | 7e-5 | 0.2 | strong | 0.9434 | 5-view cache, rejected |
+
+### TinyCLIP pilot sweep, 500 species (Phase F)
+
+| run | ep | best | lr | wd | aug | teacher | val_cos |
+|---|---|---|---|---|---|---|---|
+| `tiny39_lr5e4` | 20 | **20** | 5e-4 | 0.1 | none | WingCLIP | 0.8837 |
+| `tiny39_lr25e5` | 20 | **20** | 2.5e-4 | 0.1 | none | WingCLIP | 0.8917 |
+| `tiny61_r01` | 20 | 14 | 1e-4 | 0.1 | none | WingCLIP | 0.9047 |
+| `tiny39_bioclip_teacher` | 20 | 15 | 1e-4 | 0.1 | none | BioCLIP-2 | 0.9423 |
+| `tiny39_r01` | 20 | 16 | 1e-4 | 0.1 | none | WingCLIP | 0.9438 |
+| `tiny39_r02_lr3e5` | 25 | **25** | 3e-5 | 0.2 | light | WingCLIP | 0.9546 |
+| `tiny39_r02` | 25 | **25** | 7e-5 | 0.2 | light | WingCLIP | 0.9560 |
+| `tiny39_r02_lr5e5` | 25 | **25** | 5e-5 | 0.2 | light | WingCLIP | **0.9563** |
+
+⚠️ **`tiny61_r01` is not a capacity test.** It uses
+`vit_betwixt_patch32_clip_224`, which is patch32 and gives 49 tokens. The 39M model is
+patch16 and gives 196 tokens. See [Appendix C](#appendix-c-rejected-and-confounded-experiments).
+
+⚠️ **The 0.2-basis LR sweep is a three-way tie.** 5e-5 (0.9563), 7e-5 (0.9560) and
+3e-5 (0.9546) are within 0.0017. All three stopped at their budget. We kept 7e-5.
+
+### NABirds-401 pilot, teacher decision (Phase F)
+
+| run | ep | best | lr | bs | teacher | val_cos | NABirds top-1 |
+|---|---|---|---|---|---|---|---|
+| `nb401_teach_bioclip` | 25 | **25** | 7e-5 | 96 | BioCLIP-2 | 0.9616 | 83.44 |
+| `nb401_teach_wingclip` | 25 | 24 | 7e-5 | 96 | WingCLIP-0.1 | 0.9612 | **89.09** |
+| `nb401_batch128` | 25 | **25** | 8.1e-5 | 128 | WingCLIP-0.1 | 0.9614 | eval failed, see F5 |
+
+⚠️ **This is the clearest case against val_cos.** BioCLIP-2 scores higher on val_cos
+(0.9616 against 0.9612) and loses NABirds by 5.65 points.
+
+### Full corpus, 7,555 species
+
+| run | arch | ep | best | lr | wd | aug | teacher | val_cos | NABirds |
+|---|---|---|---|---|---|---|---|---|---|
+| `full7555_vitb` | ViT-B-16 | 20 | **20** | 1e-4 | 0.1 | none | BioCLIP-2 | **0.9650** | 81.83 |
+| `full7555_locked_ep25` | ViT-B-16 | 25 | **25** | 7e-5 | 0.2 | light | BioCLIP-2 | 0.9618 | 78.4 |
+| `full7555_tiny39` | TinyCLIP-39M | 25 | running | 8.1e-5 | 0.2 | light | WingCLIP-0.1 | running | pending |
+
+### Ground-truth fine-tunes
+
+| run | base | ep | best | lr | set |
+|---|---|---|---|---|---|
+| `ft_full7555_gt` | 0.1-alpha | 12 | 11 | 1e-5 | dirty, 5,908 species |
+| `ft_clean_01` | 0.1-alpha | 12 | 11 | 1e-5 | **clean, 3,850 species** |
+| `ft_clean_02` | 0.2-alpha | 12 | **12** | 1e-5 | clean, 3,850 species |
 
 ---
 
@@ -209,7 +281,7 @@ result that looked correct.
 
 **Always give `--pilot-species 0`.** The default is 500. On the old global-ranked
 pilot, that setting scored **7 species** but printed **"500 species"** in the
-header. Every OOD number from that sweep was void. See Appendix A.
+header. Every OOD number from that sweep was void. See [Appendix A](#appendix-a-the-7-species-trap).
 
 **Read the weights, not `args`.** The `args` dict holds the flags from the command
 that made the checkpoint. Nothing updates it later. `wise_a0.90.pt` shows
@@ -226,8 +298,8 @@ test is `all(path in cached)`. A cache from a different teacher therefore starts
 silent recompute. It does not give an error. `runs/full7555_vitb/` holds a 282-row
 cache from the void 7-species period. The correct cache has 24,633 rows.
 
-**Do not use val_cos for a decision.** It gave the wrong answer three times. The
-three are the teacher choice (F5), the batch-128 comparison, and the 0.2 recipe at
+**Do not use val_cos for a decision.** It gave the wrong answer three times. The three are the teacher choice ([F5](#phase-f-shrink-the-model-to-clear-the-size-gate)),
+the batch-128 comparison, and the 0.2 recipe at
 full scale (C6). Use NABirds to decide.
 
 **Never compare a golden-set number with a large-set number.** The GPT-5.4-mini 83/87
@@ -274,7 +346,7 @@ score(species) = sim/T + beta · log P(species|cell)
 - `T` fitted **0.007809**. It moves with the joint fit, so always state which fit
   produced a number.
 - `beta` fitted ~0.6-1.33 depending on the fit.
-- Fitted params live in `calibration_occ_01.json` and are specific to WingCLIP-0.1 @
+- Fitted params live in [`calibration_occ_01.json`](calibration_occ_01.json) and are specific to WingCLIP-0.1 @
   alpha=0.90. **A model swap REQUIRES a refit.**
 
 `P(species|cell)` uses empirical iNat occurrence data. It comes from 157M
@@ -399,15 +471,15 @@ it adds a fallback path.
 
 ### Papers we actually use
 
-- **WiSE-FT** (Wortsman et al., CVPR 2022) is the handbook for D4. A fine-tune
+- **WiSE-FT** ([Wortsman et al., CVPR 2022](https://arxiv.org/abs/2109.01903)) is the handbook for [D4](#phase-d-beat-the-teacher). A fine-tune
   decreases out-of-distribution accuracy. An interpolation back toward the
   pre-finetune weights recovers it. Our optimum is 0.90, and theirs is ~0.5. The
   reason is that our fine-tune is gentle. It moves only 4.7% of the weights, mostly
   in the projection and the last blocks. A stronger fine-tune moves alpha DOWN.
-- **MobileCLIP2** gave us the C2 recipe bundle. Their dataset-reinforcement method
+- **MobileCLIP2** ([arXiv 2508.20691](https://arxiv.org/abs/2508.20691)) gave us the [C2](#phase-c-recipe-search-on-vit-b) recipe bundle. Their dataset-reinforcement method
   stores several augmented-view embeddings for each image. C4 tested that method
   and rejected it.
-- **TinyCLIP** (Wu et al., ICCV 2023) supplied the F3 backbone. See Appendix B.
+- **TinyCLIP** ([Wu et al., ICCV 2023](https://openaccess.thecvf.com/content/ICCV2023/papers/Wu_TinyCLIP_CLIP_Distillation_via_Affinity_Mimicking_and_Weight_Inheritance_ICCV_2023_paper.pdf)) supplied the [F3](#phase-f-shrink-the-model-to-clear-the-size-gate) backbone. See [Appendix B](#appendix-b-tinyclip-paper-notes).
 
 ### Pipeline scripts
 
@@ -415,17 +487,17 @@ Run in order from `ml/distill/`:
 
 | script | job |
 |---|---|
-| `select_species.py` | species list from iNat taxonomy |
-| `pull_images.py` | download the corpus |
-| `pack_webdataset.py` | pack shards for training |
-| `precompute_embeddings.py` | cache teacher targets |
-| `train_student.py` | distillation |
-| `finetune_groundtruth.py` | ground-truth fine-tune + WiSE-FT merge |
-| `eval_nabirds.py` | the deciding OOD eval |
-| `fit_occurrence.py` | fit T and beta |
-| `build_prior_blob.py` | build the shippable occurrence blob |
-| `jobs/full_run.sh` | the full 3-step distill run |
-| `jobs/phase2.sh` | unattended fine-tune + alpha sweep |
+| [`select_species.py`](select_species.py) | species list from iNat taxonomy |
+| [`pull_images.py`](pull_images.py) | download the corpus |
+| [`pack_webdataset.py`](pack_webdataset.py) | pack shards for training |
+| [`precompute_embeddings.py`](precompute_embeddings.py) | cache teacher targets |
+| [`train_student.py`](train_student.py) | distillation |
+| [`finetune_groundtruth.py`](finetune_groundtruth.py) | ground-truth fine-tune + WiSE-FT merge |
+| [`eval_nabirds.py`](eval_nabirds.py) | the deciding OOD eval |
+| [`fit_occurrence.py`](fit_occurrence.py) | fit T and beta |
+| [`build_prior_blob.py`](build_prior_blob.py) | build the shippable occurrence blob |
+| [`jobs/full_run.sh`](jobs/full_run.sh) | the full 3-step distill run |
+| [`jobs/phase2.sh`](jobs/phase2.sh) | unattended fine-tune + alpha sweep |
 
 **The shards contain the teacher targets.** `pack_webdataset.py` wrote the BioCLIP-2
 target into each shard. A `--wds` run with a NEW teacher therefore trains against
@@ -462,8 +534,7 @@ from the full run.
 
 ## Appendix B: TinyCLIP paper notes
 
-Wu et al., ICCV 2023 (MSR), "CLIP Distillation via Affinity Mimicking and Weight
-Inheritance".
+[Wu et al., ICCV 2023](https://openaccess.thecvf.com/content/ICCV2023/papers/Wu_TinyCLIP_CLIP_Distillation_via_Affinity_Mimicking_and_Weight_Inheritance_ICCV_2023_paper.pdf) (Microsoft Research), "CLIP Distillation via Affinity Mimicking and Weight Inheritance".
 
 **A better teacher can be a worse teacher.** Their Table 4 shows one student,
 TinyCLIP ViT-40M/32, with weights inherited from different teachers:
@@ -477,7 +548,7 @@ TinyCLIP ViT-40M/32, with weights inherited from different teachers:
 
 A near architecture is more important than teacher accuracy. **This result applies to
 weight inheritance, which we do NOT use.** It therefore does not remove
-WingCLIP-0.1 as our teacher. Read it again if F7 gives a low score.
+WingCLIP-0.1 as our teacher. Read it again if [F7](#phase-f-shrink-the-model-to-clear-the-size-gate) gives a low score.
 
 **Affinity mimicking does not apply to us.** Their loss distils the image-text
 affinity matrix. That method needs one text for each image. We distil features into
@@ -554,6 +625,19 @@ the RTX PRO 4500 question. We have not bought or recommended anything.
 
 **Cloud costs.** Upload from tomahawk measures ~14 MB/s. RunPod charges during the
 upload. That cost controls the decision.
+
+## Appendix F: Smoke and gate runs
+
+These runs test the pipeline, not the model. They are here so that a reader who finds
+the checkpoint knows why the score is low.
+
+| run | ep | val_cos | purpose |
+|---|---|---|---|
+| `wds_smoke` | 1 | 0.6698 | WebDataset loader works |
+| `wds_recipe_smoke` | 2 | 0.6888 | recipe flags parse |
+| `gate2b_mainset` | 1 | 0.8003 | main shard set reads |
+| `gate2_viability` | 2 | 0.9217 | shards reproduce the local-corpus result |
+| `_smoke_tiny` | 1 | 0.4978 | TinyCLIP arch loads through timm |
 
 ## Appendix E: Consolidation history
 
