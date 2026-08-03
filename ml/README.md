@@ -1746,6 +1746,42 @@ SMB, tensor transforms, and collation -- not JPEG decode.**
   `jobs/bench_loader.py` does not exist yet; `bench_loader.py` in the repo root
   is the older variant.
 
+### Loader ceiling PROFILED (2026-08-02) -- it is the TRANSFORMS, not SMB
+
+Ran `jobs/profile_loader.py` with the GPU idle, 2,000 images per stage, to
+isolate each layer. This REFUTES the earlier guess (recorded above) that
+sequential tar reads over SMB set the ceiling.
+
+| stage | 1 process | x12 workers (ideal) |
+|---|---|---|
+| A raw tar read over SMB | **2,005 img/s** (244 MB/s) | 24,064 |
+| B + JPEG decode | 706 img/s | 8,471 |
+| C + training transforms | **245 img/s** | 2,944 |
+
+measured loader ceiling ~1,012 img/s, training ~655 img/s
+
+**Findings:**
+1. **SMB is NOT the bottleneck.** 2,005 img/s single-threaded at 244 MB/s is
+   ~24x more headroom than we use. Stop blaming the NAS.
+2. **Transforms cost MORE than decode.** Decode takes 65% off stage A
+   (2,005 -> 706); transforms take another 65% off stage B (706 -> 245). The
+   resize/crop/normalize path is the single most expensive layer, not JPEG.
+3. **No single layer explains the ceiling.** Even stage C x12 workers should
+   give ~2,944 img/s but we measure ~1,012, a ~3x gap. That residual is
+   DataLoader overhead: worker IPC/pickling of tensors, collation, and the GIL
+   in the main process. Load average was ~7.5 of 16 cores, so we are NOT
+   CPU-starved either.
+
+**Revised advice on GPU decode:** DALI/nvJPEG is worth MORE than the earlier
+note implied, because it moves BOTH decode and transforms onto the GPU (the
+65% + 65% stack), not just decode. But fix the cheap things first.
+
+**Already set** in `wds_loader.py` and `train_student.py`: `pin_memory=True`,
+`persistent_workers=True`. **Not set: `prefetch_factor`** (defaults to 2). That
+is the one remaining free knob; try 4-6 before touching the transform path.
+
+Re-run anytime: `./.venv/bin/python jobs/profile_loader.py --limit 2000`
+
 ### RTX PRO 4500 question (asked 2026-08-02)
 
 32GB GDDR7 / ~896 GB/s / 5th-gen tensor cores vs our 10GB 3080. Verdict:
