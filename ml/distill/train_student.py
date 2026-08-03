@@ -486,7 +486,12 @@ def main():
         if not os.path.exists(args.resume):
             raise SystemExit(f"--resume path not found: {args.resume}")
         ck = torch.load(args.resume, map_location=dev)
-        student.load_state_dict(ck["model"])
+        # torch.compile has already wrapped the model at this point, so the
+        # wrapper expects _orig_mod.-prefixed keys while we now SAVE unwrapped.
+        # Load into the underlying module so resume works either way.
+        _target = getattr(student, "_orig_mod", student)
+        _sd = _strip_compile(ck["model"])
+        _target.load_state_dict(_sd)
         if "epochs" in ck and ck.get("epochs") != args.epochs:
             log(f"WARNING: checkpoint was for epochs={ck.get('epochs')} but "
                 f"--epochs={args.epochs}; the cosine T_max differs, so the LR "
