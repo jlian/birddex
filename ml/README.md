@@ -652,7 +652,13 @@ already exposes `--arch`/`--pretrained`.
    ~496 trained species are graded against a 282-image subset where the same teacher
    scores 91.49. Compare RETENTION over a common teacher, never raw top-1 across the
    two evals. DONE 2026-08-01, see the teacher note in step 2.
-4. ⚠️ **The second fine-tune has a REDUNDANCY trap.** WingCLIP-0.1 was ALREADY
+4. ⚠️ **The second fine-tune is FULL-SCALE ONLY, and has a REDUNDANCY trap.**
+   **Scale first (added 2026-08-02):** every GT fine-tune in project history ran at
+   `pilot_species=0` (`ft_clean_01`, `ft_clean_02`, `ft_full7555_gt`). Do NOT
+   fine-tune a pilot student: `groundtruth_heldout.parquet` is 178,852 photos over
+   **5,908 species**, so for a 401-species pilot ~93% of the signal is species it
+   cannot represent. Distill at full scale FIRST, then fine-tune.
+   **Redundancy:** WingCLIP-0.1 was ALREADY
    fine-tuned on the 178k ground-truth photos; re-fine-tuning the TinyCLIP student on
    the SAME photos re-teaches what the teacher already encoded (double-counted signal,
    not eval leakage). Options, in order: (1) SKIP the second fine-tune and evaluate
@@ -1579,15 +1585,39 @@ Full 0.2-basis sweep (old 500-sp pilot): 3e-5 = 0.9546, **5e-5 = 0.9563**,
 
 ### Next
 
-1. **Ground-truth fine-tune + WiSE-FT on TEACH-W.** WingCLIP-0.1 gained +3.52
-   from this step; TEACH-W has not had it. Could plausibly reach ~89.9 at 2.26x
-   smaller. Mind the REDUNDANCY TRAP already documented in "Next steps": the
-   178k GT photos were ALREADY absorbed by WingCLIP-0.1, so re-teaching the same
-   photos double-counts the signal. Evaluate first, or use a disjoint slice.
-2. Batch 128 + lr 8.1e-5 (sqrt-scaled) vs batch 96 + lr 7e-5. Batch has NEVER
-   been swept; every run in project history used 96.
-3. Full 7,555-species distill with the WingCLIP-0.1 teacher, now that teacher
-   and LR are both settled.
+1. DO NOT fine-tune the pilot student. (Proposed 2026-08-02, ruled out by John
+   the same day.) Every ground-truth fine-tune in project history was
+   `pilot_species=0`, i.e. FULL scale: `ft_clean_01`, `ft_clean_02`,
+   `ft_full7555_gt`. None was ever run on a pilot.
+   - The blocker is data coverage: `groundtruth_heldout.parquet` holds
+     **178,852 photos across 5,908 species**, but a NABirds-401 pilot student
+     knows only **401**. About 93% of the fine-tune signal is species the pilot
+     cannot represent. Restricting to the overlap leaves a small fraction of the
+     photos, a materially WEAKER experiment than the one WingCLIP-0.1 received,
+     so its result would not predict the full-scale outcome. Confounded by
+     construction.
+   - Correct order, and the one the project already used: **distill at full
+     scale FIRST, then fine-tune.** The pilot exists to settle recipe questions
+     cheaply (teacher, LR, batch) and those are now settled.
+
+2. Batch 128 + lr 8.1e-5 (sqrt-scaled) vs batch 96 + lr 7e-5 -- RUNNING
+   2026-08-02. Batch had NEVER been swept; every run in project history used 96.
+   Tracking as a wash on quality through epoch 9.
+
+3. **Full 7,555-species distill with the WingCLIP-0.1 teacher** at lr 7e-5.
+   This is now the NEXT REAL MILESTONE, not an optional follow-up, because
+   teacher and LR are settled and fine-tuning cannot happen before it.
+   ~27h locally at current throughput, or ~3h on a rented H100 for ~$8.
+
+4. **THEN** ground-truth fine-tune + WiSE-FT on that full-scale model, matching
+   exactly what WingCLIP-0.1 received (+3.52 for it). Mind the REDUNDANCY TRAP
+   documented in "Next steps": the 178k GT photos were ALREADY absorbed by
+   WingCLIP-0.1, so re-teaching the same photos double-counts the signal.
+   Evaluate first, or use a disjoint slice.
+
+5. DALI / GPU decode -- ONLY if we move to rented GPUs. Pointless locally (the
+   loader already delivers 2.1x what our GPU consumes), but decisive on RunPod
+   where instances have 6-20 vCPUs vs our 16 threads.
 
 ## TinyCLIP-39M pilot results (2026-07-31 → 08-01)
 
