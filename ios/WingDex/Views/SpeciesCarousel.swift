@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+struct ContextMenuAccessibilityAction {
+    let name: String
+    let handler: () -> Void
+}
+
 struct SpeciesCarousel: UIViewRepresentable {
     let entries: [DexEntry]
     let store: DataStore
