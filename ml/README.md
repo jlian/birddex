@@ -1936,6 +1936,47 @@ halving, not measured here. A pure bf16 GEMM microbenchmark on an IDLE GPU would
 settle it empirically. If it lands near 59, this correction holds; near 110, it
 does not.
 
+### ✅ VERIFIED: the ceiling really is ~60 TFLOP/s (GEMM measured 2026-08-02)
+
+The fp32-accumulate correction above was derived, not measured. `jobs/gemm_peak.py`
+settles it empirically with pure square matmuls on an idle GPU (2*N^3 FLOPs / time,
+nothing else in the loop):
+
+| GEMM | TFLOP/s |
+|---|---|
+| bf16 N=8192 | **63.7** |
+| fp16 N=8192 | 63.2 |
+| tf32 N=8192 | 31.5 |
+
+Measured **63.7**, against a predicted 59.5 and a spec-sheet 119. **The half-rate
+fp32-accumulate behaviour on GeForce Ampere is REAL.** Never quote 119 for this
+card under AMP training.
+
+Our training achieves 38.9 TFLOP/s = **61% of the measured GEMM peak**. That is a
+normal, well-tuned figure for ViT training, where LayerNorm/GELU/residual work is
+memory-bound and cannot reach GEMM efficiency. **There is no 1.5-2x hiding in the
+model path.**
+
+### Kernel profile: where the time goes, and why fused AdamW does not help
+
+`jobs/profile_gpu_kernels.py`, batch 96, bf16 + channels_last + compile:
+
+| optimizer | fwd | bwd | opt | img/s |
+|---|---|---|---|---|
+| AdamW default | 32.0% | 63.5% | 4.6% | 773.8 |
+| AdamW foreach | 31.9% | 63.5% | 4.6% | 774.2 |
+| **AdamW fused** | 32.1% | 63.8% | **4.1%** | **777.2** |
+
+**The optimizer is only ~4.6% of step time**, so fusing it can win at most ~0.5%
+(measured: 777.2 vs 773.8, i.e. +0.4%). The earlier guess that "a 38M model has
+many small tensors so launch overhead is plausible" was wrong: backward dominates
+at ~64%, forward is ~32%, and the optimizer is noise.
+
+**Conclusion: GPU-side tuning is DONE.** bf16 + channels_last + torch.compile
+captured the available ~1.17x. Fused AdamW is free to enable but worth ~0.4%.
+Remaining options are architectural (smaller model, lower resolution, fewer
+tokens) or hardware, not configuration.
+
 ### Batch size: SETTLED, it is a free knob (2026-08-02)
 
 Identical shards, teacher and recipe; only batch and its sqrt-scaled LR differ.
