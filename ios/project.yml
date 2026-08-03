@@ -54,7 +54,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.wingdex
-        MARKETING_VERSION: "0.7.0"
+        MARKETING_VERSION: "0.7.1"
         CURRENT_PROJECT_VERSION: 1
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: WingDex/WingDex.entitlements
@@ -128,7 +128,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.wingdex.share
-        MARKETING_VERSION: "0.7.0"
+        MARKETING_VERSION: "0.7.1"
         CURRENT_PROJECT_VERSION: 1
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: WingDexShareExtension/WingDexShareExtension.entitlements

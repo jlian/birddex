@@ -827,7 +827,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -853,7 +853,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -952,7 +952,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.share;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1127,7 +1127,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.share;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1166,7 +1166,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.share;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1192,7 +1192,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -1273,7 +1273,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.share;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1312,7 +1312,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.share;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1338,7 +1338,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -1358,7 +1358,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.share;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1513,7 +1513,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -1556,7 +1556,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
