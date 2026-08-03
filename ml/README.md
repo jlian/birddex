@@ -1881,6 +1881,49 @@ kernels by self CUDA time. **Run it only when the GPU is otherwise IDLE** -- a
 concurrent training job silently contaminates the result (this produced a bogus
 80.5 img/s reading on 2026-08-02).
 
+### CORRECTION (2026-08-02, later): the peak above is the WRONG COLUMN
+
+The "30% of peak" figure above divides by **119 TFLOP/s**, which is the RTX 3080
+fp16 spec with **fp16 accumulate**. AMP training accumulates in **fp32**, and on
+GeForce Ampere (GA102) fp32-accumulate tensor ops run at **half rate**. So our
+real ceiling is ~**59.5 TFLOP/s**, not 119.
+
+| | vs 119 (wrong) | vs 59.5 (right) |
+|---|---|---|
+| baseline fp16, 700 img/s -> 33.6 TFLOP/s | 28% | **56%** |
+| bf16+cl+compile, 811 img/s -> 38.9 TFLOP/s | 33% | **65%** |
+
+**65% is squarely in the well-tuned range**, so there is NOT a 1.5-2x sitting in
+the model path. Expect ~1.1-1.2x from the remaining knobs (fused AdamW,
+max-autotune), not a doubling. The "60-70% typical" figures quoted in papers
+come from A100/H100, which do NOT have the fp32-accumulate halving.
+
+This also **raises** the value of better hardware rather than lowering it: we are
+near practical peak on a card whose practical peak is half its headline number.
+
+⚠️ STILL UNVERIFIED: the 59.5 figure is derived from the GA102 fp32-accumulate
+halving, not measured here. A pure bf16 GEMM microbenchmark on an IDLE GPU would
+settle it empirically. If it lands near 59, this correction holds; near 110, it
+does not.
+
+### Batch size 96 vs 128 (running 2026-08-02)
+
+`jobs/batch_exp.sh` + `jobs/batch_curve.py`. Batch had NEVER been swept: every
+run in project history used 96. LR is sqrt-scaled for the larger batch
+(7e-5 * sqrt(128/96) = 8.1e-5); linear scaling would give 9.3e-5, likely too hot
+since val_cos collapses above 1e-4.
+
+Through epoch 9 the curves are nearly identical (ep9: batch128 0.9449 vs batch96
+0.9443), i.e. tracking as a **wash on quality**, which is the useful outcome: it
+would make batch a free throughput knob rather than a recipe change.
+
+⚠️ **Do not credit batch size for the epoch-time difference.** batch-128 runs
+~291s/epoch vs batch-96 at 339s, but batch-128 also has bf16 + channels_last +
+torch.compile enabled while TEACH-W ran plain fp16. Controlled testing put
+compile alone at ~1.15x of the ~1.17x total, so batch size contributes almost
+nothing to speed here. The comparison is clean for **val_cos and NABirds**,
+not for wall-clock.
+
 ### Cloud (RunPod) economics, measured 2026-08-02
 
 Upload from tomahawk measured at **~14 MB/s (~113 Mbit/s)**. That is the number
