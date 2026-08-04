@@ -120,7 +120,7 @@ combination at full scale.
 | C5 | Test more epochs | 40 epochs against 25, to see if the pilot was undertrained | ⚠️ | [exp8](#experiment-register) ran 40 epochs and peaked at epoch 38 with val_cos 0.9503. [exp7](#experiment-register) got 0.9540 in 25 epochs. But exp8 also used lr 1e-4 against exp7's 7e-5, so the learning rate is a second variable. The result holds for the 500-species pilot only. |
 | C6 | Run the locked recipe at full scale | Combine C1-C3 and retrain on all 7,555 species. We expected the pilot gains to carry over | 🗑️ | LOST on ViT-B with BioCLIP-2 targets: 90.7% retention vs the old recipe's 94.7%. At 2.5M images the extra regularization has little overfitting left to prevent and instead costs representation quality. 0.1-alpha stays the base. 0.2-alpha is retired. |
 | C8 | Test the epoch budget at full scale | Both finished full runs stopped at the epoch budget, not at a plateau, so the budget can be too small | ❓ | [full7555_vitb](#experiment-register) peaked at epoch 20 of 20. [full7555_locked_ep25](#experiment-register) peaked at 25 of 25. Neither had stopped improving. C5 rejected 40 epochs on the 500-species pilot, where the run DID plateau at epoch 38. We carried a pilot result to full scale, where it can fail to apply. C6 also compares 25 epochs against 20, which is one more difference between the two recipes. |
-| C9 | Find the real epoch ceiling | C8 shows every full run stops at its budget. You cannot just add epochs: `--epochs` sets the LENGTH of the cosine anneal, not a stop point, so `steps = steps_per_epoch * epochs` changes the whole LR curve | ⬜ | Two valid methods. **A: retrain from scratch** at `--epochs 35`. One smooth anneal, directly comparable, ~41 h. **B: warm restart** from `last.pt` with a fresh short cosine at a lower peak LR (about 2e-5 over 8 epochs). This is SGDR, a published method, and costs ~11 h. B answers "does more training help". Only A answers "what does a 35-epoch run score". Do NOT resume with a different `--epochs` and expect a continuation: the scheduler restores its step count but recomputes against the new length, so the LR jumps back up. That is an accidental warm restart. **Conditional: run this only if F8 misses the ship bar.** If the model clears 86.41, C8 and C9 stay open as curiosities. |
+| C9 | Find the real epoch ceiling | C8 shows every full run stops at its budget. You cannot just add epochs: `--epochs` sets the LENGTH of the cosine anneal, not a stop point, so `steps = steps_per_epoch * epochs` changes the whole LR curve | ⬜ | Two valid methods. **A: retrain from scratch** at `--epochs 35`. One smooth anneal, directly comparable, ~41 h. **B: warm restart** from `last.pt` with a fresh short cosine at a lower peak LR (about 2e-5 over 8 epochs). This is SGDR ([Loshchilov and Hutter, ICLR 2017](https://arxiv.org/abs/1608.03983)) and costs ~11 h. **Scope B carefully.** SGDR is validated for FROM-SCRATCH training at a fixed budget, where a higher LR helps the model leave a bad basin. We fine-tune a pretrained checkpoint against cached targets, which is a smoother problem, so the same gain is not certain. The paper also compares SGDR against a single anneal at EQUAL budget, while B appends a restart to a finished run. B therefore answers one narrow question: does THIS model improve with 8 more epochs at 2e-5. Only A answers what a 35-epoch run scores. **TinyCLIP gives no support for B**: their multi-stage method is progressive PRUNING (100% to 75% to 50% to 25% of parameters), not a restarted schedule, and they use plain CLIP hyperparameters at lr 1e-4. Do NOT resume with a different `--epochs` and expect a continuation: the scheduler restores its step count but recomputes against the new length, so the LR jumps back up. That is an accidental warm restart. **Conditional: run this only if F8 misses the ship bar.** If the model clears 86.41, C8 and C9 stay open as curiosities. |
 | C7 | Isolate which knob lost C6 | C6 changed SIX variables at once, so "aug light + wd 0.2 caused it" is a guess across confounded variables | ❓ | Untested at full scale on any model. Aug light is the prime suspect: it is the largest lever and a regularizer, while beta2, warmup and grad-clip are near-universal defaults that do not trade representation quality. A pilot A/B cannot settle it.[^augscale] Scoped as F9 if the current run misses the bar. |
 
 ## Phase D: Beat the teacher
@@ -178,6 +178,7 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | F6 | Choose the recipe basis for TinyCLIP | Phase C settled the recipe for ViT-B, but a 2.2x capacity cut can move back into the regime where regularization helps | ✅ | 0.2 basis wins on the pilot: val_cos 0.9560 vs 0.9438. This is the opposite of the [C6](#phase-c-recipe-search-on-vit-b) result at full scale on ViT-B, which is the expected direction for a smaller model. |
 | F7 | Run the full 7,555-species distill | TinyCLIP-39M, 0.2 basis, WingCLIP-0.1 teacher, 25 epochs | 🔬 | Running since 2026-08-02. ~720 img/s, ~29 h. |
 | F8 | Fine-tune and sweep alpha | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student, queued to run unattended when F7 finishes | ⬜ | Queued in [`jobs/phase2.sh`](jobs/phase2.sh), with a 5-point alpha sweep. Do NOT reuse alpha 0.90: it came from a gentle fine-tune on a 2.26x larger model, and a smaller model needs a lower alpha. |
+| F10 | Measure int4 size and accuracy on TinyCLIP | The 25 MB gate is the reason for this whole phase, but every size here is CALCULATED as `params x bits/8`, and the int4 accuracy cost of -0.88 is measured on ViT-B only | ⬜ | Not started. Two open questions. **Accuracy:** a 38.3M model holds less redundancy than an 86.6M one, so int4 can cost more than 0.88 points. Run [`quant_accuracy.py`](quant_accuracy.py) on the F8 output. **Size:** the visual tower is not the whole payload. At int4 it is 19.2 MB, but the 11,167 x 768 text classifier adds 8.6 MB at int8, for 27.8 MB total, which MISSES the gate. The text matrix at int4 gives 4.3 MB and 23.5 MB total, which clears it. We have never quantized the text matrix, so its accuracy cost is unknown. Decide also whether the 25 MB budget covers the text classifier and the 5.4 MB occurrence blob, or the model weights alone. |
 | F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests the [C7](#phase-c-recipe-search-on-vit-b) suspect directly. It changes ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
 
 ## Phase G: Ship
@@ -342,8 +343,22 @@ device.**
 |---|---|---|---|---|
 | ViT-B visual tower | 86.6M params | 346.3 MB | 87 MB | 43 MB |
 | TinyCLIP-39M visual tower | 38.3M params | 153.3 MB | 38.3 MB | 19.2 MB |
-| text classifier | 11,167 × 768 | 34.3 MB | ~8.6 MB | - |
+| text classifier | 11,167 × 768 | 34.3 MB | 8.6 MB | 4.3 MB |
 | occurrence prior blob | 99,900 cells | - | 5.4 MB gzipped | - |
+
+All sizes above are `params x bits/8`, so they are calculated and not measured.
+Only the ViT-B int4 ACCURACY cost of -0.88 points is measured. See F10.
+
+**Payload against the 25 MB web gate**, TinyCLIP-39M:
+
+| combination | total | gate |
+|---|---|---|
+| visual int4 + text int8 | 27.8 MB | over |
+| visual int4 + text int4 | **23.5 MB** | clears |
+| visual int8 + text int8 | 46.9 MB | over |
+
+int4 on BOTH parts is the only combination that clears the gate. int3 and int2
+collapse the model to 0.00% top-1, so there is nothing below int4 to try.
 
 ### The ranker (Strategy I, the shipped math)
 
