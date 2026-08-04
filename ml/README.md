@@ -180,7 +180,8 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | F6 | Choose the recipe basis for TinyCLIP | Phase C settled the recipe for ViT-B, but a 2.2x capacity cut can move back into the regime where regularization helps | ✅ | 0.2 basis wins on the pilot: val_cos 0.9560 vs 0.9438. This is the opposite of the [C6](#phase-c-recipe-search-on-vit-b) result at full scale on ViT-B, which is the expected direction for a smaller model. |
 | F7 | Run the full 7,555-species distill | TinyCLIP-39M, 0.2 basis, WingCLIP-0.1 teacher, 25 epochs | 🔬 | Running since 2026-08-02. ~720 img/s, ~29 h. |
 | F8 | Fine-tune and sweep alpha | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student, queued to run unattended when F7 finishes | ⬜ | Queued in [`jobs/phase2.sh`](jobs/phase2.sh), with a 5-point alpha sweep. Do NOT reuse alpha 0.90: it came from a gentle fine-tune on a 2.26x larger model, and a smaller model needs a lower alpha. |
-| F10 | Measure int4 size and accuracy on TinyCLIP | The 25 MB gate is the reason for this whole phase, but every size here is CALCULATED as `params x bits/8`, and the int4 accuracy cost of -0.88 is measured on ViT-B only | ⬜ | Not started. Two open questions. **Accuracy:** a 38.3M model holds less redundancy than an 86.6M one, so int4 can cost more than 0.88 points. Run [`quant_accuracy.py`](quant_accuracy.py) on the F8 output. **Size:** the visual tower is not the whole payload. At int4 it is 19.2 MB, but the 11,167 x 768 text classifier adds 8.6 MB at int8, for 27.8 MB total, which MISSES the gate. The text matrix at int4 gives 4.3 MB and 23.5 MB total, which clears it. We have never quantized the text matrix, so its accuracy cost is unknown. Decide also whether the 25 MB budget covers the text classifier and the 5.4 MB occurrence blob, or the model weights alone. |
+| F10 | Measure int4 size and accuracy on TinyCLIP | The 25 MB gate is the reason for this phase, but every size was CALCULATED and the only measured int4 accuracy cost came from ViT-B | ⚠️ | **int4 costs this model 8.85 points, ten times the 0.88 it cost ViT-B.** Measured on `full7555_tiny39` (pre-fine-tune) over all 24,633 images: fp32 84.97, fp16 84.98, bf16 84.99, int8 84.95, **int4-blk128 76.12**. int8 is free and int4 at block 128 is unusable. Confirms the redundancy argument: a 38.3M model cannot absorb 4-bit weights the way an 86.6M one can. See [F11](#phase-f-shrink-the-model-to-clear-the-size-gate) for the rescue. |
+| F11 | Rescue int4 with block size and mixed precision | F10 showed int4-blk128 collapses. Two standard fixes exist: a smaller group so fewer weights share one scale, and mixed precision that keeps sensitive layers at int8 | ⚠️ | **Block size recovers most of it.** Measured, weights-only MB includes the fp16 scale metadata: blk128 76.12 at 20.1 MB, blk64 79.24 at 20.7 MB, **blk32 82.74 at 21.9 MB**. So 128 to 32 buys back **6.6 points for 1.8 MB**, which confirms outliers were the cause: one large weight in a block of 128 crushed the other 127 into a few levels. int4-blk32 at 21.9 MB fits under the gate with room for the text matrix, but still costs 2.23 points. A mixed variant that protects attention and patch-embed at int8 measures 27.0 MB, which already misses the gate before accuracy is considered. ⚠️ **Not yet checked: whether onnxruntime-web or Core ML accept block 32 efficiently.** Recovering accuracy in torch is worthless if the deployment format rejects the layout. |
 | F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests the [C7](#phase-c-recipe-search-on-vit-b) suspect directly. It changes ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
 
 ## Phase G: Ship
@@ -359,8 +360,21 @@ Only the ViT-B int4 ACCURACY cost of -0.88 points is measured. See F10.
 | visual int4 + text int4 | **23.5 MB** | clears |
 | visual int8 + text int8 | 46.9 MB | over |
 
-int4 on BOTH parts is the only combination that clears the gate. int3 and int2
-collapse the model to 0.00% top-1, so there is nothing below int4 to try.
+⚠️ **These sizes assume int4 is usable. On TinyCLIP-39M it is not, at the
+default block size.** Measured on the visual tower over all 24,633 NABirds images:
+
+| precision | top-1 | weights MB | vs fp32 |
+|---|---|---|---|
+| fp32 | 84.97 | 155 | - |
+| int8 | 84.95 | 38.9 | -0.02 |
+| int4 block 128 | 76.12 | 20.1 | **-8.85** |
+| int4 block 64 | 79.24 | 20.7 | -5.73 |
+| int4 block 32 | 82.74 | 21.9 | -2.23 |
+
+int8 is free but 38.9 MB alone already misses the 25 MB gate. int4 block 32 is the
+only setting that is both small enough and close enough to be worth pursuing, and
+it still costs 2.23 points. int3 and int2 collapse to 0.00% top-1, so nothing below
+int4 exists. See F10 and F11.
 
 ### The ranker (Strategy I, the shipped math)
 
