@@ -172,7 +172,7 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
 | F1 | Measure what quantization costs | Fake-quantize weights in torch and run the normal eval, to find the smallest format that keeps the accuracy | ✅ | fp16 is exactly free. int8 costs 0.05 pts at 87 MB. int4 costs 0.88 pts at 43 MB. int3 and int2 COLLAPSE to 0.00% top-1: the embedding is destroyed, not merely noisy. |
-| F2 | Decide the size target | Sub-25 MB came from a MobileCLIP-era assumption, so it can be the wrong goal now | ⚠️ | **Split the target by platform. iOS is solved, web is not.** The 25 MB budget drove the whole backbone swap, and it is NOT reachable at usable accuracy: see [F10](#phase-f-shrink-the-model-to-clear-the-size-gate). int8 keeps the accuracy but the full payload is 47.5 MB. int4 fits the tower but loses more than 2 points and STILL misses once the text matrix is added. Treat 25 MB as a web-only constraint and ship iOS at int8. |
+| F2 | Decide the size target | Sub-25 MB drove the whole backbone swap. Verify what the number actually is before designing around it | ✅ | **It is a PER-FILE cap, not a total budget.** [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/): "The maximum file size for a single Cloudflare Pages site asset is 25 MiB", plus a separate 20,000-file limit. So the rule is that no single asset exceeds 25 MiB, and total download is a UX concern rather than a hard gate. This also makes the constraint web-only: iOS ships through the App Store and never touches Cloudflare. Treating a per-asset cap as a total payload budget is what motivated the int4 work in [F10](#phase-f-shrink-the-model-to-clear-the-size-gate) and [F11](#phase-f-shrink-the-model-to-clear-the-size-gate). |
 | F3 | Pick the smaller backbone | Needs a permissive license, published basis weights, and an output dim that fits the existing projection | ✅ | [TinyCLIP-39M](https://huggingface.co/timm/vit_medium_patch16_clip_224.tinyclip_yfcc15m). MIT-licensed, ships weights on timm, 512-d output matches ViT-B-16, 19.2 MB at int4. MobileCLIP-S2 is research-license only. ViT-B-32 saves nothing: patch size changes token count, not param count. |
 | F4 | Re-pick the teacher for the new student | WingCLIP-0.1 now beats BioCLIP-2 on birds, so the original teacher can be the wrong target now | ✅ | WingCLIP-0.1 wins by **+5.65** NABirds top-1 (89.09 vs 83.44) at n=24,633, identical recipe, only the teacher differs. A student of WingCLIP-0.1 can beat BioCLIP-2 because WingCLIP-0.1 is not a pure distillation: it carries a ground-truth fine-tune BioCLIP-2 never had. Distillation still cannot exceed its OWN teacher, since that embedding is the target. |
 | F5 | Test val_cos as the teacher selector | val_cos is cheap and available every epoch, so it makes a convenient proxy for the expensive eval | ✅ | Disqualified. It ranked the LOSING teacher higher. It measures agreement with the teacher on in-distribution data, so it cannot see a teacher that is itself wrong. |
@@ -197,10 +197,11 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 |----|-------|-------------|---|----------|
 | G1 | Choose the on-device runtime | onnxruntime-web, transformers.js, WebGPU, or Core ML. Each wants a different artifact | ❓ | Undecided, and no client code exists yet. The int8 format was picked before the target runtime. |
 | G2 | Export to ONNX | Any web runtime needs this. Core ML converts from torch directly and skips it | ⚠️ | fp32 export is bit-exact (worst cosine 1.00000000). **fp16 export is BLOCKED** by converter bugs and must be solved before any WebGPU work. |
+| G11 | Understand the web runtime stack | ONNX, WebGPU and WASM are often treated as alternatives. They are not | ✅ | **They are different layers, and you need all three.** ONNX is the model FORMAT. `onnxruntime-web` is the RUNTIME that reads it. WebGPU and WASM are EXECUTION PROVIDERS inside that runtime, selected at session creation. One `.onnx` file serves both: try `executionProviders: [webgpu]` and fall back to `[wasm]` when the browser lacks WebGPU. WebGPU runs on the GPU and is much faster, while WASM is the universal CPU fallback and is roughly 5x slower in published comparisons. So this is a code-level choice, not a second artifact. |
+| G12 | Split the int8 tower across files | The int8 tower is 38.9 MB, over the 25 MiB per-file cap, so shipping it needs ONNX external data | ❓ | Untested here, but it is the documented path: weights move to a separate `.data` file referenced by `location` in the protobuf, and the browser passes them through the `externalData` session option, since JS cannot read the file system. Normally used for models over the 2 GB protobuf limit, so a 39 MB split is well inside ordinary usage. Known failure mode from the tracker: "Failed to load external data file, File not found in preloaded files", which happens when the path in `externalData` does not match the `location` string. Decide this against [G5](#phase-g-ship) option (b), which trades 2.30 points for one simple file. |
 | G3 | Measure CPU latency | Decides whether WASM/CPU is a real target or only a fallback | ✅ | int8 at 4 threads = 143.6 ms, ~1.7x faster than fp32. Imperceptible beside the network round-trip it replaces, so CPU is a viable target. |
 | G4 | Clear the license gate | The app is public, so weights, corpus and derived artifacts all need clean licenses | ✅ | LAION ViT-B and TinyCLIP are both clean. Apple MobileCLIP weights are research-only, which is why [F3](#phase-f-shrink-the-model-to-clear-the-size-gate) rejected them. |
-| G5 | Ship one artifact per runtime | Same weights, different precision per platform | ⚠️ | **iOS: ship int8, 47.5 MB total, 86.82 top-1.** That clears the bar for a 0.09 loss. **Web: unsolved.** No combination fits 25 MB at usable accuracy, so the options are a bigger web budget, a region-sliced text matrix (see [G10](#phase-g-ship)), or an accepted accuracy drop. |
-| G10 | Shrink or slice the text classifier | The 11,167 x 768 matrix is 8.6 MB at int8 and 17.2 MB at fp16, so it is a large part of the payload, and it has never been quantised or measured | ❓ | Untested. An int4 accuracy cost here comes ON TOP of the tower loss, so every combined figure in this file assumes a cost we have not paid yet. It is a lookup table rather than a network, so a region slice is possible: a user in North America needs a few hundred rows, not 11,167. That path can reach the web budget where quantisation alone cannot, and it does not touch the model. |
+| G5 | Ship one artifact per runtime | Same weights, different precision per platform. The web rule is 25 MiB per FILE, so the question is how many files, not how many MB | ✅ | **iOS: int8, 86.82 top-1, no size constraint.** **Web: two options, both legal.** (a) int8 tower 38.9 MB EXCEEDS the per-file cap, so it needs ONNX external data to split across two files of about 20 and 19 MB, and keeps 86.82. (b) int4 block 32 tower is 21.9 MB in ONE file and costs 2.30 points, landing at 84.61. Either way the text classifier ships as its own 8.6 MB asset. Option (a) is more accurate and adds a load step. Option (b) is simpler and less accurate. |
 | G6 | Replace GPT bird detection and framing | GPT returns `birdCenter`, `birdSize` and `multipleBirds`. A pure classifier returns none of these. The app loses features unless we replace them | ❓ | Candidates: iOS Vision framework animal detection (boxes and count, free) and the existing web manual-crop UX, which is model-agnostic. The softmax gate CANNOT stand in for this: Spearman 0.032 against bird area. The earlier "low confidence means crop" framing was design intent, never validated, and is disproven for the range NABirds covers. |
 | G7 | Ship the range data offline | On-device ID is pointless if the ranker still needs a network call for geography | ✅ | Ship the 5.41 MiB occurrence blob, not the 260 MiB BirdLife store. Lookup is a grid index plus a vector op on the 27 km Equal Earth grid (1276x618). |
 | G8 | Refresh the occurrence prior | The prior goes stale as bird distributions shift | ✅ | Quarterly. E6 measured 2.88 pts lost over 2 years, and freshness matters ~2.4x more than data volume. Version-stamp the blob filename and add an immutable Cache-Control entry. |
@@ -390,25 +391,32 @@ see [G10](#phase-g-ship):
 | int8 | 8.6 |
 | int4 | 4.3 |
 
-**Combined payload against the 25 MB web gate:**
+**Against the real web rule: 25 MiB PER FILE, not a total budget.**
 
-| tower | text | total | top-1 | gate |
-|---|---|---|---|---|
-| int8 38.9 | int8 8.6 | 47.5 | 86.82 | over |
-| int8 38.9 | int4 4.3 | 43.2 | 86.82 | over |
-| mixed 27.0 | int4 4.3 | 31.3 | 85.19 | over |
-| int4b32 21.9 | int8 8.6 | 30.5 | 84.61 | over |
-| int4b32 21.9 | int4 4.3 | 26.2 | 84.61 | over |
+Cloudflare Pages caps a single asset at 25 MiB and allows 20,000 files. Total
+download is a UX concern, not a hard gate. iOS ships through the App Store and has
+no such limit at all.
 
-**Nothing fits 25 MB.** Even int4 on both parts lands at 26.2 MB while losing 2.30
-points, which misses the ship bar as well. The tower alone is 21.9 MB at int4
-block 32, not the 19.2 MB that a plain `params x bits/8` calculation suggests,
-because block-wise scales are not free.
+| asset | size | files needed |
+|---|---|---|
+| int8 tower | 38.9 MB | 2, needs ONNX external data |
+| int4 block 32 tower | 21.9 MB | 1 |
+| text classifier int8 | 8.6 MB | 1 |
+| occurrence prior blob | 5.4 MB gzipped | 1 |
 
-**So the size target splits by platform.** iOS ships int8 and clears the bar. The
-web target needs a different lever: a bigger budget, a region-sliced text matrix
-([G10](#phase-g-ship)), or an accepted accuracy drop. Quantisation alone cannot
-reach it.
+The text classifier is not part of the ONNX graph. It is a matrix used for a cosine
+comparison AFTER inference, so it always ships as its own asset and never needed
+quantising to fit.
+
+**Two legal web options:**
+
+| option | tower | top-1 | complexity |
+|---|---|---|---|
+| int8, split | 38.9 MB over 2 files | **86.82** | needs `externalData` wiring |
+| int4 block 32 | 21.9 MB in 1 file | 84.61 | none |
+
+Option (a) keeps the ship bar. Option (b) costs 2.30 points and misses it, but needs
+no split. See [G5](#phase-g-ship) and [G12](#phase-g-ship).
 ### The ranker (Strategy I, the shipped math)
 
 ```
