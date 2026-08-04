@@ -168,7 +168,14 @@ def main():
         d = torch.load(a.checkpoint, map_location="cpu")
         f = torch.load(a.finetuned, map_location="cpu")
         merged = wise_ft(d["model"], f["model"], a.alpha)
-        out = {"model": merged, "args": f.get("args", {}),
+        # Prefer the distilled args: train_student.py always records arch,
+        # while an older fine-tune checkpoint may not.
+        _wa = dict(f.get("args", {}) or {})
+        _da = d.get("args", {}) or {}
+        for _k in ("arch", "pretrained"):
+            if not _wa.get(_k) and _da.get(_k):
+                _wa[_k] = _da[_k]
+        out = {"model": merged, "args": _wa,
                "wise_ft_alpha": a.alpha,
                "wise_ft_from": [a.checkpoint, a.finetuned]}
         p = os.path.join(a.out, f"wise_a{a.alpha:.2f}.pt")
@@ -309,7 +316,13 @@ def main():
         acc = run_val()
         log(f"epoch {ep+1}/{a.epochs}  train_loss={run_loss/max(1,seen):.4f}  "
             f"val_top1={acc:.2f}%  (baseline {base_acc:.2f}%)  {time.time()-te:.0f}s")
-        ckpt = {"model": student.state_dict(), "args": vars(a), "epoch": ep + 1,
+        # Carry the backbone identity forward. vars(a) has no arch, so a
+        # downstream loader would fall back to a default and fail to load
+        # (this broke all 5 WiSE-FT evals on 2026-08-04).
+        _fa = dict(vars(a))
+        _fa["arch"] = arch
+        _fa["pretrained"] = pre
+        ckpt = {"model": student.state_dict(), "args": _fa, "epoch": ep + 1,
                 "val_top1": acc, "baseline_top1": base_acc}
         torch.save(ckpt, os.path.join(a.out, "last.pt"))
         if acc > best:

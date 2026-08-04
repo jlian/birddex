@@ -62,7 +62,15 @@ def load_student(checkpoint, device):
     from train_student import Student
     ckpt = torch.load(checkpoint, map_location="cpu")
     a = ckpt.get("args", {})
-    st = Student(a.get("arch", "ViT-B-16"), a.get("pretrained", "laion2b_s34b_b88k"))
+    # Do NOT silently default the backbone. A wrong default loads the wrong
+    # module and raises a wall of missing/unexpected keys that reads like a
+    # corrupt checkpoint. Fail with the real cause instead.
+    if not a.get("arch"):
+        raise SystemExit(
+            "checkpoint %s has no args['arch']: cannot build the student. "
+            "The producing script must record arch (and pretrained). "
+            "Re-save it or pass a checkpoint that carries them." % checkpoint)
+    st = Student(a["arch"], a.get("pretrained", "laion2b_s34b_b88k"))
     sd = ckpt["model"]
     # torch.compile wraps the module, so every key gains an _orig_mod. prefix.
     # A checkpoint saved under --compile will not load into a plain module,
