@@ -183,6 +183,27 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | F11 | Rescue int4 with block size and mixed precision | int4 at the default block of 128 collapses. Two standard fixes exist: a smaller group so fewer weights share one scale, and mixed precision that keeps sensitive layers at int8 | ✅ | **Both help and neither is enough.** Block 128 to 32 buys back 3.11 points (81.50 to 84.61) for 1.8 MB of extra scale metadata, which confirms outliers were the cause: one large weight in a block of 128 crushes the other 127 into a few levels. Mixed precision adds 0.58 more (85.19) but costs 5 MB, so it fails the size gate before accuracy matters. The best int4 variant still lands 1.2 points under the bar. **There is no configuration that is both small enough and accurate enough.** ⚠️ Also unverified: whether onnxruntime-web or Core ML accept block 32 efficiently. |
 | F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests the [C7](#phase-c-recipe-search-on-vit-b) suspect directly. It changes ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
 
+## Phase H: Recalibrate the ranker for the new student
+
+The shipped score is `sim/T + beta * log P(species|cell)`. `T` and `beta` in
+`calibration_occ_01.json` were fitted to WingCLIP-0.1 at alpha 0.90, an 86.6M
+ViT-B. We now ship TinyCLIP-39M at alpha 0.60. `T` sets the scale on which visual
+similarity trades against the geographic prior, and a different model gives a
+different similarity distribution, so the old value silently mis-weights the prior.
+
+**Order matters: refit in torch, then validate in the shipping JS, then export to
+ONNX.** ONNX is a format change that stays numerically neutral, so it gets
+checked by bit-exact comparison against torch rather than by downstream accuracy.
+Exporting first confounds an export bug with a calibration bug.
+
+| ID | Title | Description | ● | Findings |
+|----|-------|-------------|---|----------|
+| H1 | Re-emit calibration candidates | `cand_sim` holds the similarities of one specific model, so the old file describes a model we no longer ship | ✅ | 11,071 photos re-scored with `wise_a0.60.pt` at 160 img/s. Written to `calib_cands_tiny39_a060.parquet`. |
+| H2 | Rebuild the occurrence counts matrix | `calib_occ_counts.npz` is shape (photos x 25) indexed by CANDIDATE RANK, so it is tied to the candidate ordering from H1 | ✅ | Rebuilt for the new candidates: 36,753 of 276,750 slots carry a nonzero count (13.3%), median cell total 6,677. The old matrix pairs each photo with counts for a DIFFERENT species list. |
+| H3 | Regenerate the range-status file | `fit_occurrence.py --status` needs `{photo_id, status[]}` per candidate, produced by [`scripts/attach-range-status.mjs`](../scripts/attach-range-status.mjs). It is also candidate-ordered | ❌ | BLOCKED. The old status file is not on disk, and regenerating it needs the BirdLife range-cells blob, of which only the downloader script remains. See H4 for the cheaper route. |
+| H4 | Decide whether the status term is needed at all | [E3](#phase-e-integrate-and-fix-the-ranker) measured BirdLife as worth only +0.30 on top of iNat occurrence, and a [standing rule](#standing-rules) says do NOT ship BirdLife range data | ❓ | Open. `fit_occurrence.py` requires `--status` because it fits `w[status]` as a smoothing prior, but if BirdLife adds almost nothing then reconstructing that pipeline buys almost nothing either. Fitting with every status set to `no-data` reduces the model to counts-only and measures directly whether the term still matters for this student. That is cheap and needs no blob. |
+| H5 | Validate in the shipping JS pipeline | Python agreement is not evidence that the shipped path agrees. [E5](#phase-e-integrate-and-fix-the-ranker) checked this once on 11,070 photos | ⬜ | Not started. Run [`scripts/pipeline-experiment.mjs`](../scripts/pipeline-experiment.mjs) with the refitted parameters, and expect it to agree with the Python reference. |
+
 ## Phase G: Ship
 
 No item here blocks the work today. But the runtime decision controls the export
@@ -427,7 +448,8 @@ score(species) = sim/T + beta · log P(species|cell)
   produced a number.
 - `beta` fitted ~0.6-1.33 depending on the fit.
 - Fitted params live in [`calibration_occ_01.json`](calibration_occ_01.json) and are specific to WingCLIP-0.1 @
-  alpha=0.90. **A model swap REQUIRES a refit.**
+  alpha=0.90. **A model swap REQUIRES a refit.** That refit is [Phase H](#phase-h-recalibrate-the-ranker-for-the-new-student) and it is NOT
+  finished, so these parameters are stale for the current student.
 
 `P(species|cell)` uses empirical iNat occurrence data. It comes from 157M
 research-grade observations. These give 3,176,965 bird (species,cell) pairs over
