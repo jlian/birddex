@@ -172,15 +172,15 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | ID | Title | Description | ● | Findings |
 |----|-------|-------------|---|----------|
 | F1 | Measure what quantization costs | Fake-quantize weights in torch and run the normal eval, to find the smallest format that keeps the accuracy | ✅ | fp16 is exactly free. int8 costs 0.05 pts at 87 MB. int4 costs 0.88 pts at 43 MB. int3 and int2 COLLAPSE to 0.00% top-1: the embedding is destroyed, not merely noisy. |
-| F2 | Decide the size target | Sub-25 MB came from a MobileCLIP-era assumption, so it can be the wrong goal now | ✅ | ViT-B cannot reach 25 MB by quantization alone. To clear it, we need a smaller backbone. int4 at 43 MB stays an excellent trade for iOS. |
+| F2 | Decide the size target | Sub-25 MB came from a MobileCLIP-era assumption, so it can be the wrong goal now | ⚠️ | **Split the target by platform. iOS is solved, web is not.** The 25 MB budget drove the whole backbone swap, and it is NOT reachable at usable accuracy: see [F10](#phase-f-shrink-the-model-to-clear-the-size-gate). int8 keeps the accuracy but the full payload is 47.5 MB. int4 fits the tower but loses more than 2 points and STILL misses once the text matrix is added. Treat 25 MB as a web-only constraint and ship iOS at int8. |
 | F3 | Pick the smaller backbone | Needs a permissive license, published basis weights, and an output dim that fits the existing projection | ✅ | [TinyCLIP-39M](https://huggingface.co/timm/vit_medium_patch16_clip_224.tinyclip_yfcc15m). MIT-licensed, ships weights on timm, 512-d output matches ViT-B-16, 19.2 MB at int4. MobileCLIP-S2 is research-license only. ViT-B-32 saves nothing: patch size changes token count, not param count. |
 | F4 | Re-pick the teacher for the new student | WingCLIP-0.1 now beats BioCLIP-2 on birds, so the original teacher can be the wrong target now | ✅ | WingCLIP-0.1 wins by **+5.65** NABirds top-1 (89.09 vs 83.44) at n=24,633, identical recipe, only the teacher differs. A student of WingCLIP-0.1 can beat BioCLIP-2 because WingCLIP-0.1 is not a pure distillation: it carries a ground-truth fine-tune BioCLIP-2 never had. Distillation still cannot exceed its OWN teacher, since that embedding is the target. |
 | F5 | Test val_cos as the teacher selector | val_cos is cheap and available every epoch, so it makes a convenient proxy for the expensive eval | ✅ | Disqualified. It ranked the LOSING teacher higher. It measures agreement with the teacher on in-distribution data, so it cannot see a teacher that is itself wrong. |
 | F6 | Choose the recipe basis for TinyCLIP | Phase C settled the recipe for ViT-B, but a 2.2x capacity cut can move back into the regime where regularization helps | ✅ | 0.2 basis wins on the pilot: val_cos 0.9560 vs 0.9438. This is the opposite of the [C6](#phase-c-recipe-search-on-vit-b) result at full scale on ViT-B, which is the expected direction for a smaller model. |
 | F7 | Run the full 7,555-species distill | TinyCLIP-39M, 0.2 basis, WingCLIP-0.1 teacher, 25 epochs | 🔬 | Running since 2026-08-02. ~720 img/s, ~29 h. |
-| F8 | Fine-tune and sweep alpha, on photos the TEACHER never saw | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student. The first attempt reused `groundtruth_heldout_distilled.parquet`, the very set that produced WingCLIP-0.1, so the student relearned supervised signal its own teacher already held | ✅ | **SHIP BAR CLEARED: 86.90 against BioCLIP-2 at 86.41**, on the full 24,633-image eval. Best alpha is 0.60, with 0.75 tied. The optimum moved DOWN from the 0.90 that ViT-B wanted, as predicted for a 2.26x smaller model. Sweep: 0.25 86.27, 0.40 86.64, 0.50 86.82, 0.60 **86.90**, 0.75 86.90, 0.90 86.56. Retention against the WingCLIP-0.1 teacher (89.93) is 96.6% at 2.26x fewer parameters. **The photo set was worth more than the alpha choice.** A disjoint set of 143,890 photos over 3,662 species, excluded by photo_id and by observation_uuid from both the distillation corpus and the reused set, beat the reused set at EVERY alpha by +0.54 to +0.84. Same baseline, same recipe, only the photos differ. That took the fine-tune gain from +1.10 to **+1.92**, so reusing the teacher's own fine-tune data suppressed the student by roughly 40%. The reused arm peaked at 86.08, which MISSES the bar. Build disjoint sets with `--exclude-manifest`. About 46.1M untouched candidate photos remain. |
-| F10 | Measure int4 size and accuracy on TinyCLIP | The 25 MB gate is the reason for this phase, but every size was CALCULATED and the only measured int4 accuracy cost came from ViT-B | ⚠️ | **int4 costs this model 8.85 points, ten times the 0.88 it cost ViT-B.** Measured on `full7555_tiny39` (pre-fine-tune) over all 24,633 images: fp32 84.97, fp16 84.98, bf16 84.99, int8 84.95, **int4-blk128 76.12**. int8 is free and int4 at block 128 is unusable. Confirms the redundancy argument: a 38.3M model cannot absorb 4-bit weights the way an 86.6M one can. See [F11](#phase-f-shrink-the-model-to-clear-the-size-gate) for the rescue. |
-| F11 | Rescue int4 with block size and mixed precision | F10 showed int4-blk128 collapses. Two standard fixes exist: a smaller group so fewer weights share one scale, and mixed precision that keeps sensitive layers at int8 | ⚠️ | **Block size recovers most of it.** Measured, weights-only MB includes the fp16 scale metadata: blk128 76.12 at 20.1 MB, blk64 79.24 at 20.7 MB, **blk32 82.74 at 21.9 MB**. So 128 to 32 buys back **6.6 points for 1.8 MB**, which confirms outliers were the cause: one large weight in a block of 128 crushed the other 127 into a few levels. int4-blk32 at 21.9 MB fits under the gate with room for the text matrix, but still costs 2.23 points. A mixed variant that protects attention and patch-embed at int8 measures 27.0 MB, which already misses the gate before accuracy is considered. ⚠️ **Not yet checked: whether onnxruntime-web or Core ML accept block 32 efficiently.** Recovering accuracy in torch is worthless if the deployment format rejects the layout. |
+| F8 | Fine-tune and sweep alpha | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student, on a ground-truth set disjoint from BOTH the distillation corpus and the set that produced the teacher | ✅ | **SHIP BAR CLEARED: 86.90 against BioCLIP-2 at 86.41**, on the full 24,633-image eval. Best alpha is 0.60, with 0.75 tied. The optimum moved DOWN from the 0.90 that ViT-B wanted, as predicted for a 2.26x smaller model. Sweep: 0.25 86.27, 0.40 86.64, 0.50 86.82, 0.60 **86.90**, 0.75 86.90, 0.90 86.56. Fine-tune gain over the distill baseline is +1.92 (84.98 to 86.90). Retention against the WingCLIP-0.1 teacher (89.93) is 96.6% at 2.26x fewer parameters. The set is 143,890 photos over 3,662 species, excluded by photo_id and by observation_uuid. See the exclusion rule in [Eval methodology](#eval-methodology). |
+| F10 | Measure quantisation on the SHIPPING ARTIFACT | Sizes were calculated, and the only measured int4 cost came from ViT-B. A WiSE-FT blend averages two weight sets, so it can carry a different outlier structure from the distill baseline | ✅ | Measured on `wise_a0.60.pt` over all 24,633 images. **int8 is the only usable format**: 86.82 at 38.9 MB, which clears the bar and preserves the embedding almost exactly (cos 0.999923, 99.27% top-1 agreement with fp32). Every int4 variant misses: blk128 81.50, blk64 84.06, blk32 84.61, mixed ffn4/blk32+sens8 85.07, mixed ffn4/blk64+sens8 85.19. Re-measuring on the blend mattered: blk128 lost 5.41 here against 8.85 on the distill baseline, so the artifact really does quantise differently. |
+| F11 | Rescue int4 with block size and mixed precision | int4 at the default block of 128 collapses. Two standard fixes exist: a smaller group so fewer weights share one scale, and mixed precision that keeps sensitive layers at int8 | ✅ | **Both help and neither is enough.** Block 128 to 32 buys back 3.11 points (81.50 to 84.61) for 1.8 MB of extra scale metadata, which confirms outliers were the cause: one large weight in a block of 128 crushes the other 127 into a few levels. Mixed precision adds 0.58 more (85.19) but costs 5 MB, so it fails the size gate before accuracy matters. The best int4 variant still lands 1.2 points under the bar. **There is no configuration that is both small enough and accurate enough.** ⚠️ Also unverified: whether onnxruntime-web or Core ML accept block 32 efficiently. |
 | F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests the [C7](#phase-c-recipe-search-on-vit-b) suspect directly. It changes ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
 
 ## Phase G: Ship
@@ -199,7 +199,8 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 | G2 | Export to ONNX | Any web runtime needs this. Core ML converts from torch directly and skips it | ⚠️ | fp32 export is bit-exact (worst cosine 1.00000000). **fp16 export is BLOCKED** by converter bugs and must be solved before any WebGPU work. |
 | G3 | Measure CPU latency | Decides whether WASM/CPU is a real target or only a fallback | ✅ | int8 at 4 threads = 143.6 ms, ~1.7x faster than fp32. Imperceptible beside the network round-trip it replaces, so CPU is a viable target. |
 | G4 | Clear the license gate | The app is public, so weights, corpus and derived artifacts all need clean licenses | ✅ | LAION ViT-B and TinyCLIP are both clean. Apple MobileCLIP weights are research-only, which is why [F3](#phase-f-shrink-the-model-to-clear-the-size-gate) rejected them. |
-| G5 | Ship one artifact per runtime | Same weights, different precision per platform | ⬜ | Plan is iOS int8, web int4. TinyCLIP changes these numbers, so re-measure after F7. |
+| G5 | Ship one artifact per runtime | Same weights, different precision per platform | ⚠️ | **iOS: ship int8, 47.5 MB total, 86.82 top-1.** That clears the bar for a 0.09 loss. **Web: unsolved.** No combination fits 25 MB at usable accuracy, so the options are a bigger web budget, a region-sliced text matrix (see [G10](#phase-g-ship)), or an accepted accuracy drop. |
+| G10 | Shrink or slice the text classifier | The 11,167 x 768 matrix is 8.6 MB at int8 and 17.2 MB at fp16, so it is a large part of the payload, and it has never been quantised or measured | ❓ | Untested. An int4 accuracy cost here comes ON TOP of the tower loss, so every combined figure in this file assumes a cost we have not paid yet. It is a lookup table rather than a network, so a region slice is possible: a user in North America needs a few hundred rows, not 11,167. That path can reach the web budget where quantisation alone cannot, and it does not touch the model. |
 | G6 | Replace GPT bird detection and framing | GPT returns `birdCenter`, `birdSize` and `multipleBirds`. A pure classifier returns none of these. The app loses features unless we replace them | ❓ | Candidates: iOS Vision framework animal detection (boxes and count, free) and the existing web manual-crop UX, which is model-agnostic. The softmax gate CANNOT stand in for this: Spearman 0.032 against bird area. The earlier "low confidence means crop" framing was design intent, never validated, and is disproven for the range NABirds covers. |
 | G7 | Ship the range data offline | On-device ID is pointless if the ranker still needs a network call for geography | ✅ | Ship the 5.41 MiB occurrence blob, not the 260 MiB BirdLife store. Lookup is a grid index plus a vector op on the 27 km Equal Earth grid (1276x618). |
 | G8 | Refresh the occurrence prior | The prior goes stale as bird distributions shift | ✅ | Quarterly. E6 measured 2.88 pts lost over 2 years, and freshness matters ~2.4x more than data volume. Version-stamp the blob filename and add an immutable Cache-Control entry. |
@@ -359,22 +360,55 @@ Only the ViT-B int4 ACCURACY cost of -0.88 points is measured. See F10.
 | visual int4 + text int4 | **23.5 MB** | clears |
 | visual int8 + text int8 | 46.9 MB | over |
 
-⚠️ **These sizes assume int4 is usable. On TinyCLIP-39M it is not, at the
-default block size.** Measured on the visual tower over all 24,633 NABirds images:
+### Measured payload (2026-08-04)
 
-| precision | top-1 | weights MB | vs fp32 |
-|---|---|---|---|
-| fp32 | 84.97 | 155 | - |
-| int8 | 84.95 | 38.9 | -0.02 |
-| int4 block 128 | 76.12 | 20.1 | **-8.85** |
-| int4 block 64 | 79.24 | 20.7 | -5.73 |
-| int4 block 32 | 82.74 | 21.9 | -2.23 |
+All numbers below are MEASURED on the shipping artifact `wise_a0.60.pt` over all
+24,633 NABirds images. Sizes include the fp16 scale metadata that block-wise
+quantisation needs, which the earlier calculated figures left out.
 
-int8 is free but 38.9 MB alone already misses the 25 MB gate. int4 block 32 is the
-only setting that is both small enough and close enough to be worth pursuing, and
-it still costs 2.23 points. int3 and int2 collapse to 0.00% top-1, so nothing below
-int4 exists. See F10 and F11.
+**Visual tower**, 38,719,232 parameters:
 
+| precision | top-1 | tower MB | vs fp32 | cos(fp32) | agree |
+|---|---|---|---|---|---|
+| fp32 | 86.91 | 155 | - | 1.000000 | 100.00% |
+| **int8** | **86.82** | **38.9** | **-0.09** | 0.999923 | 99.27% |
+| mixed ffn4/blk64 + sens8 | 85.19 | 27.0 | -1.73 | 0.987932 | 90.98% |
+| mixed ffn4/blk32 + sens8 | 85.07 | 27.8 | -1.84 | 0.992209 | 92.36% |
+| int4 block 32 | 84.61 | 21.9 | -2.30 | 0.988648 | 91.15% |
+| int4 block 64 | 84.06 | 20.7 | -2.85 | 0.982274 | 88.99% |
+| int4 block 128 | 81.50 | 20.1 | -5.41 | 0.974508 | 85.97% |
+
+int8 keeps the embedding almost exactly. int4 at block 128 changes it: 0.974
+cosine and only 86% top-1 agreement is a different model, not a noisier one.
+
+**Text classifier**, 11,167 x 768 = 8,576,256 values. Accuracy cost UNMEASURED,
+see [G10](#phase-g-ship):
+
+| precision | MB |
+|---|---|
+| fp16 | 17.2 |
+| int8 | 8.6 |
+| int4 | 4.3 |
+
+**Combined payload against the 25 MB web gate:**
+
+| tower | text | total | top-1 | gate |
+|---|---|---|---|---|
+| int8 38.9 | int8 8.6 | 47.5 | 86.82 | over |
+| int8 38.9 | int4 4.3 | 43.2 | 86.82 | over |
+| mixed 27.0 | int4 4.3 | 31.3 | 85.19 | over |
+| int4b32 21.9 | int8 8.6 | 30.5 | 84.61 | over |
+| int4b32 21.9 | int4 4.3 | 26.2 | 84.61 | over |
+
+**Nothing fits 25 MB.** Even int4 on both parts lands at 26.2 MB while losing 2.30
+points, which misses the ship bar as well. The tower alone is 21.9 MB at int4
+block 32, not the 19.2 MB that a plain `params x bits/8` calculation suggests,
+because block-wise scales are not free.
+
+**So the size target splits by platform.** iOS ships int8 and clears the bar. The
+web target needs a different lever: a bigger budget, a region-sliced text matrix
+([G10](#phase-g-ship)), or an accepted accuracy drop. Quantisation alone cannot
+reach it.
 ### The ranker (Strategy I, the shipped math)
 
 ```
