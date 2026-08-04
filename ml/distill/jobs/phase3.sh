@@ -20,7 +20,10 @@ cd /home/jlian/wingdex/ml/distill || exit 1
 V=./.venv/bin/python
 RUN=runs/full7555_tiny39
 FT=runs/ft_tiny39_fresh
-CORPUS=/home/jlian/wingdex/ml/groundtruth-fresh
+PULLDIR=/home/jlian/wingdex/ml/groundtruth-fresh
+# pull_images.py writes into <out>/corpus/. Point the fine-tune AT that
+# subdir, not at its parent: a wrong root loads zero images silently.
+CORPUS="$PULLDIR/corpus"
 MANIFEST=groundtruth_fresh_v2.parquet
 S=/home/jlian/wingdex-queue/fresh
 LOG=/home/jlian/phase3.log
@@ -42,10 +45,14 @@ fi
 # Download the fresh photos. ~143,890 images; this is the long pole.
 if [ ! -f "$S/pull.done" ]; then
   say "STEP 1/4: downloading 143,890 fresh photos"
-  $V pull_images.py --manifest "$MANIFEST" --out "$CORPUS" \
+  $V pull_images.py --manifest "$MANIFEST" --out "$PULLDIR" \
     --size medium --workers 16 >>"$LOG" 2>&1
-  N=$(find "$CORPUS" -name "*.jpg" 2>/dev/null | wc -l)
-  say "  downloaded $N files"
+  # Count EVERY image extension. iNat serves jpg, jpeg, png, JPG and gif,
+  # and pull_images.py keeps the original. A *.jpg-only count missed 34%
+  # of a complete download and aborted the run.
+  N=$(find "$PULLDIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \
+        -o -iname "*.png" -o -iname "*.gif" -o -iname "*.webp" \) 2>/dev/null | wc -l)
+  say "  downloaded $N image files (all extensions)"
   # Accept partial: iNat 404s some photos. Below 80% means something is wrong.
   if [ "$N" -ge 115000 ]; then
     touch "$S/pull.done"; say "  pull OK ($N files)"
@@ -70,6 +77,14 @@ if [ ! -f "$S/ft.done" ]; then
     --epochs 12 --lr 1e-5 --wd 0.1 --batch 96 --workers 10 \
     --warmup 200 --grad-clip 1.0 --aug light --label-smoothing 0.1 \
     >>"$LOG" 2>&1
+  # A fine-tune on an empty dataset finishes in seconds at 0.00% and still
+  # writes best.pt. Require a real baseline before accepting it.
+  if grep -a "done. baseline=0.00%" "$LOG" >/dev/null 2>&1; then
+    say "  FAILED: fine-tune reported baseline=0.00%, so it saw NO images."
+    say "  Check that --gt-corpus points at the corpus/ subdir: $CORPUS"
+    rm -f "$FT/best.pt"
+    exit 4
+  fi
   if [ -f "$FT/best.pt" ]; then
     touch "$S/ft.done"; say "  fine-tune OK"
   else
@@ -114,3 +129,12 @@ say "STEP 4/4: summary"
 $V jobs/phase3_summary.py >>"$LOG" 2>&1
 touch "$S/phase3.done"
 say "=== PHASE 3 DONE ==="
+
+# ---------------------------------------------------------------- chain
+# Quantisation must be measured on the SHIPPING ARTIFACT, not on the distill
+# baseline. The first sweep used runs/full7555_tiny39/best.pt, which is not
+# what we ship: a WiSE-FT blend averages two weight sets and can carry a
+# different outlier structure, and outliers are what broke int4 at block 128.
+# phase4 picks the winning alpha from the eval JSONs by itself.
+say "chaining phase 4 (quantisation on the winning alpha)"
+bash jobs/phase4_quant.sh
