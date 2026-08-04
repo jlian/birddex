@@ -120,6 +120,7 @@ combination at full scale.
 | C5 | Test more epochs | 40 epochs against 25, to see if the pilot was undertrained | ⚠️ | [exp8](#experiment-register) ran 40 epochs and peaked at epoch 38 with val_cos 0.9503. [exp7](#experiment-register) got 0.9540 in 25 epochs. But exp8 also used lr 1e-4 against exp7's 7e-5, so the learning rate is a second variable. The result holds for the 500-species pilot only. |
 | C6 | Run the locked recipe at full scale | Combine C1-C3 and retrain on all 7,555 species. We expected the pilot gains to carry over | 🗑️ | LOST on ViT-B with BioCLIP-2 targets: 90.7% retention vs the old recipe's 94.7%. At 2.5M images the extra regularization has little overfitting left to prevent and instead costs representation quality. 0.1-alpha stays the base. 0.2-alpha is retired. |
 | C8 | Test the epoch budget at full scale | Both finished full runs stopped at the epoch budget, not at a plateau, so the budget can be too small | ❓ | [full7555_vitb](#experiment-register) peaked at epoch 20 of 20. [full7555_locked_ep25](#experiment-register) peaked at 25 of 25. Neither had stopped improving. C5 rejected 40 epochs on the 500-species pilot, where the run DID plateau at epoch 38. We carried a pilot result to full scale, where it can fail to apply. C6 also compares 25 epochs against 20, which is one more difference between the two recipes. |
+| C9 | Find the real epoch ceiling | C8 shows every full run stops at its budget. You cannot just add epochs: `--epochs` sets the LENGTH of the cosine anneal, not a stop point, so `steps = steps_per_epoch * epochs` changes the whole LR curve | ⬜ | Two valid methods. **A: retrain from scratch** at `--epochs 35`. One smooth anneal, directly comparable, ~41 h. **B: warm restart** from `last.pt` with a fresh short cosine at a lower peak LR (about 2e-5 over 8 epochs). This is SGDR, a published method, and costs ~11 h. B answers "does more training help". Only A answers "what does a 35-epoch run score". Do NOT resume with a different `--epochs` and expect a continuation: the scheduler restores its step count but recomputes against the new length, so the LR jumps back up. That is an accidental warm restart. **Conditional: run this only if F8 misses the ship bar.** If the model clears 86.41, C8 and C9 stay open as curiosities. |
 | C7 | Isolate which knob lost C6 | C6 changed SIX variables at once, so "aug light + wd 0.2 caused it" is a guess across confounded variables | ❓ | Untested at full scale on any model. Aug light is the prime suspect: it is the largest lever and a regularizer, while beta2, warmup and grad-clip are near-universal defaults that do not trade representation quality. A pilot A/B cannot settle it.[^augscale] Scoped as F9 if the current run misses the bar. |
 
 ## Phase D: Beat the teacher
@@ -210,6 +211,13 @@ gate runs are in [Appendix F](#appendix-f-smoke-and-gate-runs).
 
 **best** is the epoch of the best val_cos. When **best** equals **ep**, the run stopped
 at its budget and not at a plateau. That run can improve with more epochs.
+
+⚠️ **Do NOT compare val_cos across these tables.** val_cos measures agreement
+with the teacher on that run's own validation split. The runs use different
+species counts, different teachers and different data, so the values sit on
+different scales. A 500-species pilot at 0.9560 and a 7,555-species run at 0.9618
+are two different measurements, not a ranking. Compare val_cos only inside one
+group, and use NABirds for any decision.
 
 ### ViT-B pilot sweep, 500 species (Phase C)
 
