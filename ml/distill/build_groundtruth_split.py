@@ -11,6 +11,24 @@ saw through the teacher's eyes -> recovers the teacher, doesn't beat it."
 
 So both the fine-tune and its eval need photos the distillation NEVER saw.
 
+SECOND-GENERATION EXCLUSION (added 2026-08-04)
+----------------------------------------------
+A student distilled from WingCLIP-0.1 must not be fine-tuned on the SAME
+photos WingCLIP-0.1 was fine-tuned on. That does not leak into NABirds, which
+is a separate dataset, so a NABirds score stays valid. It does make any
+"the student approaches its teacher" claim partly circular, because the
+student relearns supervised signal the teacher already holds.
+
+To get a third disjoint set, pass BOTH the training manifest and the existing
+ground-truth parquet:
+  --train-manifest train_manifest.parquet \
+  --exclude-manifest groundtruth_heldout_distilled.parquet
+
+The reservoir is real: build_manifest.py capped each species by lowest
+photo_id, so everything above the cutoff is untouched, roughly 49M photos.
+But it sits in COMMON species. Species that were scarcity-limited rather than
+cap-limited have nothing left, so a fresh set covers fewer species.
+
 WHERE THE UNTOUCHED DATA IS
 ---------------------------
 `build_manifest.py` applied a per-species cap ordered by photo_id, i.e. it kept
@@ -32,11 +50,16 @@ TWO LEAKAGE RULES, BOTH ENFORCED HERE
 PREREQUISITE
 ------------
 Needs the iNat AWS Open Data metadata dump (taxa/observations/photos .csv.gz,
-~30GB) -- the same input `build_manifest.py` uses. It was deleted with the
-scratch dir on 2026-07-25; re-fetch from s3://inaturalist-open-data/ before
-running this. Nothing else is required: this script only reads metadata and
-emits a photo list. Actually downloading the sampled JPEGs is a separate step
-(reuse pull_images.py with the emitted manifest).
+~30GB), the same input `build_manifest.py` uses. It is ON DISK at
+`~/wingdex/ml/inat-metadata/` (observations 12.3G, photos 19.0G, taxa 39M,
+fetched 2026-07-25). An earlier version of this note said the dump was deleted
+with the scratch dir. That was wrong, and it caused a bad cost estimate on
+2026-08-04. Check the directory before you claim a re-fetch is needed.
+If it ever does go missing, re-fetch from s3://inaturalist-open-data/.
+
+Nothing else is required: this script only reads metadata and emits a photo
+list. Downloading the sampled JPEGs is a separate step (reuse pull_images.py
+with the emitted manifest).
 
 Usage:
   python build_groundtruth_split.py \\
