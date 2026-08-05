@@ -24,7 +24,7 @@ const taxHash = createHash("sha256")
   .digest("hex").slice(0, 16)
 
 const blob = parseOccurrence(
-  new Uint8Array(gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence-v1.bin.gz")))),
+  new Uint8Array(gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence-v3.bin.gz")))),
   taxHash,
 )
 console.log("occurrence blob OK, cells=" + blob.nCells + " taxHash=" + blob.taxHash)
@@ -66,7 +66,8 @@ for (const f of readdirSync(FX)) {
 
   const ctx = fx.context || {}
   const loc = (ctx.lat != null && ctx.lon != null) ? { lat: ctx.lat, lon: ctx.lon } : null
-  const scored = rankCandidates(cands.slice(0, 25), CAL, blob, loc)
+  const mon = ctx.month != null ? Number(ctx.month) : undefined
+  const scored = rankCandidates(cands.slice(0, 25), CAL, blob, loc, mon)
   if (scored.length && scored[0].logP === null) noCell++
 
   const names = scored.slice(0, 5).map(s => norm(taxonomy[s.idx][0]))
@@ -82,4 +83,4 @@ console.log("vision-only (no cell data): " + noCell)
 console.log("TS ranker  top-1 " + top1 + "/" + n + " = " + (100 * top1 / n).toFixed(1) + "%")
 console.log("TS ranker  top-5 " + top5 + "/" + n + " = " + (100 * top5 / n).toFixed(1) + "%")
 console.log("")
-console.log("harness I_occurrence_SHIPPING was 94% top-1 / 97% top-5 on this set.")
+console.log("offline month fit measured 95.0% ABS top-1 on the val split.")

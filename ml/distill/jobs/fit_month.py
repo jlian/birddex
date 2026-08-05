@@ -187,6 +187,18 @@ def main():
     for b in range(args.boot):
         s = rng.integers(0, n, n)
         diffs[b] = vec[s].mean() - base_vec[s].mean()
+    # Export the k=0 calibration, which is the fitted optimum and what ships.
+    import json as _json
+    acc0, _, T0, B0 = fit_and_eval(0.0, True)
+    _json.dump({"temperature": T0, "beta": B0, "k": 0.0,
+                "prior": "P(species|cell,month) = n_scm / n_cm",
+                "val_top1_abs": acc0,
+                "blob_version": 3},
+               open("calibration_month_tiny39.json", "w"), indent=2)
+    log("")
+    log("wrote calibration_month_tiny39.json  T=%.5f beta=%.3f  val %.2f%%"
+        % (T0, B0, 100 * acc0))
+
     lo, hi = np.percentile(diffs, [2.5, 97.5])
     log("")
     log("paired bootstrap on the delta, %d resamples:" % args.boot)
