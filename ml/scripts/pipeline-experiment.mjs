@@ -26,6 +26,14 @@ import {
   parseCellBlob, adjustConfidence,
 } from '../../functions/lib/range-adjust.js'
 
+// CLI overrides for the fitted ranker params. Declared HERE, not lower down:
+// const is not hoisted, so a later declaration throws a ReferenceError when
+// the scorer reads it.
+const _a = process.argv
+const CLI_T = _a.includes('--T') ? Number(_a[_a.indexOf('--T') + 1]) : null
+const CLI_BETA = _a.includes('--beta') ? Number(_a[_a.indexOf('--beta') + 1]) : null
+if (CLI_T) console.error('# using T=' + CLI_T + ' beta=' + CLI_BETA)
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TAXONOMY = JSON.parse(readFileSync(join(ROOT, 'src/lib/taxonomy.json'), 'utf8'))
 const byCommonLower = new Map(), byScientificLower = new Map()
@@ -327,8 +335,11 @@ function occCell(row, col) {
 }
 
 function stratOccurrence(fx, K = 25, opts = {}) {
-  const T = opts.T ?? 0.00845     // FITTED with beta on the 11k leak-free set
-  const beta = opts.beta ?? 1.33  // weight on log P(species|cell)
+  // CLI override: --T and --beta. Defaults are the 2026-07-30 ViT-B fit and
+  // are WRONG for any other student, since T sets the scale on which
+  // similarity trades against the geographic prior.
+  const T = opts.T ?? CLI_T ?? 0.00845     // FITTED with beta on the 11k leak-free set
+  const beta = opts.beta ?? CLI_BETA ?? 1.33  // weight on log P(species|cell)
   const ctx = fx.context || {}
   let c = ground(fx).sort((a, b) => b.score - a.score).slice(0, K)
   if (!c.length) return []
