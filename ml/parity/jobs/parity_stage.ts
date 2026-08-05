@@ -13,6 +13,7 @@ function readU8(p: string): Uint8Array {
 }
 
 let worstR = 0
+let worstH = 0
 const rows: string[] = []
 
 for (const ph of meta.photos) {
