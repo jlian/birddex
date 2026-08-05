@@ -24,6 +24,20 @@ import { rankCandidates, scoresToProbs, type Candidate } from '../../../src/lib/
 const ROOT = process.argv[2]
 const EMBED = 768
 
+function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
+  const n = Math.floor(buf.length / (dim + 4))
+  const q = new Int8Array(buf.buffer, buf.byteOffset, n * dim)
+  const scales = new Float32Array(
+    buf.buffer.slice(buf.byteOffset + n * dim, buf.byteOffset + n * dim + n * 4))
+  const out = new Float32Array(n * dim)
+  for (let s = 0; s < n; s++) {
+    const sc = scales[s]
+    const base = s * dim
+    for (let i = 0; i < dim; i++) out[base + i] = q[base + i] * sc
+  }
+  return out
+}
+
 function f16ToF32(h: Uint16Array): Float32Array {
   const out = new Float32Array(h.length)
   for (let i = 0; i < h.length; i++) {
@@ -41,15 +55,16 @@ function f16ToF32(h: Uint16Array): Float32Array {
 const taxonomy = JSON.parse(readFileSync(join(ROOT, "src/lib/taxonomy.json"), "utf8"))
 const taxHash = createHash("sha256")
   .update(readFileSync(join(ROOT, "src/lib/taxonomy.json"))).digest("hex").slice(0, 16)
-const cal = JSON.parse(readFileSync(join(ROOT, "ml/distill/calibration_occ_tiny39.json"), "utf8"))
+const cal = JSON.parse(readFileSync(join(ROOT, "ml/distill/calibration_month_tiny39.json"), "utf8"))
 
-const tb = readFileSync(join(ROOT, "public/models/text_classifier_fp16.bin"))
-const text = f16ToF32(new Uint16Array(tb.buffer, tb.byteOffset, tb.length / 2))
+const tb = readFileSync(join(ROOT, "public/models/text_classifier_int8.bin"))
+const tbytes = new Uint8Array(tb.buffer.slice(tb.byteOffset, tb.byteOffset + tb.length))
+const text = decodeInt8Rows(tbytes, EMBED)
 const nSpecies = text.length / EMBED
 console.log("text classifier: " + nSpecies + " x " + EMBED)
 if (nSpecies !== taxonomy.length) throw new Error("species/taxonomy mismatch")
 
-const occRaw = gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence-v1.bin.gz")))
+const occRaw = gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence-v3.bin.gz")))
 const occ = parseOccurrence(new Uint8Array(occRaw), taxHash)
 console.log("occurrence: " + occ.nCells + " cells, taxHash " + occ.taxHash)
 
@@ -92,7 +107,7 @@ for (const ph of meta.photos.slice(0, 8)) {
   const cands: Candidate[] = idx.slice(0, 25).map(i => ({ idx: i, sim: sims[i] }))
 
   // Seattle, to exercise the geographic prior path.
-  const scored = rankCandidates(cands, cal, occ, { lat: 47.61, lon: -122.33 })
+  const scored = rankCandidates(cands, cal, occ, { lat: 47.61, lon: -122.33 }, 11)
   const probs = scoresToProbs(scored)
   if (scored[0].logP !== null) withPrior++
   n++

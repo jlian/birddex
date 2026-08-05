@@ -131,3 +131,5 @@ ml/**/__pycache__/
 public/models/
 public/parity/
 public/node_modules
+public/priors/occurrence-v3.bin.gz
+public/priors/occurrence-v3.bin.gz.meta.json
