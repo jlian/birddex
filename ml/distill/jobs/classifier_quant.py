@@ -47,12 +47,12 @@ def quant_row(tf):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--onnx", required=True)
+    ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--text", required=True)
     ap.add_argument("--nabirds", default="nabirds")
     ap.add_argument("--nb-map", default="nabirds_to_taxo.json")
     ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--batch", type=int, default=256)
     args = ap.parse_args()
 
     root = args.nabirds
@@ -92,26 +92,38 @@ def main():
     tf = tf / np.linalg.norm(tf, axis=1, keepdims=True)
     log("classifier: %s" % (tf.shape,))
 
-    import onnxruntime as ort
-    import open_clip
+    # Embed on the GPU via torch, not onnxruntime. The installed onnxruntime is
+    # CPU-only (providers are Azure and CPU), which made this a 40-minute job on
+    # a box with an idle RTX 3080. The ONNX export is already verified
+    # bit-exact against torch in G13, so using the checkpoint here changes
+    # nothing about what is measured.
+    import sys
+    import torch
     from PIL import Image
-    _, _, pre = open_clip.create_model_and_transforms("ViT-B-16", pretrained=None)
-    sess = ort.InferenceSession(args.onnx, providers=["CPUExecutionProvider"])
-    iname = sess.get_inputs()[0].name
+    sys.path.insert(0, ".")
+    from train_student import Student
 
-    log("embedding %d images once, reused for every variant..." % len(samples))
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    ck = torch.load(args.checkpoint, map_location="cpu")
+    ca = ck.get("args", {})
+    st = Student(ca.get("arch", "ViT-B-16"), ca.get("pretrained", "laion2b_s34b_b88k"))
+    st.load_state_dict(ck["model"])
+    st = st.to(dev).eval()
+    pre = st.preprocess
+    log("embedding %d images on %s..." % (len(samples), dev))
+
     embs = []
     labels = []
     B = args.batch
-    for i in range(0, len(samples), B):
-        chunk = samples[i:i + B]
-        px = np.stack([pre(Image.open(p).convert("RGB")).numpy()
-                       for p, _ in chunk]).astype(np.float32)
-        e = sess.run(None, {iname: px})[0].astype(np.float32)
-        embs.append(e)
-        labels.extend([y for _, y in chunk])
-        if i % (B * 40) == 0:
-            log("  %d/%d" % (i, len(samples)))
+    with torch.no_grad():
+        for i in range(0, len(samples), B):
+            chunk = samples[i:i + B]
+            px = torch.stack([pre(Image.open(p).convert("RGB")) for p, _ in chunk]).to(dev)
+            e = st(px).float().cpu().numpy()
+            embs.append(e)
+            labels.extend([y for _, y in chunk])
+            if i % (B * 40) == 0:
+                log("  %d/%d" % (i, len(samples)))
     E = np.concatenate(embs)
     E = E / np.linalg.norm(E, axis=1, keepdims=True)
     labels = np.array(labels, dtype=np.int64)
