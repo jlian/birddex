@@ -128,3 +128,4 @@ ml/distill/runs/
 ml/distill/calib_corpus/
 ml/distill/embeddings/
 ml/**/__pycache__/
+public/models/
