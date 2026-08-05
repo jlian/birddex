@@ -201,7 +201,7 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 | G1 | Choose the on-device runtime | onnxruntime-web, transformers.js, WebGPU, or Core ML. Each wants a different artifact | ✅ | **onnxruntime-web with int8, and WASM is the default provider, not WebGPU.** Measured in headless Edge on the real served assets: WASM session setup 192 ms and 318 ms/image steady state, against WebGPU 1753 ms setup and 516 ms/image. WebGPU loses because dispatch, buffer upload and readback overhead exceed the compute for a model this small. Independently corroborated: sitepoint benchmarks from February 2026 and transformers.js issue 955 both report WASM beating WebGPU on small models. The client still lists webgpu first in `bird-id-local.ts`, which is now wrong and needs to follow this row. Core ML remains the separate iOS path, see [G18](#phase-g-ship). |
 | G11 | Understand the web runtime stack | ONNX, WebGPU and WASM are often treated as alternatives. They are not | ✅ | **They are different layers, and you need all three.** ONNX is the model FORMAT. `onnxruntime-web` is the RUNTIME that reads it. WebGPU and WASM are EXECUTION PROVIDERS inside that runtime, selected at session creation. One `.onnx` file serves both: try `executionProviders: [webgpu]` and fall back to `[wasm]` when the browser lacks WebGPU. WebGPU runs on the GPU and is much faster, while WASM is the universal CPU fallback and is roughly 5x slower in published comparisons. So this is a code-level choice, not a second artifact. |
 | G12 | Split the int8 tower across files | The int8 tower is 37.7 MiB, over the 25 MiB per-file cap, so shipping it needs ONNX external data | ✅ | **Solved with ONE data file, so the loader needs no manifest.** `onnx.save_model` with `all_tensors_to_one_file=True` gives a 13.72 MiB graph plus a 24.00 MiB `wingclip_visual_int8.data`, both under the cap, and the `location` string is the single stable name we choose. **`size_threshold` must stay above zero.** At zero every tensor moves out, including the small shape constants, and the load fails with "Cannot parse data from external tensors" on the `patch_embed` Slice. 1 MiB keeps constants inline. Sharding per initialiser also works and yields 24 files of about 1 MiB, but each `location` is a fresh UUID that changes on every export, so a hardcoded loader breaks. Verified by reloading the split model in onnxruntime and running it, not by inspection. ⚠️ **Margin is 1.00 MiB.** The data blob lands on exactly 24.00 MiB because ONNX pads to whole MiB, so about 1 MiB of weight growth tips it over and forces the sharded path. |
-| G21 | Replace the GPT-only UX signals in the app | The client model returns a ranked species list and nothing else. `AddPhotosFlow.tsx` branches on THREE things the classifier cannot produce | ⬜ | **This is the real blocker for an end-to-end web preview, and it is app work rather than model work.** The live flow uses: `cropBox`, built from GPT's `birdCenter` and `birdSize`, which drives the auto-crop preview. `multipleBirds` triggers "Multiple birds detected, crop to one" and sends the user to `photo-manual-crop`. An empty candidate list is how "no bird found" is detected and also routes to manual crop. A classifier always returns 25 ranked candidates, so it never produces an empty list and never flags multiple birds. Options: keep the manual-crop UX and drop the automatic prompts, which is the cheapest path and already model-agnostic. Add a small detector for boxes and count, which is what [G6](#phase-g-ship) tracks. Or derive "no confident bird" from a score threshold, noting the softmax gate was already measured as useless for this at Spearman 0.032. |
+| G21 | Replace the GPT-only UX signals in the app | `AddPhotosFlow.tsx` branches on three things GPT returns and a classifier does not | ✅ | **Decided: keep the confidence gate, drop the other two.** (1) **No bird / not sure is SOLVED** by the abstention gate at threshold 0.5, which is 77% coverage at 96.02% accuracy on kept photos. Today the app infers this from an empty candidate list, which a classifier never returns, so the branch moves to a confidence test. (2) **`multipleBirds` is dropped.** Nothing in the classifier detects a second bird, and the user knows better than a threshold does. (3) **`cropBox` auto-preview is dropped.** No box comes out of a classifier, and the existing manual crop UX already covers it. ⚠️ **Prompt at most ONCE.** Confidence tracks species ambiguity, not framing (Pearson 0.051 against bird area), so a crop often does not raise it and a re-prompt loop is a real failure mode. After one crop attempt, show the ranked candidates with an honest low-confidence label and let the user pick or skip. |
 | G19 | Retire the BirdLife half of `range-adjust.js` | The file is two modules wearing one name, and only half survives the cutover | ⬜ | **Blocked on the GPT cutover, not on us.** The GEOMETRY half is load-bearing and stays: `lonLatToEqualEarth`, `xyToCell`, `GRID_ORIGIN_*`, `GRID_CELL_SIZE`, `GRID_COLS/ROWS`. The occurrence blob is keyed by that exact Equal Earth grid, so `rank.ts` imports it and a naive lat/lon division mis-keys every lookup. The BIRDLIFE half dies: `presenceTrust`, `originTrust`, `seasonalTrust`, `adjustConfidence`, `parseCellBlob`, `NEAR_RANGE_TRUST`, `OUT_OF_RANGE_TRUST`, `latLonToCell`, `neighborCells`. Confirmed by grep that the new client path (`rank.ts`, `occurrence.ts`, `bird-id-local.ts`) references NONE of those, so the zombie code is inert rather than harmful. It cannot be deleted yet: `adjustConfidence` still has 16 references in `src/` and `range-filter.ts` still serves the live GPT path. After cutover, delete the trust half and move the projection math to its own module, since naming coordinate code after a data source we no longer ship is how this confusion started. |
 | G18 | Ship the iOS Core ML path | The web path is settled. iOS converts from torch directly, skips ONNX, and has no 25 MiB per-file cap | ⬜ | **Not started.** Expected to be the easy runtime: no cap, so the classifier can stay fp16 or fp32, and Core ML takes fp16 natively where the ONNX converter fails. ⚠️ **The real risk is preprocessing, not conversion.** The web client had THREE separate off-by-one bugs against PIL, each shifting the crop by one pixel while every dimension still looked correct: resize floors, CenterCrop rounds, and Python round() is banker rounding. Worst tensor error was 2.596 before the fixes and 3.0e-2 after. `VNImageRequestHandler` and `CIImage` resizing have their OWN resampling behaviour, so none of that work transfers. Reuse the harness: dump reference tensors from PIL, compare on device, and gate on EMBEDDING cosine above 0.999 rather than on tensor equality. |
 | G17 | Measure quantisation on the TEXT CLASSIFIER | [F1](#phase-f-shrink-the-model-to-clear-the-size-gate) and [F10](#phase-f-shrink-the-model-to-clear-the-size-gate) both measured the VISUAL TOWER only. The classifier was never in scope, and fp16 was chosen under size pressure rather than on evidence | ✅ | **int8 per-row clears the gate and cuts the download to 51.3 MiB.** Real top-1 over all 24,633 NABirds images: fp32 32.72 MiB **86.91**, fp16 16.36 MiB **86.91**, int8-global 8.18 MiB **86.88**, int8-perrow 8.22 MiB **86.96**. Per-row beats a single global scale on agreement with fp32, 99.75% against 99.46%, for 44 KB of extra scales, because one global scale has to cover 11,167 unrelated species embeddings. int8-perrow scoring 0.05 above fp32 is noise, not a gain. The real finding is that quantisation costs nothing measurable here. That is expected, since rows are L2-normalised so values are bounded and there are no activation outliers. **fp16 is confirmed exactly free**, so yesterday's choice was right but under-verified: it rested on agreement across 24 photos rather than accuracy. Client total goes 59.5 to **51.3 MiB**: 13.72 graph, 24.00 weights, 8.22 classifier, 5.41 prior. Embeddings come from the fp32 tower once and are reused for every variant, so the comparison isolates the classifier. |
@@ -213,12 +213,53 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 | G3 | Measure CPU latency | Decides whether WASM/CPU is a real target or only a fallback | ✅ | int8 at 4 threads = 143.6 ms, ~1.7x faster than fp32. Imperceptible beside the network round-trip it replaces, so CPU is a viable target. |
 | G4 | Clear the license gate | The app is public, so weights, corpus and derived artifacts all need clean licenses | ✅ | LAION ViT-B and TinyCLIP are both clean. Apple MobileCLIP weights are research-only, which is why [F3](#phase-f-shrink-the-model-to-clear-the-size-gate) rejected them. |
 | G5 | Ship one artifact per runtime | Same weights, different precision per platform. The web rule is 25 MiB per FILE, so the question is how many files, not how many MB | ✅ | **iOS: int8, 86.82 top-1, no size constraint.** **Web: two options, both legal.** (a) int8 tower 38.9 MB EXCEEDS the per-file cap, so it needs ONNX external data to split across two files of about 20 and 19 MB, and keeps 86.82. (b) int4 block 32 tower is 21.9 MB in ONE file and costs 2.30 points, landing at 84.61. Either way the text classifier ships as its own 8.6 MB asset. **Decision: option (a).** [G12](#phase-g-ship) proved the split works with one data file and no manifest, so the extra load step is a single `externalData` entry and int4 is not needed on web. |
-| G6 | Replace GPT bird detection and framing | GPT returns `birdCenter`, `birdSize` and `multipleBirds`. A pure classifier returns none of these. The app loses features unless we replace them | ❓ | Candidates: iOS Vision framework animal detection (boxes and count, free) and the existing web manual-crop UX, which is model-agnostic. The softmax gate CANNOT stand in for this: Spearman 0.032 against bird area. The earlier "low confidence means crop" framing was design intent, never validated, and is disproven for the range NABirds covers. |
+| G6 | Replace GPT bird detection and framing | GPT returns `birdCenter`, `birdSize` and `multipleBirds`. A pure classifier returns none of these | ✅ | **Split the question and most of it disappears.** DETECTION is handled: the abstention gate answers "is there confidently a bird" at 2.4% false-accept on Imagenette negatives against 88.4% of real birds passing. FRAMING is not, and cannot be, from this model: confidence against relative bird area is Pearson 0.051 and Spearman 0.032, so low confidence means species ambiguity rather than a badly framed shot. The earlier "low confidence means crop" framing was design intent, never validated, and is disproven for the range NABirds covers. COUNTING is also unavailable. Resolution per [G21](#phase-g-ship): ship detection through the gate, drop counting and auto-framing on web, and revisit iOS Vision animal detection for boxes and count on the Core ML path in [G18](#phase-g-ship), where it is free. |
 | G7 | Ship the range data offline | On-device ID is pointless if the ranker still needs a network call for geography | ✅ | Ship the 5.41 MiB occurrence blob, not the 260 MiB BirdLife store. Lookup is a grid index plus a vector op on the 27 km Equal Earth grid (1276x618). |
 | G8 | Refresh the occurrence prior | The prior goes stale as bird distributions shift | ✅ | Quarterly. E6 measured 2.88 pts lost over 2 years, and freshness matters ~2.4x more than data volume. Version-stamp the blob filename and add an immutable Cache-Control entry. |
 | G9 | Prove the adaptive router in a browser | One pipeline, swappable front end: on-device model when cached, hosted VLM otherwise | ⚠️ | `ml/demo/` loads BioCLIP-2 ViT-L int8 (307 MB) via onnxruntime-web with a WASM fallback. Verified by `validate_node.js`: int8 ONNX loads, embeddings are faithful, raw 74/83 pre-range matches PyTorch, CPU ~335 ms/img. **WebGPU latency and download/cache timing are still unmeasured** and need a real browser session. Swapping in WingCLIP at 19-43 MB is what makes it pleasant. |
 
 ---
+
+## Next: getting to a PR preview deploy
+
+The model work is finished and every claim below it is measured. What remains is
+integration, in dependency order. Nothing here needs a GPU.
+
+**1. Rebuild the shipped prior blob with the month dimension.**
+`public/priors/occurrence-v1.bin.gz` has no month, so the +1.2 points from
+[G16](#phase-g-ship) are not reachable from the client yet. The packer needs a
+month axis and the client decoder needs to match it. Keep the taxonomy hash check,
+since species are keyed by row index and a reordered taxonomy silently mis-keys
+every prior. Expect the blob to grow: 54.7M triples against 26.4M pairs, so the
+thinning threshold decides the final size against the 25 MiB per-file cap.
+
+**2. Point `rank.ts` at the monthly prior.** The scorer currently reads
+`P(species|cell)`. It becomes `n_scm / n_cm`, and the photo month comes from EXIF,
+which `AddPhotosFlow.tsx` already extracts and passes today.
+
+**3. Flip the execution provider to WASM first.** [G1](#phase-g-ship) decided this
+on measurement, 318 ms against 516 ms, and `bird-id-local.ts` still lists `webgpu`
+ahead of `wasm`.
+
+**4. Swap the three GPT-only branches in `AddPhotosFlow.tsx`**, per
+[G21](#phase-g-ship). Replace the empty-candidate-list test with a post-rerank
+confidence test at 0.7, delete the `multipleBirds` branch, and delete the
+`cropBox` auto-preview. Prompt at most ONCE, then show ranked candidates with an
+honest low-confidence label. A re-prompt loop is the failure mode here, because
+confidence tracks species ambiguity rather than framing.
+
+**5. Cache the 51.3 MiB of assets.** Downloading once is the difference between a
+usable app and an unusable one. Fetch on first identify rather than on page load,
+so opening the site does not pull 51 MiB.
+
+**6. Deploy a preview and try it on real photos.** Everything above is verified in
+Node or in headless Edge against local files. It has never run against a real
+upload, a real EXIF payload, or a phone.
+
+**Not blocking a preview:** [G18](#phase-g-ship) Core ML for iOS,
+[G19](#phase-g-ship) deleting the BirdLife trust code, which must wait for the GPT
+cutover, and [G20](#phase-g-ship) unifying the absence floor, which is measured at
+zero cost.
 
 ## Experiment register
 
@@ -460,15 +501,56 @@ floor and the cap. It therefore flattens the abundance ratios. Use the raw dump.
 
 ### Abstention
 
-Ship the existing confidence gate at threshold 0.5. We do not need a separate bird
-detector. Only 2.4% of non-bird photos pass the gate, against 88.4% of real birds.
-The model never had training to detect birds.
+Ship the confidence gate at threshold 0.5. We do not need a separate bird detector
+for the "is this a bird" question. Measured on `WingCLIP-0.3`, all 24,633 NABirds
+images:
 
-- We measured this on Imagenette, which has EASY negatives. 2.4% is a floor value,
-  not a guarantee.
-- **The gate is not a framing detector.** The correlation of top-1 confidence against
-  relative bird area is Pearson 0.051. Low confidence shows species ambiguity, not
-  bad framing. A prompt to crop the photo does not help in most cases.
+| threshold | coverage | accuracy on kept |
+|---|---|---|
+| 0.0 | 100.0% | 86.90% |
+| 0.3 | 91.7% | 91.39% |
+| **0.5** | **77.0%** | **96.02%** |
+| 0.7 | 50.4% | 98.27% |
+| 0.9 | 2.4% | 99.34% |
+
+At 0.5 the gate keeps 77% of photos and is 96% correct on them, up from 86.90%
+ungated. Only 2.4% of non-bird photos pass, against 88.4% of real birds.
+
+**Those numbers are PRE-rerank.** `eval_nabirds.py` computes
+`softmax(sims * 100).max()` on raw vision-to-text similarity, with no geographic
+prior, no month, and no fitted `T` or `beta`. The shipping pipeline reranks, so
+its final confidences are much sharper. Measured on the 3,322-photo validation
+split:
+
+| threshold | vision-only coverage / acc | post-rerank coverage / acc |
+|---|---|---|
+| 0.0 | 100.0% / 81.10% | 100.0% / 94.88% |
+| 0.5 | 71.4% / 94.43% | 97.8% / 96.67% |
+| **0.7** | 52.1% / 97.81% | **94.9% / 97.91%** |
+| 0.9 | 22.1% / 99.59% | 90.2% / 98.77% |
+
+**Ship the gate on the post-rerank score at threshold 0.7.** That keeps 94.9% of
+photos at 97.91% accuracy, so the app prompts on about 5% of uploads rather than
+the 23% to 29% the pre-rerank numbers implied. The prior collapses genuine
+ambiguity: two similar sparrows can split vision confidence evenly, and if only
+one occurs in that cell that month the reranked distribution is decisive.
+
+⚠️ **The post-rerank gate trusts the prior.** For a genuine vagrant the
+model is confidently WRONG, which is exactly when an honest low-confidence answer
+matters most. Rare by definition, but it is the failure mode to watch.
+
+**Remaining caveats.**
+- **Coverage 77% means 23% of photos fall BELOW the threshold**, not that 23% are
+  rejected. Those are the photos to prompt on. And 23% is measured on NABirds,
+  which is entirely birds. Real uploads include non-birds, where the gate does
+  more work.
+- **The gate is not a framing detector.** Top-1 confidence against relative bird
+  area is Pearson 0.051, Spearman 0.032. Low confidence means species ambiguity,
+  such as two similar sparrows, NOT that the bird is small or badly framed. So
+  "crop and retry" helps in some of that 23% and not in the rest.
+
+Negatives were measured on Imagenette, which has EASY negatives, so 2.4% is a
+floor value rather than a guarantee.
 
 ### Model registry
 
@@ -478,7 +560,9 @@ The model never had training to detect birds.
 | `WingCLIP-0.1-beta` | 0.1-alpha + ground-truth fine-tune | `ft_clean_01` | GT-val 77.61 |
 | **`WingCLIP-0.1`** | **0.1-beta + WiSE-FT alpha 0.90** | `ft_clean_01` | **NABirds 89.93** |
 | `WingCLIP-0.2-alpha` | full ViT-B distill, 0.2 recipe | `full7555_locked_ep25` | NABirds 78.4 · retired, see C6 |
-| `WingCLIP-0.3-alpha` | full TinyCLIP-39M distill | `full7555_tiny39` | running, see F7 |
+| `WingCLIP-0.3-alpha` | full TinyCLIP-39M distill | `full7555_tiny39` | val_cos 0.9436 |
+| `WingCLIP-0.3-beta` | 0.3-alpha + ground-truth fine-tune on fresh photos | `ft_tiny39_fresh` | see the alpha sweep |
+| **`WingCLIP-0.3`** | **0.3-beta + WiSE-FT alpha 0.60. THIS IS WHAT SHIPS.** | `ft_tiny39_fresh/wise_a0.60.pt` | **NABirds 86.90**, beating teacher BioCLIP-2 at 86.41, at 38.3M params against 86.6M |
 
 ### Measured results
 
