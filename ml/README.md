@@ -181,28 +181,10 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | F8 | Fine-tune and sweep alpha | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student, on a ground-truth set disjoint from BOTH the distillation corpus and the set that produced the teacher | ✅ | **SHIP BAR CLEARED: 86.90 against BioCLIP-2 at 86.41**, on the full 24,633-image eval. Best alpha is 0.60, with 0.75 tied. The optimum moved DOWN from the 0.90 that ViT-B wanted, as predicted for a 2.26x smaller model. Sweep: 0.25 86.27, 0.40 86.64, 0.50 86.82, 0.60 **86.90**, 0.75 86.90, 0.90 86.56. Fine-tune gain over the distill baseline is +1.92 (84.98 to 86.90). Retention against the WingCLIP-0.1 teacher (89.93) is 96.6% at 2.26x fewer parameters. The set is 143,890 photos over 3,662 species, excluded by photo_id and by observation_uuid. See the exclusion rule in [Eval methodology](#eval-methodology). |
 | F10 | Measure quantisation on the SHIPPING ARTIFACT | Sizes were calculated, and the only measured int4 cost came from ViT-B. A WiSE-FT blend averages two weight sets, so it can carry a different outlier structure from the distill baseline | ✅ | Measured on `wise_a0.60.pt` over all 24,633 images. **int8 is the only usable format**: 86.82 at 38.9 MB, which clears the bar and preserves the embedding almost exactly (cos 0.999923, 99.27% top-1 agreement with fp32). Every int4 variant misses: blk128 81.50, blk64 84.06, blk32 84.61, mixed ffn4/blk32+sens8 85.07, mixed ffn4/blk64+sens8 85.19. Re-measuring on the blend mattered: blk128 lost 5.41 here against 8.85 on the distill baseline, so the artifact really does quantise differently. |
 | F11 | Rescue int4 with block size and mixed precision | int4 at the default block of 128 collapses. Two standard fixes exist: a smaller group so fewer weights share one scale, and mixed precision that keeps sensitive layers at int8 | ✅ | **Both help and neither is enough.** Block 128 to 32 buys back 3.11 points (81.50 to 84.61) for 1.8 MB of extra scale metadata, which confirms outliers were the cause: one large weight in a block of 128 crushes the other 127 into a few levels. Mixed precision adds 0.58 more (85.19) but costs 5 MB, so it fails the size gate before accuracy matters. The best int4 variant still lands 1.2 points under the bar. **There is no configuration that is both small enough and accurate enough.** ⚠️ Also unverified: whether onnxruntime-web or Core ML accept block 32 efficiently. |
+| F13 | Recalibrate the ranker for the new student | The shipped score is `sim/T + beta * log P(species|cell)`. `T` and `beta` were fitted to WingCLIP-0.1 at alpha 0.90, so they set the wrong scale for a 38.3M student at alpha 0.60 | ✅ | Refitted: **T 0.00930 to 0.00760, beta 0.543 to 0.563**. An 18% move in T confirms the refit was needed rather than ceremonial. THREE inputs are candidate-ordered and must be rebuilt together: the candidate file holds one model's similarities, the counts matrix is indexed by candidate RANK, and the range-status file is a per-photo list in the same order. Validated in the shipping JS: `I_occurrence_SHIPPING` scores 94% top-1 and 97% top-5 over all 11,070 photos, against 81% for the old production logic. |
+| F14 | Score both models head to head | The 88.29 figure was a ViT-B pipeline number. A fair comparison needs the same split, the same absolute metric, and each model using its OWN fitted parameters | ✅ | **The 38.3M student beats the 86.6M pipeline by 3.76 points.** Same 30% validation split (3,322 photos, seed 0), same code, each arm with its own `T` and `beta`. ViT-B: ceiling 94.52, vision-only 72.94, Strategy I **90.04**, using 95.3% of its headroom. TinyCLIP-39M: ceiling 97.14, vision-only 81.10, Strategy I **93.80**, using 96.6% of its headroom. The win is not only a higher ceiling: vision-only improved 8.16 points and the ranker converts more of what is reachable. Reproduction note: the original run recorded 88.29 and the JS harness recorded 89, against 90.04 here after rebuilding the counts and status files. Vision-only and the ceiling match the original EXACTLY, so the candidates and split are identical and the spread is implementation noise. |
+| F15 | Check whether BirdLife status still does anything | `fit_occurrence.py` fits `w[status]` as a smoothing prior, so it LOOKS like BirdLife data is in the shipped score | ✅ | **It is mathematically inert in both arms.** The prior is `(count + alpha * exp(w[status])) / (total + alpha * sum)`, and alpha fits to 1.6e-10 for ViT-B and 3.1e-10 for TinyCLIP. At that magnitude the status term sits about ten orders of magnitude below the counts, so both arms are counts-only in practice. The fitted `w` values are therefore meaningless and differ wildly between arms (`out-of-range` -8.98 against -5.79) with no effect on the result. `I_occurrence_SHIPPING` in [`pipeline-experiment.mjs`](../scripts/pipeline-experiment.mjs) reads only the occurrence blob and never looks up range status at all. This confirms the [standing rule](#standing-rules) not to ship BirdLife data. |
 | F9 | Retrain at full scale without aug light | Only if F8 misses the ship bar. Tests the [C7](#phase-c-recipe-search-on-vit-b) suspect directly. It changes ONE variable against F7 | ⬜ | Not started, and deliberately conditional: it costs ~29 h for the student, plus ~62 GPU-h if the ViT-B teacher is retrained too. If F8 clears 86.41 this stays unrun and the question stays open.[^augscale] |
-
-## Phase H: Recalibrate the ranker for the new student
-
-The shipped score is `sim/T + beta * log P(species|cell)`. `T` and `beta` in
-`calibration_occ_01.json` were fitted to WingCLIP-0.1 at alpha 0.90, an 86.6M
-ViT-B. We now ship TinyCLIP-39M at alpha 0.60. `T` sets the scale on which visual
-similarity trades against the geographic prior, and a different model gives a
-different similarity distribution, so the old value silently mis-weights the prior.
-
-**Order matters: refit in torch, then validate in the shipping JS, then export to
-ONNX.** ONNX is a format change that stays numerically neutral, so it gets
-checked by bit-exact comparison against torch rather than by downstream accuracy.
-Exporting first confounds an export bug with a calibration bug.
-
-| ID | Title | Description | ● | Findings |
-|----|-------|-------------|---|----------|
-| H1 | Re-emit calibration candidates | `cand_sim` holds the similarities of one specific model, so the old file describes a model we no longer ship | ✅ | 11,071 photos re-scored with `wise_a0.60.pt` at 160 img/s. Written to `calib_cands_tiny39_a060.parquet`. |
-| H2 | Rebuild the occurrence counts matrix | `calib_occ_counts.npz` is shape (photos x 25) indexed by CANDIDATE RANK, so it is tied to the candidate ordering from H1 | ✅ | Rebuilt for the new candidates: 36,753 of 276,750 slots carry a nonzero count (13.3%), median cell total 6,677. The old matrix pairs each photo with counts for a DIFFERENT species list. |
-| H3 | Regenerate the range-status file | `fit_occurrence.py --status` needs `{photo_id, status[]}` per candidate, produced by [`scripts/attach-range-status.mjs`](../scripts/attach-range-status.mjs). It is also candidate-ordered | ❌ | BLOCKED. The old status file is not on disk, and regenerating it needs the BirdLife range-cells blob, of which only the downloader script remains. See H4 for the cheaper route. |
-| H4 | Decide whether the status term is needed at all | [E3](#phase-e-integrate-and-fix-the-ranker) measured BirdLife as worth only +0.30 on top of iNat occurrence, and a [standing rule](#standing-rules) says do NOT ship BirdLife range data | ❓ | Open. `fit_occurrence.py` requires `--status` because it fits `w[status]` as a smoothing prior, but if BirdLife adds almost nothing then reconstructing that pipeline buys almost nothing either. Fitting with every status set to `no-data` reduces the model to counts-only and measures directly whether the term still matters for this student. That is cheap and needs no blob. |
-| H5 | Validate in the shipping JS pipeline | Python agreement is not evidence that the shipped path agrees. [E5](#phase-e-integrate-and-fix-the-ranker) checked this once on 11,070 photos | ⬜ | Not started. Run [`scripts/pipeline-experiment.mjs`](../scripts/pipeline-experiment.mjs) with the refitted parameters, and expect it to agree with the Python reference. |
 
 ## Phase G: Ship
 
@@ -448,8 +430,9 @@ score(species) = sim/T + beta · log P(species|cell)
   produced a number.
 - `beta` fitted ~0.6-1.33 depending on the fit.
 - Fitted params live in [`calibration_occ_01.json`](calibration_occ_01.json) and are specific to WingCLIP-0.1 @
-  alpha=0.90. **A model swap REQUIRES a refit.** That refit is [Phase H](#phase-h-recalibrate-the-ranker-for-the-new-student) and it is NOT
-  finished, so these parameters are stale for the current student.
+  alpha=0.90. **A model swap REQUIRES a refit.** The current student uses
+  [`calibration_occ_tiny39.json`](calibration_occ_tiny39.json) instead: T=0.00760, beta=0.563.
+  See [F13](#phase-f-shrink-the-model-to-clear-the-size-gate).
 
 `P(species|cell)` uses empirical iNat occurrence data. It comes from 157M
 research-grade observations. These give 3,176,965 bird (species,cell) pairs over
@@ -501,14 +484,28 @@ base 01:  0.25→85.86  0.50→88.42  0.75→89.69  0.90→89.93  1.00→89.77
 base 02:  0.25→83.20  0.50→86.40  0.75→88.19  0.90→88.46  1.00→88.26
 ```
 
-**Reranking**, absolute top-1 over 3,322 leak-free photos, recall ceiling 94.52:
+**Reranking**, ABSOLUTE top-1 on the 30% validation split (3,322 photos, seed 0).
+That split is a subset of the 11,070 calibration photos, not a separate dataset.
+Each model uses its OWN fitted `T` and `beta`, because `T` sets the scale on which
+similarity trades against the prior:
 
-| strategy | ABS top-1 |
-|---|---|
-| raw argmax, vision only | 72.94 |
-| F: gated tiering, the old logic | 79.53 |
-| H: log-sum + BirdLife | 81.87 |
-| **I: log-sum + iNat occurrence** | **88.29** |
+| strategy | ViT-B 86.6M | TinyCLIP 38.3M |
+|---|---|---|
+| recall ceiling | 94.52 | **97.14** |
+| raw argmax, vision only | 72.94 | **81.10** |
+| **I: log-sum + iNat occurrence** | **90.04** | **93.80** |
+| headroom used | 95.3% | **96.6%** |
+
+**Recall ceiling** is the fraction of photos whose true species appears anywhere in
+the 25 candidates. The reranker only reorders that list, so the ceiling is the best
+score it can reach. Read the two models by HEADROOM USED, not by raw top-1, since
+they have different ceilings.
+
+Historical rows for ViT-B, from the 2026-07-30 run: F gated tiering 79.53,
+H log-sum + BirdLife 81.87, I 88.29. That 88.29 rebuilds to 90.04 today, and the
+JS harness measured 89 at the time. Vision-only and the ceiling reproduce exactly,
+so the candidates and the split are identical and the spread is implementation
+noise. See [F14](#phase-f-shrink-the-model-to-clear-the-size-gate).
 
 **Quantization**, NABirds, all 24,633 images:
 

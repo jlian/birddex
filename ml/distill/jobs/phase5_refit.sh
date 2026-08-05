@@ -79,18 +79,43 @@ if [ ! -f "$S/counts.done" ]; then
     --out "$COUNTS" >>"$LOG" 2>&1
   [ -f "$COUNTS" ] || { say "  FAILED: no $COUNTS"; exit 4; }
   touch "$S/counts.done"; say "  counts OK"
+fi
+
+# attach-range-status.mjs reads JSONL rows carrying cand_idx, lat and lon,
+# so convert the candidate parquet once.
+CANDS_JSONL=calib_cands_tiny39_a060.jsonl
+if [ ! -f "$CANDS_JSONL" ]; then
+  $V -c "import pandas as pd, json; df = pd.read_parquet('$CANDS'); df[['photo_id','latitude','longitude','cand_idx']].to_json('$CANDS_JSONL', orient='records', lines=True)" >>"$LOG" 2>&1
+  say "  wrote $CANDS_JSONL"
 else
   say "STEP 2/4 already done, skipping"
 fi
 
+# ---------------------------------------------------------------- step 2b
+# The status file is {photo_id, status[]} PER CANDIDATE, so it is ordered by
+# the candidate list and must be rebuilt with it. Range cells live in
+# .tmp/range-priors/cells, the same directory pipeline-experiment.mjs uses.
+STATUS=calib_status_tiny39.jsonl
+if [ ! -f "$S/status.done" ]; then
+  say "STEP 2b/4: regenerate range status for the new candidate ordering"
+  node /home/jlian/wingdex/ml/scripts/attach-range-status.mjs \
+    "$CANDS_JSONL" "$STATUS" >>"$LOG" 2>&1
+  NS=$(wc -l < "$STATUS" 2>/dev/null || echo 0)
+  if [ "$NS" -lt 1000 ]; then
+    say "  FAILED: $STATUS has $NS lines"
+    exit 4
+  fi
+  touch "$S/status.done"; say "  status OK ($NS photos)"
+else
+  say "STEP 2b/4 already done, skipping"
+fi
+
 # ---------------------------------------------------------------- step 3
-# The status file is BirdLife range status per photo. It depends on geography
-# and species, not on the model, so it is reused unchanged.
 if [ ! -f "$S/fit.done" ]; then
   say "STEP 3/4: fit T and beta on the new similarity distribution"
   $V fit_occurrence.py \
     --candidates "$CANDS" \
-    --status inat_resolved.jsonl \
+    --status "$STATUS" \
     --counts "$COUNTS" \
     --out "$OUT" >>"$LOG" 2>&1
   [ -f "$OUT" ] || { say "  FAILED: no $OUT"; exit 4; }
