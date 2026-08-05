@@ -129,3 +129,5 @@ ml/distill/calib_corpus/
 ml/distill/embeddings/
 ml/**/__pycache__/
 public/models/
+public/parity/
+public/node_modules
