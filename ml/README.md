@@ -220,6 +220,26 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 
 ---
 
+## Fixtures and reproduction
+
+Parity fixtures are generated artifacts and are gitignored. A fresh clone cannot
+run the parity harnesses until they are rebuilt. That was already true for the
+two sets behind the shipping numbers, `fixtures-tiny39-a060` and
+`fixtures-calib11k` at 11,070 files each; the four obsolete 27-file sets used to
+be committed, which meant the repo tracked the fixtures that did not matter and
+ignored the ones that did.
+
+Every harness takes the fixture directory as an argument, so no path is baked in:
+
+```bash
+node --experimental-strip-types ml/parity/jobs/rank_parity.ts \
+  . ml/fixtures-tiny39-a060 ml/truth-tiny39.json \
+  ml/distill/calibration_month_tiny39.json
+```
+
+The scratch directory `ml/spike/` was deleted. It held the exploratory scripts
+from the first quantisation and ranking passes, superseded by `ml/distill/jobs/`
+and `ml/parity/jobs/`, and nothing imported it.
 ## Next: getting to a PR preview deploy
 
 Steps 1 to 5 are done. What ships today, 61.66 MiB total, every file inside the
