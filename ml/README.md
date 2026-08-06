@@ -222,44 +222,42 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 
 ## Next: getting to a PR preview deploy
 
-The model work is finished and every claim below it is measured. What remains is
-integration, in dependency order. Nothing here needs a GPU.
+Steps 1 to 5 are done. What ships today, 61.66 MiB total, every file inside the
+25 MiB Workers per-file cap:
 
-**1. Rebuild the shipped prior blob with the month dimension.**
-`public/priors/occurrence-v1.bin.gz` has no month, so the +1.2 points from
-[G16](#phase-g-ship) are not reachable from the client yet. The packer needs a
-month axis and the client decoder needs to match it. Keep the taxonomy hash check,
-since species are keyed by row index and a reordered taxonomy silently mis-keys
-every prior. Expect the blob to grow: 54.7M triples against 26.4M pairs, so the
-thinning threshold decides the final size against the 25 MiB per-file cap.
+| asset | size |
+|---|---|
+| `wingclip_visual_int8.onnx` | 13.72 MiB |
+| `wingclip_visual_int8.data` | 24.00 MiB |
+| `text_classifier_int8.bin` | 8.22 MiB |
+| `occurrence.1fb61779.bin.gz` | 15.71 MiB |
 
-**2. Point `rank.ts` at the monthly prior.** The scorer currently reads
-`P(species|cell)`. It becomes `n_scm / n_cm`, and the photo month comes from EXIF,
-which `AddPhotosFlow.tsx` already extracts and passes today.
+The prior is named by CONTENT HASH, not schema version, because `_headers`
+serves these immutable for a year, and a fixed name hands a stale blob to
+every existing user after a rebuild.
 
-**3. Flip the execution provider to WASM first.** [G1](#phase-g-ship) decided this
-on measurement, 318 ms against 516 ms, and `bird-id-local.ts` still lists `webgpu`
-ahead of `wasm`.
+**Done:** month-aware prior wired end to end at 95.0% through the TypeScript
+client, WASM as the default execution provider, the three GPT-only UX branches
+replaced by the post-rerank confidence gate, cache-first asset loading behind an
+explicit download screen, and the hard swap to on-device inference with no GPT
+fallback.
 
-**4. Swap the three GPT-only branches in `AddPhotosFlow.tsx`**, per
-[G21](#phase-g-ship). Replace the empty-candidate-list test with a post-rerank
-confidence test at 0.7, delete the `multipleBirds` branch, and delete the
-`cropBox` auto-preview. Prompt at most ONCE, then show ranked candidates with an
-honest low-confidence label. A re-prompt loop is the failure mode here, because
-confidence tracks species ambiguity rather than framing.
+**What is left before merge:**
 
-**5. Cache the 51.3 MiB of assets.** Downloading once is the difference between a
-usable app and an unusable one. Fetch on first identify rather than on page load,
-so opening the site does not pull 51 MiB.
+**1. Open the PR and deploy the preview.** CI builds a per-PR aliased preview at
+`pr-<N>-wingdex-app-preview.<subdomain>.workers.dev`.
 
-**6. Deploy a preview and try it on real photos.** Everything above is verified in
-Node or in headless Edge against local files. It has never run against a real
-upload, a real EXIF payload, or a phone.
+**2. Try it on real photos.** Everything so far is verified in Node or headless
+Edge against local files. It has never seen a real upload, a real EXIF payload,
+or a phone. That is the gap the preview exists to close.
 
-**Not blocking a preview:** [G18](#phase-g-ship) Core ML for iOS,
-[G19](#phase-g-ship) deleting the BirdLife trust code, which must wait for the GPT
-cutover, and [G20](#phase-g-ship) unifying the absence floor, which is measured at
-zero cost.
+**3. Delete the GPT server path.** `functions/lib/bird-id.ts` and its prompt
+still exist and are now unreachable from the app. Removing them also unblocks
+[G19](#phase-g-ship), since `range-filter.ts` is what keeps the BirdLife trust
+code alive.
+
+**Not blocking:** [G18](#phase-g-ship) Core ML for iOS, and [G20](#phase-g-ship)
+unifying the absence floor, which is measured at zero cost.
 
 ## Experiment register
 
