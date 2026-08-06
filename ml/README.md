@@ -220,6 +220,42 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 
 ---
 
+## Follow-ups after the cutover
+
+Recorded so they do not become folklore.
+
+**iOS must make the same move, and it is the reason the API deletion is safe
+only for now.** `ios/WingDex/Services/DataService.swift` calls
+`POST /api/identify-bird` and `AddPhotosViewModel` calls it twice. That endpoint
+is deleted in this branch, so iOS 0.7.3 on TestFlight loses identification the
+moment this merges and deploys. That is acceptable ONLY because TestFlight has
+two users, both the maintainer. iOS needs the same port the web client just got:
+Core ML inference, the confidence gate, and the geo/month prior, after which the
+shared `openapi.yaml` contract is consistent again. Until then, treat a merge as
+breaking the iOS ID flow.
+
+**Core ML conversion does NOT need a Mac.** `coremltools` publishes Linux wheels
+(`manylinux1_x86_64` on PyPI), so `torch` to `.mlpackage` runs on the training
+box like every other export. macOS is needed only to RUN prediction for
+verification, and Xcode to build the app. Given that [G18](#phase-g-ship) names
+preprocessing as the real risk rather than conversion, that verification step is
+the part that actually needs Apple hardware: the web client hit three separate
+off-by-one bugs against PIL, each shifting the crop one pixel while every
+dimension still looked correct.
+
+**Weights are not in the repo, and should not be.** `ml/distill/runs/` is 52 GB
+of checkpoints and stays untracked. What ships is the derived inference
+artifacts: `wingclip_visual_int8.onnx`, its `.data` sidecar, and
+`text_classifier_int8.bin`. Publishing `WingCLIP-0.3` to Hugging Face is worth
+doing on its own merits, since it beats BioCLIP-2 on NABirds at 11x fewer
+parameters, but it is a release task and not a precondition for shipping.
+
+**`range-adjust.js` is now `src/lib/equal-earth.ts`.** It was JavaScript under
+`functions/` because Node build scripts imported it directly and there is no
+`allowJs`. Those scripts were BirdLife-era and are deleted, so the only
+consumers are `src/lib/rank.ts` and `src/lib/occurrence.ts`: it is client
+geometry, not a server range filter. Typing it caught a latent contract the
+untyped file hid, `xyToCell` returns null outside the grid.
 ## Fixtures and reproduction
 
 Parity fixtures are generated artifacts and are gitignored. A fresh clone cannot
