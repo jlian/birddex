@@ -4,8 +4,7 @@
 # The point is reviewability. This PR is ~19k added lines, of which ~14k are the
 # ML training pipeline and ~900 are the research log. Copilot review refuses a
 # diff that large, and a human reviewer scrolling 19k lines will miss the ~1.6k
-# lines of application code that actually ship. Collapsing the research half
-# puts the shipping code back in front of the reviewer.
+# lines of application code that actually ship.
 #
 # These files are still tracked, still diffable, still in history. They are only
 # collapsed by default in the review UI.
@@ -14,15 +13,43 @@
 uv.lock linguist-generated=true
 package-lock.json linguist-generated=true
 
-# Training and evaluation pipeline. Real code, but it does not run in
-# production and is not what a web reviewer is being asked to approve.
+# ── Training and evaluation pipeline ────────────────────────────────
+# Collapsed by default: real code, but it does not run in production.
 ml/distill/** linguist-generated=true
 ml/parity/** linguist-generated=true
 ml/scripts/** linguist-generated=true
 
-# The research log. Long by design: it is the evidence trail behind every
-# number in the PR description, and is meant to be read on its own, not
-# scrolled past inside a diff.
+# ── EXPANDED: the scripts that produce what actually ships ──────────
+# Everything above is research. These six are different: each one writes a
+# byte that ends up on a user's device, or a number hardcoded in the client.
+# A bug here ships; a bug in the rest costs a rerun. Reviewers should see them
+# by default, so the negation below re-expands them.
+
+# Writes public/models/text_classifier_int8.bin. Per-row int8 scales: the
+# quantisation choice that keeps 11,167 species embeddings faithful.
+ml/distill/jobs/emit_int8_classifier.py linguist-generated=false
+
+# Splits the ONNX tower into graph + external data, which is what keeps every
+# file under the 25 MiB Workers per-file cap.
+ml/distill/jobs/split_external.py linguist-generated=false
+
+# Builds public/priors/occurrence.<hash>.bin.gz, the geo/month prior, and the
+# taxonomy hash guard that stops a mis-keyed blob loading silently.
+ml/distill/jobs/build_prior_blob_month.py linguist-generated=false
+ml/distill/jobs/build_occurrence_month.py linguist-generated=false
+
+# Fits temperature and beta. These two floats are hardcoded into
+# src/lib/bird-id-local-adapter.ts and set how similarity trades against the
+# prior, so they decide the shipped 95.0 percent directly.
+ml/distill/jobs/fit_month.py linguist-generated=false
+
+# Produces the shipping checkpoint: ground-truth fine-tune plus the WiSE-FT
+# blend at alpha 0.60 that WingCLIP-0.3 is.
+ml/distill/finetune_groundtruth.py linguist-generated=false
+
+# ── Research log ────────────────────────────────────────────────────
+# Long by design: the evidence trail behind every number in the PR. Meant to
+# be read on its own, not scrolled past inside a diff.
 ml/README.md linguist-generated=true
 
 # Fixture and truth data.
