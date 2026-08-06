@@ -162,8 +162,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
     try {
       // getMonth() is 0-11; the prior is keyed 1-12.
-      const photoMonth = useGeoContext && photo.exifTime
-        ? new Date(photo.exifTime).getMonth() + 1
+      // Guard the DATE, not just the presence of exifTime. "0000:00:00 00:00:00"
+      // is the standard EXIF null timestamp and parses to Invalid Date, whose
+      // getMonth() is NaN. Passing NaN downstream used to select January's
+      // prior rather than no prior at all.
+      const exifDate = photo.exifTime ? new Date(photo.exifTime) : null
+      const photoMonth = useGeoContext && exifDate && !Number.isNaN(exifDate.getTime())
+        ? exifDate.getMonth() + 1
         : undefined
 
       const fastResult: BirdIdResult = await identifyBirdLocally(

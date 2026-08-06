@@ -65,6 +65,21 @@ export function parseOccurrence(raw: Uint8Array, taxonomySha16?: string): OccBlo
   const nCells = view.getUint32(8 + hashLen, true)
   const idxStart = 12 + hashLen
   const payloadStart = idxStart + (nCells + 1) * 8
+
+  // Bounds-check the header before trusting it. The magic, version and
+  // taxonomy hash all live in the first 16 bytes, so a blob truncated AFTER
+  // that still passes every existing check. The varint reader would then walk
+  // off the end, where `raw[p++]` is undefined, `undefined & 0x7f` is 0 so the
+  // loop exits quietly, and the dequantised value becomes NaN. That NaN flows
+  // into the score and poisons the sort, which is the silent-wrong-answer
+  // failure this parser exists to prevent.
+  if (payloadStart > raw.length) {
+    throw new Error(
+      "occurrence blob truncated: index needs " + payloadStart +
+      " bytes but the blob is " + raw.length,
+    )
+  }
+
   return { raw, view, nCells, idxStart, payloadStart, qbits,
            scale: OCC_SCALE, version, taxHash }
 }
@@ -85,7 +100,15 @@ export function occCell(
   // key and return a plausible but wrong prior, so the version decides.
   let want: number
   if (o.version >= 3) {
-    if (month === undefined || month < 1 || month > 12) return null
+    // Number.isInteger is doing real work here, not defensive padding: NaN
+    // passes every comparison below (NaN < 1 and NaN > 12 are both FALSE), and
+    // the key expression ends in `| (month - 1)`, where bitwise-OR coerces NaN
+    // to 0. A NaN month therefore produced the exact same key as January and
+    // applied January's distribution to, say, an August photo, silently
+    // reordering candidates instead of degrading to vision-only.
+    // Reachable: `new Date("0000:00:00 00:00:00")` is the standard EXIF null
+    // date and getMonth() on it is NaN.
+    if (month === undefined || !Number.isInteger(month) || month < 1 || month > 12) return null
     want = ((row * GRID_COLS + col) << MONTH_BITS) | (month - 1)
   } else {
     want = row * GRID_COLS + col

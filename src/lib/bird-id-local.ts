@@ -205,21 +205,6 @@ function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
   return out
 }
 
-/** Decode IEEE half floats; browsers have no native fp16 array. */
-function f16ToF32(h: Uint16Array): Float32Array {
-  const out = new Float32Array(h.length)
-  for (let i = 0; i < h.length; i++) {
-    const v = h[i]
-    const s = (v & 0x8000) ? -1 : 1
-    const e = (v >> 10) & 0x1f
-    const f = v & 0x3ff
-    if (e === 0) out[i] = s * Math.pow(2, -14) * (f / 1024)
-    else if (e === 31) out[i] = f ? NaN : s * Infinity
-    else out[i] = s * Math.pow(2, e - 15) * (1 + f / 1024)
-  }
-  return out
-}
-
 async function gunzip(buf: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream("gzip")
   const stream = new Blob([buf as BlobPart]).stream().pipeThrough(ds)
