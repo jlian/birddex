@@ -9,12 +9,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
  * the network-call counts, not the returned bytes.
  */
 
-const FILES: Record<string, number> = {
-  '/models/wingclip_visual_int8.onnx': 14386199,
-  '/models/wingclip_visual_int8.data': 25165824,
-  '/models/text_classifier_int8.bin': 8620924,
-  '/priors/occurrence-v3.bin.gz': 16478112,
-}
+import { MODEL_ASSET_URLS, MODEL_VERSION } from '../lib/bird-id-local-adapter'
+
+// Sizes are illustrative; only the call COUNTS are asserted. The URLs come from
+// the adapter rather than being retyped, so this cannot silently drift from what
+// actually ships. It had already drifted once: the list still named
+// occurrence-v3.bin.gz after that file was renamed to a content hash, and the
+// test passed regardless because it only ever talked to its own fixtures.
+const SIZES = [14386199, 25165824, 8620924, 16478112]
+const FILES: Record<string, number> = Object.fromEntries(
+  MODEL_ASSET_URLS.map((u, i) => [u, SIZES[i] ?? 1024]),
+)
 const URLS = Object.keys(FILES)
 const TOTAL = Object.values(FILES).reduce((a, b) => a + b, 0)
 
@@ -69,6 +74,28 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.resetModules()
+})
+
+describe('shipped asset URLs', () => {
+  it('carries a version on every immutably-cached model file', () => {
+    // public/_headers serves /models/* immutable for a year and the Cache API
+    // is cache-first, so an unversioned model URL would pin existing users to
+    // stale bytes forever. If dimensions still matched, inference would succeed
+    // and return the WRONG species with no error anywhere.
+    const models = MODEL_ASSET_URLS.filter(u => u.startsWith('/models/'))
+    expect(models.length).toBeGreaterThan(0)
+    for (const u of models) {
+      expect(u).toContain('?v=' + MODEL_VERSION)
+    }
+  })
+
+  it('versions the prior by content hash in the file name', () => {
+    // The prior takes the other approach: its hash is IN the name, so it needs
+    // no query string. Either scheme is fine; having neither is not.
+    const prior = MODEL_ASSET_URLS.find(u => u.startsWith('/priors/'))
+    expect(prior).toBeDefined()
+    expect(prior).toMatch(/occurrence\.[0-9a-f]{8}\.bin\.gz$/)
+  })
 })
 
 describe('model asset cache', () => {
