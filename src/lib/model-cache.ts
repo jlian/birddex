@@ -80,8 +80,16 @@ async function fetchCached(
     if (state) state.loaded = start + seen
   }
 
-  // Cache.put needs a response that has not been consumed.
-  await cache.put(url, res.clone())
+  // Cache.put needs a response that has not been consumed. Persistence is
+  // best-effort: if the Cache API rejects (quota exceeded, private browsing,
+  // storage disabled) the bytes are already in hand, so keep them and let
+  // inference proceed rather than failing an otherwise successful 62 MiB
+  // download that every retry would only repeat.
+  try {
+    await cache.put(url, res.clone())
+  } catch (err) {
+    console.warn("model-cache: persisting " + url + " failed, continuing uncached", err)
+  }
   return res.arrayBuffer()
 }
 

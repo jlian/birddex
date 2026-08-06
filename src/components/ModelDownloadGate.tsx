@@ -14,7 +14,7 @@
  * the way forever after.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -32,11 +32,21 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState<AssetProgress | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // True for the component's whole lifetime, flipped false on unmount. Every
+  // state update and the onReady handoff check it, so discarding the upload
+  // flow mid-download cannot setProgress/onReady after unmount and cannot kick
+  // off a decode and inference for a workflow the user already closed.
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
     modelReady().then(ready => {
-      if (cancelled) return
+      if (cancelled || !mounted.current) return
       setChecking(false)
       // Already cached, so skip the screen entirely. This is the path almost
       // every session takes.
@@ -46,7 +56,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       // the gate stuck rendering null forever. Fall through to the download
       // screen: the worst case is offering a download that the cache already
       // has, which preloadModel resolves for free.
-      if (cancelled) return
+      if (cancelled || !mounted.current) return
       setChecking(false)
     })
     return () => { cancelled = true }
@@ -56,12 +66,17 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
     setDownloading(true)
     setError(null)
     try {
-      await preloadModel(MODEL_ASSETS, p => setProgress(p))
+      await preloadModel(MODEL_ASSETS, p => { if (mounted.current) setProgress(p) })
+      // The user may have discarded the flow during the 62 MiB download.
+      // Firing onReady now would start a decode and inference for a closed
+      // workflow, so bail if we are no longer mounted.
+      if (!mounted.current) return
       onReady()
     } catch (e) {
       // Leave the button available. A failed download is usually a dropped
       // connection, and the cache keeps whatever already arrived, so retrying
       // resumes rather than restarting.
+      if (!mounted.current) return
       setError(e instanceof Error ? e.message : String(e))
       setDownloading(false)
     }
