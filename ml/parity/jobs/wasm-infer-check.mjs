@@ -3,16 +3,14 @@
 // runtime import. This loads the real served model with the real provider.
 import * as ort from "onnxruntime-web/wasm"
 import { readFileSync } from "node:fs"
-import { join } from "node:path"
-import { fileURLToPath } from "node:url"
 
 // Harness-only: bare Node cannot resolve the wasm asset URL a bundler injects.
 
-const ROOT = fileURLToPath(new URL("../../../", import.meta.url))
-ort.env.wasm.wasmPaths = join(ROOT, "node_modules/onnxruntime-web/dist/")
+const ROOT = "/home/jlian/wingdex"
+ort.env.wasm.wasmPaths = ROOT + "/node_modules/onnxruntime-web/dist/"
 ort.env.wasm.numThreads = 1
-const onnx = readFileSync(join(ROOT, "public/models/wingclip_visual_int8.onnx"))
-const data = readFileSync(join(ROOT, "public/models/wingclip_visual_int8.data"))
+const onnx = readFileSync(ROOT + "/public/models/wingclip_visual_int8.onnx")
+const data = readFileSync(ROOT + "/public/models/wingclip_visual_int8.data")
 
 const t0 = Date.now()
 const sess = await ort.InferenceSession.create(onnx, {
