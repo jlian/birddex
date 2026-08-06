@@ -1,0 +1,15 @@
+{
+  "magic": "WDOP",
+  "version": 3,
+  "qbits": 5,
+  "month_bits": 4,
+  "scale": 2.5,
+  "grid_cols": 1276,
+  "taxonomy_sha256_8": "04951673b96b11bf",
+  "n_slices": 519378,
+  "n_triples": 8318320,
+  "min_count": 1,
+  "raw_bytes": 24123497,
+  "gzip_bytes": 16478112,
+  "content_hash": "1fb61779"
+}

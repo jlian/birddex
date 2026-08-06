@@ -47,3 +47,45 @@ wiki-validation-report.txt
 src/assets/csv/
 ios/WingDex/App/GitInfo.swift
 .tmp/
+
+# uv-managed virtualenv for the distill pipeline
+ml/distill/.venv/
+
+# 19GB of ground-truth held-out images (re-pullable via pull_images.py)
+ml/groundtruth/
+
+# 31GB iNat Open Data metadata dump (re-fetchable via fetch_metadata.py)
+ml/inat-metadata/
+
+# T3.3 eval data (downloadable, 360MB)
+ml/imagenette/
+
+# uncompressed build artifact of the prior blob (the .gz is what ships)
+public/priors/*.bin.gz.raw
+ml/fixtures-calib11k/
+ml/distill/export/
+ml/truth-calib11k.json
+ml/distill/nabirds_pixels*.npy
+
+# generated calibration intermediates (rebuildable from jobs/phase5_refit.sh)
+ml/distill/*.jsonl
+ml/distill/calib_cands_*.parquet
+ml/distill/calib_occ_counts_*.npz
+ml/groundtruth-fresh/
+ml/fixtures-tiny39-a060/
+ml/truth-tiny39.json
+ml/distill/onnx_tiny39/
+ml/parity/*.bin
+ml/parity/*.json
+public/parity/
+public/node_modules
+
+# Parity fixtures are GENERATED artifacts, not source. Every harness takes the
+# fixture directory as argv, so no path is hardcoded and nothing breaks by
+# ignoring them.
+#
+# This also fixes an inconsistency: the two sets behind the shipping numbers,
+# fixtures-tiny39-a060 and fixtures-calib11k at 11,070 files each, were ALREADY
+# untracked, while four obsolete 27-file sets were committed. The repo was
+# tracking the fixtures that did not matter and ignoring the ones that did.
+ml/fixtures*/

@@ -7,7 +7,6 @@ const ALLOWED_METHODS = new Set(['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'])
 
 /** Max request body sizes in bytes, keyed by path prefix. */
 const BODY_LIMITS: Array<{ prefix: string; maxBytes: number }> = [
-  { prefix: '/api/identify-bird', maxBytes: 10 * 1024 * 1024 }, // 10 MB (photos)
   { prefix: '/api/import/', maxBytes: 10 * 1024 * 1024 }, // 10 MB (CSV)
 ]
 const DEFAULT_BODY_LIMIT = 1 * 1024 * 1024 // 1 MB for all other API routes
@@ -16,7 +15,6 @@ const DEFAULT_BODY_LIMIT = 1 * 1024 * 1024 // 1 MB for all other API routes
  *  Ordered longest-prefix-first so /api/data/outings/ beats /api/data/outings. */
 const ROUTE_MAP: Array<{ prefix: string; method?: string; op: string; category: Category }> = [
   { prefix: '/api/health', op: 'health/database/read', category: 'Application' },
-  { prefix: '/api/identify-bird', method: 'POST', op: 'birdId/identify/invoke', category: 'Application' },
   { prefix: '/api/data/outings/', method: 'DELETE', op: 'data/outings/delete', category: 'Application' },
   { prefix: '/api/data/outings/', method: 'PATCH', op: 'data/outings/write', category: 'Application' },
   { prefix: '/api/data/outings', method: 'POST', op: 'data/outings/write', category: 'Application' },

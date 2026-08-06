@@ -23,7 +23,11 @@ export default defineConfig({
       : 'FORCE_RESTART=true bash scripts/dev-full.sh',
     url: 'http://localhost:5000',
     reuseExistingServer: !isCI,
-    timeout: isCI ? 45_000 : 20_000,
+    // Local needs MORE than CI, not less. CI runs `wrangler dev` against a
+    // prebuilt dist, but the local command is dev-full.sh, which rebuilds
+    // before it serves. 20s was not enough for that on any machine here, so
+    // `npm run check:all` failed at the webServer rather than at a test.
+    timeout: isCI ? 45_000 : 180_000,
   },
   projects: [
     {

@@ -1,2 +1,11 @@
 /.well-known/apple-app-site-association
   Content-Type: application/json
+
+# Model assets are immutable: the version is in the file name, so a new model
+# ships under a new name and can never collide with a cached old one. One year
+# with immutable means the browser does not even revalidate.
+/models/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/priors/*
+  Cache-Control: public, max-age=31536000, immutable

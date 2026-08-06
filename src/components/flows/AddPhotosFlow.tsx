@@ -17,8 +17,10 @@ import {
 import { toast } from 'sonner'
 import { extractEXIF, generateThumbnail, computeFileHash } from '@/lib/photo-utils'
 import { clusterPhotosIntoOutings } from '@/lib/clustering'
-import { identifyBirdInPhoto } from '@/lib/ai-inference'
+import { identifyBirdLocally, MODEL_ASSETS, modelReady } from '@/lib/bird-id-local-adapter'
+import { ModelDownloadGate } from '@/components/ModelDownloadGate'
 import type { BirdIdResult } from '@/lib/ai-inference'
+import { shouldPromptForCrop } from '@/lib/bird-id-local-adapter'
 import OutingReview from '@/components/flows/OutingReview'
 import { getDisplayName, getScientificName, cn } from '@/lib/utils'
 import { toLocalISOWithOffset } from '@/lib/timezone'
@@ -56,6 +58,8 @@ function wait(ms: number): Promise<void> {
 
 export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowProps) {
   const [step, setStep] = useState<FlowStep>('upload')
+  // Survives the download screen so the resolved location name is not lost.
+  const pendingLocationName = useRef<string | undefined>(undefined)
   const [photos, setPhotos] = useState<PhotoWithCrop[]>([])
   const [currentClusterIndex, setCurrentClusterIndex] = useState(0)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
@@ -157,68 +161,46 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     )
 
     try {
-      const fastResult: BirdIdResult = await identifyBirdInPhoto(
+      // getMonth() is 0-11; the prior is keyed 1-12.
+      const photoMonth = useGeoContext && photo.exifTime
+        ? new Date(photo.exifTime).getMonth() + 1
+        : undefined
+
+      const fastResult: BirdIdResult = await identifyBirdLocally(
+        MODEL_ASSETS,
         analyzeUrl,
         useGeoContext ? photo.gps : undefined,
-        useGeoContext && photo.exifTime
-          ? new Date(photo.exifTime).getMonth()
-          : undefined,
-        resolveInferenceLocationName(
-          useGeoContext,
-          lastLocationName,
-          locationNameOverride,
-        ),
-        'fast'
+        photoMonth,
       )
 
-      if (!imageUrl && (fastResult.candidates.length === 0 || fastResult.multipleBirds)) {
+      // Low confidence replaces the empty-candidate test. A classifier always
+      // returns 25 ranked species, so candidates.length is never 0 and that
+      // branch would be dead code. multipleBirds is gone with the GPT path.
+      if (!imageUrl && shouldPromptForCrop(fastResult, false)) {
         setPhotoProgress(100)
         await wait(240)
-        if (fastResult.multipleBirds) {
-          debug('bird-id', 'Multiple birds detected by fast model; requesting crop')
-          toast.info('Multiple birds detected, crop to one')
-          setCurrentCandidates(fastResult.candidates)
-        } else {
-          debug('bird-id', 'No species identified by fast model; requesting crop')
-          setCurrentCandidates([])
-        }
-        setRangeAdjusted(false)
+        debug('bird-id', 'Low confidence; requesting crop')
+        // Keep the candidates rather than blanking them. The model always has
+        // an opinion, and showing a ranked list beats an empty screen when the
+        // user decides not to crop.
+        setCurrentCandidates(fastResult.candidates)
+        setRangeAdjusted(fastResult.rangeAdjusted === true)
         setStep('photo-manual-crop')
         return;
       }
 
-      const topConfidence = fastResult.candidates[0]?.confidence ?? 0
-      const secondConfidence = fastResult.candidates[1]?.confidence ?? 0
-      const shouldEscalate = topConfidence < 0.75 || (fastResult.candidates.length >= 2 && (topConfidence - secondConfidence) < 0.15)
-
-      const result: BirdIdResult = shouldEscalate
-        ? await (async () => {
-          setProcessingMessage(
-            `Photo ${photoIdx + 1}/${clusterPhotos.length}: Re-analyzing with enhanced model...`
-          )
-          setPhotoProgressTauMs(4400)
-          setPhotoProgressRunKey(prev => prev + 1)
-          return identifyBirdInPhoto(
-            analyzeUrl,
-            useGeoContext ? photo.gps : undefined,
-            useGeoContext && photo.exifTime
-              ? new Date(photo.exifTime).getMonth()
-              : undefined,
-            resolveInferenceLocationName(
-              useGeoContext,
-              lastLocationName,
-              locationNameOverride,
-            ),
-            'strong'
-          )
-        })()
-        : fastResult
+      // No escalation. There is ONE local model, so a second pass over the
+      // same pixels with the same weights returns the same answer. The old
+      // fast/strong split existed because GPT offered two tiers.
+      const result: BirdIdResult = fastResult
 
       debug('bird-id', `Found ${result.candidates.length} candidates`)
       setPhotoProgress(100)
       await wait(240)
 
-      // Store AI crop box on the photo if we got one
+      // Only the server path supplies a cropBox. The local classifier localises
+      // nothing, so this is simply skipped and the auto-crop preview does not
+      // appear. See G21.
       if (result.cropBox) {
         setPhotos(prev =>
           prev.map(p =>
@@ -227,14 +209,12 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
         )
       }
 
-      if (result.candidates.length === 0 && !imageUrl) {
-        // No species found on full image, ask user to crop and retry
-        debug('bird-id', 'No species identified; requesting crop or skip')
-        setStep('photo-manual-crop')
-      } else if (result.multipleBirds && !imageUrl) {
-        // Multiple birds detected, let user crop to the one they want
-        debug('bird-id', 'Multiple birds detected; requesting crop')
-        toast.info('Multiple birds detected, crop to one')
+      // `!imageUrl` is the loop guard: imageUrl is only set on the post-crop
+      // retry, so the user is asked at most once. That matters because
+      // confidence tracks species ambiguity rather than framing, so a crop
+      // often does not raise it and a second prompt would never resolve.
+      if (shouldPromptForCrop(result, !!imageUrl)) {
+        debug('bird-id', 'Low confidence; requesting crop or skip')
         setCurrentCandidates(result.candidates)
         setRangeAdjusted(result.rangeAdjusted === true)
         setStep('photo-manual-crop')
@@ -506,7 +486,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     if (dragCounterRef.current === 0) setIsDragOver(false)
   }
 
-  const handleDuplicateChoice = (reimport: boolean) => {
+  const handleDuplicateChoice = async (reimport: boolean) => {
     setShowDuplicateConfirm(false)
     const finalPhotos = reimport
       ? [...pendingNewPhotos, ...pendingDuplicatePhotos]
@@ -571,7 +551,27 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     setPhotoResults([])
     setCurrentCandidates([])
     setRangeAdjusted(false)
-    runSpeciesId(0, undefined, normalizedLocationName)
+
+    // The model is 61.66 MiB. Ask before the FIRST identification, never at
+    // page load, and never silently in the middle of one. modelReady() is a
+    // cache lookup, so on every later session this is a no-op and the user
+    // goes straight to identifying.
+    if (await modelReady()) {
+      runSpeciesId(0, undefined, normalizedLocationName)
+    } else {
+      pendingLocationName.current = normalizedLocationName
+      setStep('model-download')
+    }
+  }
+
+  // Runs once the assets are local, from either the gate or a warm cache.
+  // Deliberately NOT memoised: runSpeciesId is redefined every render and reads
+  // current state, so a useCallback with an empty dependency list would pin the
+  // first render's copy and identify against stale photos.
+  const handleModelReady = () => {
+    const name = pendingLocationName.current
+    pendingLocationName.current = undefined
+    void runSpeciesId(0, undefined, name)
   }
 
   // ─── Manual crop callback ───────────────────────────────
@@ -726,6 +726,10 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
           )}
 
           {/* Photo crop / processing spinner */}
+          {step === 'model-download' && (
+            <ModelDownloadGate onReady={handleModelReady} />
+          )}
+
           {step === 'photo-processing' && (
             <div className="space-y-4 py-8">
               {fullCurrentPhoto && (
