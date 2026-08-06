@@ -1,0 +1,35 @@
+# Mark generated and research artifacts as linguist-generated so they collapse
+# in GitHub review and are excluded from language stats.
+#
+# The point is reviewability. This PR is ~19k added lines, of which ~14k are the
+# ML training pipeline and ~900 are the research log. Copilot review refuses a
+# diff that large, and a human reviewer scrolling 19k lines will miss the ~1.6k
+# lines of application code that actually ship. Collapsing the research half
+# puts the shipping code back in front of the reviewer.
+#
+# These files are still tracked, still diffable, still in history. They are only
+# collapsed by default in the review UI.
+
+# Lockfiles: generated, never hand-edited.
+uv.lock linguist-generated=true
+package-lock.json linguist-generated=true
+
+# Training and evaluation pipeline. Real code, but it does not run in
+# production and is not what a web reviewer is being asked to approve.
+ml/distill/** linguist-generated=true
+ml/parity/** linguist-generated=true
+ml/scripts/** linguist-generated=true
+
+# The research log. Long by design: it is the evidence trail behind every
+# number in the PR description, and is meant to be read on its own, not
+# scrolled past inside a diff.
+ml/README.md linguist-generated=true
+
+# Fixture and truth data.
+ml/*.json linguist-generated=true
+
+# Model artifacts are binary; make sure git never tries to diff or merge them.
+*.onnx binary
+*.bin binary
+*.data binary
+*.gz binary
