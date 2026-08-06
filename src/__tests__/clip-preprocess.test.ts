@@ -103,3 +103,60 @@ describe('full preprocess', () => {
     expect(t[224 * 224]).toBeCloseTo(gPlane, 4)
   })
 })
+
+describe('RGBA input', () => {
+  // The browser hands us RGBA from getImageData. Packing it down to RGB
+  // first cost 3 bytes per source pixel, 72 MB on a 24MP photo, purely to
+  // drop an alpha channel the resampler can skip by indexing. That is only
+  // safe if the resulting tensor is UNCHANGED, so pin it: a silent drift
+  // here would alter every model input with nothing failing.
+  function pair(w: number, h: number, seed: number) {
+    const rgba = new Uint8ClampedArray(w * h * 4)
+    let s = seed
+    for (let i = 0; i < w * h; i++) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff
+      rgba[i * 4] = s % 256
+      rgba[i * 4 + 1] = (s >> 8) % 256
+      rgba[i * 4 + 2] = (s >> 16) % 256
+      rgba[i * 4 + 3] = 255
+    }
+    const rgb = new Uint8Array(w * h * 3)
+    for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
+      rgb[j] = rgba[i]
+      rgb[j + 1] = rgba[i + 1]
+      rgb[j + 2] = rgba[i + 2]
+    }
+    return { rgba, rgb }
+  }
+
+  it.each([
+    [1024, 683],
+    [640, 480],
+    [500, 500],
+    [333, 777],
+  ])('channels:4 matches packed RGB exactly at %ix%i', (w, h) => {
+    const { rgba, rgb } = pair(w, h, w + h)
+    const packed = preprocess({ data: rgb, width: w, height: h })
+    const direct = preprocess({ data: rgba, width: w, height: h, channels: 4 })
+    expect(direct.length).toBe(packed.length)
+    for (let i = 0; i < packed.length; i++) {
+      // Bit-identical, not approximately equal. Only R/G/B are read.
+      expect(direct[i]).toBe(packed[i])
+    }
+  })
+
+  it('ignores the alpha channel entirely', () => {
+    const w = 64, h = 48
+    const { rgba, rgb } = pair(w, h, 9)
+    const opaque = preprocess({ data: rgba, width: w, height: h, channels: 4 })
+    // Scribble over alpha; the tensor must not move.
+    for (let i = 3; i < rgba.length; i += 4) rgba[i] = (i * 7) % 256
+    const scribbled = preprocess({ data: rgba, width: w, height: h, channels: 4 })
+    const packed = preprocess({ data: rgb, width: w, height: h })
+    for (let i = 0; i < packed.length; i++) {
+      expect(scribbled[i]).toBe(opaque[i])
+      expect(scribbled[i]).toBe(packed[i])
+    }
+  })
+})
+

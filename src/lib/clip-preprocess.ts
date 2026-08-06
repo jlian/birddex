@@ -20,7 +20,20 @@ export const CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073] as const
 export const CLIP_STD = [0.26862954, 0.26130258, 0.27577711] as const
 export const CLIP_SIZE = 224
 
-export type Rgb = { data: Uint8Array; width: number; height: number }
+export type Rgb = {
+  data: ArrayLike<number>
+  width: number
+  height: number
+  /**
+   * Bytes per pixel in `data`. Defaults to 3 (packed RGB).
+   *
+   * Pass 4 to read a browser RGBA buffer straight from getImageData without
+   * packing it to RGB first. On a 24MP photo that copy cost 72 MB purely to
+   * drop an alpha channel the resampler can skip by indexing. Resampled
+   * values are identical either way, since only R/G/B are ever read.
+   */
+  channels?: number
+}
 
 /** PIL bicubic kernel, a = -0.5. */
 function cubic(x: number): number {
@@ -45,6 +58,7 @@ function resampleAxis(
   srcH: number,
   dstLen: number,
   horizontal: boolean,
+  srcCh = 3,
 ): Float64Array {
   const srcLen = horizontal ? srcW : srcH
   const scale = srcLen / dstLen
@@ -78,7 +92,7 @@ function resampleAxis(
       for (let y = 0; y < srcH; y++) {
         for (let c = 0; c < 3; c++) {
           let acc = 0
-          for (let k = 0; k < n; k++) acc += w[k] * src[(y * srcW + lo + k) * 3 + c]
+          for (let k = 0; k < n; k++) acc += w[k] * src[(y * srcW + lo + k) * srcCh + c]
           out[(y * dstW + d) * 3 + c] = acc
         }
       }
@@ -118,7 +132,7 @@ export function resizeShorterSide(img: Rgb, size: number): {
   // full-resolution Float64Array first. That copy cost 3*8 bytes per source
   // pixel (~576 MB for a 24MP photo, on top of the RGBA/RGB buffers) and
   // OOM'd mobile browsers. The resampled values are identical either way.
-  const hpass = resampleAxis(img.data, w, h, nw, true)
+  const hpass = resampleAxis(img.data, w, h, nw, true, img.channels ?? 3)
   const vpass = resampleAxis(hpass, nw, h, nh, false)
   return { data: vpass, width: nw, height: nh }
 }

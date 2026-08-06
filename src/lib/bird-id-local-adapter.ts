@@ -122,7 +122,9 @@ export function getEngine(
 }
 
 /** Decode an image data URL to raw RGB, which is what preprocess() wants. */
-async function toRgb(dataUrl: string): Promise<{ data: Uint8Array; width: number; height: number }> {
+async function toRgb(
+  dataUrl: string,
+): Promise<{ data: Uint8ClampedArray; width: number; height: number; channels: number }> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image()
     i.onload = () => resolve(i)
@@ -136,16 +138,18 @@ async function toRgb(dataUrl: string): Promise<{ data: Uint8Array; width: number
   if (!ctx) throw new Error("canvas 2d unavailable")
   ctx.drawImage(img, 0, 0)
   const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data
-  // RGBA to RGB. preprocess() does its own resize, so pass full resolution:
-  // letting canvas downscale first would apply ITS resampling, which does not
-  // match PIL and would break the parity the preprocessing work established.
-  const rgb = new Uint8Array(canvas.width * canvas.height * 3)
-  for (let i = 0, j = 0; i < d.length; i += 4, j += 3) {
-    rgb[j] = d[i]
-    rgb[j + 1] = d[i + 1]
-    rgb[j + 2] = d[i + 2]
-  }
-  return { data: rgb, width: canvas.width, height: canvas.height }
+
+  // Hand the RGBA buffer to preprocess() directly instead of packing it down to
+  // RGB first. That copy cost another 3 bytes per source pixel, 72 MB on a 24MP
+  // photo, purely to drop an alpha channel the resampler can simply skip.
+  //
+  // Full resolution is still passed on purpose: letting the canvas downscale
+  // first applies ITS resampling, which does not match PIL and would break the
+  // parity the preprocessing work established. Measured on real photos, a
+  // canvas-side resize moves the tensor by up to 1.99 per value (cosine 0.98),
+  // and capping at 640 was no worse than 2000, which shows the damage is the
+  // FILTER mismatch rather than lost detail.
+  return { data: d, width: canvas.width, height: canvas.height, channels: 4 }
 }
 
 export async function identifyBirdLocally(

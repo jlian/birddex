@@ -57,6 +57,14 @@ function wait(ms: number): Promise<void> {
 }
 
 export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowProps) {
+  // Object URLs stay alive until revoked, so track and release them. Without
+  // this, every uploaded photo would pin its full blob for the page's lifetime.
+  const objectUrls = useRef<string[]>([])
+  useEffect(() => () => {
+    for (const u of objectUrls.current) URL.revokeObjectURL(u)
+    objectUrls.current = []
+  }, [])
+
   const [step, setStep] = useState<FlowStep>('upload')
   // Survives the download screen so the resolved location name is not lost.
   const pendingLocationName = useRef<string | undefined>(undefined)
@@ -412,11 +420,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
         const thumbnail = await generateThumbnail(file)
         const hash = await computeFileHash(file)
 
-        const reader = new FileReader()
-        const dataUrl = await new Promise<string>(resolve => {
-          reader.onload = () => resolve(reader.result as string)
-          reader.readAsDataURL(file)
-        })
+        // An object URL, NOT readAsDataURL. Base64 inflates the file by 4/3 and
+        // JS strings are UTF-16, so a 12 MB photo became a 32 MB string held for
+        // the whole flow. This is a handle to the existing blob instead, costing
+        // nothing. Both consumers are <img src> and the identifier's decoder,
+        // which accept either form. Revoked when the flow unmounts.
+        const dataUrl = URL.createObjectURL(file)
+        objectUrls.current.push(dataUrl)
 
         const photo: PhotoWithCrop = {
           id: `photo_${Date.now()}_${i}`,
