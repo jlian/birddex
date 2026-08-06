@@ -33,10 +33,14 @@ function cubic(x: number): number {
 
 /**
  * Resample one axis with PIL semantics.
- * Operates on Float64 planar data to avoid rounding between passes.
+ * Reads planar RGB from any ArrayLike (the source Uint8Array on the first
+ * pass, a Float64Array intermediate on the second) and writes Float64 so no
+ * rounding happens between passes. Reading uint8 values directly is exactly
+ * equal to copying them into a float buffer first, but skips a full-resolution
+ * allocation.
  */
 function resampleAxis(
-  src: Float64Array,
+  src: ArrayLike<number>,
   srcW: number,
   srcH: number,
   dstLen: number,
@@ -109,11 +113,12 @@ export function resizeShorterSide(img: Rgb, size: number): {
     nw = Math.floor((size * w) / h)
   }
 
-  const f = new Float64Array(w * h * 3)
-  for (let i = 0; i < w * h * 3; i++) f[i] = img.data[i]
-
-  // Horizontal then vertical, matching PIL pass order.
-  const hpass = resampleAxis(f, w, h, nw, true)
+  // Horizontal then vertical, matching PIL pass order. Feed the source bytes
+  // straight into the first pass instead of copying them into a
+  // full-resolution Float64Array first. That copy cost 3*8 bytes per source
+  // pixel (~576 MB for a 24MP photo, on top of the RGBA/RGB buffers) and
+  // OOM'd mobile browsers. The resampled values are identical either way.
+  const hpass = resampleAxis(img.data, w, h, nw, true)
   const vpass = resampleAxis(hpass, nw, h, nh, false)
   return { data: vpass, width: nw, height: nh }
 }

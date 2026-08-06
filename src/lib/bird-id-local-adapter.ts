@@ -29,18 +29,31 @@ import taxonomy from './taxonomy.json'
 import type { BirdIdResult } from './ai-inference'
 
 /**
- * The four served assets, 61.66 MiB total. Versioned in the FILE NAME, so a
- * new model ships under a new name and can never be served from a stale cache
- * entry. The prior is named by CONTENT HASH rather than a schema version: the
- * assets are served immutable for a year, so a fixed name would hand a stale
- * blob to every existing user after a rebuild. Taxonomy is bundled rather than fetched: it is already in the app,
- * and the prior blob carries a hash of it so a mismatch throws instead of
- * silently mis-keying every species.
+ * Bumped whenever the served model bytes change. The three /models/ files are
+ * served immutable for a year (public/_headers) and the Cache API is
+ * cache-first, so a fixed URL would hand every existing user stale bytes after
+ * a rebuild; if the tensor dimensions still matched, init would succeed and
+ * silently identify the wrong species. The occurrence prior dodges this by
+ * carrying its content hash in the FILE NAME, but the model file names are
+ * fixed, so they get the same protection through a version query string. It is
+ * the combined sha256 prefix of the three files: regenerate it when they change
+ * (`cat wingclip_visual_int8.onnx wingclip_visual_int8.data
+ * text_classifier_int8.bin | sha256sum`).
+ */
+export const MODEL_VERSION = "cb8f129a"
+
+/**
+ * The four served assets, 61.66 MiB total. Versioned so a new model can never
+ * be served from a stale immutable cache entry: the prior carries its CONTENT
+ * HASH in the file name, and the three model files carry MODEL_VERSION as a
+ * query string that changes the Cache API key. Taxonomy is bundled rather than
+ * fetched: it is already in the app, and the prior blob carries a hash of it so
+ * a mismatch throws instead of silently mis-keying every species.
  */
 export const MODEL_ASSET_URLS = [
-  "/models/wingclip_visual_int8.onnx",
-  "/models/wingclip_visual_int8.data",
-  "/models/text_classifier_int8.bin",
+  `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
+  `/models/wingclip_visual_int8.data?v=${MODEL_VERSION}`,
+  `/models/text_classifier_int8.bin?v=${MODEL_VERSION}`,
   "/priors/occurrence.1fb61779.bin.gz",
 ]
 

@@ -76,8 +76,9 @@ export class BirdIdEngine {
     const textBuf = bufs.get(a.textClassifierUrl)!
     const occBuf = bufs.get(a.occurrenceUrl)!
 
-    // The key MUST equal the `location` string baked into the graph.
-    const dataName = a.modelDataUrl.split("/").pop() as string
+    // The key MUST equal the `location` string baked into the graph, which is
+    // the bare file name. Strip any cache-busting query string first.
+    const dataName = a.modelDataUrl.split("/").pop()!.split("?")[0]
     this.session = await ort.InferenceSession.create(modelBuf, {
       // WASM ONLY, measured. 318 ms/image against 516 ms for WebGPU on this
       // model, with 192 ms session setup against 1753 ms. WebGPU loses because

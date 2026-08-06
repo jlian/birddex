@@ -41,6 +41,13 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       // Already cached, so skip the screen entirely. This is the path almost
       // every session takes.
       if (ready) onReady()
+    }).catch(() => {
+      // A rejected readiness check (e.g. caches.open() throwing) must not leave
+      // the gate stuck rendering null forever. Fall through to the download
+      // screen: the worst case is offering a download that the cache already
+      // has, which preloadModel resolves for free.
+      if (cancelled) return
+      setChecking(false)
     })
     return () => { cancelled = true }
   }, [onReady])
