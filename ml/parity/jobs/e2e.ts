@@ -58,13 +58,12 @@ const taxHash = createHash("sha256")
 const cal = JSON.parse(readFileSync(join(ROOT, "ml/distill/calibration_month_tiny39.json"), "utf8"))
 
 const tb = readFileSync(join(ROOT, "public/models/text_classifier_int8.bin"))
-const tbytes = new Uint8Array(tb.buffer.slice(tb.byteOffset, tb.byteOffset + tb.length))
-const text = decodeInt8Rows(tbytes, EMBED)
+const text = f16ToF32(new Uint16Array(tb.buffer, tb.byteOffset, tb.length / 2))
 const nSpecies = text.length / EMBED
 console.log("text classifier: " + nSpecies + " x " + EMBED)
 if (nSpecies !== taxonomy.length) throw new Error("species/taxonomy mismatch")
 
-const occRaw = gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence-v3.bin.gz")))
+const occRaw = gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence.1fb61779.bin.gz")))
 const occ = parseOccurrence(new Uint8Array(occRaw), taxHash)
 console.log("occurrence: " + occ.nCells + " cells, taxHash " + occ.taxHash)
 

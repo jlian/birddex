@@ -24,7 +24,7 @@ const taxHash = createHash("sha256")
   .digest("hex").slice(0, 16)
 
 const blob = parseOccurrence(
-  new Uint8Array(gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence-v3.bin.gz")))),
+  new Uint8Array(gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence.1fb61779.bin.gz")))),
   taxHash,
 )
 console.log("occurrence blob OK, cells=" + blob.nCells + " taxHash=" + blob.taxHash)

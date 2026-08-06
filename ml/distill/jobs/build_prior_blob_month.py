@@ -123,7 +123,14 @@ def main():
 
     blob = bytes(head) + bytes(payload)
     gz = gzip.compress(blob, 9)
-    open(args.out, "wb").write(gz)
+
+    # Name by CONTENT. The assets are served immutable for a year, so a fixed
+    # name would hand a stale blob to every existing user after a rebuild, and
+    # a schema number in the URL leaks an internal detail that changes for
+    # reasons users do not care about.
+    digest = hashlib.sha256(gz).hexdigest()[:8]
+    out = args.out.replace("HASH", digest)
+    open(out, "wb").write(gz)
     log("raw  %.2f MiB" % (len(blob) / 1048576.0))
     log("gzip %.2f MiB" % (len(gz) / 1048576.0))
     cap = 25 * 1024 * 1024
@@ -139,9 +146,11 @@ def main():
             "taxonomy_sha256_8": tx_hash.hex(),
             "n_slices": len(index), "n_triples": len(rows),
             "min_count": args.min_count,
-            "raw_bytes": len(blob), "gzip_bytes": len(gz)}
-    json.dump(meta, open(args.out + ".meta.json", "w"), indent=2)
-    log("wrote " + args.out)
+            "raw_bytes": len(blob), "gzip_bytes": len(gz),
+            "content_hash": digest}
+    json.dump(meta, open(out + ".meta.json", "w"), indent=2)
+    log("wrote " + out)
+    log("content hash: " + digest)
     print("=== BLOB v3 BUILD DONE ===")
 
 
