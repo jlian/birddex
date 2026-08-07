@@ -226,31 +226,6 @@ struct PerPhotoConfirmView: View {
         }
     }
 
-    private nonisolated static func aiPreviewImage(from imageData: Data, cropBox: CropBoxResult) -> UIImage? {
-        guard let uiImage = UIImage(data: imageData) else { return nil }
-        let uprightImage = uiImage.imageOrientation == .up
-            ? uiImage
-            : UIGraphicsImageRenderer(size: uiImage.size).image { _ in
-                uiImage.draw(in: CGRect(origin: .zero, size: uiImage.size))
-            }
-        guard let cgImage = uprightImage.cgImage else { return nil }
-
-        let padded = CropService.paddedSquareCrop(
-            from: CropService.CropBox(x: cropBox.x, y: cropBox.y, width: cropBox.width, height: cropBox.height),
-            naturalWidth: Double(cgImage.width),
-            naturalHeight: Double(cgImage.height)
-        )
-        let sx = max(0, min(Int(padded.x.rounded(.down)), cgImage.width - 1))
-        let sy = max(0, min(Int(padded.y.rounded(.down)), cgImage.height - 1))
-        let sw = max(1, min(Int(padded.width.rounded(.down)), cgImage.width - sx))
-        let sh = max(1, min(Int(padded.height.rounded(.down)), cgImage.height - sy))
-
-        guard let cropped = cgImage.cropping(to: CGRect(x: sx, y: sy, width: sw, height: sh)) else {
-            return nil
-        }
-        return UIImage(cgImage: cropped)
-    }
-
     private func fallbackPhoto(size: CGFloat) -> some View {
         Group {
             if let uiImage = decodedThumbnail {
@@ -465,7 +440,7 @@ struct PerPhotoConfirmView: View {
     }
 
     /// Decode user photo images off the main thread so the view body never calls UIImage(data:).
-    /// Captures only Sendable values (Data, CropBoxResult, String) into the detached task.
+    /// Captures only Sendable values into the detached task.
     private func decodeUserImages() {
         decodeTask?.cancel()
         decodedCroppedImage = nil
@@ -473,14 +448,10 @@ struct PerPhotoConfirmView: View {
         guard let currentPhoto = photo else { return }
         let photoId = currentPhoto.id
         let croppedData = currentPhoto.croppedImage
-        let fullData = currentPhoto.image
-        let cropBox = currentPhoto.aiCropBox
         let thumbData = currentPhoto.thumbnail
         decodeTask = Task.detached(priority: .userInitiated) {
             let decoded = Self.decodeImages(
                 croppedData: croppedData,
-                fullData: fullData,
-                cropBox: cropBox,
                 thumbData: thumbData
             )
             guard !Task.isCancelled else { return }
@@ -500,16 +471,9 @@ struct PerPhotoConfirmView: View {
 
     private nonisolated static func decodeImages(
         croppedData: Data?,
-        fullData: Data,
-        cropBox: CropBoxResult?,
         thumbData: Data
     ) -> DecodedImages {
-        var cropped: UIImage?
-        if let data = croppedData {
-            cropped = UIImage(data: data)
-        } else if let box = cropBox {
-            cropped = aiPreviewImage(from: fullData, cropBox: box)
-        }
+        let cropped = croppedData.flatMap { UIImage(data: $0) }
         let thumb = UIImage(data: thumbData)
         return DecodedImages(cropped: cropped, thumb: thumb)
     }

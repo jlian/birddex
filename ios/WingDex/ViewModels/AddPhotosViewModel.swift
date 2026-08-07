@@ -889,8 +889,6 @@ struct ProcessedPhoto: Identifiable {
     let gpsLon: Double?
     let fileHash: String
     let fileName: String
-    /// AI-suggested crop box (percentage coordinates), stored after identification.
-    var aiCropBox: CropBoxResult?
     /// User-confirmed cropped image used for re-analysis and preview, matching web croppedDataUrl.
     var croppedImage: Data? = nil
 }

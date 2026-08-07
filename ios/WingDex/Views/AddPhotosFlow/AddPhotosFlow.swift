@@ -223,7 +223,9 @@ struct AddPhotosFlow: View {
         if let photo = viewModel.currentPhoto {
             CropView(
                 imageData: photo.image,
-                initialCropBox: photo.aiCropBox,
+                // Nil seeds CropView's centred default. The local classifier
+                // localises nothing, so there is never a suggestion to seed it.
+                initialCropBox: nil,
                 reason: viewModel.cropPromptContext.reasonText,
                 onBack: {
                     viewModel.cancelCrop()
