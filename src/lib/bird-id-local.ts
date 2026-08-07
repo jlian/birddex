@@ -23,10 +23,10 @@
 // This entry ships only the plain WASM runtime at 12.86 MiB, which is also the
 // provider measured fastest for a model this small.
 import * as ort from 'onnxruntime-web/wasm'
-import { preloadAssets, type AssetProgress } from './model-cache.ts'
-import { preprocess, type Rgb } from './clip-preprocess.ts'
-import { parseOccurrence, type OccBlob } from './occurrence.ts'
-import { rankCandidates, scoresToProbs, type Calibration, type Candidate } from './rank.ts'
+import { preloadAssets, type AssetProgress } from './model-cache'
+import { preprocess, type Rgb } from './clip-preprocess'
+import { parseOccurrence, type OccBlob } from './occurrence'
+import { rankCandidates, scoresToProbs, type Calibration, type Candidate } from './rank'
 
 export type IdentifyResult = {
   commonName: string

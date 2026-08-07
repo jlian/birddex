@@ -27,13 +27,21 @@ import { occCell, parseOccurrence, GRID_COLS, MONTH_BITS } from '../lib/occurren
 const ROW = 100
 const COL = 200
 
-/** One cell, month=1 (January), holding a single species with count 5. */
+/**
+ * One cell, month=1 (January), holding a single species.
+ *
+ * Hand-built as an OccBlob rather than bytes parseOccurrence would accept: the
+ * header here writes version as a uint32 and carries no taxonomy hash, so it
+ * does not match the real v3 layout. That is fine because occCell() is called
+ * directly, but do not feed these bytes to parseOccurrence.
+ */
 function blobWithJanuaryEntry() {
   const hashLen = 0
   const idxStart = 8 + hashLen + 4
   const nCells = 1
   const payloadStart = idxStart + (nCells + 1) * 8
-  // payload: varint species delta (1), varint count (5)
+  // varint species delta (1), then the quantised byte q, which occCell turns
+  // into -q / scale. It is a log-probability, not a count.
   const payload = [1, 5]
   const total = payloadStart + payload.length
 

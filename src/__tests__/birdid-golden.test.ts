@@ -17,9 +17,9 @@ import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { lonLatToEqualEarth, xyToCell } from '../lib/equal-earth'
-import { parseOccurrence, occCell } from '../lib/occurrence.ts'
-import { rankCandidates, scoresToProbs, type Candidate } from '../lib/rank.ts'
-import { MODEL_ASSETS } from '../lib/bird-id-local-adapter.ts'
+import { parseOccurrence, occCell } from '../lib/occurrence'
+import { rankCandidates, scoresToProbs, type Candidate } from '../lib/rank'
+import { MODEL_ASSETS } from '../lib/bird-id-local-adapter'
 
 const FIXTURES = resolve(__dirname, '../../ios/WingDexTests/Fixtures')
 const GOLDEN = resolve(FIXTURES, 'birdid-golden.json')

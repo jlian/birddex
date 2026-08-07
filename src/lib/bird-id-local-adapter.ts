@@ -23,8 +23,8 @@
  * gate. So prompting below 0.7 asks the user about roughly 5% of uploads.
  */
 
-import { BirdIdEngine, type EngineAssets, type IdentifyResult } from './bird-id-local.ts'
-import { assetsCached, type AssetProgress } from './model-cache.ts'
+import { BirdIdEngine, type EngineAssets, type IdentifyResult } from './bird-id-local'
+import { assetsCached, type AssetProgress } from './model-cache'
 import taxonomy from './taxonomy.json'
 
 interface VisionResult {

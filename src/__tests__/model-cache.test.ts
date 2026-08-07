@@ -173,7 +173,8 @@ describe('model asset cache', () => {
     expect(out.size).toBe(4)
   })
 
-  it('re-downloads after the cache is cleared', async () => {    const { preloadAssets, clearAssetCache, assetsCached } = await import('@/lib/model-cache')
+  it('re-downloads after the cache is cleared', async () => {
+    const { preloadAssets, clearAssetCache, assetsCached } = await import('@/lib/model-cache')
     await preloadAssets(URLS)
     await clearAssetCache()
     expect(await assetsCached(URLS)).toBe(false)

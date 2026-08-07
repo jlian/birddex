@@ -104,7 +104,11 @@ async function fetchCached(
   } catch (err) {
     console.warn("model-cache: persisting " + url + " failed, continuing uncached", err)
   }
-  return res.arrayBuffer()
+  const buf = await res.arrayBuffer()
+  // Without a reader the streaming branch never ran, so the running total is
+  // still missing this asset and every later asset would report low.
+  if (state && !reader) state.loaded += buf.byteLength
+  return buf
 }
 
 /**

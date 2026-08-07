@@ -79,8 +79,9 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       onReadyRef.current()
     } catch (e) {
       // Leave the button available. A failed download is usually a dropped
-      // connection, and the cache keeps whatever already arrived, so retrying
-      // resumes rather than restarting.
+      // connection, and every asset that finished is already in the cache, so
+      // a retry re-fetches only the one that was interrupted plus the rest.
+      // There are no range requests, so the interrupted asset restarts.
       if (!mounted.current) return
       setError(e instanceof Error ? e.message : String(e))
       setDownloading(false)
@@ -119,7 +120,8 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
 
       {error && (
         <p className="text-destructive text-sm">
-          Download failed: {error}. Retrying picks up where it stopped.
+          Download failed: {error}. Retrying keeps the files that already
+          finished.
         </p>
       )}
     </div>

@@ -23,7 +23,7 @@
  */
 
 import { lonLatToEqualEarth, xyToCell } from './equal-earth'
-import { occCell, type OccBlob } from './occurrence.ts'
+import { occCell, type OccBlob } from './occurrence'
 
 /** Absent-from-cell floor. The shipped temperature and beta were fitted at 1e-12. */
 export const OCC_FLOOR = Math.log(1e-12)
