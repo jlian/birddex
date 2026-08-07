@@ -15,6 +15,7 @@
 		08DD179D53004B5D6B3771C5 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57FC6933BCB9DA6D01C6F9E /* PreviewData.swift */; };
 		0C26BD71C3D1128D41123339 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9986F927C0C622E7A4DE4C2E /* AppModels.swift */; };
 		0FED48A726585A89C3989A51 /* WingDexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B4D479201C022372C3F4BF /* WingDexApp.swift */; };
+		10E9371A1F440CAE1D3E3B55 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3E730B46D8999CB6E7A42EC4 /* PrivacyInfo.xcprivacy */; };
 		1587B24CB8AEF6D2C3D0DCEB /* EBirdImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A167BA0320720274AA15EF34 /* EBirdImportView.swift */; };
 		1735984485D0D573F5B44CC5 /* collage13.jpg in Resources */ = {isa = PBXBuildFile; fileRef = AE7506A9CCCD1EF7E59111BE /* collage13.jpg */; };
 		178DBB3AF05F16FF018BA97B /* NativeErrorPreviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53F7623102ABB493E2971FA /* NativeErrorPreviews.swift */; };
@@ -117,6 +118,7 @@
 		EE234F9D0E5A8EC5DDC52616 /* DataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBE1598DFE8F27ED8313060 /* DataService.swift */; };
 		EF2F09F0522EF7C58382DC60 /* occurrence.bin in Resources */ = {isa = PBXBuildFile; fileRef = 7BD4FF0AC381DC4E16952A44 /* occurrence.bin */; };
 		F328447561BB5DDA17308FD4 /* Data+Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 839C24B2C567AC5C75E3844C /* Data+Base64URL.swift */; };
+		F5031B9305E4469E4BF4F9FC /* PrivacyManifestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E241AB56AD080BA22577CE3 /* PrivacyManifestTests.swift */; };
 		F6615E3D24C9B015D69520FA /* PasskeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55734005BE9F01B6719A826 /* PasskeyService.swift */; };
 		F7BB21E4149CCE3421A4CD39 /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989AEA195C999B4857206090 /* AppError.swift */; };
 		F8B6EC497AAFE5B360FEB1C4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E01D6CCC5A4C9255372AFD03 /* Preview Assets.xcassets */; };
@@ -201,6 +203,7 @@
 		34D7C009C2D9A695FBE3C407 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		36494465879ECB03DD6185CA /* collage14.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage14.jpg; sourceTree = "<group>"; };
 		38902C42A407AB194B63C757 /* PerPhotoConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerPhotoConfirmView.swift; sourceTree = "<group>"; };
+		3E730B46D8999CB6E7A42EC4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		3F672879223E1EC7DCBDEAA5 /* NavigationIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationIntents.swift; sourceTree = "<group>"; };
 		408C966FB74B7D159C8426D8 /* BirdIdEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirdIdEngine.swift; sourceTree = "<group>"; };
 		40E4A1B21654CC24CA891696 /* AuthIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthIntegrationTests.swift; sourceTree = "<group>"; };
@@ -222,6 +225,7 @@
 		5C89383FC185DF939A030C0D /* collage9.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage9.jpg; sourceTree = "<group>"; };
 		5CACACCB759F9881B6989222 /* CropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropService.swift; sourceTree = "<group>"; };
 		5D23677801319F3BA63350DF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5E241AB56AD080BA22577CE3 /* PrivacyManifestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyManifestTests.swift; sourceTree = "<group>"; };
 		5E4B3481B64AB6EC4E0E93EA /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		61DFE3278988BC58601C97F3 /* AddPhotosViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddPhotosViewModel.swift; sourceTree = "<group>"; };
 		638D9C3BD5183E2EB4E6EF03 /* CacheSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchema.swift; sourceTree = "<group>"; };
@@ -501,6 +505,7 @@
 				452C55049EB9AB7E09E62CA9 /* FunNamesTests.swift */,
 				1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */,
 				01E11C0BD94777FAA9D33933 /* PhotoDecoderTests.swift */,
+				5E241AB56AD080BA22577CE3 /* PrivacyManifestTests.swift */,
 				4C56DDD787BF000019EB3051 /* TaxonomyOrderTests.swift */,
 				7E72665B257D80E572558029 /* WikimediaURLTests.swift */,
 			);
@@ -553,6 +558,7 @@
 			children = (
 								A1B2C3D4E5F6A7B8C9D0E1F2 /* AppIcon.icon */,
 071E15B7BF7B6D9EA12130BA /* demo-ebird-import.csv */,
+				3E730B46D8999CB6E7A42EC4 /* PrivacyInfo.xcprivacy */,
 				F930B7A16F2B5C40B971D674 /* taxonomy.json */,
 				A2D99D214075862347E44BE3 /* BirdID */,
 				467DC98756411111AD9C9A74 /* CollagePhotos */,
@@ -740,6 +746,7 @@
 								F2E1D0C9B8A7F6E5D4C3B2A1 /* AppIcon.icon in Resources */,
 CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				F8B6EC497AAFE5B360FEB1C4 /* Preview Assets.xcassets in Resources */,
+				10E9371A1F440CAE1D3E3B55 /* PrivacyInfo.xcprivacy in Resources */,
 				6A3E3A8BE6F89235D4E0ED32 /* collage1.jpg in Resources */,
 				DA3EE1B5E1FD9FC6650D8641 /* collage10.jpg in Resources */,
 				43921D83ECB05301E343D2ED /* collage11.jpg in Resources */,
@@ -930,6 +937,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				E2DEFBDD3B36FEB4C7CFCC96 /* FunNamesTests.swift in Sources */,
 				3EF5CB0983D37395F5272CFD /* Phase9FoundationTests.swift in Sources */,
 				61B05C30EE88054031D97717 /* PhotoDecoderTests.swift in Sources */,
+				F5031B9305E4469E4BF4F9FC /* PrivacyManifestTests.swift in Sources */,
 				735564E615ECED94D844C13B /* TaxonomyOrderTests.swift in Sources */,
 				8668EC3C4072BB264C7FE1E6 /* WikimediaURLTests.swift in Sources */,
 			);
