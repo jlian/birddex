@@ -46,7 +46,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">4. Photo handling</h3>
-          <p>Bird identification runs <strong>entirely on your device</strong> using a model your browser downloads once. The photo you identify is <strong>not</strong> transmitted to us or to any third party for identification, and never leaves your device for that purpose. We do not use your photos to train AI models. To prevent accidental duplicate imports, we store a file fingerprint hash and related metadata (such as capture time and location, when present), but not the image contents.</p>
+          <p>Bird identification runs <strong>entirely on your device</strong> using a model the web app downloads once and the iOS app ships with. The photo you identify is <strong>not</strong> transmitted to us or to any third party for identification, and never leaves your device for that purpose. We do not use your photos to train AI models. To prevent accidental duplicate imports, we store a file fingerprint hash and related metadata (such as capture time and location, when present), but not the image contents.</p>
         </section>
 
         <section className="space-y-1">
@@ -57,6 +57,7 @@ export default function PrivacyPage() {
             <li><strong>Wikimedia / Wikipedia:</strong> Species images and descriptions fetched from Wikimedia APIs.</li>
             <li><strong>eBird / Cornell Lab of Ornithology:</strong> Taxonomy and species data for matching and display.</li>
             <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
+            <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
             <li><strong>OpenStreetMap / Nominatim:</strong> Location search queries and coordinates sent for geocoding and reverse geocoding.</li>
             <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
           </ul>

@@ -58,7 +58,7 @@ export default function TermsPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">9. Third-party services</h3>
-          <p>The Service integrates with third-party services (including Cloudflare, AI providers, Wikimedia, eBird, and BirdLife International). Your use of these integrations may be subject to additional terms. WingDex is not responsible for third-party availability, accuracy, or practices.</p>
+          <p>The Service integrates with third-party services (including Cloudflare, Wikimedia, eBird, and BirdLife International) and uses open data from iNaturalist. Your use of these integrations may be subject to additional terms. WingDex is not responsible for third-party availability, accuracy, or practices.</p>
         </section>
 
         <section className="space-y-1">
