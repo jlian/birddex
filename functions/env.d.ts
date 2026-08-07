@@ -6,6 +6,8 @@ interface Env {
   GITHUB_CLIENT_SECRET: string
   APPLE_CLIENT_ID: string
   APPLE_CLIENT_SECRET: string
+  /** Client-secret JWT whose subject is the native bundle ID app.wingdex. */
+  APPLE_APP_CLIENT_SECRET?: string
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
   CF_ACCOUNT_ID: string
