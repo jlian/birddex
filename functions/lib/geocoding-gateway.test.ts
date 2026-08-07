@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { GeocodingUpstreamError, reverseGeocode, searchPlaces } from './geocoding-gateway'
 
+type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
 type BoundStatement = {
   sql: string
   values: unknown[]
@@ -91,7 +93,7 @@ const providerResult = {
 describe('geocoding gateway', () => {
   it('normalizes a submitted search and reuses its cached provider response', async () => {
     const database = new MemoryD1() as unknown as D1Database
-    const fetcher = vi.fn(async () => Response.json([providerResult]))
+    const fetcher = vi.fn<Fetcher>(async () => Response.json([providerResult]))
 
     const first = await searchPlaces(database, '  Green   Lake  ', fetcher)
     const second = await searchPlaces(database, 'Green Lake', fetcher)
@@ -110,7 +112,7 @@ describe('geocoding gateway', () => {
     const database = new MemoryD1() as unknown as D1Database
     let releaseFetch: () => void = () => undefined
     const blocked = new Promise<void>(resolve => { releaseFetch = resolve })
-    const fetcher = vi.fn(async () => {
+    const fetcher = vi.fn<Fetcher>(async () => {
       await blocked
       return Response.json([providerResult])
     })
@@ -126,7 +128,7 @@ describe('geocoding gateway', () => {
 
   it('preserves upstream status and Retry-After', async () => {
     const database = new MemoryD1() as unknown as D1Database
-    const fetcher = vi.fn(async () => new Response(null, {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, {
       status: 429,
       headers: { 'Retry-After': '3' },
     }))
@@ -138,7 +140,7 @@ describe('geocoding gateway', () => {
 
   it('clamps nearby-search bounds at the poles and antimeridian', async () => {
     const database = new MemoryD1() as unknown as D1Database
-    const fetcher = vi.fn(async () => Response.json([{
+    const fetcher = vi.fn<Fetcher>(async () => Response.json([{
       ...providerResult,
       category: 'leisure',
       type: 'park',

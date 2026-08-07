@@ -18,6 +18,7 @@ BETTER_AUTH_SECRET=local-dev-secret
 # GOOGLE_CLIENT_SECRET=
 # APPLE_CLIENT_ID=
 # APPLE_CLIENT_SECRET=
+# APPLE_APP_CLIENT_SECRET=
 
 # --- Auth overrides (optional, for hosted OAuth testing) ---
 

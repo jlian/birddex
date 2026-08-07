@@ -27,6 +27,8 @@ const ROUTE_MAP: Array<{ prefix: string; method?: string; op: string; category: 
   { prefix: '/api/data/all', method: 'GET', op: 'data/all/read', category: 'Application' },
   { prefix: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Audit' },
   { prefix: '/api/auth/linked-providers', op: 'auth/linkedProviders/read', category: 'Application' },
+  { prefix: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Audit' },
+  { prefix: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Audit' },
   { prefix: '/api/auth/mobile/start', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/mobile/callback', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/', op: 'auth/sessions/invoke', category: 'Application' },
