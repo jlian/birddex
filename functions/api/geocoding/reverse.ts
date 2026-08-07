@@ -10,6 +10,8 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       context.env.DB,
       url.searchParams.get('lat'),
       url.searchParams.get('lon'),
+      fetch,
+      route.log,
     )
     route.debug(result ? 'Geocoding result returned' : 'No geocoding result found')
     return Response.json({ result }, { headers: { 'Cache-Control': 'private, no-store' } })
