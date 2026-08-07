@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Container view for the multi-step Add Photos wizard.
 ///
-/// Presented as a sheet from MainTabView. Orchestrates the full flow:
+/// Presented as a full-screen cover from MainTabView. Orchestrates the full flow:
 /// selectPhotos -> extracting -> outingReview -> photoProcessing ->
 /// perPhotoConfirm -> (manualCrop) -> [next photo or save] -> done
 struct AddPhotosFlow: View {
@@ -22,27 +22,32 @@ struct AddPhotosFlow: View {
     }
 
     var body: some View {
-        Group {
-            switch viewModel.currentStep {
-            case .selectPhotos:
-                // Shown briefly during duplicate detection before alert appears
-                Color.pageBg
-            case .extracting:
-                extractingView
-            case .outingReview:
-                OutingReviewView(viewModel: viewModel)
-            case .photoProcessing:
-                photoProcessingView
-            case .perPhotoConfirm:
-                PerPhotoConfirmView(viewModel: viewModel)
-            case .manualCrop:
-                manualCropDestination
-            case .saving:
-                savingView
-            case .done:
-                doneView
+        ZStack {
+            Color.pageBg.ignoresSafeArea()
+
+            Group {
+                switch viewModel.currentStep {
+                case .selectPhotos:
+                    // Shown briefly during duplicate detection before alert appears
+                    Color.clear
+                case .extracting:
+                    extractingView
+                case .outingReview:
+                    OutingReviewView(viewModel: viewModel)
+                case .photoProcessing:
+                    photoProcessingView
+                case .perPhotoConfirm:
+                    PerPhotoConfirmView(viewModel: viewModel)
+                case .manualCrop:
+                    manualCropDestination
+                case .saving:
+                    savingView
+                case .done:
+                    doneView
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -64,7 +69,6 @@ struct AddPhotosFlow: View {
         } message: {
             Text("Your upload is still in progress. If you close now, any unsaved changes will be lost.")
         }
-        .background(Color.pageBg.ignoresSafeArea())
         // Duplicate photo detection alert
         .alert("Duplicate photos found", isPresented: $viewModel.showDuplicateConfirm) {
             Button("Skip duplicates") {
@@ -176,12 +180,11 @@ struct AddPhotosFlow: View {
             Spacer()
         }
         .padding(.horizontal, 24)
-        .background(Color.pageBg.ignoresSafeArea())
     }
 
     // MARK: - Photo Processing (AI Identification) View
 
-    /// Spinner + exponential progress bar while AI identifies the current photo.
+    /// Spinner while AI identifies the current photo.
     private var photoProcessingView: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -211,7 +214,7 @@ struct AddPhotosFlow: View {
             Spacer()
         }
         .padding(.horizontal, 24)
-        .background(Color.pageBg.ignoresSafeArea())
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Manual Crop Destination
@@ -270,7 +273,6 @@ struct AddPhotosFlow: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.pageBg.ignoresSafeArea())
     }
 
     // MARK: - Done / Summary View
@@ -337,7 +339,6 @@ struct AddPhotosFlow: View {
             Spacer()
         }
         .padding(.horizontal, 24)
-        .background(Color.pageBg.ignoresSafeArea())
     }
 
     /// A summary stat card for the done screen.
@@ -396,13 +397,6 @@ struct AddPhotosFlow: View {
         return result.jpegData(compressionQuality: 0.7)
     }
 }
-
-// MARK: - Exponential Progress Bar
-
-/// Animated progress bar that follows `90 * (1 - e^(-t/tau))`, matching web behavior.
-///
-/// Uses SwiftUI's TimelineView for smooth updates that respect the view lifecycle.
-/// Resets whenever `runKey` changes (e.g., when escalating from fast to strong model).
 
 // MARK: - Preview
 

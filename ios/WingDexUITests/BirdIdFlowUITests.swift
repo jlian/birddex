@@ -3,6 +3,7 @@ import XCTest
 /// End-to-end cover for on-device identification. BirdIdAccuracyTests checks the
 /// engine against a set of photos directly; this one checks that the add-photos
 /// flow wires the engine up and renders the result it produces.
+@MainActor
 final class BirdIdFlowUITests: XCTestCase {
     /// A shared fixture, also used by BirdIdAccuracyTests and the web tests. Read from
     /// the repo rather than the app bundle so it never ships inside the app.
