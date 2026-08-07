@@ -346,6 +346,7 @@ struct PerPhotoConfirmView: View {
                     HStack(spacing: 4) {
                         Text(displayName)
                             .font(.title3.weight(.semibold))
+                            .accessibilityIdentifier("confirm.speciesName")
                         if let plumage = selectedPlumage, let icon = plumageIcon(plumage) {
                             Text(icon)
                                 .font(.subheadline)
@@ -362,6 +363,7 @@ struct PerPhotoConfirmView: View {
                 Text(BirdIdEngine.formatConfidence(selectedConfidence))
                     .font(.system(.title2, weight: .bold).monospacedDigit())
                     .foregroundStyle(confidenceColor)
+                    .accessibilityIdentifier("confirm.confidence")
             }
 
             ProgressView(value: selectedConfidence)
