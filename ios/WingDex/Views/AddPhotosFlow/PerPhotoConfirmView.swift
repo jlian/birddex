@@ -384,7 +384,7 @@ struct PerPhotoConfirmView: View {
                     }
                 }
                 Spacer()
-                Text("\(confidencePercent)%")
+                Text(BirdIdEngine.formatConfidence(selectedConfidence))
                     .font(.system(.title2, weight: .bold).monospacedDigit())
                     .foregroundStyle(confidenceColor)
             }
@@ -430,7 +430,7 @@ struct PerPhotoConfirmView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(range == "out-of-range" ? .red : .orange)
                 }
-                Text("\(Int(candidate.confidence * 100))%")
+                Text(BirdIdEngine.formatConfidence(candidate.confidence))
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.secondary)
             }

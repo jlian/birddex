@@ -77,8 +77,37 @@ export const MODEL_ASSETS: EngineAssets = {
   calibration: { temperature: 0.007545354776084423, beta: 0.5435083508491516 },
 }
 
-/** Prompt below this. See the coverage table above. */
-export const CONFIDENCE_PROMPT_THRESHOLD = 0.7
+/**
+ * Prompt below this. Measured on 400 labelled held-out photos plus 393
+ * Imagenette non-birds: 0.8 keeps 93% of real birds and rejects 76% of dog
+ * photos, against 95% / 70% at 0.7.
+ *
+ * A dog is the hard case and no threshold fixes it, because this is zero-shot
+ * cosine over 11,167 BIRD names with no "not a bird" class, so a furry
+ * four-legged animal lands somewhere plausible. Dogs come back as African
+ * Penguin and Sooty Owl. A pre-rerank vision gate was measured as an
+ * alternative and is WORSE on dogs (32.5% pass at 0.3 against 30% here) while
+ * costing 17 points of bird coverage, so it is not shipped.
+ */
+export const CONFIDENCE_PROMPT_THRESHOLD = 0.8
+
+/**
+ * Format a confidence for display.
+ *
+ * Confidence is never actually zero, but 91% of the 2nd-to-5th candidates fall
+ * below 0.5% and round to a flat "0%", which reads as "impossible" rather than
+ * "very unlikely". 0.005 is exactly where integer rounding starts producing 0,
+ * so below it the value is reported as a bound instead.
+ *
+ * The number itself is left alone. Measured against ground truth it is well
+ * calibrated (mean 0.963 against 94.3% accuracy, ECE 0.021) and refitting a
+ * display temperature made it worse.
+ */
+export function formatConfidence(confidence: number): string {
+  if (!Number.isFinite(confidence) || confidence < 0) return "-"
+  if (confidence < 0.005) return "<0.5%"
+  return `${Math.round(confidence * 100)}%`
+}
 
 let enginePromise: Promise<BirdIdEngine> | null = null
 

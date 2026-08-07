@@ -20,7 +20,7 @@ import { clusterPhotosIntoOutings } from '@/lib/clustering'
 import { identifyBirdLocally, MODEL_ASSETS, modelReady } from '@/lib/bird-id-local-adapter'
 import { ModelDownloadGate } from '@/components/ModelDownloadGate'
 import type { BirdIdResult } from '@/lib/ai-inference'
-import { shouldPromptForCrop } from '@/lib/bird-id-local-adapter'
+import { shouldPromptForCrop, formatConfidence } from '@/lib/bird-id-local-adapter'
 import OutingReview from '@/components/flows/OutingReview'
 import { getDisplayName, getScientificName, cn } from '@/lib/utils'
 import { toLocalISOWithOffset } from '@/lib/timezone'
@@ -1107,7 +1107,7 @@ function PerPhotoConfirm({
                 : 'text-red-500 dark:text-red-400'
             }`}
           >
-            {confidencePct}%
+            {formatConfidence(selectedConfidence)}
           </span>
         </div>
 
@@ -1180,7 +1180,6 @@ function PerPhotoConfirm({
                 </p>
                 {candidates.map(c => {
                   const altName = getDisplayName(c.species)
-                  const altPct = Math.round(c.confidence * 100)
                   const isSelected = c.species === selectedSpecies
                   return (
                     <button
@@ -1204,7 +1203,7 @@ function PerPhotoConfirm({
                             {c.rangeStatus === 'out-of-range' ? 'Out of range' : 'Near range'}
                           </span>
                         )}
-                        <span className="text-xs text-muted-foreground">{altPct}%</span>
+                        <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>
                       </span>
                     </button>
                   )
