@@ -37,3 +37,6 @@ heldout-orig/
 heldout-orig-corpus/
 val_ids_seed0.json
 val_split_seed0.json
+
+# HF upload staging dirs: copies of weights already on the hub
+distill/hf_stage*/
