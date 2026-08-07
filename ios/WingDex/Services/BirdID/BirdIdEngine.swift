@@ -187,13 +187,14 @@ actor BirdIdEngine {
         norm = norm.squareRoot()
         if norm == 0 { norm = 1 }
 
+        // The classifier rows are already L2-normalised, so normalising the
+        // embedding is all that is needed to turn the dot into a cosine.
+        var unit = [Float](repeating: 0, count: Self.embedDim)
+        vDSP_vsdiv(embedding, 1, &norm, &unit, 1, vDSP_Length(Self.embedDim))
+
         var sims = [Float](repeating: 0, count: l.speciesCount)
-        // The classifier rows are already L2-normalised, so dividing by the
-        // embedding norm is all that is needed to turn the dot into a cosine.
-        cblas_sgemv(CblasRowMajor, CblasNoTrans,
-                    Int32(l.speciesCount), Int32(Self.embedDim),
-                    1 / norm, l.classifier, Int32(Self.embedDim),
-                    embedding, 1, 0, &sims, 1)
+        vDSP_mmul(l.classifier, 1, unit, 1, &sims, 1,
+                  vDSP_Length(l.speciesCount), 1, vDSP_Length(Self.embedDim))
         return sims
     }
 
