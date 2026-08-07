@@ -88,12 +88,19 @@ describe('OutingReview', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => [{
-        category: 'leisure',
-        type: 'park',
-        name: 'Discovery Park',
-        address: { city: 'Seattle', state: 'Washington' },
-      }],
+      json: async () => ({
+        result: {
+          label: 'Discovery Park, Seattle, Washington',
+          lat: 47.6573,
+          lon: -122.4055,
+          stateProvince: 'US-WA',
+          countryCode: 'US',
+          attribution: {
+            label: 'Location data © OpenStreetMap contributors',
+            url: 'https://www.openstreetmap.org/copyright',
+          },
+        },
+      }),
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -142,5 +149,38 @@ describe('OutingReview', () => {
     expect(screen.queryByText('Identifying location from GPS...')).not.toBeInTheDocument()
 
     await act(async () => finishConfirmation())
+  })
+
+  it('searches for a place only after explicit submission', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+        }}
+        data={createDataStore()}
+        userId="user-1"
+        defaultLocationName="Discovery Park"
+        onConfirm={vi.fn(async () => undefined)}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Discovery Park/ }))
+    const searchInput = screen.getByPlaceholderText('Search for a place...')
+    fireEvent.change(searchInput, { target: { value: 'Green Lake' } })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    fireEvent.submit(searchInput.closest('form')!)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/geocoding/search?q=Green+Lake')
   })
 })
