@@ -41,6 +41,21 @@ NABirds accuracy at 45% of the parameters. It does edge out the grand-teacher
 BioCLIP-2, at 7.9x fewer visual parameters, which is the more useful headline but
 a comparison two steps removed from what it actually learned from.
 
+**Read that BioCLIP-2 row narrowly.** Every number in the table above was
+measured here on the 24,633-image NABirds *test* split. The BioCLIP-2 card
+reports its own results over 555 categories and 48,640 images, so 86.41 is our
+measurement of their model on our protocol, not their published figure. Two
+further caveats: [BioCLIP 2.5](https://huggingface.co/imageomics/bioclip-2.5-vith14)
+has since shipped a ViT-H/14 claiming +5.7% on species classification over
+BioCLIP 2 and is untested here, and supervised fine-grained models trained
+directly on NABirds score higher than any model in this table (93.2 for the
+Token Injection Transformer, 92.4 for DBMFNet) with a fixed 555-class head
+rather than zero-shot over 11,167 species.
+
+This model is therefore **not** a claim to be the best open bird classifier.
+The defensible claim is parameter efficiency: BioCLIP-2 accuracy at 13% of its
+visual parameters, small enough to run in a browser tab.
+
 ### Why distil from the student rather than the original teacher
 
 Both were tried, on a 401-species NABirds pilot:
