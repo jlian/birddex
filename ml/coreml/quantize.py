@@ -55,15 +55,16 @@ def main():
     model.load_state_dict(ckpt["model"])
     classifier = np.load(hf_hub_download(REPO, "text_classifier_fp32.npy"))
 
+    fixture_dir = os.path.join(os.path.dirname(__file__), "..", "parity")
     fx = [np.fromfile(p, dtype=np.float32).reshape(1, 3, 224, 224)
-          for p in sorted(glob.glob("parity/js_*.f32.bin"))]
+          for p in sorted(glob.glob(os.path.join(fixture_dir, "js_*.f32.bin")))]
     refs = []
     for x in fx:
         with torch.no_grad():
             refs.append(model(torch.from_numpy(x)).numpy()[0])
 
     base = ct.models.MLModel("WingCLIP.mlpackage")
-    results = [("fp16", "WingCLIP.mlpackage", base)]
+    results = [("fp16", "WingCLIP.mlpackage")]
 
     for nbits, name in [(8, "int8"), (4, "int4")]:
         cfg = cto.OptimizationConfig(
@@ -73,13 +74,20 @@ def main():
         q = cto.linear_quantize_weights(base, config=cfg)
         path = "WingCLIP-%s.mlpackage" % name
         q.save(path)
-        results.append((name, path, ct.models.MLModel(path)))
+        results.append((name, path))
+        del q
+
+    # One model per process: holding several compiled MLModels live at once
+    # segfaults, so load and release each package one at a time.
+    del base
 
     print("\n%-6s %10s %12s %10s" % ("prec", "size MiB", "worst cos", "top-1"))
-    for name, path, m in results:
+    for name, path in results:
+        m = ct.models.MLModel(path)
         worst, agree = evaluate(m, fx, refs, classifier)
         print("%-6s %10.2f %12.6f %8d/%d"
               % (name, pkg_size(path) / MIB, worst, agree, len(fx)))
+        del m
 
     print("\nweb ships an int8 ONNX tower at 37.72 MiB for comparison")
 
