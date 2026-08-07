@@ -810,45 +810,6 @@ components:
           format: uri
 
     # -------------------------------------------------------------------------
-    # Bird ID
-    # -------------------------------------------------------------------------
-    Candidate:
-      type: object
-      required: [species, confidence]
-      properties:
-        species:
-          type: string
-          description: '"Common Name (Scientific name)" format'
-        confidence:
-          type: number
-          minimum: 0
-          maximum: 1
-        wikiTitle:
-          type: string
-        plumage:
-          type: ['string', 'null']
-          enum: [male, female, juvenile, null]
-          description: Plumage descriptor from the vision model
-        rangeStatus:
-          type: string
-          enum: [present, near-range, out-of-range, no-data]
-          description: BirdLife range status for this species at the query location and month
-
-    CropBox:
-      type: object
-      description: Bounding box as percentages of image dimensions (0-100)
-      required: [x, y, width, height]
-      properties:
-        x:
-          type: number
-        y:
-          type: number
-        width:
-          type: number
-        height:
-          type: number
-
-    # -------------------------------------------------------------------------
     # Request Bodies
     # -------------------------------------------------------------------------
     CreateOutingRequest:
