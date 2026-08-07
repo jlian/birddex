@@ -25,8 +25,8 @@
 import { lonLatToEqualEarth, xyToCell } from './equal-earth'
 import { occCell, type OccBlob } from './occurrence.ts'
 
-/** Absent-from-cell floor, matching pipeline-experiment.mjs. */
-export const OCC_FLOOR = Math.log(1e-9)
+/** Absent-from-cell floor. The shipped temperature and beta were fitted at 1e-12. */
+export const OCC_FLOOR = Math.log(1e-12)
 
 export type Calibration = {
   temperature: number

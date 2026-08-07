@@ -11,8 +11,8 @@ import Foundation
 /// Cells with no occurrence data fall back to vision-only ranking, which is a
 /// graceful degradation rather than a confident wrong answer.
 enum BirdRanker {
-    /// Absent-from-cell floor, matching the offline harness.
-    static let occFloor = log(1e-9)
+    /// Absent-from-cell floor. The shipped temperature and beta were fitted at 1e-12.
+    static let occFloor = log(1e-12)
 
     struct Calibration: Sendable, Equatable {
         let temperature: Double
