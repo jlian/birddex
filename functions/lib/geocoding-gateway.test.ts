@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { GeocodingUpstreamError, reverseGeocode, searchPlaces } from './geocoding-gateway'
+import type { Logger } from './log'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -94,9 +95,11 @@ describe('geocoding gateway', () => {
   it('normalizes a submitted search and reuses its cached provider response', async () => {
     const database = new MemoryD1() as unknown as D1Database
     const fetcher = vi.fn<Fetcher>(async () => Response.json([providerResult]))
+    const debug = vi.fn<Logger['debug']>()
+    const log = { debug } as unknown as Logger
 
-    const first = await searchPlaces(database, '  Green   Lake  ', fetcher)
-    const second = await searchPlaces(database, 'Green Lake', fetcher)
+    const first = await searchPlaces(database, '  Green   Lake  ', fetcher, log)
+    const second = await searchPlaces(database, 'Green Lake', fetcher, log)
 
     expect(fetcher).toHaveBeenCalledOnce()
     expect(String(fetcher.mock.calls[0][0])).toContain('q=Green+Lake')
@@ -106,6 +109,15 @@ describe('geocoding gateway', () => {
       stateProvince: 'US-WA',
       countryCode: 'US',
     })
+    expect(debug).toHaveBeenCalledTimes(2)
+    expect(debug).toHaveBeenNthCalledWith(1, 'geocoding/cache/read', expect.objectContaining({
+      properties: { cacheStatus: 'miss', requestType: 'search' },
+    }))
+    expect(debug).toHaveBeenNthCalledWith(2, 'geocoding/cache/read', expect.objectContaining({
+      properties: { cacheStatus: 'hit', requestType: 'search' },
+    }))
+    expect(JSON.stringify(debug.mock.calls)).not.toContain('Green')
+    expect(JSON.stringify(debug.mock.calls)).not.toContain('47.6801')
   })
 
   it('coalesces concurrent identical cache misses', async () => {
