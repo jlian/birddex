@@ -55,8 +55,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if isValidating {
-                // Blank screen while validating session with server
-                Color.pageBg.ignoresSafeArea()
+                SessionValidationView()
             } else if auth.isAuthenticated {
                 MainTabView()
                     .transition(.opacity)
@@ -106,6 +105,22 @@ struct ContentView: View {
                 isValidating = false
             }
         }
+    }
+}
+
+private struct SessionValidationView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Checking your session...")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.pageBg.ignoresSafeArea())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Checking your session")
     }
 }
 
@@ -337,6 +352,10 @@ struct AvatarView: View {
 }
 
 #if DEBUG
+#Preview("App - Session Validation") {
+    SessionValidationView()
+}
+
 #Preview("App - Authenticated") {
     ContentView()
         .environment(AuthService())
