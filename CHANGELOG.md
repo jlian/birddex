@@ -1,3 +1,42 @@
+# [1.23.0](https://github.com/jlian/wingdex/compare/v1.22.3...v1.23.0) (2026-08-07)
+
+
+### Bug Fixes
+
+* **BirdID:** address Copilot review on cache, parser and e2e robustness ([2038216](https://github.com/jlian/wingdex/commit/20382160bb8e1f1ac25b70c9cbb64950fd1cb2a5))
+* **BirdID:** credit iNaturalist for the occurrence prior, not BirdLife ([9c0e787](https://github.com/jlian/wingdex/commit/9c0e787597c95040453200eacc083de1a2b9ca0d))
+* **BirdID:** floor absent species at 1e-12, the value the calibration was fit at ([c8897b3](https://github.com/jlian/wingdex/commit/c8897b308b86f640cd10c860f4ab0f19296bfb53))
+* **BirdID:** show a spinner during ID, and fix the download bar's total ([3bebcc1](https://github.com/jlian/wingdex/commit/3bebcc13ec91e36ee1bedd48a478e0870d58a4d5))
+* **BirdID:** stop rounding tiny confidences to 0%, and gate at 0.8 ([5c1a229](https://github.com/jlian/wingdex/commit/5c1a229642cee7703d87ba6c28e7e4d302459b7c))
+* **BirdID:** stop shipping the deleted endpoint's client and buffering a copy ([f2484a2](https://github.com/jlian/wingdex/commit/f2484a2d6dbc6f5edec3c0fe88535e9d2189928d))
+* **coreml:** load the parity fixtures the quantizer scores against ([a812d0a](https://github.com/jlian/wingdex/commit/a812d0a827a3e2d8c32ea6bf281aacd778ba4ef3))
+* correct download-gate copy, import style, and progress accounting ([fc41a39](https://github.com/jlian/wingdex/commit/fc41a397d58a99366de0c21aeca21e2a928226d9))
+* correct the privacy policy, and survive a failed or abandoned download ([2ee54b2](https://github.com/jlian/wingdex/commit/2ee54b24f388c2ae03ac89768d6319c0676f94fb))
+* declare the Localhost launch args, label sizes as MB, unpin harness path ([222e3a9](https://github.com/jlian/wingdex/commit/222e3a98dfe40765bd42b351579689a1fcaeb30e))
+* **e2e:** run playwright with one worker, the suite shares a database ([f961c46](https://github.com/jlian/wingdex/commit/f961c46fc8e0839682391689e597b9001de358e8))
+* **gate:** count the prior at its gzipped size so progress reaches 100 ([a25acaf](https://github.com/jlian/wingdex/commit/a25acaf9873971d7eb0686eb53a55e882d374782))
+* **gate:** quote the real transfer size and stop showing two totals ([6fe1773](https://github.com/jlian/wingdex/commit/6fe1773160b35ca13de3291498e34a8db81c536d))
+* **model-cache:** name the asset when a download fails ([2943ebb](https://github.com/jlian/wingdex/commit/2943ebbab9505e332114e1cab66f00a01a653e50))
+* **Outings:** keep location stable while confirming ([#281](https://github.com/jlian/wingdex/issues/281)) ([0a6966d](https://github.com/jlian/wingdex/commit/0a6966dbe1050b097b1278db078381425d770641))
+* **Outings:** prevent new outing self-match ([#281](https://github.com/jlian/wingdex/issues/281)) ([e3a394b](https://github.com/jlian/wingdex/commit/e3a394b844a476b9e28a9c819c5d56f72be2d803))
+* stop applying January's prior to photos with unreadable EXIF dates ([54aa084](https://github.com/jlian/wingdex/commit/54aa084ecae90f161e02cc6a7e15128bfd8ad72b))
+* validate occurrence header length and correct stale asset names ([256d36a](https://github.com/jlian/wingdex/commit/256d36a7efc08aec5767f25e67aec3bdd3894bc8))
+
+
+### Features
+
+* **BirdID:** port the occurrence prior and Strategy I ranker to Swift ([1ada7e4](https://github.com/jlian/wingdex/commit/1ada7e4379f37221684888807491ec6e44094d4d))
+* on-device bird ID with WingCLIP-0.3, 95.0 percent top-1 in the browser ([12396a4](https://github.com/jlian/wingdex/commit/12396a495b85463e266555e79bfaacaf3908b365))
+* on-device bird ID with WingCLIP-0.3, 95.0 percent top-1 in the browser ([#279](https://github.com/jlian/wingdex/issues/279)) ([90c057b](https://github.com/jlian/wingdex/commit/90c057b10bac279730a2d46bd3ad5cf00ace3c46)), closes [#260](https://github.com/jlian/wingdex/issues/260) [#278](https://github.com/jlian/wingdex/issues/278) [#278](https://github.com/jlian/wingdex/issues/278)
+
+
+### Performance Improvements
+
+* cut preprocessing peak memory ~4x, and version the model URLs ([d72f136](https://github.com/jlian/wingdex/commit/d72f13696e9c5229844b0a40abd6a41c0908e3d0))
+* decode photos at reduced scale instead of decoding then resizing ([b3dcf34](https://github.com/jlian/wingdex/commit/b3dcf341ec03a39a723383d6d609308e74c2d750)), closes [hi#frequency](https://github.com/hi/issues/frequency)
+* halve identification memory by dropping two redundant copies of the photo ([467fc11](https://github.com/jlian/wingdex/commit/467fc1130d5209f0047edc2780ec9bcf5af87be3))
+* **web:** enable threaded on-device inference ([e547965](https://github.com/jlian/wingdex/commit/e5479657dcc143ba63dd93122696828b8f65aa65)), closes [#283](https://github.com/jlian/wingdex/issues/283)
+
 ## [1.22.3](https://github.com/jlian/wingdex/compare/v1.22.2...v1.22.3) (2026-08-03)
 
 
