@@ -60,7 +60,7 @@ The same model, priors, and preprocessing ship on both platforms, and a golden-v
 
 ## Development
 
-Requires Node 24+.
+Requires Node 24+. No API keys: identification runs on the device, and anonymous auth works out of the box.
 
 ```bash
 git clone https://github.com/jlian/wingdex.git
@@ -70,9 +70,20 @@ npm run db:migrate
 npm run dev
 ```
 
-`npm run dev` runs the API on `:8787` and Vite on `:5000`. Use `npm run check` before pushing, and `npm run check:all` for the full gate including e2e.
+`npm run dev` serves Vite on `:5000` with Wrangler behind `/api/*` on `:8787`, and creates `.dev.vars` from the example on first run. `npm stop` clears stale ports. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for project structure, dev server details, and commit conventions. Everything runnable is in `package.json` under `scripts`.
+Run `npm run check` (lint, typecheck, unit) before pushing, and `npm run check:all` (adds e2e and a production build) when the change touches `functions/`, `e2e/`, routing, auth, or data flow. Everything runnable is in `package.json` under `scripts`.
+
+| Path | Purpose |
+|------|---------|
+| `src/components/` | React components: `ui/` primitives, `pages/`, `flows/` |
+| `src/lib/` | Client-side logic, including identification and ranking |
+| `src/__tests__/` | Vitest unit and integration tests |
+| `functions/` | Cloudflare Workers API routes and shared server logic |
+| `migrations/` | D1 SQL migrations |
+| `e2e/` | Playwright specs |
+| `ios/` | Native iOS app (XcodeGen) |
+| `ml/` | Model conversion and cross-platform parity harnesses |
 
 ## Releases
 
