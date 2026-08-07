@@ -77,6 +77,25 @@ ml/truth-tiny39.json
 ml/distill/onnx_tiny39/
 ml/parity/*.bin
 ml/parity/*.json
+
+# Core ML scratch: the venv, the converted packages and generated audit output.
+# The scripts themselves are tracked, the artifacts are regenerable.
+ml/coreml/.venv/
+ml/coreml/*.mlpackage/
+ml/coreml/*.log
+ml/coreml/*.json
+ml/coreml/__pycache__/
+
+# 23 MiB decompressed occurrence prior, generated for the Swift parity tests by
+# `UPDATE_GOLDEN=1 npx vitest run birdid-golden`. The .gz under public/priors is
+# the source of truth; the golden JSON beside it IS committed.
+ios/WingDexTests/Fixtures/occurrence.bin
+
+# Derived from public/ by ios/scripts/sync-birdid-assets.sh. The .mlpackage in
+# WingDex/ML is NOT derived and IS committed: it needs a torch/coremltools
+# environment and a checkpoint that only exists on Hugging Face.
+ios/WingDex/Resources/BirdID/
+
 public/parity/
 public/node_modules
 
