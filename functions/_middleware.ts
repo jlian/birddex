@@ -38,6 +38,8 @@ const ROUTE_MAP: Array<{ prefix: string; method?: string; op: string; category: 
   { prefix: '/api/species/search', op: 'species/search/read', category: 'Application' },
   { prefix: '/api/species/ebird-code', op: 'species/ebirdCode/read', category: 'Application' },
   { prefix: '/api/species/wiki-title', op: 'species/wikiTitle/read', category: 'Application' },
+  { prefix: '/api/geocoding/reverse', op: 'geocoding/reverse/read', category: 'Application' },
+  { prefix: '/api/geocoding/search', op: 'geocoding/search/read', category: 'Application' },
 ]
 
 function resolveOperation(pathname: string, method: string): { op: string; category: Category } {
