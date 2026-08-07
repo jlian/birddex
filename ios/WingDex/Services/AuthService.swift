@@ -169,9 +169,11 @@ final class AuthService: @unchecked Sendable {
     /// Sign in with Apple using a pre-obtained credential.
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async throws {
         guard let identityTokenData = credential.identityToken,
-              let identityToken = String(data: identityTokenData, encoding: .utf8)
+                            let identityToken = String(data: identityTokenData, encoding: .utf8),
+                            let authorizationCodeData = credential.authorizationCode,
+                            let authorizationCode = String(data: authorizationCodeData, encoding: .utf8)
         else {
-            throw AuthError.oauthFailed("Missing Apple identity token")
+                        throw AuthError.oauthFailed("Missing Apple sign-in credentials")
         }
 
         // POST to Better Auth's sign-in/social endpoint with the Apple ID token.
@@ -203,6 +205,35 @@ final class AuthService: @unchecked Sendable {
         }
 
         try processTokenResponse(data: data, response: response)
+        do {
+            try await captureAppleRevocationToken(authorizationCode: authorizationCode)
+        } catch {
+            signOut()
+            throw error
+        }
+    }
+
+    private func captureAppleRevocationToken(authorizationCode: String) async throws {
+        let token = try validToken()
+        let url = Config.apiBaseURL.appendingPathComponent("api/auth/apple/revocation-token")
+        let body = try JSONSerialization.data(withJSONObject: ["authorizationCode": authorizationCode])
+        let request = AuthenticatedRequest.withBearer(
+            url: url,
+            token: token,
+            method: "POST",
+            body: body,
+            contentType: "application/json"
+        )
+        let (_, response) = try await AuthenticatedRequest.data(
+            for: request,
+            session: Self.bearerSession,
+            context: "Capture Apple deletion credential",
+            logger: log
+        )
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw AuthError.oauthFailed("Apple account setup failed (HTTP \(status))")
+        }
     }
 
     /// Sign in anonymously via Better Auth's anonymous plugin.
@@ -354,10 +385,10 @@ final class AuthService: @unchecked Sendable {
         persistSession()
     }
 
-    /// Delete the user's account via Better Auth's delete-user endpoint.
+    /// Revoke linked providers, then permanently delete the account and its data.
     func deleteAccount() async throws {
         let token = try validToken()
-        let url = Config.apiBaseURL.appendingPathComponent("api/auth/delete-user")
+        let url = Config.apiBaseURL.appendingPathComponent("api/auth/delete-account")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
