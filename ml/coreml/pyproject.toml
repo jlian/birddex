@@ -1,0 +1,17 @@
+[project]
+name = "wingdex-coreml"
+version = "0.1.0"
+description = "Core ML export of WingCLIP-0.3 for the iOS app"
+requires-python = ">=3.12,<3.14"
+
+# torch is pinned to the newest release coremltools 9.0 declares as tested.
+# The first conversion ran on torch 2.13, which coremltools warns about; the
+# fp32 control came out at cosine 1.000000 so the trace was correct anyway, but
+# a tested pair removes the question.
+dependencies = [
+    "coremltools==9.0",
+    "torch==2.7.0",
+    "timm==1.0.28",
+    "numpy>=2.0",
+    "huggingface_hub>=1.0",
+]

@@ -5,7 +5,7 @@ options:
     iOS: "26.0"
   xcodeVersion: "26.3"
   createIntermediateGroups: true
-  preGenCommand: scripts/gen-git-info.sh
+  preGenCommand: scripts/gen-git-info.sh && scripts/sync-birdid-assets.sh
   postGenCommand: scripts/fix-icon-ref.sh
 
 configs:
@@ -37,6 +37,17 @@ targets:
           - "$(SRCROOT)/../.git"
         outputFiles:
           - "$(SRCROOT)/WingDex/App/GitInfo.swift"
+        basedOnDependencyAnalysis: false
+      # The classifier and the prior are derived from public/, so a rebuilt
+      # blob reaches the app without anyone remembering to copy it.
+      - name: Sync Bird ID Assets
+        script: "$SRCROOT/scripts/sync-birdid-assets.sh"
+        inputFiles:
+          - "$(SRCROOT)/scripts/sync-birdid-assets.sh"
+          - "$(SRCROOT)/../public/models/text_classifier_int8.bin"
+        outputFiles:
+          - "$(SRCROOT)/WingDex/Resources/BirdID/text_classifier_int8.bin"
+          - "$(SRCROOT)/WingDex/Resources/BirdID/occurrence.bin"
         basedOnDependencyAnalysis: false
     sources:
       - path: WingDex
@@ -157,6 +168,12 @@ targets:
     platform: iOS
     sources:
       - path: WingDexTests
+        # Parity fixtures are read from disk via #filePath, never from the test
+        # bundle. Letting xcodegen sweep them in makes the 23 MiB prior a test
+        # resource, which rewrites the Resources build phases and drops
+        # Assets.xcassets from the app target, breaking the AppIcon lookup.
+        excludes:
+          - "Fixtures"
     dependencies:
       - target: WingDex
     settings:
