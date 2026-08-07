@@ -1,6 +1,13 @@
 # Xcode
 *.xcuserdata
 *.xcworkspace
+!WingDex.xcodeproj/project.xcworkspace/
+WingDex.xcodeproj/project.xcworkspace/*
+!WingDex.xcodeproj/project.xcworkspace/xcshareddata/
+WingDex.xcodeproj/project.xcworkspace/xcshareddata/*
+!WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 xcuserdata/
 DerivedData/
 build/
@@ -21,7 +28,6 @@ build/
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
 
 # Generated code (swift-openapi-generator)
 WingDex/Generated/
