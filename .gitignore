@@ -89,3 +89,23 @@ public/node_modules
 # untracked, while four obsolete 27-file sets were committed. The repo was
 # tracking the fixtures that did not matter and ignoring the ones that did.
 ml/fixtures*/
+
+# The ml/ tree is research-only and lives on tomahawk. It is TRACKED on the
+# research branch and entirely UNTRACKED on the app branches, where it can
+# reach 148 GB across 455k files. These rules live at the ROOT, not in
+# ml/.gitignore, because a nested ignore file is itself part of the research
+# branch: check out an app branch and it disappears, leaving the whole tree
+# visible to git status and to the vite dev server file watcher.
+ml/inat-metadata/
+ml/groundtruth/
+ml/imagenette/
+ml/embeddings/
+ml/heldout-orig/
+ml/heldout-orig-corpus/
+ml/val_ids_seed0.json
+ml/val_split_seed0.json
+ml/distill/.venv/
+ml/distill/runs/
+ml/distill/calib_corpus/
+ml/distill/embeddings/
+ml/**/__pycache__/
