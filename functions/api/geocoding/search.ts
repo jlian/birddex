@@ -6,7 +6,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   const query = new URL(context.request.url).searchParams.get('q') || ''
 
   try {
-    const results = await searchPlaces(context.env.DB, query)
+    const results = await searchPlaces(context.env.DB, query, fetch, route.log)
     route.debug('Geocoding search completed', { resultCount: results.length })
     return Response.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {

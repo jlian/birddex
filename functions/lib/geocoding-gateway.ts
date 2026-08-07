@@ -6,6 +6,7 @@ import {
   type GeocodingResult,
   type NominatimResult,
 } from './geocoding'
+import type { Logger } from './log'
 
 const NOMINATIM_ORIGIN = 'https://nominatim.openstreetmap.org'
 const USER_AGENT = 'WingDex/1.0 (https://wingdex.app; https://github.com/jlian/wingdex)'
@@ -126,16 +127,40 @@ async function requestNominatim<T>(
   path: '/search' | '/reverse',
   params: Record<string, string>,
   fetcher: Fetcher,
+  log?: Logger,
 ): Promise<T> {
   const url = buildUpstreamURL(path, params)
   const cacheKey = await hashCacheKey(`v1:${url.pathname}?${url.searchParams.toString()}`)
   const now = Date.now()
   const cached = await readCached<T>(db, cacheKey, now)
-  if (cached !== null) return cached
+  if (cached !== null) {
+    log?.debug('geocoding/cache/read', {
+      category: 'Application',
+      resultType: 'Succeeded',
+      resultDescription: 'Geocoding cache hit',
+      properties: { cacheStatus: 'hit', requestType: path.slice(1) },
+    })
+    return cached
+  }
 
   const ownerId = crypto.randomUUID()
   const coalesced = await waitForClaimOrCache<T>(db, cacheKey, ownerId)
-  if (coalesced !== null) return coalesced
+  if (coalesced !== null) {
+    log?.debug('geocoding/cache/read', {
+      category: 'Application',
+      resultType: 'Succeeded',
+      resultDescription: 'Geocoding cache hit',
+      properties: { cacheStatus: 'hit', requestType: path.slice(1) },
+    })
+    return coalesced
+  }
+
+  log?.debug('geocoding/cache/read', {
+    category: 'Application',
+    resultType: 'Succeeded',
+    resultDescription: 'Geocoding cache miss',
+    properties: { cacheStatus: 'miss', requestType: path.slice(1) },
+  })
 
   try {
     await acquireUpstreamLease(db)
@@ -180,6 +205,7 @@ export async function reverseGeocode(
   rawLatitude: string | null,
   rawLongitude: string | null,
   fetcher: Fetcher = fetch,
+  log?: Logger,
 ): Promise<GeocodingResult | null> {
   const latitude = roundCoordinate(parseCoordinate(rawLatitude, 'latitude'))
   const longitude = roundCoordinate(parseCoordinate(rawLongitude, 'longitude'))
@@ -201,7 +227,7 @@ export async function reverseGeocode(
       boundedCoordinateParam(longitude + 0.02, 180),
       boundedCoordinateParam(latitude - 0.02, 90),
     ].join(','),
-  }, fetcher)
+  }, fetcher, log)
   const nearbyResult = nearby
     .map(result => ({ result, score: scoreNominatimResult(result) }))
     .sort((left, right) => right.score - left.score)
@@ -218,7 +244,7 @@ export async function reverseGeocode(
       lat: coordinateParam(latitude),
       lon: coordinateParam(longitude),
       ...params,
-    }, fetcher)
+    }, fetcher, log)
     const normalized = normalizeNominatimResult(result)
     if (normalized && (params.layer !== 'natural' || scoreNominatimResult(result) >= 60)) {
       return normalized
@@ -232,6 +258,7 @@ export async function searchPlaces(
   db: D1Database,
   rawQuery: string,
   fetcher: Fetcher = fetch,
+  log?: Logger,
 ): Promise<GeocodingResult[]> {
   const query = rawQuery.trim().replace(/\s+/g, ' ')
   if (query.length < 2 || query.length > 200) {
@@ -245,7 +272,7 @@ export async function searchPlaces(
     addressdetails: '1',
     namedetails: '1',
     'accept-language': 'en',
-  }, fetcher)
+  }, fetcher, log)
   return results
     .map(normalizeNominatimResult)
     .filter((result): result is GeocodingResult => result !== null)
