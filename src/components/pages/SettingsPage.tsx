@@ -656,7 +656,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
               Use Location and Time
             </label>
             <p className="text-xs text-muted-foreground">
-              Sends photo location and month to the AI for more accurate species identification.
+              Uses photo location and month on this device to improve identification. Rounded
+              coordinates may be sent to OpenStreetMap to suggest an outing location, and exact
+              coordinates are saved with your outing and photo metadata.
             </p>
           </div>
           <Switch
