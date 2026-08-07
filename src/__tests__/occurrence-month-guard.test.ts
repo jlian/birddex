@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { occCell, GRID_COLS, MONTH_BITS } from '../lib/occurrence'
+import { occCell, parseOccurrence, GRID_COLS, MONTH_BITS } from '../lib/occurrence'
 
 /**
  * The month guard, and why NaN is the case that matters.
@@ -94,5 +94,35 @@ describe('occCell month guard', () => {
 
   it('returns nothing for a month with no data', () => {
     expect(occCell(o as never, ROW, COL, 8)).toBeNull()
+  })
+})
+
+/**
+ * A truncated blob should say it is truncated.
+ *
+ * parseOccurrence read raw[0..5] and raw[8..15] before checking any length.
+ * Out-of-range indexing on a Uint8Array yields undefined rather than throwing,
+ * so a short buffer did not fail where the problem was. Instead it either
+ * reported "bad magic NaNNaNNaNNaN", or reached raw[i].toString(16) on
+ * undefined and threw a TypeError naming neither the file nor the cause.
+ * Both send you looking at the wrong thing. The Swift port already guarded.
+ */
+describe('parseOccurrence truncation guard', () => {
+  it('rejects a buffer too short to hold the magic', () => {
+    expect(() => parseOccurrence(new Uint8Array(0))).toThrow(/too short/)
+    expect(() => parseOccurrence(new Uint8Array([87, 68, 79]))).toThrow(/too short/)
+  })
+
+  it('rejects a v2 buffer that stops before the taxonomy hash and cell count', () => {
+    // Valid "WDOP", version 2, qbits 8, then nothing. The v2 layout needs the
+    // hash through byte 15 and a cell count after it; this stops at 6.
+    const short = new Uint8Array([87, 68, 79, 80, 2, 8])
+    expect(() => parseOccurrence(short)).toThrow(/too short/)
+  })
+
+  it('still reports bad magic when the buffer is long enough to have one', () => {
+    const wrong = new Uint8Array(32)
+    wrong.set([88, 88, 88, 88])
+    expect(() => parseOccurrence(wrong)).toThrow(/bad magic/)
   })
 })

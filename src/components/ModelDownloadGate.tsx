@@ -119,7 +119,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
 
       {error && (
         <p className="text-destructive text-sm">
-          Download failed: {error}. Tap to retry, it picks up where it stopped.
+          Download failed: {error}. Retrying picks up where it stopped.
         </p>
       )}
     </div>

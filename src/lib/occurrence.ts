@@ -47,11 +47,22 @@ export type OccBlob = {
  */
 export function parseOccurrence(raw: Uint8Array, taxonomySha16?: string): OccBlob {
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
+  // Check the length before reading any header field. Out-of-range indexing
+  // yields undefined, so a truncated blob otherwise reports "bad magic NaN" or
+  // throws on undefined.toString rather than saying what is actually wrong.
+  // The Swift port guards the same way.
+  if (raw.length < 6) {
+    throw new Error("occurrence blob too short: " + raw.length + " bytes")
+  }
   const magic = String.fromCharCode(raw[0], raw[1], raw[2], raw[3])
   if (magic !== "WDOP") throw new Error("occurrence blob: bad magic " + magic)
   const version = raw[4]
   const qbits = raw[5]
   const hashLen = version >= 2 ? 8 : 0
+  if (raw.length < 12 + hashLen) {
+    throw new Error("occurrence blob too short: " + raw.length +
+                    " bytes, need " + (12 + hashLen))
+  }
 
   let taxHash: string | null = null
   if (version >= 2) {

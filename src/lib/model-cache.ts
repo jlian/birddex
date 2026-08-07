@@ -11,7 +11,7 @@
  *   wingclip_visual_int8.onnx   13.72 MiB
  *   wingclip_visual_int8.data   24.00 MiB
  *   text_classifier_int8.bin     8.22 MiB
- *   occurrence-v3.bin.gz        15.71 MiB
+ *   occurrence.<hash>.bin.gz    15.71 MiB
  *
  * The HTTP cache alone is not enough: it is best-effort and the browser can
  * evict 24 MiB of weights whenever it likes, which would silently turn a free
