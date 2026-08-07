@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { CalendarBlank, CheckCircle, XCircle, PencilSimple } from '@phosphor-icons/react'
+import { CalendarBlank, CheckCircle, XCircle, PencilSimple, MagnifyingGlass } from '@phosphor-icons/react'
 import { Switch } from '@/components/ui/switch'
 import { findMatchingOuting } from '@/lib/clustering'
 import { dateToLocalISOWithOffset, toLocalISOWithOffset, formatStoredDate, formatStoredTimeWithTZ } from '@/lib/timezone'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 import type { Outing } from '@/lib/types'
+import { reverseGeocode, searchPlaces, type GeocodingResult } from '@/lib/geocoding'
 import { toast } from 'sonner'
 
 interface PhotoCluster {
@@ -34,40 +35,6 @@ interface OutingReviewProps {
     lat?: number,
     lon?: number
   ) => Promise<void>
-}
-
-function normalizeStateProvinceCode(raw?: string): string | undefined {
-  if (!raw) return undefined
-  const value = raw.trim().toUpperCase()
-  if (!value) return undefined
-  return /^[A-Z]{2}-[A-Z0-9]{1,6}$/.test(value) ? value : undefined
-}
-
-function extractRegionCodes(result: any): { stateProvince?: string; countryCode?: string } {
-  const address = result?.address as Record<string, string> | undefined
-  if (!address) return {}
-
-  const countryCode = address.country_code?.trim().toUpperCase()
-  const directState =
-    normalizeStateProvinceCode(address['ISO3166-2-lvl4']) ||
-    normalizeStateProvinceCode(address['ISO3166-2-lvl3']) ||
-    normalizeStateProvinceCode(address['ISO3166-2-lvl5'])
-
-  if (directState || !countryCode) {
-    return { stateProvince: directState, countryCode: countryCode || undefined }
-  }
-
-  const stateCode =
-    address.state_code?.trim().toUpperCase() ||
-    address.region_code?.trim().toUpperCase()
-  if (stateCode && /^[A-Z0-9]{1,6}$/.test(stateCode)) {
-    return {
-      stateProvince: `${countryCode}-${stateCode}`,
-      countryCode,
-    }
-  }
-
-  return { countryCode }
 }
 
 export default function OutingReview({
@@ -107,7 +74,7 @@ export default function OutingReview({
   const [overriddenStartTime, setOverriddenStartTime] = useState<Date | null>(null)
 
   // Place search (#13)
-  const [placeResults, setPlaceResults] = useState<Array<{ place_id: number; display_name: string; lat: string; lon: string; address?: Record<string, string> }>>([])
+  const [placeResults, setPlaceResults] = useState<GeocodingResult[]>([])
   const [isSearchingPlace, setIsSearchingPlace] = useState(false)
   const [overriddenCoords, setOverriddenCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [isEditingLocation, setIsEditingLocation] = useState(false)
@@ -129,164 +96,15 @@ export default function OutingReview({
   const fetchLocationName = useCallback(async (lat: number, lon: number) => {
     setIsLoadingLocation(true)
     try {
-      // Prefer Nominatim-native place hierarchy:
-      // 1) nearby major nature POI from bounded search (park/reserve/refuge/etc.)
-      // 2) natural feature at point (strait/bay/lake/cliff/etc.)
-      // 3) neighborhood-level reverse geocode
-      // 4) city-level reverse geocode
       debug('geocoding', 'Starting reverse geocoding')
-
-      const scoreResult = (result: any): number => {
-        if (!result) return 0
-        const category = String(result.category || '').toLowerCase()
-        const type = String(result.type || '').toLowerCase()
-        const address = result.address || {}
-        const hasName = Boolean(result.name || result.namedetails?.['name:en'] || result.namedetails?.name)
-
-        let score = 0
-        if (category === 'leisure' && type === 'park') score += 100
-        else if (category === 'boundary' && type === 'protected_area') score += 95
-        else if (category === 'natural') score += 80
-        else if (category === 'waterway') score += 72
-        else if (category === 'place' && ['suburb', 'neighbourhood', 'village', 'town'].includes(type)) score += 60
-        else if (category === 'boundary' && type === 'administrative') score += 45
-
-        if (hasName) score += 5
-        if (address.city || address.town || address.village || address.county) score += 5
-        return Math.min(score, 100)
-      }
-
-      const fetchNearbyNaturePlace = async (): Promise<any | null> => {
-        const deltas = [0.02]
-        const queries = ['park']
-        const EARLY_EXIT_SCORE = 90
-        let best: any | null = null
-        let bestScore = 0
-
-        for (const delta of deltas) {
-          const left = (lon - delta).toFixed(6)
-          const right = (lon + delta).toFixed(6)
-          const top = (lat + delta).toFixed(6)
-          const bottom = (lat - delta).toFixed(6)
-
-          for (const q of queries) {
-            const url = new URL('https://nominatim.openstreetmap.org/search')
-            url.searchParams.set('format', 'jsonv2')
-            url.searchParams.set('q', q)
-            url.searchParams.set('addressdetails', '1')
-            url.searchParams.set('namedetails', '1')
-            url.searchParams.set('accept-language', 'en')
-            url.searchParams.set('bounded', '1')
-            url.searchParams.set('limit', '5')
-            url.searchParams.set('viewbox', `${left},${top},${right},${bottom}`)
-
-            const res = await fetch(url.toString())
-            if (!res.ok) throw new Error(`Nominatim ${res.status}`)
-
-            const results = await res.json()
-            if (!Array.isArray(results) || results.length === 0) continue
-
-            for (const item of results) {
-              const itemScore = scoreResult(item)
-              if (itemScore > bestScore) {
-                best = item
-                bestScore = itemScore
-              }
-              if (itemScore >= EARLY_EXIT_SCORE) return item
-            }
-          }
-        }
-
-        return best
-      }
-
-      const fetchReverse = async (params: Record<string, string>): Promise<any | null> => {
-        const url = new URL('https://nominatim.openstreetmap.org/reverse')
-        url.searchParams.set('lat', String(lat))
-        url.searchParams.set('lon', String(lon))
-        url.searchParams.set('format', 'jsonv2')
-        url.searchParams.set('addressdetails', '1')
-        url.searchParams.set('namedetails', '1')
-        url.searchParams.set('accept-language', 'en')
-        Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-
-        const res = await fetch(url.toString())
-        if (!res.ok) throw new Error(`Nominatim ${res.status}`)
-        return res.json()
-      }
-
-      const formatLabel = (result: any): string => {
-        if (!result) return ''
-        const englishName =
-          result.namedetails?.['name:en'] ||
-          result.namedetails?.name
-        const address = result.address || {}
-        const primary =
-          englishName ||
-          result.name ||
-          address.park ||
-          address.nature_reserve ||
-          address.recreation_ground ||
-          address.leisure ||
-          address.tourism ||
-          address.amenity ||
-          address.neighbourhood ||
-          address.suburb ||
-          address.village ||
-          address.town ||
-          address.city ||
-          address.county ||
-          address.state
-
-        const locality =
-          address.neighbourhood ||
-          address.suburb ||
-          address.village ||
-          address.town ||
-          address.city ||
-          address.county
-
-        const parts = [primary, locality, address.state]
-          .filter((v, idx, arr) => !!v && arr.indexOf(v) === idx)
-          .slice(0, 3)
-
-        return parts.join(', ')
-      }
-
-      const naturePoiResult = await fetchNearbyNaturePlace()
-      const naturePoiScore = scoreResult(naturePoiResult)
-      let name = naturePoiScore >= 60 ? formatLabel(naturePoiResult) : ''
-      let sourceResult: any = naturePoiScore >= 60 ? naturePoiResult : null
-
-      if (!name) {
-        const naturalResult = await fetchReverse({ layer: 'natural', zoom: '15' })
-        const naturalScore = scoreResult(naturalResult)
-        if (naturalScore >= 60) {
-          name = formatLabel(naturalResult)
-          sourceResult = naturalResult
-        }
-      }
-
-      if (!name) {
-        const neighborhoodResult = await fetchReverse({ layer: 'address', zoom: '14' })
-        name = formatLabel(neighborhoodResult)
-        sourceResult = neighborhoodResult
-      }
-
-      if (!name) {
-        const cityResult = await fetchReverse({ layer: 'address', zoom: '10' })
-        name = formatLabel(cityResult)
-        sourceResult = cityResult
-      }
-
-      if (!name) throw new Error('No location name returned')
+      const result = await reverseGeocode(lat, lon)
+      if (!result) throw new Error('No location name returned')
       
       debug('geocoding', 'Location identified')
-      setSuggestedLocation(name)
-      setLocationName(name)
-      const region = extractRegionCodes(sourceResult)
-      setInferredStateProvince(region.stateProvince)
-      setInferredCountryCode(region.countryCode)
+      setSuggestedLocation(result.label)
+      setLocationName(result.label)
+      setInferredStateProvince(result.stateProvince)
+      setInferredCountryCode(result.countryCode)
     } catch (error) {
       debug('geocoding', 'Reverse geocoding failed')
       toast.warning('Could not look up location name, using coordinates instead')
@@ -405,15 +223,7 @@ export default function OutingReview({
     searchAbortRef.current = controller
     setIsSearchingPlace(true)
     try {
-      const url = new URL('https://nominatim.openstreetmap.org/search')
-      url.searchParams.set('format', 'jsonv2')
-      url.searchParams.set('q', query)
-      url.searchParams.set('limit', '5')
-      url.searchParams.set('addressdetails', '1')
-      url.searchParams.set('accept-language', 'en')
-      const res = await fetch(url.toString(), { signal: controller.signal })
-      if (!res.ok) throw new Error(`Nominatim ${res.status}`)
-      const results = await res.json()
+      const results = await searchPlaces(query, controller.signal)
       if (!controller.signal.aborted) setPlaceResults(results)
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
@@ -424,39 +234,30 @@ export default function OutingReview({
     }
   }, [])
 
-  const selectPlace = (place: { place_id: number; display_name: string; lat: string; lon: string; address?: Record<string, string> }) => {
+  const selectPlace = (place: GeocodingResult) => {
     searchAbortRef.current?.abort()
     setIsSearchingPlace(false)
-    const lat = parseFloat(place.lat)
-    const lon = parseFloat(place.lon)
-    setOverriddenCoords({ lat, lon })
-    // Use the first part of the display name as location name
-    const shortName = place.display_name.split(',').slice(0, 3).join(',').trim()
-    setLocationName(shortName)
-    const region = extractRegionCodes(place)
-    setInferredStateProvince(region.stateProvince)
-    setInferredCountryCode(region.countryCode)
+    setOverriddenCoords({ lat: place.lat, lon: place.lon })
+    setLocationName(place.label)
+    setInferredStateProvince(place.stateProvince)
+    setInferredCountryCode(place.countryCode)
     setPlaceResults([])
     setIsEditingLocation(false)
     setLocationSearchQuery('')
   }
 
-  // Debounced place search: trigger Nominatim when user types in search field
-  useEffect(() => {
-    if (!locationSearchQuery.trim() || locationSearchQuery.trim().length < 3) {
-      searchAbortRef.current?.abort()
-      setIsSearchingPlace(false)
-      setPlaceResults([])
-      return
-    }
-    const timer = setTimeout(() => {
-      void searchPlace(locationSearchQuery)
-    }, 500)
-    return () => {
-      clearTimeout(timer)
-      searchAbortRef.current?.abort()
-    }
-  }, [locationSearchQuery, searchPlace])
+  const useEnteredLocation = () => {
+    const name = locationSearchQuery.trim()
+    if (!name) return
+    searchAbortRef.current?.abort()
+    setLocationName(name)
+    setOverriddenCoords(null)
+    setInferredStateProvince(undefined)
+    setInferredCountryCode(undefined)
+    setIsEditingLocation(false)
+    setLocationSearchQuery('')
+    setPlaceResults([])
+  }
 
 
   return (
@@ -564,29 +365,41 @@ export default function OutingReview({
               </div>
             ) : isEditingLocation ? (
               <div className="relative space-y-2">
-                <Input
-                  id="location-name"
-                  autoFocus
-                  placeholder="Search for a place..."
-                  value={locationSearchQuery}
-                  onChange={e => setLocationSearchQuery(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && locationSearchQuery.trim()) {
-                      setLocationName(locationSearchQuery.trim())
-                      setOverriddenCoords(null)
-                      setInferredStateProvince(undefined)
-                      setInferredCountryCode(undefined)
-                      setIsEditingLocation(false)
-                      setLocationSearchQuery('')
-                      setPlaceResults([])
-                    }
-                    if (e.key === 'Escape') {
-                      setIsEditingLocation(false)
-                      setLocationSearchQuery('')
-                      setPlaceResults([])
-                    }
+                <form
+                  className="flex gap-2"
+                  onSubmit={event => {
+                    event.preventDefault()
+                    void searchPlace(locationSearchQuery)
                   }}
-                />
+                >
+                  <Input
+                    id="location-name"
+                    autoFocus
+                    placeholder="Search for a place..."
+                    value={locationSearchQuery}
+                    onChange={e => {
+                      setLocationSearchQuery(e.target.value)
+                      setPlaceResults([])
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') {
+                        setIsEditingLocation(false)
+                        setLocationSearchQuery('')
+                        setPlaceResults([])
+                      }
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    variant="outline"
+                    disabled={!locationSearchQuery.trim() || isSearchingPlace}
+                    aria-label="Search locations"
+                    title="Search locations"
+                  >
+                    <MagnifyingGlass size={18} />
+                  </Button>
+                </form>
                 {(placeResults.length > 0 || isSearchingPlace) && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-md border bg-popover shadow-md max-h-40 overflow-y-auto">
                     {isSearchingPlace && (
@@ -598,11 +411,11 @@ export default function OutingReview({
                     {placeResults.map((place) => (
                       <button
                         type="button"
-                        key={place.place_id}
+                        key={`${place.lat},${place.lon},${place.label}`}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-accent/50 active:bg-accent transition-colors"
                         onClick={() => selectPlace(place)}
                       >
-                        {place.display_name}
+                        {place.label}
                       </button>
                     ))}
                   </div>
@@ -624,6 +437,15 @@ export default function OutingReview({
                     Use GPS: {suggestedLocation}
                   </button>
                 )}
+                {locationSearchQuery.trim() && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={useEnteredLocation}
+                  >
+                    Use entered name without searching
+                  </button>
+                )}
               </div>
             ) : (
               <button
@@ -640,6 +462,14 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
+              className="block text-xs text-muted-foreground underline underline-offset-2"
+            >
+              Location data © OpenStreetMap contributors
+            </a>
           </div>
           )}
 
