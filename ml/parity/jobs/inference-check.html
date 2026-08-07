@@ -30,8 +30,8 @@ try {
   const [mBuf, dBuf, tBuf, oBuf] = await Promise.all([
     fetch("/models/wingclip_visual_int8.onnx").then(r => r.arrayBuffer()),
     fetch("/models/wingclip_visual_int8.data").then(r => r.arrayBuffer()),
-    fetch("/models/text_classifier_int8.bin").then(r => r.arrayBuffer()),
-    fetch("/priors/occurrence.1fb61779.bin.gz").then(r => r.arrayBuffer()),
+    fetch("/models/text_classifier_fp16.bin").then(r => r.arrayBuffer()),
+    fetch("/priors/occurrence-v1.bin.gz").then(r => r.arrayBuffer()),
   ])
   const mb = (x) => (x.byteLength / 1048576).toFixed(2) + " MiB"
   say(`fetched graph ${mb(mBuf)}, weights ${mb(dBuf)}, classifier ${mb(tBuf)}, prior ${mb(oBuf)}`)

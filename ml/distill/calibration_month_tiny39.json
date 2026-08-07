@@ -1,0 +1,8 @@
+{
+  "temperature": 0.007545354776084423,
+  "beta": 0.5435083508491516,
+  "k": 0.0,
+  "prior": "P(species|cell,month) = n_scm / n_cm",
+  "val_top1_abs": 0.9494280815124512,
+  "blob_version": 3
+}

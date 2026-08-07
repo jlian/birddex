@@ -18,7 +18,7 @@ const FILES: Record<string, number> = {
   "/models/wingclip_visual_int8.onnx": 14386199,
   "/models/wingclip_visual_int8.data": 25165824,
   "/models/text_classifier_int8.bin": 8620924,
-  "/priors/occurrence.1fb61779.bin.gz": 16478112,
+  "/priors/occurrence-v3.bin.gz": 16478112,
 }
 
 class FakeResponse {

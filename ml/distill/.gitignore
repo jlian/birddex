@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+
+# Corpus + large data artifacts (live on tomahawk, never committed)
+corpus/
+embeddings/
+inat-metadata/
+*.parquet
+*.duckdb
+*.npz
+*.npy
+
+# Generated manifests / audits / logs
+ATTRIBUTIONS.md
+manifest.jsonl
+download_manifest.jsonl
+inat_resolved.jsonl
+species.json
+target_taxa.csv
+attributions.csv
+manifest_stats.txt
+*.csv
+*.log
+
+# Training run outputs (checkpoints)
+runs/
+*.pt
+
+# Eval datasets (downloaded on tomahawk, regenerable)
+nabirds/
+nabirds_meta/
+cub/
+*.zip
+eval_*_results.json
+# but DO keep the small generated label maps
+!nabirds_to_taxo.json
+
+# local copy/symlink of src/lib/taxonomy.json (canonical is tracked there)
+taxonomy.json
+
+# 110MB download bookkeeping, regenerable from the iNat metadata pass
+download_manifest.jsonl.gz
+logs/
+
+obs_split_*.json
