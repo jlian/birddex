@@ -1198,7 +1198,11 @@ function PerPhotoConfirm({
         <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer" className="underline">
           Wikimedia Commons
         </a>
-        {', '}range data from{' '}
+        {', '}occurrence data from{' '}
+        <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="underline">
+          iNaturalist
+        </a>
+        {', '}factsheet from{' '}
         <a
           href={birdlifeFactsheetUrl ?? 'https://datazone.birdlife.org'}
           target="_blank"
