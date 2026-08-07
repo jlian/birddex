@@ -656,9 +656,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
               Use Location and Time
             </label>
             <p className="text-xs text-muted-foreground">
-              Uses photo location and month on this device to improve identification. Rounded
-              coordinates may be sent to OpenStreetMap to suggest an outing location, and exact
-              coordinates are saved with your outing and photo metadata.
+              Uses photo location and month on this device to improve identification. WingDex may
+              forward rounded coordinates to OpenStreetMap to suggest an outing location, and exact
+              coordinates are saved by WingDex with your outing and photo metadata.
             </p>
           </div>
           <Switch

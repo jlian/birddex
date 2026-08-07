@@ -308,7 +308,7 @@ struct SettingsView: View {
         } header: {
             Text("Bird Identification")
         } footer: {
-            Text("Uses photo location and month on this device to improve identification. Rounded coordinates may be sent to OpenStreetMap to suggest an outing location, and exact coordinates are saved with your outing and photo metadata.")
+            Text("Uses photo location and month on this device to improve identification. WingDex may forward rounded coordinates to OpenStreetMap to suggest an outing location, and exact coordinates are saved by WingDex with your outing and photo metadata.")
         }
     }
 
