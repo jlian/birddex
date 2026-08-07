@@ -37,6 +37,11 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
   // flow mid-download cannot setProgress/onReady after unmount and cannot kick
   // off a decode and inference for a workflow the user already closed.
   const mounted = useRef(true)
+  // The readiness check must run ONCE. Depending on onReady re-ran it whenever
+  // the parent re-rendered with a new function identity, which could call
+  // onReady more than once and start a second decode.
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
 
   useEffect(() => {
     mounted.current = true
@@ -50,7 +55,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       setChecking(false)
       // Already cached, so skip the screen entirely. This is the path almost
       // every session takes.
-      if (ready) onReady()
+      if (ready) onReadyRef.current()
     }).catch(() => {
       // A rejected readiness check (e.g. caches.open() throwing) must not leave
       // the gate stuck rendering null forever. Fall through to the download
@@ -60,7 +65,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       setChecking(false)
     })
     return () => { cancelled = true }
-  }, [onReady])
+  }, [])
 
   const start = async () => {
     setDownloading(true)
@@ -71,7 +76,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       // Firing onReady now would start a decode and inference for a closed
       // workflow, so bail if we are no longer mounted.
       if (!mounted.current) return
-      onReady()
+      onReadyRef.current()
     } catch (e) {
       // Leave the button available. A failed download is usually a dropped
       // connection, and the cache keeps whatever already arrived, so retrying

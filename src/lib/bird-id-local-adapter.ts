@@ -60,6 +60,15 @@ export const MODEL_ASSET_URLS = [
 export const MODEL_BYTES = 64_657_000
 
 /**
+ * DECODED bytes across the four assets, which is what a fetch reader counts.
+ *
+ * Differs from MODEL_BYTES because the occurrence prior ships gzipped: 16.5 MiB
+ * over the wire, 23.0 MiB once fetch decompresses it. Progress is reported
+ * against this, while the copy above quotes the download size.
+ */
+export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 24_123_497
+
+/**
  * The full asset bundle the engine needs.
  *
  * Calibration is inlined rather than fetched. It is 200 bytes, it MUST match
@@ -140,7 +149,7 @@ export function getEngine(
   onProgress?: (p: AssetProgress) => void,
 ): Promise<BirdIdEngine> {
   if (!enginePromise) {
-    const engine = new BirdIdEngine(assets, onProgress)
+    const engine = new BirdIdEngine(assets, onProgress, MODEL_DECODED_BYTES)
     enginePromise = engine.init().then(() => engine).catch(err => {
       // Reset so a transient network failure does not poison the session.
       enginePromise = null

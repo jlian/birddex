@@ -6,10 +6,10 @@
  * once the weights are cached.
  *
  * Assets, all served from public/:
- *   models/wingclip_visual_int8.onnx    13.7 MiB graph
- *   models/wingclip_visual_int8.data    24.0 MiB weights, external data
+ *   models/wingclip_visual_int8.onnx    13.72 MiB graph
+ *   models/wingclip_visual_int8.data    24.00 MiB weights, external data
  *   models/text_classifier_int8.bin     11167 x 768 int8 + per-row fp32 scales
- *   priors/occurrence-v1.bin.gz          5.7 MiB geographic prior
+ *   priors/occurrence.<hash>.bin.gz     15.71 MiB v3 geographic prior
  *
  * The .data file is referenced by the `location` string inside the graph, and
  * onnxruntime-web cannot read the file system, so it must be handed over
@@ -56,10 +56,16 @@ export class BirdIdEngine {
   private occ: OccBlob | null = null
   private readonly assets: EngineAssets
   private readonly onProgress?: (p: AssetProgress) => void
+  private readonly totalBytes: number
 
-  constructor(assets: EngineAssets, onProgress?: (p: AssetProgress) => void) {
+  constructor(
+    assets: EngineAssets,
+    onProgress?: (p: AssetProgress) => void,
+    totalBytes = 0,
+  ) {
     this.assets = assets
     this.onProgress = onProgress
+    this.totalBytes = totalBytes
   }
 
   /** Load once. Safe to call repeatedly; later calls are no-ops. */
@@ -70,7 +76,7 @@ export class BirdIdEngine {
     // Cache-first and SEQUENTIAL. 61.66 MiB in four parallel streams competes
     // for bandwidth on a phone and makes progress reporting meaningless.
     const urls = [a.modelUrl, a.modelDataUrl, a.textClassifierUrl, a.occurrenceUrl]
-    const bufs = await preloadAssets(urls, this.onProgress)
+    const bufs = await preloadAssets(urls, this.onProgress, this.totalBytes)
     const modelBuf = bufs.get(a.modelUrl)!
     const dataBuf = bufs.get(a.modelDataUrl)!
     const textBuf = bufs.get(a.textClassifierUrl)!
@@ -193,6 +199,13 @@ export class BirdIdEngine {
 function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
   // n*dim int8 bytes + n*4 scale bytes = buf.length, so n = len / (dim + 4).
   const n = Math.floor(buf.length / (dim + 4))
+  // Flooring a truncated classifier would drop the tail rows silently and then
+  // fail much later as a species-count mismatch, or not at all if the count
+  // happened to line up. An exact division is the only valid input.
+  if (n < 1 || n * (dim + 4) !== buf.length) {
+    throw new Error("text classifier is " + buf.length +
+                    " bytes, not a whole number of " + (dim + 4) + "-byte rows")
+  }
   const q = new Int8Array(buf.buffer, buf.byteOffset, n * dim)
   const scales = new Float32Array(
     buf.buffer.slice(buf.byteOffset + n * dim, buf.byteOffset + n * dim + n * 4))

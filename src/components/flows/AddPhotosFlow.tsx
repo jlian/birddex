@@ -72,9 +72,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
   const [currentClusterIndex, setCurrentClusterIndex] = useState(0)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [progress, setProgress] = useState(0)
-  const [photoProgress, setPhotoProgress] = useState(0)
-  const [photoProgressTauMs, setPhotoProgressTauMs] = useState(1200)
-  const [photoProgressRunKey, setPhotoProgressRunKey] = useState(0)
   const [processingMessage, setProcessingMessage] = useState('')
   const [useGeoContext] = useState(() => {
     const stored = localStorage.getItem('wingdex_useGeoContext')
@@ -132,24 +129,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
   const fullCurrentPhoto = getFullPhoto(currentPhotoIndex)
 
-  useEffect(() => {
-    if (step !== 'photo-processing') {
-      setPhotoProgress(0)
-      return
-    }
-
-    const startedAt = Date.now()
-    setPhotoProgress(0)
-
-    const interval = window.setInterval(() => {
-      const elapsed = Date.now() - startedAt
-      const next = 90 * (1 - Math.exp(-elapsed / photoProgressTauMs))
-      setPhotoProgress(prev => Math.max(prev, Math.min(90, next)))
-    }, 80)
-
-    return () => window.clearInterval(interval)
-  }, [step, photoProgressRunKey, photoProgressTauMs])
-
   // ─── Step 1: Send full image directly to species ID ─────
   const runSpeciesId = async (
     photoIdx: number,
@@ -161,8 +140,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
     setCurrentPhotoIndex(photoIdx)
     setStep('photo-processing')
-    setPhotoProgressTauMs(1200)
-    setPhotoProgressRunKey(prev => prev + 1)
     const analyzeUrl = imageUrl || photo.croppedDataUrl || photo.dataUrl
     setProcessingMessage(
       `Photo ${photoIdx + 1}/${clusterPhotos.length}: Identifying species...`
@@ -190,8 +167,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
       // returns 25 ranked species, so candidates.length is never 0 and that
       // branch would be dead code. multipleBirds is gone with the GPT path.
       if (!imageUrl && shouldPromptForCrop(fastResult, false)) {
-        setPhotoProgress(100)
-        await wait(240)
         debug('bird-id', 'Low confidence; requesting crop')
         // Keep the candidates rather than blanking them. The model always has
         // an opinion, and showing a ranked list beats an empty screen when the
@@ -208,8 +183,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
       const result: BirdIdResult = fastResult
 
       debug('bird-id', `Found ${result.candidates.length} candidates`)
-      setPhotoProgress(100)
-      await wait(240)
 
       // Only the server path supplies a cropBox. The local classifier localises
       // nothing, so this is simply skipped and the auto-crop preview does not
@@ -758,7 +731,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
                   </div>
                 </div>
               )}
-              <Progress value={photoProgress} className="w-full" />
+              {/* A spinner, not a progress bar. Inference is milliseconds and
+                  the wait is dominated by decode, so there is no honest
+                  progress to report and every device would fill at a different
+                  rate. */}
+              <div className="flex justify-center py-2">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
             </div>
           )}
 
