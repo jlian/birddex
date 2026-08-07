@@ -85,7 +85,11 @@ export function rankCandidates(
 /** Softmax over the ranked scores, for a calibrated confidence readout. */
 export function scoresToProbs(scored: Scored[]): number[] {
   if (!scored.length) return []
-  const mx = scored[0].score
+  // max(), not scored[0].score. rankCandidates does return sorted output, but
+  // reading position 0 as the maximum makes this silently wrong for any other
+  // caller, and the softmax would no longer sum to 1.
+  let mx = -Infinity
+  for (const s of scored) if (s.score > mx) mx = s.score
   const ex = scored.map(s => Math.exp(s.score - mx))
   const sum = ex.reduce((a, b) => a + b, 0)
   return ex.map(e => e / sum)

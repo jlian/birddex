@@ -132,8 +132,48 @@ describe('model asset cache', () => {
     expect(seen[seen.length - 1]).toBe(TOTAL)
   })
 
-  it('re-downloads after the cache is cleared', async () => {
-    const { preloadAssets, clearAssetCache, assetsCached } = await import('@/lib/model-cache')
+  it('reports the total it was given, not one probed from the network', async () => {
+    // Content-Length is the COMPRESSED length while a fetch reader hands back
+    // DECOMPRESSED bytes. Probing with HEAD understated the occurrence prior by
+    // 7.6 MiB, so the bar saturated at 100% with a ninth of the download still
+    // arriving, which is what the PR review saw.
+    const { preloadAssets } = await import('@/lib/model-cache')
+    const expected = TOTAL + 7_645_385
+    const seen: { loaded: number; total: number }[] = []
+    await preloadAssets(URLS, p => seen.push({ loaded: p.loaded, total: p.total }), expected)
+    expect(seen.every(p => p.total === expected)).toBe(true)
+  })
+
+  it('sends no HEAD requests', async () => {
+    let heads = 0
+    vi.stubGlobal('fetch', async (url: string, opts?: { method?: string }) => {
+      if (opts?.method === 'HEAD') heads++
+      return fakeResponse(FILES[url] ?? 1024)
+    })
+    const { preloadAssets } = await import('@/lib/model-cache')
+    await preloadAssets(URLS, undefined, TOTAL)
+    // Four round trips per session bought a total that was wrong anyway.
+    expect(heads).toBe(0)
+  })
+
+  it('still downloads when the Cache API is unavailable', async () => {
+    // Some private modes and constrained webviews have no caches object at all.
+    // Identification must degrade to re-downloading, not fail outright.
+    vi.stubGlobal('caches', undefined)
+    const { preloadAssets, assetsCached } = await import('@/lib/model-cache')
+    expect(await assetsCached(URLS)).toBe(false)
+    const out = await preloadAssets(URLS, undefined, TOTAL)
+    expect(out.size).toBe(4)
+  })
+
+  it('still downloads when caches.open throws', async () => {
+    vi.stubGlobal('caches', { open: async () => { throw new Error('storage disabled') } })
+    const { preloadAssets } = await import('@/lib/model-cache')
+    const out = await preloadAssets(URLS, undefined, TOTAL)
+    expect(out.size).toBe(4)
+  })
+
+  it('re-downloads after the cache is cleared', async () => {    const { preloadAssets, clearAssetCache, assetsCached } = await import('@/lib/model-cache')
     await preloadAssets(URLS)
     await clearAssetCache()
     expect(await assetsCached(URLS)).toBe(false)

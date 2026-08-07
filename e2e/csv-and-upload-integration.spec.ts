@@ -23,17 +23,22 @@ import { loadApp } from './helpers'
 async function passModelGate(page: Page) {
   // The gate renders INSIDE the upload dialog, after "Continue to Species", so
   // this must be called at that point rather than before the dialog opens.
-  // On a warm cache the gate self-clears and the button never appears, so a
-  // short wait that is allowed to fail is the correct shape here.
   const gate = page.getByRole('button', { name: 'Download and continue' })
-  try {
+  // Race the gate against the step it hands off to. On a warm cache the gate
+  // self-clears and the button never appears, so waiting on it alone burned the
+  // full 60s on every run. Losing the race costs only the old behaviour.
+  const handedOff = page.getByText(/Identifying species/i)
+  await Promise.race([
     // Generous: the gate appears only after the flow reaches identification,
     // and a cold worker start can push that past a tight budget. A short wait
     // here caused a flake that passed on retry.
-    await gate.waitFor({ state: 'visible', timeout: 60_000 })
+    gate.waitFor({ state: 'visible', timeout: 60_000 }),
+    handedOff.waitFor({ state: 'visible', timeout: 60_000 }),
+  ]).catch(() => {
+    // Neither appeared. Already cached and already past it, so nothing to do.
+  })
+  if (await gate.isVisible().catch(() => false)) {
     await gate.click()
-  } catch {
-    // Already cached, nothing to click.
   }
 }
 
@@ -343,7 +348,6 @@ test.describe('CSV import + photo upload integration', () => {
   // outings split. The clustering logic it targets is geographic, and is covered
   // by unit tests; only the species labels here required the old per-call mock.
   test('@live multi-photo clustering: photos from different locations create separate outings', async ({ page }) => {
-    await passModelGate(page)
     await mockNominatim(page, 'Discovery Park, Seattle')
     await mockWikimedia(page)
 

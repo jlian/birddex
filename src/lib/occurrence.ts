@@ -1,5 +1,5 @@
 /**
- * Empirical P(species|cell) read from public/priors/occurrence-v1.bin.gz.
+ * Empirical P(species|cell) read from public/priors/occurrence.<hash>.bin.gz.
  *
  * Ported from ml/scripts/pipeline-experiment.mjs, which decodes the blob
  * exactly as the client must. Kept as a straight port rather than a rewrite so
@@ -20,7 +20,11 @@
  * mismatch throws rather than degrading quietly.
  */
 
-export const GRID_COLS = 1276
+import { GRID_COLS } from './equal-earth'
+
+// equal-earth.ts owns the grid geometry. Re-exported rather than redeclared so
+// the two cannot drift: a mismatched column count silently mis-keys every cell.
+export { GRID_COLS }
 export const OCC_SCALE = 2.5
 /** v3 packs month into the low bits of the index key. */
 export const MONTH_BITS = 4
@@ -130,17 +134,24 @@ export function occCell(
   const out = new Map<number, number>()
   let p = o.payloadStart + start
   const stop = o.payloadStart + end
+  // A corrupt offset pair would send the reader off the end, where raw[p++] is
+  // undefined, `undefined & 0x7f` is 0 so the varint loop exits quietly, and
+  // the dequantised value becomes NaN. That NaN poisons the sort, which is the
+  // silent-wrong-answer failure this parser exists to prevent.
+  if (start > end || stop > o.raw.length) return null
   let cur = 0
   while (p < stop) {
     let shift = 0
     let v = 0
     let b = 0
     do {
+      if (p >= stop) return out
       b = o.raw[p++]
       v |= (b & 0x7f) << shift
       shift += 7
     } while (b & 0x80)
     cur += v
+    if (p >= stop) return out
     const q = o.raw[p++]
     out.set(cur, -q / o.scale)
   }
