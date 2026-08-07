@@ -182,6 +182,20 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: "YES"
 
+  WingDexUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: WingDexUITests
+    dependencies:
+      - target: WingDex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.wingdex.uitests
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: WingDex
+
 schemes:
   Localhost:
     build:
@@ -189,10 +203,17 @@ schemes:
         WingDex: all
     run:
       config: Localhost Debug
+      # Unchecked by default. Tick these in Product > Scheme > Edit Scheme > Run >
+      # Arguments to skip sign-in and seed demo data. Editing them in Xcode instead
+      # would be lost the next time xcodegen regenerates the scheme.
+      commandLineArguments:
+        "--auto-sign-in": false
+        "--auto-demo-data": false
     test:
       config: Localhost Debug
       targets:
         - WingDexTests
+        - WingDexUITests
     profile:
       config: Localhost Release
     analyze:
@@ -206,10 +227,14 @@ schemes:
         WingDex: all
     run:
       config: Dev Debug
+      commandLineArguments:
+        "--auto-sign-in": false
+        "--auto-demo-data": false
     test:
       config: Dev Debug
       targets:
         - WingDexTests
+        - WingDexUITests
     profile:
       config: Dev Release
     analyze:
@@ -227,6 +252,7 @@ schemes:
       config: Production Debug
       targets:
         - WingDexTests
+        - WingDexUITests
     profile:
       config: Release
     analyze:

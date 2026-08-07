@@ -39,6 +39,7 @@
 		3B4E7EDEF18E429047971FF0 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1326ACE56619A89E1382BF89 /* ShareViewController.swift */; };
 		3E0B15C139B971B778758337 /* DataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DF3BE4EAF4D781A2029593E /* DataStore.swift */; };
 		3EF5CB0983D37395F5272CFD /* Phase9FoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */; };
+		3F1EE669013316073161A378 /* BirdIdFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E50D8A8630F0A8BBDB0CCEB /* BirdIdFlowUITests.swift */; };
 		4109AC50FE42130D956CC3CA /* ExportFileFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF1A6ED7B70FE77FAC9FA7D /* ExportFileFactory.swift */; };
 		42568A4F6F92C917A7520B17 /* collage16.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 181CAF182184C0BF767EC8E4 /* collage16.jpg */; };
 		4345FB718DF623E73F43A77B /* BirdRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7129972C6030F812DDD208 /* BirdRanker.swift */; };
@@ -143,6 +144,13 @@
 			remoteGlobalIDString = 8884E90389194DE7AF6A7B67;
 			remoteInfo = WingDexShareExtension;
 		};
+		4A99F3EA34F55C396BA0DC31 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A49675ED5ABFAF851A15DB1C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 069C1F4999CA086190E79089;
+			remoteInfo = WingDex;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -178,8 +186,10 @@
 		19D47136847CF32C6251A4BD /* FunNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunNames.swift; sourceTree = "<group>"; };
 		1A4472F76A8259376EBEA738 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		1AAEF45D13FB117DED5ED47F /* WingDex.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = WingDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1E50D8A8630F0A8BBDB0CCEB /* BirdIdFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirdIdFlowUITests.swift; sourceTree = "<group>"; };
 		1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase9FoundationTests.swift; sourceTree = "<group>"; };
 		2563AE60F5FF5A8525BC8C2F /* AccountDataCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDataCacheTests.swift; sourceTree = "<group>"; };
+		29828A1E6E0D8724C9F520A0 /* WingDexUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WingDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		29F5471006ACBF058737B455 /* AccountDataCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDataCache.swift; sourceTree = "<group>"; };
 		2B15C5A1EAE7387A54648C09 /* collage5.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage5.jpg; sourceTree = "<group>"; };
 		2B505419B0FFD0BDB41AB49F /* BirdIDParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirdIDParityTests.swift; sourceTree = "<group>"; };
@@ -302,6 +312,7 @@
 				1AAEF45D13FB117DED5ED47F /* WingDex.app */,
 				C50653C4D6271CE2B75296B2 /* WingDexShareExtension.appex */,
 				305CCFA640186FBC5E19A9D5 /* WingDexTests.xctest */,
+				29828A1E6E0D8724C9F520A0 /* WingDexUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -466,6 +477,14 @@
 			path = Extensions;
 			sourceTree = "<group>";
 		};
+		74A645D7E5E1C6F65CB0F433 /* WingDexUITests */ = {
+			isa = PBXGroup;
+			children = (
+				1E50D8A8630F0A8BBDB0CCEB /* BirdIdFlowUITests.swift */,
+			);
+			path = WingDexUITests;
+			sourceTree = "<group>";
+		};
 		758C896DBB8391A7AE86403E /* WingDexTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -524,6 +543,7 @@
 				4F9CBCF94BE709EC181D37E2 /* WingDex */,
 				6DD8EC79EBD66CA666BB63D1 /* WingDexShareExtension */,
 				758C896DBB8391A7AE86403E /* WingDexTests */,
+				74A645D7E5E1C6F65CB0F433 /* WingDexUITests */,
 				171A4E77667DF212FEDB47BF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -621,6 +641,24 @@
 			productReference = 305CCFA640186FBC5E19A9D5 /* WingDexTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		557966C11C0ADD889556BF2A /* WingDexUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FE727C97977281F5F5A2B108 /* Build configuration list for PBXNativeTarget "WingDexUITests" */;
+			buildPhases = (
+				7D9AD240EB8D215E7C1AAEEC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				962EE8A8383CB32E71165315 /* PBXTargetDependency */,
+			);
+			name = WingDexUITests;
+			packageProductDependencies = (
+			);
+			productName = WingDexUITests;
+			productReference = 29828A1E6E0D8724C9F520A0 /* WingDexUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		8884E90389194DE7AF6A7B67 /* WingDexShareExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6EF5F2C0DB9CA4044AE7F77F /* Build configuration list for PBXNativeTarget "WingDexShareExtension" */;
@@ -655,6 +693,11 @@
 						DevelopmentTeam = Z8LQS5S492;
 						ProvisioningStyle = Automatic;
 					};
+					557966C11C0ADD889556BF2A = {
+						DevelopmentTeam = Z8LQS5S492;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 069C1F4999CA086190E79089;
+					};
 					8884E90389194DE7AF6A7B67 = {
 						DevelopmentTeam = Z8LQS5S492;
 						ProvisioningStyle = Automatic;
@@ -684,6 +727,7 @@
 				069C1F4999CA086190E79089 /* WingDex */,
 				8884E90389194DE7AF6A7B67 /* WingDexShareExtension */,
 				535379434C23A5772093AD25 /* WingDexTests */,
+				557966C11C0ADD889556BF2A /* WingDexUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -852,6 +896,14 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7D9AD240EB8D215E7C1AAEEC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3F1EE669013316073161A378 /* BirdIdFlowUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		91AE326202C5E7951A28D291 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -895,6 +947,11 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			isa = PBXTargetDependency;
 			target = 069C1F4999CA086190E79089 /* WingDex */;
 			targetProxy = 0D6A3A3A6F9704FB3F10789F /* PBXContainerItemProxy */;
+		};
+		962EE8A8383CB32E71165315 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 069C1F4999CA086190E79089 /* WingDex */;
+			targetProxy = 4A99F3EA34F55C396BA0DC31 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1047,6 +1104,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
+		};
+		361184DF13AD5732F2D439B8 /* Localhost Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Localhost Debug";
 		};
 		3CEB5F071BB61B24E2BA9CDD /* Dev Release */ = {
 			isa = XCBuildConfiguration;
@@ -1223,6 +1298,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			};
 			name = "Dev Debug";
 		};
+		48B034BE8B379E35F9BEFFFE /* Dev Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Dev Release";
+		};
 		4A8616DD1517FC7EE05846A9 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1241,6 +1334,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		4CB2B48C43F62194B71E2ACE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
 			};
 			name = Release;
 		};
@@ -1390,6 +1501,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			};
 			name = "Localhost Debug";
 		};
+		9A92EB7E646F869D675A825C /* Production Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Production Debug";
+		};
 		A8059F8BE3FC482306462095 /* Production Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1474,6 +1603,42 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = "Localhost Release";
+		};
+		C646CEA0A5A2FA4AA22850B8 /* Localhost Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Localhost Release";
+		};
+		C7B5EA3F9790381217411FCA /* Dev Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Dev Debug";
 		};
 		D440D23F89CD1D6CBE4B4E56 /* Production Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1723,6 +1888,19 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				5D087C21B53B18324B721921 /* Localhost Release */,
 				A8059F8BE3FC482306462095 /* Production Debug */,
 				41FF62ED64EF357A4CD545A8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = "Dev Debug";
+		};
+		FE727C97977281F5F5A2B108 /* Build configuration list for PBXNativeTarget "WingDexUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C7B5EA3F9790381217411FCA /* Dev Debug */,
+				48B034BE8B379E35F9BEFFFE /* Dev Release */,
+				361184DF13AD5732F2D439B8 /* Localhost Debug */,
+				C646CEA0A5A2FA4AA22850B8 /* Localhost Release */,
+				9A92EB7E646F869D675A825C /* Production Debug */,
+				4CB2B48C43F62194B71E2ACE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = "Dev Debug";

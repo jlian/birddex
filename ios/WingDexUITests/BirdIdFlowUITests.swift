@@ -1,9 +1,23 @@
 import XCTest
 
-/// End-to-end cover for on-device identification. The unit tests check the engine's
-/// accuracy directly; this one checks that the add-photos flow actually wires the
-/// engine up and renders a result.
+/// End-to-end cover for on-device identification. BirdIdAccuracyTests checks the
+/// engine against a set of photos directly; this one checks that the add-photos
+/// flow wires the engine up and renders the result it produces.
 final class BirdIdFlowUITests: XCTestCase {
+    /// A shared fixture, also used by BirdIdAccuracyTests and the web tests. Read from
+    /// the repo rather than the app bundle so it never ships inside the app.
+    private static let photo = "Great_blue_heron_roosting_at_Carkeek_Park.jpg"
+    private static let expectedSpecies = "Great Blue Heron"
+
+    private static var photoPath: String {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("src/assets/images/\(photo)")
+            .path
+    }
+
     /// XCTNSPredicateExpectation is unavailable under strict concurrency here, so poll.
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -14,9 +28,18 @@ final class BirdIdFlowUITests: XCTestCase {
         return condition()
     }
 
-    func testBundledPhotoReachesConfirmStepWithASpeciesAndConfidence() {
+    func testKnownPhotoReachesConfirmStepWithTheRightSpecies() {
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: Self.photoPath),
+            "Fixture missing at \(Self.photoPath)"
+        )
+
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-photo"]
+        app.launchArguments = [
+            "--auto-sign-in",
+            "--auto-demo-data",
+            "--ui-test-photo", Self.photoPath,
+        ]
         app.launch()
 
         let continueButton = app.buttons["Continue"]
@@ -44,7 +67,7 @@ final class BirdIdFlowUITests: XCTestCase {
             species.waitForExistence(timeout: 30),
             "Never reached the confirm step with an identified species"
         )
-        XCTAssertFalse(species.label.isEmpty, "Species name was blank")
+        XCTAssertEqual(species.label, Self.expectedSpecies)
 
         let confidence = app.staticTexts["confirm.confidence"]
         XCTAssertTrue(confidence.exists, "Confidence was missing from the species card")

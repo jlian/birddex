@@ -189,6 +189,9 @@ struct MainTabView: View {
             #endif
             await completeInitialLoadIfReady()
             _ = await taxonomyWarmup
+            #if DEBUG
+            await startUITestIdentificationIfRequested()
+            #endif
         }
         .onChange(of: store.hasLoadedAll) { _, hasLoadedAll in
             guard hasLoadedAll else { return }
@@ -234,6 +237,27 @@ struct MainTabView: View {
             await importIncomingShareIfAvailable()
         }
     }
+
+    #if DEBUG
+    /// Feeds a bird photo straight into the add-photos flow so UI tests can exercise
+    /// on-device identification. The system photo picker runs out of process and is
+    /// invisible to the accessibility tree, so it cannot be driven from a test. The
+    /// path is passed in rather than bundled so tests reuse the shared fixtures in
+    /// src/assets/images without shipping them in the app.
+    private func startUITestIdentificationIfRequested() async {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "--ui-test-photo"),
+              args.index(after: flag) < args.endIndex,
+              let image = UIImage(contentsOfFile: args[args.index(after: flag)])
+        else { return }
+        addPhotosVM.configure(
+            auth: auth,
+            dataStore: store
+        )
+        addPhotosVM.addCameraPhoto(image, lat: nil, lon: nil)
+        await addPhotosVM.processSelectedPhotos()
+    }
+    #endif
 }
 
 // MARK: - Avatar View
