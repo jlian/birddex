@@ -3,7 +3,7 @@ export default function PrivacyPage() {
     <div className="px-4 sm:px-6 py-6 space-y-6 max-w-3xl mx-auto">
       <div className="space-y-2">
         <h2 className="font-serif text-2xl font-semibold text-foreground">Privacy Policy</h2>
-        <p className="text-sm text-muted-foreground">Last updated: March 2026</p>
+        <p className="text-sm text-muted-foreground">Last updated: August 2026</p>
       </div>
 
       <article className="space-y-6 text-sm text-muted-foreground leading-relaxed">
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
             <li><strong>eBird / Cornell Lab of Ornithology:</strong> Taxonomy and species data for matching and display.</li>
             <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
             <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
-            <li><strong>OpenStreetMap / Nominatim:</strong> Location search queries and coordinates sent for geocoding and reverse geocoding.</li>
+            <li><strong>OpenStreetMap / Nominatim:</strong> WingDex forwards explicitly submitted location searches and rounded coordinates through our server for geocoding. Exact outing and photo coordinates remain stored by WingDex as described above; they are not sent to Nominatim.</li>
             <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
           </ul>
         </section>
