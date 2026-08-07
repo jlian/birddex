@@ -91,4 +91,45 @@ final class PhotoDecoderTests: XCTestCase {
         XCTAssertEqual(tensor.count, 3 * 224 * 224)
         XCTAssertTrue(tensor.allSatisfy { $0.isFinite })
     }
+
+    /// A solid PNG of a known colour, because nothing else here would notice a
+    /// channel swap. The decoder's bitmapInfo asks for R,G,B,X; if that came
+    /// back as B,G,R,X the model would see inverted colours and still return
+    /// confident-looking species, so this has to be asserted rather than
+    /// inferred from accuracy.
+    private func makeSolidPNG(r: UInt8, g: UInt8, b: UInt8) throws -> Data {
+        let w = 64, h = 64
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        for i in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[i] = r; pixels[i + 1] = g; pixels[i + 2] = b; pixels[i + 3] = 255
+        }
+        let cg: CGImage? = pixels.withUnsafeMutableBytes { raw in
+            guard let ctx = CGContext(
+                data: raw.baseAddress, width: w, height: h,
+                bitsPerComponent: 8, bytesPerRow: w * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+                    | CGBitmapInfo.byteOrder32Big.rawValue
+            ) else { return nil }
+            return ctx.makeImage()
+        }
+        let image = try XCTUnwrap(cg)
+        let out = NSMutableData()
+        let dest = try XCTUnwrap(
+            CGImageDestinationCreateWithData(out, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(dest))
+        return out as Data
+    }
+
+    func testDecodesChannelsAsRGBNotBGR() throws {
+        let got = try XCTUnwrap(PhotoDecoder.decode(try makeSolidPNG(r: 255, g: 0, b: 0)))
+        XCTAssertGreaterThan(got.data[0], 200, "red belongs in byte 0")
+        XCTAssertLessThan(got.data[1], 55, "green should be near zero")
+        XCTAssertLessThan(got.data[2], 55, "blue should be near zero, not 255")
+
+        let blue = try XCTUnwrap(PhotoDecoder.decode(try makeSolidPNG(r: 0, g: 0, b: 255)))
+        XCTAssertLessThan(blue.data[0], 55)
+        XCTAssertGreaterThan(blue.data[2], 200, "blue belongs in byte 2")
+    }
 }

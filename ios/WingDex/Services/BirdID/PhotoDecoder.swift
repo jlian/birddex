@@ -71,7 +71,12 @@ enum PhotoDecoder {
                 // library photos are JPEG or opaque HEIC and are unaffected.
                 // CGBitmapContext cannot emit unpremultiplied RGBA, so matching
                 // the canvas exactly would mean reading the provider directly.
+                //
+                // byteOrder32Big pins the layout to R,G,B,X in memory. Without
+                // it the order is the platform default, and a silent swap to
+                // BGRX would feed CLIP inverted colours with nothing failing.
                 bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+                    | CGBitmapInfo.byteOrder32Big.rawValue
             ) else { return false }
             ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
             return true
