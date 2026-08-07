@@ -23,10 +23,17 @@
 // This entry ships only the plain WASM runtime at 12.86 MiB, which is also the
 // provider measured fastest for a model this small.
 import * as ort from 'onnxruntime-web/wasm'
+import ortWasmModuleUrl from 'onnxruntime-web/ort-wasm-simd-threaded.mjs?url'
+import ortWasmBinaryUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
 import { preloadAssets, type AssetProgress } from './model-cache'
 import { preprocess, type Rgb } from './clip-preprocess'
 import { parseOccurrence, type OccBlob } from './occurrence'
 import { rankCandidates, scoresToProbs, type Calibration, type Candidate } from './rank'
+
+ort.env.wasm.wasmPaths = {
+  mjs: ortWasmModuleUrl,
+  wasm: ortWasmBinaryUrl,
+}
 
 export type IdentifyResult = {
   commonName: string
