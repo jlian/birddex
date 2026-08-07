@@ -308,7 +308,7 @@ struct SettingsView: View {
         } header: {
             Text("Bird Identification")
         } footer: {
-            Text("Sends photo location and month to the AI for more accurate species identification.")
+            Text("Uses photo location and month on this device to improve identification. Rounded coordinates may be sent to OpenStreetMap to suggest an outing location, and exact coordinates are saved with your outing and photo metadata.")
         }
     }
 

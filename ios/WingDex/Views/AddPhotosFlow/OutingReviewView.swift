@@ -85,6 +85,10 @@ struct OutingReviewView: View {
             Section {
                 dateTimeSection
                 gpsStatusSection
+            } footer: {
+                if hasGps {
+                    Text("Coordinates are saved with your outing and photo metadata. Rounded coordinates may be sent to OpenStreetMap to suggest a location name.")
+                }
             }
 
             // Existing outing match toggle
