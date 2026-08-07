@@ -99,7 +99,6 @@ struct DataManagementView: View {
         isDeleting = true
         deleteError = nil
         do {
-            try await store.clearAll()
             try await auth.deleteAccount()
         } catch {
             deleteError = AppError.map(error, fallback: "Could not delete your account. Try again.")
