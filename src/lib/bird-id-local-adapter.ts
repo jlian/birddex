@@ -26,7 +26,22 @@
 import { BirdIdEngine, type EngineAssets, type IdentifyResult } from './bird-id-local.ts'
 import { assetsCached, type AssetProgress } from './model-cache.ts'
 import taxonomy from './taxonomy.json'
-import type { BirdIdResult } from './ai-inference'
+
+interface VisionResult {
+  species: string
+  confidence: number
+  wikiTitle?: string
+  plumage?: string
+  rangeStatus?: 'present' | 'near-range' | 'out-of-range' | 'no-data'
+}
+
+/** Shape the add-photos flow consumes. Named for the server response it replaced. */
+export interface BirdIdResult {
+  candidates: VisionResult[]
+  cropBox?: { x: number; y: number; width: number; height: number }
+  multipleBirds?: boolean
+  rangeAdjusted?: boolean
+}
 
 /**
  * Bumped whenever the served model bytes change. The three /models/ files are

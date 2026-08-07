@@ -19,7 +19,7 @@ import { extractEXIF, generateThumbnail, computeFileHash } from '@/lib/photo-uti
 import { clusterPhotosIntoOutings } from '@/lib/clustering'
 import { identifyBirdLocally, MODEL_ASSETS, modelReady } from '@/lib/bird-id-local-adapter'
 import { ModelDownloadGate } from '@/components/ModelDownloadGate'
-import type { BirdIdResult } from '@/lib/ai-inference'
+import type { BirdIdResult } from '@/lib/bird-id-local-adapter'
 import { shouldPromptForCrop, formatConfidence } from '@/lib/bird-id-local-adapter'
 import OutingReview from '@/components/flows/OutingReview'
 import { getDisplayName, getScientificName, cn } from '@/lib/utils'

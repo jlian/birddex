@@ -74,8 +74,9 @@ async function fetchCached(
   if (!res.ok) throw new Error("fetch " + url + " failed: " + res.status)
 
   // Tee the body so progress can be reported while the response is still
-  // streaming, then cache the completed copy.
-  const reader = res.clone().body?.getReader()
+  // streaming, then cache the completed copy. Only clone when someone is
+  // listening, or the extra branch is buffered in full and never read.
+  const reader = onProgress ? res.clone().body?.getReader() : undefined
   if (reader && onProgress) {
     const start = state?.loaded ?? 0
     let seen = 0
@@ -132,7 +133,25 @@ export async function preloadAssets(
   for (const u of urls) {
     out.set(u, await fetchCached(u, onProgress, state))
   }
+  await pruneStaleAssets(urls)
   return out
+}
+
+/**
+ * Drop entries that are not part of the current asset set. Keys carry the model
+ * version, so without this every bump strands another 62 MiB indefinitely.
+ */
+async function pruneStaleAssets(urls: string[]): Promise<void> {
+  const cache = await openCache()
+  if (!cache) return
+  const keep = new Set(urls.map(u => new URL(u, location.href).href))
+  try {
+    for (const req of await cache.keys()) {
+      if (!keep.has(req.url)) await cache.delete(req)
+    }
+  } catch (err) {
+    console.warn("model-cache: pruning stale assets failed", err)
+  }
 }
 
 /** Are the assets already local? Lets the UI skip a download prompt. */
