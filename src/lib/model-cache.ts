@@ -70,7 +70,17 @@ async function fetchCached(
     return buf
   }
 
-  const res = await fetch(url)
+  // A network failure here throws a bare "Failed to fetch" with no indication
+  // of which of the four assets died, which is what the download gate then
+  // shows the user and what lands in a bug report.
+  let res: Response
+  try {
+    res = await fetch(url)
+  } catch (err) {
+    throw new Error(
+      "fetch " + url + " failed: " + (err instanceof Error ? err.message : String(err)),
+    )
+  }
   if (!res.ok) throw new Error("fetch " + url + " failed: " + res.status)
 
   // Tee the body so progress can be reported while the response is still
