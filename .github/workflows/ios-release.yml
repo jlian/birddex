@@ -9,9 +9,17 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (skip archive and upload)'
+        description: 'Validate tests, archive, and export without publishing or uploading'
         type: boolean
         default: false
+      release_version:
+        description: 'Existing ios-v version to rebuild/upload (for example, 0.8.0)'
+        type: string
+        required: false
+      build_number:
+        description: 'Unused App Store build number (required with release_version)'
+        type: string
+        required: false
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -36,13 +44,34 @@ jobs:
 
       - name: Check for iOS-relevant changes since last tag
         id: diff
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
+          if [ -n "$RELEASE_VERSION" ]; then
+            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::release_version must use semantic version format, for example 0.8.0"
+              exit 1
+            fi
+            if ! echo "$BUILD_NUMBER" | grep -qE '^[1-9][0-9]*$'; then
+              echo "::error::build_number is required with release_version and must be a positive integer"
+              exit 1
+            fi
+            if ! git rev-parse --verify --quiet "refs/tags/ios-v${RELEASE_VERSION}"; then
+              echo "::error::Tag ios-v${RELEASE_VERSION} does not exist"
+              exit 1
+            fi
+            echo "Rebuilding existing ios-v${RELEASE_VERSION}"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           LAST_TAG=$(git tag --list 'ios-v*' --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then
             echo "No previous ios-v tag found - first release"
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
-            CHANGED=$(git diff --name-only "$LAST_TAG"..HEAD -- ios/ openapi.yaml .releaserc.ios.json)
+            CHANGED=$(git diff --name-only "$LAST_TAG"..HEAD -- ios/ openapi.yaml ios/.releaserc.json .github/workflows/ios-release.yml)
             if [ -n "$CHANGED" ]; then
               echo "iOS-relevant changes found since $LAST_TAG"
               echo "has_changes=true" >> "$GITHUB_OUTPUT"
@@ -52,15 +81,29 @@ jobs:
             fi
           fi
 
-  release:
-    name: Release & Upload to TestFlight
+  preflight:
+    name: Test, Archive & Export
     needs: check
     if: needs.check.outputs.should_release == 'true'
     runs-on: macos-26
+    outputs:
+      release_version: ${{ steps.version.outputs.release_version }}
+      has_release: ${{ steps.version.outputs.has_release }}
     steps:
+      - name: Resolve source ref
+        id: source
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          if [ -n "$RELEASE_VERSION" ]; then
+            echo "ref=refs/tags/ios-v${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ steps.source.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -75,55 +118,76 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Run semantic-release (iOS)
-        id: semrel
+      - name: Determine release version
+        id: version
         working-directory: ios
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXISTING_VERSION: ${{ inputs.release_version }}
         run: |
-          EXIT_CODE=0
-          OUTPUT=$(npx semantic-release 2>&1) || EXIT_CODE=$?
-          echo "$OUTPUT"
-
-          # Extract new version from output (POSIX-compatible, no grep -P)
-          NEW_VERSION=$(echo "$OUTPUT" | grep -oE 'Published release [0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
-          if [ -n "$NEW_VERSION" ]; then
-            echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-            echo "released=true" >> "$GITHUB_OUTPUT"
-          elif echo "$OUTPUT" | grep -qiE 'no (new )?release'; then
-            echo "No new version released"
-            echo "released=false" >> "$GITHUB_OUTPUT"
-          elif [ "$EXIT_CODE" -ne 0 ]; then
-            echo "::error::semantic-release failed with exit code $EXIT_CODE"
-            exit 1
-          else
-            echo "No new version released"
-            echo "released=false" >> "$GITHUB_OUTPUT"
+          if [ -n "$EXISTING_VERSION" ]; then
+            echo "release_version=$EXISTING_VERSION" >> "$GITHUB_OUTPUT"
+            echo "has_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Generate GitInfo.swift
-        if: steps.semrel.outputs.released == 'true'
+          OUTPUT=$(npx semantic-release --dry-run 2>&1)
+          echo "$OUTPUT"
+          NEXT_VERSION=$(echo "$OUTPUT" | sed -nE 's/.*next release version is ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | tail -1)
+          if [ -n "$NEXT_VERSION" ]; then
+            echo "release_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "has_release=true" >> "$GITHUB_OUTPUT"
+          elif echo "$OUTPUT" | grep -qiE 'no (new )?release'; then
+            echo "has_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Could not determine the next iOS release version"
+            exit 1
+          fi
+
+      - name: Stop when no release is due
+        if: steps.version.outputs.has_release != 'true'
+        run: echo "No iOS release is due."
+
+      - name: Apply release version locally
+        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
-        run: scripts/gen-git-info.sh
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: scripts/bump-version.sh set "${{ steps.version.outputs.release_version }}" "${BUILD_NUMBER:-1}" --quiet
 
       - name: Generate Xcode project
-        if: steps.semrel.outputs.released == 'true'
+        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         run: xcodegen generate
 
       - name: Resolve SPM dependencies
-        if: steps.semrel.outputs.released == 'true'
+        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
-        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Production
+        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Production -onlyUsePackageVersionsFromResolvedFile
+
+      - name: Run iOS tests
+        if: steps.version.outputs.has_release == 'true'
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project WingDex.xcodeproj \
+            -scheme Production \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            test \
+            CODE_SIGNING_ALLOWED=NO \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skip-testing:WingDexTests/AuthIntegrationTests \
+            | tail -60
 
       - name: Write App Store Connect API key
-        if: steps.semrel.outputs.released == 'true' && inputs.dry_run != true
+        if: steps.version.outputs.has_release == 'true'
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
           echo "${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
 
       - name: Archive for App Store
-        if: steps.semrel.outputs.released == 'true' && inputs.dry_run != true
+        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         run: |
           set -o pipefail
@@ -132,6 +196,7 @@ jobs:
             -scheme Production \
             -archivePath build/WingDex.xcarchive \
             -destination 'generic/platform=iOS' \
+            -onlyUsePackageVersionsFromResolvedFile \
             -allowProvisioningUpdates \
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 \
             -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
@@ -139,7 +204,7 @@ jobs:
             | tail -30
 
       - name: Export IPA
-        if: steps.semrel.outputs.released == 'true' && inputs.dry_run != true
+        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         run: |
           set -o pipefail
@@ -153,21 +218,20 @@ jobs:
             -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
             | tail -20
 
-      - name: Upload to TestFlight
-        if: steps.semrel.outputs.released == 'true' && inputs.dry_run != true
-        working-directory: ios
-        run: |
-          xcrun altool --upload-app \
-            --type ios \
-            --file build/export/WingDex.ipa \
-            --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
-            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+      - name: Upload validated IPA artifact
+        if: steps.version.outputs.has_release == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: WingDex-${{ steps.version.outputs.release_version }}
+          path: ios/build/export/WingDex.ipa
+          if-no-files-found: error
+          retention-days: 7
 
       # Runners start with an empty keychain, so -allowProvisioningUpdates mints a fresh
       # development certificate every run. Left alone they pile up until the account cap
       # is hit. Their private keys die with the runner, so revoking them is always safe.
       - name: Revoke CI-created signing certificates
-        if: always() && steps.semrel.outputs.released == 'true' && inputs.dry_run != true
+        if: always() && steps.version.outputs.has_release == 'true'
         continue-on-error: true
         uses: actions/github-script@v9
         env:
@@ -236,23 +300,84 @@ jobs:
         if: always()
         run: rm -rf ~/.appstoreconnect
 
+      - name: Validation summary
+        if: steps.version.outputs.has_release == 'true'
+        run: |
+          echo "### Validated iOS v${{ steps.version.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests, signed archive, and App Store export succeeded before publication." >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish & Upload to TestFlight
+    needs: [check, preflight]
+    if: needs.check.outputs.should_release == 'true' && needs.preflight.outputs.has_release == 'true' && inputs.dry_run != true
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        if: inputs.release_version == ''
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install npm dependencies
+        if: inputs.release_version == ''
+        run: npm ci
+
+      - name: Install XcodeGen
+        if: inputs.release_version == ''
+        run: brew install xcodegen
+
+      - name: Publish semantic release
+        if: inputs.release_version == ''
+        working-directory: ios
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      - name: Download validated IPA artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: WingDex-${{ needs.preflight.outputs.release_version }}
+          path: build/export
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+
+      - name: Upload to TestFlight
+        run: |
+          xcrun altool --upload-app \
+            --type ios \
+            --file build/export/WingDex.ipa \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Clean up API key
+        if: always()
+        run: rm -rf ~/.appstoreconnect
+
       - name: Mark pre-1.0 releases as prerelease
-        if: steps.semrel.outputs.released == 'true'
+        if: inputs.release_version == ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ steps.semrel.outputs.new_version }}"
+          VERSION="${{ needs.preflight.outputs.release_version }}"
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           if [ "$MAJOR" = "0" ]; then
             gh release edit "ios-v${VERSION}" --prerelease
           fi
 
       - name: Summary
-        if: steps.semrel.outputs.released == 'true'
         run: |
-          echo "### iOS Release v${{ steps.semrel.outputs.new_version }}" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            echo "Dry run - archive and upload skipped" >> "$GITHUB_STEP_SUMMARY"
+          echo "### iOS Release v${{ needs.preflight.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ inputs.release_version }}" ]; then
+            echo "Rebuilt and uploaded existing release as build ${{ inputs.build_number }}." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Uploaded to TestFlight" >> "$GITHUB_STEP_SUMMARY"
+            echo "Published and uploaded to TestFlight." >> "$GITHUB_STEP_SUMMARY"
           fi
