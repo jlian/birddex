@@ -24,7 +24,8 @@ Thanks for your interest in contributing!
    npm run db:migrate
    ```
 
-> **Optional:** AI identification requires the AI env vars in `.dev.vars`. Run `npx wrangler login` only if you need remote bindings such as range-prior filtering. The app works without it.
+No API keys are needed. Species identification runs on the device, and social
+sign-in is optional; anonymous auth works out of the box.
 
 ## Project Structure
 
@@ -40,6 +41,8 @@ Thanks for your interest in contributing!
 | `functions/lib/` | Server-side shared logic |
 | `migrations/` | D1 SQL migrations |
 | `e2e/` | Playwright specs |
+| `ios/` | Native iOS app (XcodeGen, see `ios/README.md`) |
+| `ml/` | Model conversion and cross-platform parity harnesses |
 
 ## Verification
 
@@ -61,7 +64,6 @@ This also runs Playwright e2e and production build. Run it when changes touch `f
 - Health check: `http://localhost:5000/api/health`
 - If ports are stale, run `npm stop` first
 - Local D1 state lives in `~/.cache/wingdex/wrangler-state`
-- R2 `RANGE_PRIORS` is `remote = true` - requires `wrangler login` for range filtering. Without it, bird ID still works with unadjusted confidences.
 
 ## Making Changes
 
