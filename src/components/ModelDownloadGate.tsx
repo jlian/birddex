@@ -109,9 +109,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
         <div className="flex flex-col gap-2">
           <Progress value={pct} />
           <p className="text-muted-foreground text-xs">
-            {progress && progress.total > 0
-              ? `${(progress.loaded / MB).toFixed(1)} of ${(progress.total / MB).toFixed(1)} MB`
-              : "Starting..."}
+            {progress && progress.total > 0 ? `${pct}%` : "Starting..."}
           </p>
         </div>
       ) : (

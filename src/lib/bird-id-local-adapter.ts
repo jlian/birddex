@@ -72,14 +72,24 @@ export const MODEL_ASSET_URLS = [
   "/priors/occurrence.1fb61779.bin.gz",
 ]
 
-export const MODEL_BYTES = 64_657_000
+/**
+ * Bytes actually transferred, measured with `Accept-Encoding: gzip`.
+ *
+ * Not the sum of the file sizes. The server compresses the two biggest files
+ * in transport (onnx 14.4 -> 10.6 MB, data 25.2 -> 17.3 MB) and the prior is
+ * already gzipped on disk, so the real download is well under what `ls` shows.
+ * The earlier figure counted only the prior's compression and overstated this
+ * by 22 percent. Production may negotiate brotli and send less again.
+ */
+export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 16_478_112
 
 /**
  * DECODED bytes across the four assets, which is what a fetch reader counts.
  *
- * Differs from MODEL_BYTES because the occurrence prior ships gzipped: 16.5 MiB
- * over the wire, 23.0 MiB once fetch decompresses it. Progress is reported
- * against this, while the copy above quotes the download size.
+ * A reader never sees the compressed stream, so this is the only total that
+ * progress can be measured against. It is deliberately not shown to the user:
+ * quoting it as a download size is what made the gate claim 72 MB for a 53 MB
+ * transfer.
  */
 export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 24_123_497
 
