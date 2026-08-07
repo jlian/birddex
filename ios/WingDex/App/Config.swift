@@ -45,6 +45,8 @@ enum Config {
     /// WebAuthn Relying Party ID (must match server's rpID and associated domain).
     static let rpID: String = apiBaseURL.host ?? "localhost"
 
-    /// Maximum daily AI identification requests.
+    /// Server-side daily quota for AI requests. Species identification runs on
+    /// device and is not subject to it, but AppError still maps HTTP 429 for
+    /// every other endpoint.
     static let aiDailyRateLimit = 150
 }

@@ -195,15 +195,13 @@ struct AddPhotosFlow: View {
                     .frame(maxWidth: 320, maxHeight: 260)
             }
 
-            // Exponential progress bar (matching web's `1 - e^(-t/tau)` curve)
-            ExponentialProgressBar(
-                progress: $viewModel.photoProgress,
-                tauMs: viewModel.photoProgressTauMs,
-                runKey: viewModel.photoProgressRunKey
-            )
-            .id(viewModel.photoProgressRunKey)
-            .frame(height: 6)
-            .padding(.horizontal, 40)
+            // A spinner, not a progress bar. Inference is milliseconds on the
+            // Neural Engine and the wait is dominated by decode, so there is no
+            // honest progress to report and every device would fill at a
+            // different rate.
+            ProgressView()
+                .controlSize(.large)
+                .padding(.vertical, 8)
 
             Text(viewModel.processingMessage)
                 .font(.subheadline)
@@ -403,41 +401,6 @@ struct AddPhotosFlow: View {
 ///
 /// Uses SwiftUI's TimelineView for smooth updates that respect the view lifecycle.
 /// Resets whenever `runKey` changes (e.g., when escalating from fast to strong model).
-struct ExponentialProgressBar: View {
-    @Binding var progress: Double
-    let tauMs: Double
-    let runKey: Int
-
-    @State private var startDate = Date()
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 0.08)) { timeline in
-            let elapsed = timeline.date.timeIntervalSince(startDate) * 1000
-            let computed = 90 * (1 - exp(-elapsed / tauMs))
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.mutedText.opacity(0.15))
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.accentColor)
-                        .frame(width: geo.size.width * min(max(computed, progress) / 100, 1))
-                }
-            }
-            .onChange(of: computed) {
-                // Keep the binding in sync for external reads
-                progress = max(progress, min(90, computed))
-            }
-        }
-        .onChange(of: runKey) {
-            startDate = Date()
-            progress = 0
-        }
-        .onAppear {
-            startDate = Date()
-        }
-    }
-}
 
 // MARK: - Preview
 
