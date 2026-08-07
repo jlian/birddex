@@ -84,14 +84,14 @@ export const MODEL_ASSET_URLS = [
 export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 16_478_112
 
 /**
- * DECODED bytes across the four assets, which is what a fetch reader counts.
+ * Bytes exposed to the fetch reader across the four assets.
  *
- * A reader never sees the compressed stream, so this is the only total that
- * progress can be measured against. It is deliberately not shown to the user:
- * quoting it as a download size is what made the gate claim 72 MB for a 53 MB
- * transfer.
+ * The reader sees transport-compressed responses after decoding, but the prior
+ * is already a .gz file served without Content-Encoding, so it stays compressed.
+ * This progress total is deliberately not shown to the user: quoting decoded
+ * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
  */
-export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 24_123_497
+export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 16_478_112
 
 /**
  * The full asset bundle the engine needs.
