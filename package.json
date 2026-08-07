@@ -27,7 +27,7 @@
         "deploy": "npm run build && wrangler deploy",
         "lint": "eslint .",
         "typecheck": "tsc -b",
-        "test": "vitest run",
+        "test": "vitest run && vitest run --config vitest.functions.config.ts",
         "test:e2e": "npx playwright test --grep-invert @live",
         "test:e2e:live": "npx playwright test --grep @live",
         "check": "npm run lint && npm run typecheck && npm test",
