@@ -36,7 +36,10 @@ export default defineConfig(({ mode }) => {
       allowedHosts: env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean) ?? [],
       forwardConsole: true,
       watch: {
-        ignored: ['**/.wrangler/**', '**/.tmp/**'],
+        // ml/ is the research tree: 148 GB across 455k files on tomahawk, and
+        // untracked on this branch. Watching it starves the dev server of file
+        // handles. gitignore keeps it out of git; this keeps it out of chokidar.
+        ignored: ['**/.wrangler/**', '**/.tmp/**', '**/ml/**'],
       },
       proxy: {
         '/api': `http://localhost:${apiPort}`,

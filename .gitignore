@@ -47,3 +47,84 @@ wiki-validation-report.txt
 src/assets/csv/
 ios/WingDex/App/GitInfo.swift
 .tmp/
+
+# uv-managed virtualenv for the distill pipeline
+ml/distill/.venv/
+
+# 19GB of ground-truth held-out images (re-pullable via pull_images.py)
+ml/groundtruth/
+
+# 31GB iNat Open Data metadata dump (re-fetchable via fetch_metadata.py)
+ml/inat-metadata/
+
+# T3.3 eval data (downloadable, 360MB)
+ml/imagenette/
+
+# uncompressed build artifact of the prior blob (the .gz is what ships)
+public/priors/*.bin.gz.raw
+ml/fixtures-calib11k/
+ml/distill/export/
+ml/truth-calib11k.json
+ml/distill/nabirds_pixels*.npy
+
+# generated calibration intermediates (rebuildable from jobs/phase5_refit.sh)
+ml/distill/*.jsonl
+ml/distill/calib_cands_*.parquet
+ml/distill/calib_occ_counts_*.npz
+ml/groundtruth-fresh/
+ml/fixtures-tiny39-a060/
+ml/truth-tiny39.json
+ml/distill/onnx_tiny39/
+ml/parity/*.bin
+ml/parity/*.json
+
+# Core ML scratch: the venv, the converted packages and generated audit output.
+# The scripts themselves are tracked, the artifacts are regenerable.
+ml/coreml/.venv/
+ml/coreml/*.mlpackage/
+ml/coreml/*.log
+ml/coreml/*.json
+ml/coreml/__pycache__/
+
+# 23 MiB decompressed occurrence prior, generated for the Swift parity tests by
+# `UPDATE_GOLDEN=1 npx vitest run birdid-golden`. The .gz under public/priors is
+# the source of truth; the golden JSON beside it IS committed.
+ios/WingDexTests/Fixtures/occurrence.bin
+
+# Derived from public/ by ios/scripts/sync-birdid-assets.sh. The .mlpackage in
+# WingDex/ML is NOT derived and IS committed: it needs a torch/coremltools
+# environment and a checkpoint that only exists on Hugging Face.
+ios/WingDex/Resources/BirdID/
+
+public/parity/
+public/node_modules
+
+# Parity fixtures are GENERATED artifacts, not source. Every harness takes the
+# fixture directory as argv, so no path is hardcoded and nothing breaks by
+# ignoring them.
+#
+# This also fixes an inconsistency: the two sets behind the shipping numbers,
+# fixtures-tiny39-a060 and fixtures-calib11k at 11,070 files each, were ALREADY
+# untracked, while four obsolete 27-file sets were committed. The repo was
+# tracking the fixtures that did not matter and ignoring the ones that did.
+ml/fixtures*/
+
+# The ml/ tree is research-only and lives on tomahawk. It is TRACKED on the
+# research branch and entirely UNTRACKED on the app branches, where it can
+# reach 148 GB across 455k files. These rules live at the ROOT, not in
+# ml/.gitignore, because a nested ignore file is itself part of the research
+# branch: check out an app branch and it disappears, leaving the whole tree
+# visible to git status and to the vite dev server file watcher.
+ml/inat-metadata/
+ml/groundtruth/
+ml/imagenette/
+ml/embeddings/
+ml/heldout-orig/
+ml/heldout-orig-corpus/
+ml/val_ids_seed0.json
+ml/val_split_seed0.json
+ml/distill/.venv/
+ml/distill/runs/
+ml/distill/calib_corpus/
+ml/distill/embeddings/
+ml/**/__pycache__/

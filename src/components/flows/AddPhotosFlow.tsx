@@ -17,8 +17,10 @@ import {
 import { toast } from 'sonner'
 import { extractEXIF, generateThumbnail, computeFileHash } from '@/lib/photo-utils'
 import { clusterPhotosIntoOutings } from '@/lib/clustering'
-import { identifyBirdInPhoto } from '@/lib/ai-inference'
-import type { BirdIdResult } from '@/lib/ai-inference'
+import { identifyBirdLocally, MODEL_ASSETS, modelReady } from '@/lib/bird-id-local-adapter'
+import { ModelDownloadGate } from '@/components/ModelDownloadGate'
+import type { BirdIdResult } from '@/lib/bird-id-local-adapter'
+import { shouldPromptForCrop, formatConfidence } from '@/lib/bird-id-local-adapter'
 import OutingReview from '@/components/flows/OutingReview'
 import { getDisplayName, getScientificName, cn } from '@/lib/utils'
 import { toLocalISOWithOffset } from '@/lib/timezone'
@@ -55,14 +57,21 @@ function wait(ms: number): Promise<void> {
 }
 
 export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowProps) {
+  // Object URLs stay alive until revoked, so track and release them. Without
+  // this, every uploaded photo would pin its full blob for the page's lifetime.
+  const objectUrls = useRef<string[]>([])
+  useEffect(() => () => {
+    for (const u of objectUrls.current) URL.revokeObjectURL(u)
+    objectUrls.current = []
+  }, [])
+
   const [step, setStep] = useState<FlowStep>('upload')
+  // Survives the download screen so the resolved location name is not lost.
+  const pendingLocationName = useRef<string | undefined>(undefined)
   const [photos, setPhotos] = useState<PhotoWithCrop[]>([])
   const [currentClusterIndex, setCurrentClusterIndex] = useState(0)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [progress, setProgress] = useState(0)
-  const [photoProgress, setPhotoProgress] = useState(0)
-  const [photoProgressTauMs, setPhotoProgressTauMs] = useState(1200)
-  const [photoProgressRunKey, setPhotoProgressRunKey] = useState(0)
   const [processingMessage, setProcessingMessage] = useState('')
   const [useGeoContext] = useState(() => {
     const stored = localStorage.getItem('wingdex_useGeoContext')
@@ -120,24 +129,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
   const fullCurrentPhoto = getFullPhoto(currentPhotoIndex)
 
-  useEffect(() => {
-    if (step !== 'photo-processing') {
-      setPhotoProgress(0)
-      return
-    }
-
-    const startedAt = Date.now()
-    setPhotoProgress(0)
-
-    const interval = window.setInterval(() => {
-      const elapsed = Date.now() - startedAt
-      const next = 90 * (1 - Math.exp(-elapsed / photoProgressTauMs))
-      setPhotoProgress(prev => Math.max(prev, Math.min(90, next)))
-    }, 80)
-
-    return () => window.clearInterval(interval)
-  }, [step, photoProgressRunKey, photoProgressTauMs])
-
   // ─── Step 1: Send full image directly to species ID ─────
   const runSpeciesId = async (
     photoIdx: number,
@@ -149,76 +140,53 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
     setCurrentPhotoIndex(photoIdx)
     setStep('photo-processing')
-    setPhotoProgressTauMs(1200)
-    setPhotoProgressRunKey(prev => prev + 1)
     const analyzeUrl = imageUrl || photo.croppedDataUrl || photo.dataUrl
     setProcessingMessage(
       `Photo ${photoIdx + 1}/${clusterPhotos.length}: Identifying species...`
     )
 
     try {
-      const fastResult: BirdIdResult = await identifyBirdInPhoto(
+      // getMonth() is 0-11; the prior is keyed 1-12.
+      // Guard the DATE, not just the presence of exifTime. "0000:00:00 00:00:00"
+      // is the standard EXIF null timestamp and parses to Invalid Date, whose
+      // getMonth() is NaN. Passing NaN downstream used to select January's
+      // prior rather than no prior at all.
+      const exifDate = photo.exifTime ? new Date(photo.exifTime) : null
+      const photoMonth = useGeoContext && exifDate && !Number.isNaN(exifDate.getTime())
+        ? exifDate.getMonth() + 1
+        : undefined
+
+      const fastResult: BirdIdResult = await identifyBirdLocally(
+        MODEL_ASSETS,
         analyzeUrl,
         useGeoContext ? photo.gps : undefined,
-        useGeoContext && photo.exifTime
-          ? new Date(photo.exifTime).getMonth()
-          : undefined,
-        resolveInferenceLocationName(
-          useGeoContext,
-          lastLocationName,
-          locationNameOverride,
-        ),
-        'fast'
+        photoMonth,
       )
 
-      if (!imageUrl && (fastResult.candidates.length === 0 || fastResult.multipleBirds)) {
-        setPhotoProgress(100)
-        await wait(240)
-        if (fastResult.multipleBirds) {
-          debug('bird-id', 'Multiple birds detected by fast model; requesting crop')
-          toast.info('Multiple birds detected, crop to one')
-          setCurrentCandidates(fastResult.candidates)
-        } else {
-          debug('bird-id', 'No species identified by fast model; requesting crop')
-          setCurrentCandidates([])
-        }
-        setRangeAdjusted(false)
+      // Low confidence replaces the empty-candidate test. A classifier always
+      // returns 25 ranked species, so candidates.length is never 0 and that
+      // branch would be dead code. multipleBirds is gone with the GPT path.
+      if (!imageUrl && shouldPromptForCrop(fastResult, false)) {
+        debug('bird-id', 'Low confidence; requesting crop')
+        // Keep the candidates rather than blanking them. The model always has
+        // an opinion, and showing a ranked list beats an empty screen when the
+        // user decides not to crop.
+        setCurrentCandidates(fastResult.candidates)
+        setRangeAdjusted(fastResult.rangeAdjusted === true)
         setStep('photo-manual-crop')
         return;
       }
 
-      const topConfidence = fastResult.candidates[0]?.confidence ?? 0
-      const secondConfidence = fastResult.candidates[1]?.confidence ?? 0
-      const shouldEscalate = topConfidence < 0.75 || (fastResult.candidates.length >= 2 && (topConfidence - secondConfidence) < 0.15)
-
-      const result: BirdIdResult = shouldEscalate
-        ? await (async () => {
-          setProcessingMessage(
-            `Photo ${photoIdx + 1}/${clusterPhotos.length}: Re-analyzing with enhanced model...`
-          )
-          setPhotoProgressTauMs(4400)
-          setPhotoProgressRunKey(prev => prev + 1)
-          return identifyBirdInPhoto(
-            analyzeUrl,
-            useGeoContext ? photo.gps : undefined,
-            useGeoContext && photo.exifTime
-              ? new Date(photo.exifTime).getMonth()
-              : undefined,
-            resolveInferenceLocationName(
-              useGeoContext,
-              lastLocationName,
-              locationNameOverride,
-            ),
-            'strong'
-          )
-        })()
-        : fastResult
+      // No escalation. There is ONE local model, so a second pass over the
+      // same pixels with the same weights returns the same answer. The old
+      // fast/strong split existed because GPT offered two tiers.
+      const result: BirdIdResult = fastResult
 
       debug('bird-id', `Found ${result.candidates.length} candidates`)
-      setPhotoProgress(100)
-      await wait(240)
 
-      // Store AI crop box on the photo if we got one
+      // Only the server path supplies a cropBox. The local classifier localises
+      // nothing, so this is simply skipped and the auto-crop preview does not
+      // appear. See G21.
       if (result.cropBox) {
         setPhotos(prev =>
           prev.map(p =>
@@ -227,14 +195,12 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
         )
       }
 
-      if (result.candidates.length === 0 && !imageUrl) {
-        // No species found on full image, ask user to crop and retry
-        debug('bird-id', 'No species identified; requesting crop or skip')
-        setStep('photo-manual-crop')
-      } else if (result.multipleBirds && !imageUrl) {
-        // Multiple birds detected, let user crop to the one they want
-        debug('bird-id', 'Multiple birds detected; requesting crop')
-        toast.info('Multiple birds detected, crop to one')
+      // `!imageUrl` is the loop guard: imageUrl is only set on the post-crop
+      // retry, so the user is asked at most once. That matters because
+      // confidence tracks species ambiguity rather than framing, so a crop
+      // often does not raise it and a second prompt would never resolve.
+      if (shouldPromptForCrop(result, !!imageUrl)) {
+        debug('bird-id', 'Low confidence; requesting crop or skip')
         setCurrentCandidates(result.candidates)
         setRangeAdjusted(result.rangeAdjusted === true)
         setStep('photo-manual-crop')
@@ -427,11 +393,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
         const thumbnail = await generateThumbnail(file)
         const hash = await computeFileHash(file)
 
-        const reader = new FileReader()
-        const dataUrl = await new Promise<string>(resolve => {
-          reader.onload = () => resolve(reader.result as string)
-          reader.readAsDataURL(file)
-        })
+        // An object URL, NOT readAsDataURL. Base64 inflates the file by 4/3 and
+        // JS strings are UTF-16, so a 12 MB photo became a 32 MB string held for
+        // the whole flow. This is a handle to the existing blob instead, costing
+        // nothing. Both consumers are <img src> and the identifier's decoder,
+        // which accept either form. Revoked when the flow unmounts.
+        const dataUrl = URL.createObjectURL(file)
+        objectUrls.current.push(dataUrl)
 
         const photo: PhotoWithCrop = {
           id: `photo_${Date.now()}_${i}`,
@@ -506,7 +474,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     if (dragCounterRef.current === 0) setIsDragOver(false)
   }
 
-  const handleDuplicateChoice = (reimport: boolean) => {
+  const handleDuplicateChoice = async (reimport: boolean) => {
     setShowDuplicateConfirm(false)
     const finalPhotos = reimport
       ? [...pendingNewPhotos, ...pendingDuplicatePhotos]
@@ -571,7 +539,27 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     setPhotoResults([])
     setCurrentCandidates([])
     setRangeAdjusted(false)
-    runSpeciesId(0, undefined, normalizedLocationName)
+
+    // The model is 61.66 MiB. Ask before the FIRST identification, never at
+    // page load, and never silently in the middle of one. modelReady() is a
+    // cache lookup, so on every later session this is a no-op and the user
+    // goes straight to identifying.
+    if (await modelReady()) {
+      runSpeciesId(0, undefined, normalizedLocationName)
+    } else {
+      pendingLocationName.current = normalizedLocationName
+      setStep('model-download')
+    }
+  }
+
+  // Runs once the assets are local, from either the gate or a warm cache.
+  // Deliberately NOT memoised: runSpeciesId is redefined every render and reads
+  // current state, so a useCallback with an empty dependency list would pin the
+  // first render's copy and identify against stale photos.
+  const handleModelReady = () => {
+    const name = pendingLocationName.current
+    pendingLocationName.current = undefined
+    void runSpeciesId(0, undefined, name)
   }
 
   // ─── Manual crop callback ───────────────────────────────
@@ -726,6 +714,10 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
           )}
 
           {/* Photo crop / processing spinner */}
+          {step === 'model-download' && (
+            <ModelDownloadGate onReady={handleModelReady} />
+          )}
+
           {step === 'photo-processing' && (
             <div className="space-y-4 py-8">
               {fullCurrentPhoto && (
@@ -739,7 +731,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
                   </div>
                 </div>
               )}
-              <Progress value={photoProgress} className="w-full" />
+              {/* A spinner, not a progress bar. Inference is milliseconds and
+                  the wait is dominated by decode, so there is no honest
+                  progress to report and every device would fill at a different
+                  rate. */}
+              <div className="flex justify-center py-2">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
             </div>
           )}
 
@@ -1088,7 +1086,7 @@ function PerPhotoConfirm({
                 : 'text-red-500 dark:text-red-400'
             }`}
           >
-            {confidencePct}%
+            {formatConfidence(selectedConfidence)}
           </span>
         </div>
 
@@ -1161,7 +1159,6 @@ function PerPhotoConfirm({
                 </p>
                 {candidates.map(c => {
                   const altName = getDisplayName(c.species)
-                  const altPct = Math.round(c.confidence * 100)
                   const isSelected = c.species === selectedSpecies
                   return (
                     <button
@@ -1185,7 +1182,7 @@ function PerPhotoConfirm({
                             {c.rangeStatus === 'out-of-range' ? 'Out of range' : 'Near range'}
                           </span>
                         )}
-                        <span className="text-xs text-muted-foreground">{altPct}%</span>
+                        <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>
                       </span>
                     </button>
                   )
@@ -1201,7 +1198,11 @@ function PerPhotoConfirm({
         <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer" className="underline">
           Wikimedia Commons
         </a>
-        {', '}range data from{' '}
+        {', '}occurrence data from{' '}
+        <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="underline">
+          iNaturalist
+        </a>
+        {', '}factsheet from{' '}
         <a
           href={birdlifeFactsheetUrl ?? 'https://datazone.birdlife.org'}
           target="_blank"

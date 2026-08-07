@@ -5,25 +5,41 @@ import { loadApp } from './helpers'
 
 // ── Fixture helpers ──────────────────────────────────────────────
 
-const FIXTURES_DIR = path.resolve('src/__tests__/fixtures/llm-responses')
 
-function loadLLMFixture(name: string) {
-  const data = JSON.parse(readFileSync(path.join(FIXTURES_DIR, `${name}.json`), 'utf8'))
-  return {
-    candidates: data.parsed.candidates,
-    multipleBirds: data.parsed.multipleBirds,
-  }
-}
-
-/** Mock the /api/identify-bird endpoint with a fixture-based response. */
-function mockLLM(page: Page, fixtureName: string) {
-  return page.route('**/api/identify-bird', (route: Route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(loadLLMFixture(fixtureName)),
-    })
+/**
+ * Identification runs ON DEVICE now, so there is no endpoint to stub. These
+ * tests therefore exercise the REAL model: preprocessing, the int8 tower, the
+ * classifier and the geo/month prior all run for real.
+ *
+ * That means the assertions below check INVARIANTS, not a specific species.
+ * Asserting "the model says Chukar" would couple the browser suite to model
+ * weights, so every retrain would break tests that are not about accuracy.
+ * Accuracy is owned by ml/parity/jobs/rank_parity.ts, which scores all 11,070
+ * calibration photos. What these tests own is the FLOW: a photo goes in, some
+ * species comes out, the user can confirm it, and it persists.
+ *
+ * Clears the one-time download gate so the flow reaches identification.
+ */
+async function passModelGate(page: Page) {
+  // The gate renders INSIDE the upload dialog, after "Continue to Species", so
+  // this must be called at that point rather than before the dialog opens.
+  const gate = page.getByRole('button', { name: 'Download and continue' })
+  // Race the gate against the step it hands off to. On a warm cache the gate
+  // self-clears and the button never appears, so waiting on it alone burned the
+  // full 60s on every run. Losing the race costs only the old behaviour.
+  const handedOff = page.getByText(/Identifying species/i)
+  await Promise.race([
+    // Generous: the gate appears only after the flow reaches identification,
+    // and a cold worker start can push that past a tight budget. A short wait
+    // here caused a flake that passed on retry.
+    gate.waitFor({ state: 'visible', timeout: 60_000 }),
+    handedOff.waitFor({ state: 'visible', timeout: 60_000 }),
+  ]).catch(() => {
+    // Neither appeared. Already cached and already past it, so nothing to do.
   })
+  if (await gate.isVisible().catch(() => false)) {
+    await gate.click()
+  }
 }
 
 /** Mock Nominatim geocoding to return a canned location name. */
@@ -182,7 +198,11 @@ test.describe('CSV import + photo upload integration', () => {
   })
 
   test('full photo upload flow: upload → AI identify → confirm → saved to WingDex', async ({ page }) => {
-    await mockLLM(page, 'Chukar_partridge_near_Haleakala_summit_Maui')
+    // This is the only test in CI that downloads the 62 MiB model and runs
+    // inference. The default budget is 15s on CI and 30s here, which the
+    // download alone can exceed, and the waits below ask for far more than
+    // that, so without this they are unreachable and the test dies mid-gate.
+    test.slow()
     await mockNominatim(page, 'Haleakala National Park, Maui')
     await mockWikimedia(page)
 
@@ -205,8 +225,15 @@ test.describe('CSV import + photo upload integration', () => {
     // Click continue to species identification
     await dialog.getByRole('button', { name: /Continue to Species/i }).click()
 
+    // First identification triggers the 61.66 MiB download gate.
+    await passModelGate(page)
+
     // Wait for AI processing, then the confirm step (scope to dialog)
-    await expect(dialog.getByText(/Chukar/)).toBeVisible({ timeout: 10_000 })
+    // Some species must be offered. Which one is the model's business, and is
+    // covered by the parity harness rather than here.
+    await expect(
+      dialog.getByRole('button', { name: 'Confirm' }).first()
+    ).toBeVisible({ timeout: 120_000 })
 
     const saveObservationsResponse = page.waitForResponse(
       response => response.url().includes('/api/data/observations') && response.request().method() === 'POST'
@@ -228,17 +255,20 @@ test.describe('CSV import + photo upload integration', () => {
     const outingsPanel = page.getByRole('tabpanel', { name: 'Outings' })
     await expect(outingsPanel.getByText('Haleakala National Park, Maui')).toBeVisible({ timeout: 5_000 })
 
-    // Navigate to WingDex to verify the species was saved
+    // The observation must be SAVED. Which species the model picked is not this
+    // test's business, so assert the dex is non-empty rather than naming one.
     await page.getByRole('tab', { name: 'WingDex' }).first().click()
     await expect(page.getByPlaceholder('Search species...')).toBeVisible({ timeout: 5_000 })
-    await page.getByPlaceholder('Search species...').fill('chukar')
-
     await expect(
-      page.locator('p:visible', { hasText: 'Chukar' }).first()
-    ).toBeVisible()
+      page.locator('p:visible', { hasText: 'species observed' }).first()
+    ).toBeVisible({ timeout: 5_000 })
   })
 
-  test('species convergence: CSV import + photo upload for same species increases count', async ({ page }) => {
+  // @live: asserts CONVERGENCE onto a named species, which needs a known
+  // identity. On-device inference cannot guarantee one without pinning weights,
+  // and species agreement is what ml/parity/jobs/rank_parity.ts measures across
+  // 11,070 photos. Kept runnable on demand against a real model.
+  test('@live species convergence: CSV import + photo upload for same species increases count', async ({ page }) => {
     // Seed CSV data (includes Chukar) via direct API calls
     await loadApp(page)
 
@@ -269,7 +299,6 @@ test.describe('CSV import + photo upload integration', () => {
     await expect(page.locator('p:visible', { hasText: 'Chukar' }).first()).toBeVisible()
 
     // Now upload a Chukar photo, the same species should converge
-    await mockLLM(page, 'Chukar_partridge_near_Haleakala_summit_Maui')
     await mockNominatim(page, 'Haleakala National Park, Maui')
     await mockWikimedia(page)
 
@@ -288,7 +317,14 @@ test.describe('CSV import + photo upload integration', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText('Review Outing')).toBeVisible({ timeout: 10_000 })
     await dialog.getByRole('button', { name: /Continue to Species/i }).click()
-    await expect(dialog.getByText(/Chukar/)).toBeVisible({ timeout: 10_000 })
+
+    // First identification triggers the 61.66 MiB download gate.
+    await passModelGate(page)
+    // Some species must be offered. Which one is the model's business, and is
+    // covered by the parity harness rather than here.
+    await expect(
+      dialog.getByRole('button', { name: 'Confirm' }).first()
+    ).toBeVisible({ timeout: 120_000 })
     await dialog.getByRole('button', { name: 'Confirm' }).first().click()
 
     // Dialog shows upload summary - dismiss it
@@ -313,21 +349,10 @@ test.describe('CSV import + photo upload integration', () => {
     await expect(page.getByText(/2.*outing/i)).toBeVisible({ timeout: 5_000 })
   })
 
-  test('multi-photo clustering: photos from different locations create separate outings', async ({ page }) => {
-    // Mock LLM to respond differently based on which call it is
-    let callCount = 0
-    await page.route('**/api/identify-bird', (route: Route) => {
-      callCount++
-      // First call = Chukar (Haleakala), second call = Steller's Jay (Seattle)
-      const fixture = callCount === 1
-        ? loadLLMFixture('Chukar_partridge_near_Haleakala_summit_Maui')
-        : loadLLMFixture('Stellers_Jay_eating_cherries_Seattle_backyard')
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(fixture),
-      })
-    })
+  // @live: needs two photos to identify as DIFFERENT named species to prove the
+  // outings split. The clustering logic it targets is geographic, and is covered
+  // by unit tests; only the species labels here required the old per-call mock.
+  test('@live multi-photo clustering: photos from different locations create separate outings', async ({ page }) => {
     await mockNominatim(page, 'Discovery Park, Seattle')
     await mockWikimedia(page)
 
@@ -356,6 +381,9 @@ test.describe('CSV import + photo upload integration', () => {
 
     // Confirm first outing → identify species → confirm
     await dialog.getByRole('button', { name: /Continue to Species/i }).click()
+
+    // First identification triggers the 61.66 MiB download gate.
+    await passModelGate(page)
     await expect(dialog.getByText(/Chukar|Jay/)).toBeVisible({ timeout: 10_000 })
     await dialog.getByRole('button', { name: 'Confirm' }).first().click()
 
@@ -365,6 +393,9 @@ test.describe('CSV import + photo upload integration', () => {
 
     // Confirm second outing
     await dialog.getByRole('button', { name: /Continue to Species/i }).click()
+
+    // First identification triggers the 61.66 MiB download gate.
+    await passModelGate(page)
     await expect(dialog.getByText(/Chukar|Jay/)).toBeVisible({ timeout: 10_000 })
     await dialog.getByRole('button', { name: 'Confirm' }).first().click()
 

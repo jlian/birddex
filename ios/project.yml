@@ -5,7 +5,7 @@ options:
     iOS: "26.0"
   xcodeVersion: "26.3"
   createIntermediateGroups: true
-  preGenCommand: scripts/gen-git-info.sh
+  preGenCommand: scripts/gen-git-info.sh && scripts/sync-birdid-assets.sh
   postGenCommand: scripts/fix-icon-ref.sh
 
 configs:
@@ -37,6 +37,17 @@ targets:
           - "$(SRCROOT)/../.git"
         outputFiles:
           - "$(SRCROOT)/WingDex/App/GitInfo.swift"
+        basedOnDependencyAnalysis: false
+      # The classifier and the prior are derived from public/, so a rebuilt
+      # blob reaches the app without anyone remembering to copy it.
+      - name: Sync Bird ID Assets
+        script: "$SRCROOT/scripts/sync-birdid-assets.sh"
+        inputFiles:
+          - "$(SRCROOT)/scripts/sync-birdid-assets.sh"
+          - "$(SRCROOT)/../public/models/text_classifier_int8.bin"
+        outputFiles:
+          - "$(SRCROOT)/WingDex/Resources/BirdID/text_classifier_int8.bin"
+          - "$(SRCROOT)/WingDex/Resources/BirdID/occurrence.bin"
         basedOnDependencyAnalysis: false
     sources:
       - path: WingDex
@@ -157,6 +168,12 @@ targets:
     platform: iOS
     sources:
       - path: WingDexTests
+        # Parity fixtures are read from disk via #filePath, never from the test
+        # bundle. Letting xcodegen sweep them in makes the 23 MiB prior a test
+        # resource, which rewrites the Resources build phases and drops
+        # Assets.xcassets from the app target, breaking the AppIcon lookup.
+        excludes:
+          - "Fixtures"
     dependencies:
       - target: WingDex
     settings:
@@ -165,6 +182,20 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: "YES"
 
+  WingDexUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: WingDexUITests
+    dependencies:
+      - target: WingDex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.wingdex.uitests
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: WingDex
+
 schemes:
   Localhost:
     build:
@@ -172,10 +203,18 @@ schemes:
         WingDex: all
     run:
       config: Localhost Debug
+      # On by default: Localhost points at a throwaway local backend, so a run
+      # should land in a signed-in app with data rather than an empty one.
+      # Untick in Xcode for a cold-start run, but change it here to make it
+      # stick, since xcodegen rewrites the scheme.
+      commandLineArguments:
+        "--auto-sign-in": true
+        "--auto-demo-data": true
     test:
       config: Localhost Debug
       targets:
         - WingDexTests
+        - WingDexUITests
     profile:
       config: Localhost Release
     analyze:
@@ -189,10 +228,14 @@ schemes:
         WingDex: all
     run:
       config: Dev Debug
+      commandLineArguments:
+        "--auto-sign-in": false
+        "--auto-demo-data": false
     test:
       config: Dev Debug
       targets:
         - WingDexTests
+        - WingDexUITests
     profile:
       config: Dev Release
     analyze:
@@ -210,6 +253,7 @@ schemes:
       config: Production Debug
       targets:
         - WingDexTests
+        - WingDexUITests
     profile:
       config: Release
     analyze:

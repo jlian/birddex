@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>WingDex client inference check</title>
+<style>
+body{font:14px ui-monospace,monospace;margin:20px;max-width:900px}
+#log{white-space:pre-wrap;line-height:1.5}
+.ok{color:#0a0}.bad{color:#c00}.hd{font-weight:bold;margin-top:12px}
+</style></head>
+<body>
+<h3>WingDex client-side inference</h3>
+<div id="log">starting...</div>
+<script type="module">
+const L = document.getElementById("log")
+const out = []
+function say(s, cls) {
+  out.push(cls ? `<span class="${cls}">${s}</span>` : s)
+  L.innerHTML = out.join("\n")
+  console.log(s)
+}
+window.__done = false
+window.__result = null
+
+try {
+  say("webgpu available: " + (!!navigator.gpu))
+
+  const ort = await import("/node_modules/onnxruntime-web/dist/ort.webgpu.bundle.min.mjs")
+  say("onnxruntime-web loaded, version " + ort.env.versions.web)
+
+  const t0 = performance.now()
+  const [mBuf, dBuf, tBuf, oBuf] = await Promise.all([
+    fetch("/models/wingclip_visual_int8.onnx").then(r => r.arrayBuffer()),
+    fetch("/models/wingclip_visual_int8.data").then(r => r.arrayBuffer()),
+    fetch("/models/text_classifier_int8.bin").then(r => r.arrayBuffer()),
+    fetch("/priors/occurrence.1fb61779.bin.gz").then(r => r.arrayBuffer()),
+  ])
+  const mb = (x) => (x.byteLength / 1048576).toFixed(2) + " MiB"
+  say(`fetched graph ${mb(mBuf)}, weights ${mb(dBuf)}, classifier ${mb(tBuf)}, prior ${mb(oBuf)}`)
+  say("download took " + Math.round(performance.now() - t0) + " ms")
+
+  // The externalData key must equal the location string inside the graph.
+  let session = null
+  let ep = null
+  for (const cand of ["webgpu", "wasm"]) {
+    try {
+      const s0 = performance.now()
+      session = await ort.InferenceSession.create(mBuf, {
+        executionProviders: [cand],
+        externalData: [{ path: "wingclip_visual_int8.data", data: new Uint8Array(dBuf) }],
+      })
+      ep = cand
+      say(`session created on ${cand} in ${Math.round(performance.now() - s0)} ms`, "ok")
+      break
+    } catch (e) {
+      say(`${cand} failed: ${String(e).slice(0, 160)}`, "bad")
+    }
+  }
+  if (!session) throw new Error("no execution provider worked")
+
+  // fp16 decode, browsers have no native half-float array.
+  const h = new Uint16Array(tBuf)
+  const text = new Float32Array(h.length)
+  for (let i = 0; i < h.length; i++) {
+    const v = h[i], s = (v & 0x8000) ? -1 : 1, e = (v >> 10) & 0x1f, f = v & 0x3ff
+    if (e === 0) text[i] = s * Math.pow(2, -14) * (f / 1024)
+    else if (e === 31) text[i] = f ? NaN : s * Infinity
+    else text[i] = s * Math.pow(2, e - 15) * (1 + f / 1024)
+  }
+  const EMBED = 768
+  const nSpecies = text.length / EMBED
+  say("text classifier " + nSpecies + " x " + EMBED)
+
+  // Run the SAME tensor the Node end-to-end test used, so the embedding is
+  // directly comparable and any browser-only difference is isolated.
+  const ref = await fetch("/parity/js_000.f32.bin").then(r => r.arrayBuffer())
+  const px = new Float32Array(ref)
+  say("input tensor " + px.length + " floats")
+
+  const t = new ort.Tensor("float32", px, [1, 3, 224, 224])
+  const r0 = performance.now()
+  const res = await session.run({ [session.inputNames[0]]: t })
+  const infMs = performance.now() - r0
+  const emb = res[session.outputNames[0]].data
+  say(`inference ${Math.round(infMs)} ms on ${ep}`, "ok")
+
+  let norm = 0
+  for (let i = 0; i < EMBED; i++) norm += emb[i] * emb[i]
+  norm = Math.sqrt(norm) || 1
+
+  let best = -1, bestI = -1
+  for (let s = 0; s < nSpecies; s++) {
+    let acc = 0
+    const base = s * EMBED
+    for (let i = 0; i < EMBED; i++) acc += text[base + i] * emb[i]
+    const c = acc / norm
+    if (c > best) { best = c; bestI = s }
+  }
+  say(`top species index ${bestI}, cosine ${best.toFixed(6)}`)
+
+  // Warm up, then time properly. A single cold run measures graph setup and
+  // kernel compilation, not steady-state inference.
+  for (let i = 0; i < 2; i++) await session.run({ [session.inputNames[0]]: t })
+  const N = 5
+  const w0 = performance.now()
+  for (let i = 0; i < N; i++) await session.run({ [session.inputNames[0]]: t })
+  const per = (performance.now() - w0) / N
+  say(`steady-state ${per.toFixed(1)} ms/image on ${ep}`, "ok")
+
+  window.__result = { ep, infMs, per, bestI, best, emb: Array.from(emb.slice(0, 16)) }
+  say("BROWSER OK", "ok")
+} catch (e) {
+  say("FAILED: " + (e && e.stack ? e.stack : String(e)), "bad")
+  window.__result = { error: String(e) }
+}
+window.__done = true
+</script>
+</body>
+</html>

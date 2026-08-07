@@ -1,6 +1,6 @@
 # WingDex
 
-A photo-first bird identification and life list tracker built on Cloudflare Workers + D1. Upload your bird photos, let AI identify the species, and build your personal WingDex over time.
+A photo-first bird identification and life list tracker. Upload your bird photos, identify the species on your device, and build your personal WingDex over time.
 
 **[Try it ->](https://wingdex.app)**
 
@@ -8,99 +8,86 @@ A photo-first bird identification and life list tracker built on Cloudflare Work
 
 ## What is WingDex?
 
-WingDex is for **reverse birding**: people who take photos first and identify species later. Instead of checklists and field guides, you upload photos you already took, and AI handles the species identification. You just confirm with a tap.
+WingDex is for **reverse birding**: people who take photos first and identify species later. Instead of checklists and field guides, you upload photos you already took, and the app identifies the birds. You just confirm with a tap.
 
-**Your photos are never stored.** They're used only during identification and immediately discarded. Upload a whole day's worth of photos at once via the **batch upload wizard**, which clusters them into outings, identifies each bird, and lets you confirm results in one flow. Every species in your WingDex links back to the outings where you saw it, and every outing links to its species in the WingDex, so you can always **cross-reference between your WingDex and your field trips**.
+**Photos never leave your device.** Identification runs entirely in the browser, or natively on iOS. There is no inference server, so there is nothing to upload a photo to.
+
+Drop a whole day's photos at once and the batch wizard clusters them into outings by time and location, identifies each bird, and lets you confirm the lot in one pass. Species link back to the outings you saw them on, and outings link forward to the species, so you can cross-reference either direction.
 
 ### Features
 
-- **Privacy-first** - Photos are never stored; all bird imagery comes from Wikipedia
-- **Batch upload** - Drop a day's photos; they're auto-grouped into outings by time/GPS proximity, merged with existing sessions, and deduplicated by hash
-- **EXIF extraction** - GPS, timestamps, and thumbnails parsed client-side
-- **AI species ID** - GPT-5.4-mini vision returns ranked candidates with confidence scores and bounding boxes, grounded against ~11,000 eBird species via range-prior filtering
-- **WingDex life list** - First/last seen, total sightings, Wikipedia imagery; searchable and sortable
-- **Species detail** - Hero image, Wikipedia summary, sighting history, and links to eBird / All About Birds
-- **Outing management** - Editable locations/notes, taxonomy autocomplete, per-observation delete, eBird CSV export, Google Maps links
-- **eBird integration** - Import/export checklists and life lists in eBird Record Format
-- **Auth** - Anonymous sessions, passkeys (WebAuthn), and social OAuth (GitHub, Google, Apple)
-- **Dark mode** - Light, dark, and system themes
-- **Saved locations** - Bookmark birding spots with geolocation and nearby outing counts
-- **Dashboard** - Stats, recent activity, and highlights at a glance
-- **iOS app** - Native companion app (see `ios/`)
+- **On-device species ID** - ~11,000 eBird species, reranked by where and when the photo was taken
+- **Private by construction** - photos are never uploaded or stored; all bird imagery comes from Wikipedia
+- **Batch upload** - photos auto-grouped into outings by time and GPS, merged with existing sessions, deduplicated by hash
+- **Life list** - first and last seen, sighting counts, searchable and sortable, with per-species detail and history
+- **eBird integration** - import and export checklists and life lists in eBird Record Format
+- **Works offline** - after the one-time model download, identification needs no network
+- **Accounts** - anonymous sessions, passkeys, and GitHub / Google / Apple sign-in
+- **iOS app** - native companion app in [`ios/`](ios/)
 
 ## How it works
 
-1. **Upload** bird photos from your device
-2. **EXIF** GPS and timestamps are extracted and photos are clustered into outings
-3. **Review** the outing, confirm date, location (auto-geocoded), and notes
-4. **AI identifies** each bird with ranked suggestions, confidence scores, and a crop box
-5. **Confirm**, accept, mark as possible, pick an alternative, re-crop, or skip
-6. **Saved** to your WingDex with species, count, and confidence
+1. **Upload** photos from your device
+2. **EXIF** GPS and timestamps are read in the browser and photos are clustered into outings
+3. **Review** the outing: date, auto-geocoded location, notes
+4. **Identify** on-device, ranked by visual similarity and then by how likely each species is at that place and time of year
+5. **Confirm** the top suggestion, pick an alternative, or skip
+6. **Saved** to your WingDex
+
+The first identification downloads about 53 MB of model files, once. After that everything is local and works offline.
+
+### Identification
+
+[WingCLIP-0.3](https://huggingface.co/johnlian/WingCLIP-0.3) is a 39M-parameter image encoder distilled from [BioCLIP-2](https://huggingface.co/imageomics/bioclip-2) via [WingCLIP-0.1](https://huggingface.co/johnlian/WingCLIP-0.1). Small enough to download once and run on a phone.
+
+Vision alone struggles to separate lookalike species, so candidates are reranked against an empirical prior over what has actually been reported in that map cell in that month. Some pairs are hard to tell apart from pixels and trivial to tell apart from geography. With that rerank the pipeline reaches 95.0 percent top-1 on a 3,322-photo held-out split.
+
+The same model, priors, and preprocessing ship on both platforms, and a golden-vector suite pins the two implementations to each other.
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|------------|
-| Platform | Cloudflare Workers, D1 (SQLite), R2 (range priors), AI Gateway |
+| Platform | Cloudflare Workers, D1 (SQLite) |
 | Frontend | React 19, TypeScript, Vite 8 |
 | Styling | Tailwind CSS 4, Radix UI primitives, Phosphor Icons |
 | Auth | better-auth (anonymous, passkeys, GitHub/Google/Apple OAuth) |
-| AI | GPT-5.4-mini (vision) via Cloudflare AI Gateway |
+| Identification | WingCLIP-0.3 via ONNX Runtime Web (browser) and Core ML (iOS) |
 | Geocoding | OpenStreetMap Nominatim |
 | Bird imagery | Wikipedia REST API |
-| Testing | Vitest (unit), Playwright (e2e) |
+| Testing | Vitest (unit), Playwright (e2e), XCTest (iOS) |
 | iOS | Swift, XcodeGen |
 
 ## Development
 
-### Prerequisites
-
-- Node 24+ (`node --version`)
-
-### Running locally
+Requires Node 24+. No API keys: identification runs on the device, and anonymous auth works out of the box.
 
 ```bash
 git clone https://github.com/jlian/wingdex.git
 cd wingdex
 npm install
+npm run db:migrate
 npm run dev
 ```
 
-`npm run dev` starts both the local API runtime (`wrangler dev` on `:8787`) and Vite HMR (`:5000`) in one command. On first run it auto-builds the worker bundle and creates `.dev.vars` from the example file.
+`npm run dev` serves Vite on `:5000` with Wrangler behind `/api/*` on `:8787`, and creates `.dev.vars` from the example on first run. `npm stop` clears stale ports. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
 
-The first time you visit the app, run `npm run db:migrate` to create the local D1 database tables.
+Run `npm run check` (lint, typecheck, unit) before pushing, and `npm run check:all` (adds e2e and a production build) when the change touches `functions/`, `e2e/`, routing, auth, or data flow. Everything runnable is in `package.json` under `scripts`.
 
-**Optional:** Fill in the AI section of `.dev.vars` to enable AI identification locally. Run `npx wrangler login` only if you want remote bindings such as R2-backed range-prior filtering during local development. The app works without either - those features just won't be available.
+| Path | Purpose |
+|------|---------|
+| `src/components/` | React components: `ui/` primitives, `pages/`, `flows/` |
+| `src/lib/` | Client-side logic, including identification and ranking |
+| `src/__tests__/` | Vitest unit and integration tests |
+| `functions/` | Cloudflare Workers API routes and shared server logic |
+| `migrations/` | D1 SQL migrations |
+| `e2e/` | Playwright specs |
+| `ios/` | Native iOS app (XcodeGen) |
+| `ml/` | Model conversion and cross-platform parity harnesses |
 
-### AI provider setup
+## Releases
 
-AI identification runs through `/api/identify-bird` via [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/). To enable it locally, fill in the AI section of your `.dev.vars` (see [.dev.vars.example](.dev.vars.example) for all options).
-
-### Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start local dev: API (`:8787`) + Vite HMR (`:5000`) |
-| `npm start` | Production-like build + serve on `:5000` |
-| `npm stop` | Stop all dev processes |
-| `npm run build` | Type-check and production build |
-| `npm run deploy` | Build and deploy to Cloudflare |
-| `npm run lint` | Lint with ESLint |
-| `npm run typecheck` | Type-check with TypeScript |
-| `npm test` | Run all Vitest tests |
-| `npm run test:e2e` | Playwright e2e tests (skips `@live` tests) |
-| `npm run test:e2e:live` | Playwright e2e tests that require AI credentials |
-| `npm run check` | Quick gate: lint + typecheck + test |
-| `npm run check:all` | Full gate: check + e2e + build |
-| `npm run db:migrate` | Apply D1 migrations to local database |
-| `npm run fixtures` | LLM fixture tools (`-- benchmark`, `-- analyze`, `-- promote`) |
-| `npm run taxonomy` | Taxonomy pipeline (`-- ebird`, `-- hydrate`, `-- validate`) |
-
-To run `@live` tests (require AI credentials): `npm run test:e2e:live`
-
-### Releases
-
-PR titles must follow Conventional Commits (e.g., `feat: add outing merge UX`, `fix: handle wiki 404 fallback`). On merge to `main`, Release Please calculates the next version, updates `CHANGELOG.md`, and creates a Git tag.
+PR titles follow Conventional Commits (`feat: add outing merge UX`, `fix: handle wiki 404 fallback`). On merge to `main`, Release Please works out the next version, updates `CHANGELOG.md`, and tags it.
 
 ## Contributing
 
@@ -109,4 +96,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 [MIT](LICENSE)
-

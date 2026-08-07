@@ -8,7 +8,12 @@ export default defineConfig({
   fullyParallel: true,
   timeout: isCI ? 15_000 : isARM ? 30_000 : 10_000,
   retries: isCI ? 1 : 0,
-  workers: isCI ? 2 : 4,
+  // ONE worker. Every spec shares a single local D1 database and the same dex,
+  // and several seed or clear it, so parallel workers corrupt each other's
+  // fixtures. The symptom was one test failing per run with the identity
+  // rotating between files, which reads as flakiness but is a data race.
+  // The suite is ~2 minutes serially, so the parallelism was not buying much.
+  workers: 1,
   reporter: isCI ? 'line' : 'list',
   use: {
     baseURL: 'http://localhost:5000',
@@ -23,7 +28,11 @@ export default defineConfig({
       : 'FORCE_RESTART=true bash scripts/dev-full.sh',
     url: 'http://localhost:5000',
     reuseExistingServer: !isCI,
-    timeout: isCI ? 45_000 : 20_000,
+    // Local needs MORE than CI, not less. CI runs `wrangler dev` against a
+    // prebuilt dist, but the local command is dev-full.sh, which rebuilds
+    // before it serves. 20s was not enough for that on any machine here, so
+    // `npm run check:all` failed at the webServer rather than at a test.
+    timeout: isCI ? 45_000 : 180_000,
   },
   projects: [
     {

@@ -1,6 +1,6 @@
 # Agent Instructions
 
-Operational context for AI coding agents. Read [CONTRIBUTING.md](../CONTRIBUTING.md) first for project setup, structure, verification commands, and commit conventions.
+Operational context for AI coding agents. Read the [README](../README.md) first for project setup, structure, and verification commands, and [CONTRIBUTING.md](../CONTRIBUTING.md) for commit and PR conventions.
 
 ## Use the Internet
 

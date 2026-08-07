@@ -20,17 +20,14 @@ final class AddPhotosViewModel {
 
     enum CropPromptContext: Equatable {
         case manualRecrop
-        case noDetection
-        case multipleBirds
+        case lowConfidence
 
         var reasonText: String {
             switch self {
             case .manualRecrop:
                 return "For best results, crop to one bird"
-            case .noDetection:
-                return "No bird species identified, crop to the bird"
-            case .multipleBirds:
-                return "Multiple birds detected, crop to one"
+            case .lowConfidence:
+                return "Not sure about this one, crop to the bird"
             }
         }
     }
@@ -103,16 +100,6 @@ final class AddPhotosViewModel {
 
     /// Per-photo results accumulated during the per-photo confirmation loop.
     var photoResults: [PhotoResult] = []
-
-    /// Progress percentage (0-100) for the exponential progress animation.
-    var photoProgress: Double = 0
-
-    /// Time constant (ms) for the exponential progress bar animation.
-    /// Fast model ~1200ms, strong model ~4400ms.
-    var photoProgressTauMs: Double = 1200
-
-    /// Incremented to restart the progress animation timer.
-    var photoProgressRunKey = 0
 
     // MARK: - Processing State
 
@@ -507,16 +494,20 @@ final class AddPhotosViewModel {
         log.info("Saved \(payloads.count) photo metadata records for outing \(outingId)")
     }
 
-    // MARK: - Step 3: Species Identification (Two-Tier AI)
+    // MARK: - Step 3: Species Identification (on-device)
 
-    /// Send a single photo to the AI for identification.
+    /// Identify a single photo with the bundled WingCLIP model.
     ///
-    /// Implements the web app's two-tier escalation strategy:
-    /// 1. Send with `model: "fast"` (~1.2s)
-    /// 2. If confidence < 0.75 OR gap between top-2 < 0.15, re-send with `model: "strong"` (~4.4s)
+    /// Runs entirely on device, so there is no network call, no rate limit and
+    /// no fast/strong escalation: there is one model and it takes milliseconds.
+    ///
+    /// Three things the server used to return and a classifier cannot: a crop
+    /// box (it sees the whole frame and localises nothing), a multiple-birds
+    /// flag (nothing here counts birds), and an empty candidate list. The
+    /// classifier ALWAYS returns 25 ranked species, so "no bird found" is not
+    /// expressible and the confidence gate replaces it.
     func runSpeciesId(photoIndex: Int, croppedImageData: Data? = nil) async {
         guard let sessionID = try? requireCurrentSession() else { return }
-        guard let service = dataService else { return }
         let photos = clusterPhotos
         guard photoIndex < photos.count else { return }
         let photo = photos[photoIndex]
@@ -524,143 +515,59 @@ final class AddPhotosViewModel {
         currentPhotoIndex = photoIndex
         error = nil
         errorRecovery = nil
-        photoProgress = 0
         currentStep = .photoProcessing
-        photoProgressTauMs = 1200
-        photoProgressRunKey += 1
 
         let isCropped = croppedImageData != nil || photo.croppedImage != nil
         let imageToSend = croppedImageData ?? photo.croppedImage ?? photo.image
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
 
         do {
-            // Compress to 640px max dimension
-            guard let uiImage = UIImage(data: imageToSend) else {
-                log.warning("Could not create UIImage for photo \(photo.id)")
-                currentCandidates = []
-                rangeAdjusted = false
-                currentStep = .perPhotoConfirm
-                return
-            }
+            let location: (lat: Double, lon: Double)? = {
+                guard useGeoContext, let lat = photo.gpsLat, let lon = photo.gpsLon else {
+                    return nil
+                }
+                return (lat: lat, lon: lon)
+            }()
+            // 1-12. The old server API took 0-11, so this deliberately does NOT
+            // subtract one: a 0 would be rejected by the v3 prior and silently
+            // drop back to vision-only.
+            let month: Int? = {
+                guard useGeoContext, let date = photo.exifTime else { return nil }
+                return Calendar.current.component(.month, from: date)
+            }()
 
-            let dataUrl = compressAndEncode(uiImage)
-            let width = Int(uiImage.size.width)
-            let height = Int(uiImage.size.height)
-
-            var request = DataService.IdentifyBirdRequest(
-                imageDataUrl: dataUrl,
-                imageWidth: width,
-                imageHeight: height,
-                model: "fast"
+            let results = try await BirdIdEngine.shared.identify(
+                imageData: imageToSend,
+                location: location,
+                month: month
             )
-
-            // Attach GPS context if enabled
-            if useGeoContext, let lat = photo.gpsLat, let lon = photo.gpsLon {
-                request.lat = lat
-                request.lon = lon
-            }
-            if useGeoContext, let date = photo.exifTime {
-                request.month = Calendar.current.component(.month, from: date) - 1
-            }
-            if useGeoContext, !lastLocationName.isEmpty {
-                request.locationName = lastLocationName
-            }
-
-            // Fast model first
-            let fastResult = try await service.identifyBird(request)
             guard isCurrentSession(sessionID) else { return }
-            let fastCandidates = (fastResult.candidates ?? []).map {
-                IdentifiedCandidate(species: $0.species, confidence: $0.confidence, wikiTitle: $0.wikiTitle, plumage: $0.plumage, rangeStatus: $0.rangeStatus)
-            }
-            let fastCropBox: CropBoxResult? = fastResult.cropBox.map {
-                CropBoxResult(x: $0.x, y: $0.y, width: $0.width, height: $0.height)
-            }
 
-            // Store AI crop box on photo if available
-            if let cropBox = fastCropBox {
-                storeCropBox(photoId: photo.id, cropBox: cropBox)
-            }
-
-            // If no bird found or multiple birds detected on full image, prompt crop
-            if !isCropped && (fastCandidates.isEmpty || (fastResult.multipleBirds ?? false)) {
-                photoProgress = 100
-                try? await Task.sleep(for: .milliseconds(240))
-                if fastResult.multipleBirds ?? false {
-                    log.info("Multiple birds detected, asking user to crop")
-                    currentCandidates = fastCandidates
-                    cropPromptContext = .multipleBirds
-                } else {
-                    log.info("No species identified, asking user to crop")
-                    currentCandidates = []
-                    cropPromptContext = .noDetection
-                }
-                currentStep = .manualCrop
-                rangeAdjusted = false
-                return
-            }
-
-            // Escalation logic: re-send with strong model if uncertain
-            let topConfidence = fastCandidates.first?.confidence ?? 0
-            let secondConfidence = fastCandidates.count >= 2 ? fastCandidates[1].confidence : 0
-            let shouldEscalate = topConfidence < 0.75
-                || (fastCandidates.count >= 2 && (topConfidence - secondConfidence) < 0.15)
-
-            var finalCandidates = fastCandidates
-            var finalCropBox = fastCropBox
-            var finalMultipleBirds = fastResult.multipleBirds ?? false
-            var finalRangeAdjusted = fastResult.rangeAdjusted ?? false
-
-            if shouldEscalate {
-                processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Re-analyzing with enhanced model..."
-                photoProgress = 0
-                photoProgressTauMs = 4400
-                photoProgressRunKey += 1
-
-                request = DataService.IdentifyBirdRequest(
-                    imageDataUrl: dataUrl,
-                    imageWidth: width,
-                    imageHeight: height,
-                    model: "strong"
+            let candidates = results.map {
+                IdentifiedCandidate(
+                    species: $0.commonName,
+                    confidence: $0.confidence,
+                    wikiTitle: nil,
+                    plumage: nil,
+                    // rangeStatus is BirdLife vocabulary. The Bayesian prior has
+                    // no notion of present or out-of-range, only a probability,
+                    // so it is omitted rather than faked from a threshold.
+                    rangeStatus: nil
                 )
-                if useGeoContext, let lat = photo.gpsLat, let lon = photo.gpsLon {
-                    request.lat = lat
-                    request.lon = lon
-                }
-                if useGeoContext, let date = photo.exifTime {
-                    request.month = Calendar.current.component(.month, from: date) - 1
-                }
-                if useGeoContext, !lastLocationName.isEmpty {
-                    request.locationName = lastLocationName
-                }
-
-                let strongResult = try await service.identifyBird(request)
-                guard isCurrentSession(sessionID) else { return }
-                finalCandidates = (strongResult.candidates ?? []).map {
-                    IdentifiedCandidate(species: $0.species, confidence: $0.confidence, wikiTitle: $0.wikiTitle, plumage: $0.plumage, rangeStatus: $0.rangeStatus)
-                }
-                finalMultipleBirds = strongResult.multipleBirds ?? false
-                finalRangeAdjusted = strongResult.rangeAdjusted ?? false
-                if let box = strongResult.cropBox {
-                    finalCropBox = CropBoxResult(x: box.x, y: box.y, width: box.width, height: box.height)
-                    storeCropBox(photoId: photo.id, cropBox: finalCropBox!)
-                }
             }
 
-            log.info("Found \(finalCandidates.count) candidates for photo \(photoIndex + 1)")
-            photoProgress = 100
-            rangeAdjusted = finalRangeAdjusted
-            try? await Task.sleep(for: .milliseconds(240))
+            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)")
+            rangeAdjusted = results.contains { $0.logP != nil }
+            currentCandidates = candidates
 
-            if finalCandidates.isEmpty && !isCropped {
-                currentCandidates = []
-                cropPromptContext = .noDetection
-                currentStep = .manualCrop
-            } else if finalMultipleBirds && !isCropped {
-                currentCandidates = finalCandidates
-                cropPromptContext = .multipleBirds
+            // The classifier always returns candidates, so an empty list can
+            // never mean "no bird". Low confidence is the only signal, and
+            // cropping an already-cropped photo would loop forever because
+            // confidence tracks SPECIES AMBIGUITY, not framing.
+            if !isCropped, shouldPromptForCrop(candidates) {
+                cropPromptContext = .lowConfidence
                 currentStep = .manualCrop
             } else {
-                currentCandidates = finalCandidates
                 cropPromptContext = .manualRecrop
                 currentStep = .perPhotoConfirm
             }
@@ -670,8 +577,7 @@ final class AddPhotosViewModel {
             log.error("Species identification failed for photo index \(photoIndex + 1)")
             self.error = AppError.map(
                 error,
-                fallback: "Could not identify this photo. Try again or skip it.",
-                rateLimit: Config.aiDailyRateLimit
+                fallback: "Could not identify this photo. Try again or skip it."
             )
             errorRecovery = .speciesIdentification(photoIndex: photoIndex, croppedImageData: croppedImageData)
             currentCandidates = []
@@ -924,33 +830,18 @@ final class AddPhotosViewModel {
     // MARK: - Helpers
 
     /// Compress a UIImage to 640px max and encode as a data URL for the API.
-    private func compressAndEncode(_ image: UIImage) -> String {
-        let maxDim: CGFloat = 640
-        let scale = min(maxDim / max(image.size.width, image.size.height), 1.0)
-        let newSize = CGSize(
-            width: image.size.width * scale,
-            height: image.size.height * scale
-        )
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let resized = renderer.jpegData(withCompressionQuality: 0.7) { context in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
-        let base64 = resized.base64EncodedString()
-        return "data:image/jpeg;base64,\(base64)"
+    /// Should the app ask the user to crop?
+    ///
+    /// Only when the top candidate is below threshold. The caller also guards
+    /// on `isCropped`, because confidence tracks species ambiguity rather than
+    /// framing (Pearson 0.051 against relative bird area), so a crop often does
+    /// not raise it and prompting again would never resolve.
+    private func shouldPromptForCrop(_ candidates: [IdentifiedCandidate]) -> Bool {
+        guard let top = candidates.first else { return true }
+        return top.confidence < BirdIdEngine.confidencePromptThreshold
     }
 
     /// Store a crop box on a photo for later use in CropView.
-    private func storeCropBox(photoId: String, cropBox: CropBoxResult) {
-        if let idx = processedPhotos.firstIndex(where: { $0.id == photoId }) {
-            processedPhotos[idx].aiCropBox = cropBox
-        }
-        // Also update within clusters
-        for ci in clusters.indices {
-            for pi in clusters[ci].photos.indices where clusters[ci].photos[pi].id == photoId {
-                clusters[ci].photos[pi].aiCropBox = cropBox
-            }
-        }
-    }
 
     private func storeCroppedImage(photoId: String?, imageData: Data) {
         guard let photoId else { return }
@@ -998,8 +889,6 @@ struct ProcessedPhoto: Identifiable {
     let gpsLon: Double?
     let fileHash: String
     let fileName: String
-    /// AI-suggested crop box (percentage coordinates), stored after identification.
-    var aiCropBox: CropBoxResult?
     /// User-confirmed cropped image used for re-analysis and preview, matching web croppedDataUrl.
     var croppedImage: Data? = nil
 }

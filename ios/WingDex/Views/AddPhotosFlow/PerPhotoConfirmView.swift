@@ -190,7 +190,7 @@ struct PerPhotoConfirmView: View {
                     .padding(.horizontal, 16)
 
                     speciesCard
-                    Text("Photos from [Wikimedia Commons](https://commons.wikimedia.org), range data from [BirdLife International](https://datazone.birdlife.org).")
+                    Text("Photos from [Wikimedia Commons](https://commons.wikimedia.org), occurrence data from [iNaturalist](https://www.inaturalist.org), factsheet from [BirdLife International](https://datazone.birdlife.org).")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .tint(.secondary)
@@ -224,31 +224,6 @@ struct PerPhotoConfirmView: View {
                 Label("Re-identify", systemImage: "sparkles")
             }
         }
-    }
-
-    private nonisolated static func aiPreviewImage(from imageData: Data, cropBox: CropBoxResult) -> UIImage? {
-        guard let uiImage = UIImage(data: imageData) else { return nil }
-        let uprightImage = uiImage.imageOrientation == .up
-            ? uiImage
-            : UIGraphicsImageRenderer(size: uiImage.size).image { _ in
-                uiImage.draw(in: CGRect(origin: .zero, size: uiImage.size))
-            }
-        guard let cgImage = uprightImage.cgImage else { return nil }
-
-        let padded = CropService.paddedSquareCrop(
-            from: CropService.CropBox(x: cropBox.x, y: cropBox.y, width: cropBox.width, height: cropBox.height),
-            naturalWidth: Double(cgImage.width),
-            naturalHeight: Double(cgImage.height)
-        )
-        let sx = max(0, min(Int(padded.x.rounded(.down)), cgImage.width - 1))
-        let sy = max(0, min(Int(padded.y.rounded(.down)), cgImage.height - 1))
-        let sw = max(1, min(Int(padded.width.rounded(.down)), cgImage.width - sx))
-        let sh = max(1, min(Int(padded.height.rounded(.down)), cgImage.height - sy))
-
-        guard let cropped = cgImage.cropping(to: CGRect(x: sx, y: sy, width: sw, height: sh)) else {
-            return nil
-        }
-        return UIImage(cgImage: cropped)
     }
 
     private func fallbackPhoto(size: CGFloat) -> some View {
@@ -371,6 +346,7 @@ struct PerPhotoConfirmView: View {
                     HStack(spacing: 4) {
                         Text(displayName)
                             .font(.title3.weight(.semibold))
+                            .accessibilityIdentifier("confirm.speciesName")
                         if let plumage = selectedPlumage, let icon = plumageIcon(plumage) {
                             Text(icon)
                                 .font(.subheadline)
@@ -384,9 +360,10 @@ struct PerPhotoConfirmView: View {
                     }
                 }
                 Spacer()
-                Text("\(confidencePercent)%")
+                Text(BirdIdEngine.formatConfidence(selectedConfidence))
                     .font(.system(.title2, weight: .bold).monospacedDigit())
                     .foregroundStyle(confidenceColor)
+                    .accessibilityIdentifier("confirm.confidence")
             }
 
             ProgressView(value: selectedConfidence)
@@ -430,7 +407,7 @@ struct PerPhotoConfirmView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(range == "out-of-range" ? .red : .orange)
                 }
-                Text("\(Int(candidate.confidence * 100))%")
+                Text(BirdIdEngine.formatConfidence(candidate.confidence))
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -465,7 +442,7 @@ struct PerPhotoConfirmView: View {
     }
 
     /// Decode user photo images off the main thread so the view body never calls UIImage(data:).
-    /// Captures only Sendable values (Data, CropBoxResult, String) into the detached task.
+    /// Captures only Sendable values into the detached task.
     private func decodeUserImages() {
         decodeTask?.cancel()
         decodedCroppedImage = nil
@@ -473,14 +450,10 @@ struct PerPhotoConfirmView: View {
         guard let currentPhoto = photo else { return }
         let photoId = currentPhoto.id
         let croppedData = currentPhoto.croppedImage
-        let fullData = currentPhoto.image
-        let cropBox = currentPhoto.aiCropBox
         let thumbData = currentPhoto.thumbnail
         decodeTask = Task.detached(priority: .userInitiated) {
             let decoded = Self.decodeImages(
                 croppedData: croppedData,
-                fullData: fullData,
-                cropBox: cropBox,
                 thumbData: thumbData
             )
             guard !Task.isCancelled else { return }
@@ -500,16 +473,9 @@ struct PerPhotoConfirmView: View {
 
     private nonisolated static func decodeImages(
         croppedData: Data?,
-        fullData: Data,
-        cropBox: CropBoxResult?,
         thumbData: Data
     ) -> DecodedImages {
-        var cropped: UIImage?
-        if let data = croppedData {
-            cropped = UIImage(data: data)
-        } else if let box = cropBox {
-            cropped = aiPreviewImage(from: fullData, cropBox: box)
-        }
+        let cropped = croppedData.flatMap { UIImage(data: $0) }
         let thumb = UIImage(data: thumbData)
         return DecodedImages(cropped: cropped, thumb: thumb)
     }

@@ -6,6 +6,7 @@ export type FlowStep =
   | 'upload'
   | 'extracting'
   | 'review'
+  | 'model-download'
   | 'photo-manual-crop'
   | 'photo-processing'
   | 'photo-confirm'

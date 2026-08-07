@@ -151,6 +151,7 @@ struct CropView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                 }
+                .accessibilityIdentifier("crop.back")
 
                 Spacer()
 

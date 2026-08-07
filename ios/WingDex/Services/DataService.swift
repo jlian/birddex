@@ -152,47 +152,6 @@ final class DataService: DataStoreService, Sendable {
         return try JSONDecoder().decode(ObservationsResponse.self, from: responseData)
     }
 
-    // MARK: - AI Identification
-
-    struct IdentifyBirdRequest: Codable {
-        let imageDataUrl: String
-        let imageWidth: Int
-        let imageHeight: Int
-        var lat: Double?
-        var lon: Double?
-        var month: Int?
-        var locationName: String?
-        let model: String
-    }
-
-    struct IdentifyBirdResponse: Codable {
-        let candidates: [BirdCandidate]?
-        let cropBox: CropBox?
-        let multipleBirds: Bool?
-        let rangeAdjusted: Bool?
-
-        struct BirdCandidate: Codable {
-            let species: String
-            let confidence: Double
-            let wikiTitle: String?
-            let plumage: String?
-            let rangeStatus: String?
-        }
-
-        struct CropBox: Codable {
-            let x: Double
-            let y: Double
-            let width: Double
-            let height: Double
-        }
-    }
-
-    func identifyBird(_ request: IdentifyBirdRequest) async throws -> IdentifyBirdResponse {
-        let data = try JSONEncoder().encode(request)
-        let responseData = try await post("api/identify-bird", body: data)
-        return try JSONDecoder().decode(IdentifyBirdResponse.self, from: responseData)
-    }
-
     // MARK: - Exports
 
     func exportSightingsCSV() async throws -> Data {

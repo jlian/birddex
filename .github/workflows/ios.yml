@@ -125,4 +125,5 @@ jobs:
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -only-testing:WingDexTests \
+            -only-testing:WingDexUITests \
             CODE_SIGNING_ALLOWED=NO

@@ -2,7 +2,7 @@
 
 Guidelines to reduce common LLM coding mistakes. Bias toward caution over speed; for trivial tasks, use judgment.
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for project setup, commit conventions, and code style.
+See the [README](../README.md) for project setup and structure, and [CONTRIBUTING.md](../CONTRIBUTING.md) for commit conventions and code style.
 
 ## Think Before Coding
 - State assumptions explicitly. If uncertain, ask.

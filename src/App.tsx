@@ -352,7 +352,6 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
     void loadAddPhotosFlow()
     void import('@/lib/photo-utils')
     void import('@/lib/clustering')
-    void import('@/lib/ai-inference')
   }, [])
 
   const handleAddPhotos = useCallback(() => {

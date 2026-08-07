@@ -19,7 +19,7 @@ export default function PrivacyPage() {
             <ul className="list-disc ml-5 space-y-0.5">
               <li><strong>Account information:</strong> Authentication credentials such as passkeys, or information from social login providers (e.g., display name, email address, and provider-issued identifiers).</li>
               <li><strong>Birding data:</strong> Observations, outings, species lists, notes, and related metadata you enter into the app.</li>
-              <li><strong>Uploaded photos:</strong> Images you submit for AI-assisted bird identification.</li>
+              <li><strong>Photos:</strong> Images you add for bird identification are processed entirely on your device. The image itself is never uploaded to us as part of identification; we store only associated metadata (capture time, GPS coordinates if present, file name) and a file fingerprint hash used for duplicate detection.</li>
               <li><strong>Imported data:</strong> Data you import from external sources such as eBird CSV exports.</li>
             </ul>
           </div>
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
           <ul className="list-disc ml-5 space-y-0.5">
             <li>Provide, operate, and maintain the WingDex application and its features</li>
             <li>Authenticate your identity and manage your account</li>
-            <li>Process bird identification requests using AI services</li>
+            <li>Identify birds from your photos on your device, without uploading the image</li>
             <li>Display species information, media, and related content</li>
             <li>Monitor and protect the security and integrity of the Service</li>
             <li>Comply with legal obligations</li>
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">4. Photo handling</h3>
-          <p>Photos submitted for AI-assisted bird identification are transmitted to server-side AI endpoints for processing. These images are used solely for generating identification results and are <strong>not</strong> retained after the request is fulfilled, except transiently during active request handling. We do not use your photos to train AI models. To prevent accidental duplicate imports, we store a file fingerprint hash and related metadata, but not the image contents.</p>
+          <p>Bird identification runs <strong>entirely on your device</strong> using a model the web app downloads once and the iOS app ships with. The photo you identify is <strong>not</strong> transmitted to us or to any third party for identification, and never leaves your device for that purpose. We do not use your photos to train AI models. To prevent accidental duplicate imports, we store a file fingerprint hash and related metadata (such as capture time and location, when present), but not the image contents.</p>
         </section>
 
         <section className="space-y-1">
@@ -54,10 +54,10 @@ export default function PrivacyPage() {
           <p>WingDex relies on third-party services to deliver its functionality. These services may receive limited data as necessary:</p>
           <ul className="list-disc ml-5 space-y-0.5">
             <li><strong>Cloudflare:</strong> Hosting, edge computing, DNS, and database infrastructure.</li>
-            <li><strong>AI / vision model providers:</strong> Photo data for bird identification, subject to their privacy policies.</li>
             <li><strong>Wikimedia / Wikipedia:</strong> Species images and descriptions fetched from Wikimedia APIs.</li>
             <li><strong>eBird / Cornell Lab of Ornithology:</strong> Taxonomy and species data for matching and display.</li>
-            <li><strong>BirdLife International:</strong> Species range distribution data used to refine identification confidence based on your photo location.</li>
+            <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
+            <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
             <li><strong>OpenStreetMap / Nominatim:</strong> Location search queries and coordinates sent for geocoding and reverse geocoding.</li>
             <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
           </ul>

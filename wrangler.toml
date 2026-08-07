@@ -18,19 +18,7 @@ database_name = "wingdex-db"
 database_id = "bb0a4504-8009-4ea3-b462-ce2b9de3d615"
 migrations_dir = "migrations"
 
-[ai]
-binding = "AI"
-remote = true
 
-[[r2_buckets]]
-binding = "RANGE_PRIORS"
-bucket_name = "wingdex-range-priors"
-# Use the production bucket during local dev so contributors don't need to
-# rebuild the 360k-blob range-prior store from the BirdLife geopackage.
-# IMPORTANT: with remote = true, any put/delete from `wrangler dev` would hit
-# production. Treat this binding as read-only in code (only `bucket.get()` is
-# used in functions/lib/range-filter.ts).
-remote = true
 
 [vars]
 
@@ -60,11 +48,4 @@ database_name = "wingdex-db-dev"
 database_id = "7299207b-ddc7-4ecd-bc36-b6838f278c78"
 migrations_dir = "migrations"
 
-[env.preview.ai]
-binding = "AI"
-remote = true
 
-[[env.preview.r2_buckets]]
-binding = "RANGE_PRIORS"
-bucket_name = "wingdex-range-priors"
-remote = true
