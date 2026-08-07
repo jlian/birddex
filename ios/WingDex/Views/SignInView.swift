@@ -37,6 +37,7 @@ struct SignInView: View {
     @Environment(DataStore.self) private var store
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isSigningIn = false
     @State private var errorMessage: String?
@@ -290,6 +291,13 @@ struct SignInView: View {
             errorMessage = auth.consumeSignInMessage()
             startParallax()
         }
+        .onChange(of: reduceMotion) { _, shouldReduceMotion in
+            if shouldReduceMotion {
+                stopParallax()
+            } else {
+                startParallax()
+            }
+        }
         .onDisappear { stopParallax() }
         }
     }
@@ -301,7 +309,10 @@ struct SignInView: View {
 
     private func startParallax() {
         let manager = Self.motionManager
-        guard manager.isDeviceMotionAvailable, !manager.isDeviceMotionActive else { return }
+        guard !reduceMotion,
+              manager.isDeviceMotionAvailable,
+              !manager.isDeviceMotionActive
+        else { return }
         gravityBaseline = nil
         manager.deviceMotionUpdateInterval = 1.0 / 30.0
         manager.startDeviceMotionUpdates(to: .main) { motion, _ in
@@ -329,6 +340,7 @@ struct SignInView: View {
     private func stopParallax() {
         Self.motionManager.stopDeviceMotionUpdates()
         gravityBaseline = nil
+        parallaxOffset = .zero
     }
 
     // MARK: - Sign-In Handler
