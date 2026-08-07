@@ -122,13 +122,16 @@ struct OccurrenceBlob: Sendable {
             var v = 0
             var b: UInt8 = 0
             repeat {
-                guard p < stop else { return out }
+                guard p < stop, shift < 35 else { return out }
                 b = raw[p]
                 p += 1
                 v |= Int(b & 0x7f) << shift
                 shift += 7
             } while (b & 0x80) != 0
-            cur += v
+            // A malformed payload must not trap the process, so overflow wraps
+            // and a negative running index ends the walk instead.
+            cur = cur &+ v
+            guard cur >= 0 else { return out }
             guard p < stop else { return out }
             let q = raw[p]
             p += 1

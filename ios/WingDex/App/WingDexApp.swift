@@ -149,6 +149,10 @@ struct MainTabView: View {
                                 dataStore: store
                             )
                         }
+                        // Opening this tab is the first sign the user intends to
+                        // identify, and paying the model load here keeps it off
+                        // launch for everyone who never does.
+                        .task { try? await BirdIdEngine.shared.warmUp() }
                 }
             } label: {
                 Label("Add", systemImage: "camera.fill")

@@ -70,8 +70,10 @@ enum BirdRanker {
 
     /// Softmax over the ranked scores, for a calibrated confidence readout.
     static func scoresToProbs(_ scored: [Scored]) -> [Double] {
-        guard let top = scored.first else { return [] }
-        let ex = scored.map { exp($0.score - top.score) }
+        // Reading position 0 as the maximum would be silently wrong for any
+        // caller that has not already sorted, and overflows exp on NaN scores.
+        guard let top = scored.map(\.score).max() else { return [] }
+        let ex = scored.map { exp($0.score - top) }
         let sum = ex.reduce(0, +)
         return ex.map { $0 / sum }
     }

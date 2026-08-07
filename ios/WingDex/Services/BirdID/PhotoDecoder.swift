@@ -64,8 +64,13 @@ enum PhotoDecoder {
                 bitsPerComponent: 8,
                 bytesPerRow: w * 4,
                 space: CGColorSpaceCreateDeviceRGB(),
-                // noneSkipLast, not premultiplied: premultiplying would scale
-                // colour by alpha and change every pixel of a transparent PNG.
+                // The context has no alpha channel, so a source with alpha is
+                // composited over black. The web reads getImageData, which is
+                // unpremultiplied, and then ignores the alpha byte. The two
+                // therefore differ for alpha-bearing PNG and HEIC; camera and
+                // library photos are JPEG or opaque HEIC and are unaffected.
+                // CGBitmapContext cannot emit unpremultiplied RGBA, so matching
+                // the canvas exactly would mean reading the provider directly.
                 bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
             ) else { return false }
             ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
