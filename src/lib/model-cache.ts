@@ -180,6 +180,12 @@ export async function assetsCached(urls: string[]): Promise<boolean> {
 
 /** Drop the cache. For a settings screen, and for testing a cold load. */
 export async function clearAssetCache(): Promise<void> {
-  const cache = await openCache()
-  if (cache) await caches.delete(CACHE_NAME)
+  // Deleting does not need openCache() to have succeeded, and tying it to that
+  // meant a cache that failed to open could never be cleared.
+  if (!("caches" in globalThis)) return
+  try {
+    await caches.delete(CACHE_NAME)
+  } catch (err) {
+    console.warn("model-cache: clearing the asset cache failed", err)
+  }
 }

@@ -25,7 +25,7 @@ import {
 } from '@/lib/bird-id-local-adapter'
 import type { AssetProgress } from '@/lib/model-cache'
 
-const MIB = 1048576
+const MB = 1_000_000
 
 export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
   const [checking, setChecking] = useState(true)
@@ -99,7 +99,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       <div>
         <h3 className="text-lg font-medium">Download the bird model</h3>
         <p className="text-muted-foreground mt-1 text-sm">
-          {(MODEL_BYTES / MIB).toFixed(0)} MB, once. After this, identification
+          {(MODEL_BYTES / MB).toFixed(0)} MB, once. After this, identification
           runs entirely on your device, works offline, and no photo ever leaves
           your phone.
         </p>
@@ -110,7 +110,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
           <Progress value={pct} />
           <p className="text-muted-foreground text-xs">
             {progress && progress.total > 0
-              ? `${(progress.loaded / MIB).toFixed(1)} of ${(progress.total / MIB).toFixed(1)} MB`
+              ? `${(progress.loaded / MB).toFixed(1)} of ${(progress.total / MB).toFixed(1)} MB`
               : "Starting..."}
           </p>
         </div>

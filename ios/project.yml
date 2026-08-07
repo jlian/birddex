@@ -203,12 +203,13 @@ schemes:
         WingDex: all
     run:
       config: Localhost Debug
-      # Unchecked by default. Tick these in Product > Scheme > Edit Scheme > Run >
-      # Arguments to skip sign-in and seed demo data. Editing them in Xcode instead
-      # would be lost the next time xcodegen regenerates the scheme.
+      # On by default: Localhost points at a throwaway local backend, so a run
+      # should land in a signed-in app with data rather than an empty one.
+      # Untick in Xcode for a cold-start run, but change it here to make it
+      # stick, since xcodegen rewrites the scheme.
       commandLineArguments:
-        "--auto-sign-in": false
-        "--auto-demo-data": false
+        "--auto-sign-in": true
+        "--auto-demo-data": true
     test:
       config: Localhost Debug
       targets:
