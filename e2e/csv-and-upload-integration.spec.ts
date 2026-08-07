@@ -198,6 +198,11 @@ test.describe('CSV import + photo upload integration', () => {
   })
 
   test('full photo upload flow: upload → AI identify → confirm → saved to WingDex', async ({ page }) => {
+    // This is the only test in CI that downloads the 62 MiB model and runs
+    // inference. The default budget is 15s on CI and 30s here, which the
+    // download alone can exceed, and the waits below ask for far more than
+    // that, so without this they are unreachable and the test dies mid-gate.
+    test.slow()
     await mockNominatim(page, 'Haleakala National Park, Maui')
     await mockWikimedia(page)
 

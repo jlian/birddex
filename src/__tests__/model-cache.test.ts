@@ -61,6 +61,17 @@ beforeEach(() => {
       put: async (url: string, res: { arrayBuffer: () => Promise<ArrayBuffer> }) => {
         store.set(url, await res.arrayBuffer())
       },
+      // preloadAssets prunes after every run. Without these the prune threw
+      // "cache.keys is not a function", was swallowed by its own try/catch,
+      // and the path went untested while warning on every call.
+      keys: async () =>
+        [...store.keys()].map(u => ({ url: new URL(u, location.href).href })),
+      delete: async (req: { url: string }) => {
+        for (const k of store.keys()) {
+          if (new URL(k, location.href).href === req.url) return store.delete(k)
+        }
+        return false
+      },
     }),
     delete: async () => { store.clear(); return true },
   })
