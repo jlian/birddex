@@ -608,15 +608,20 @@ floor value rather than a guarantee.
 
 ### Model registry
 
+**The chain is BioCLIP-2 → WingCLIP-0.1 → WingCLIP-0.3.** BioCLIP-2 is the
+grand-teacher of 0.3, not its teacher. Its 86.41 is a two-step-removed
+comparison. Read retention against WingCLIP-0.1 instead, and see
+[F4](#phase-f-shrink-the-model-to-clear-the-size-gate) for why the teacher changed.
+
 | name | what | run | result |
 |---|---|---|---|
 | `WingCLIP-0.1-alpha` | full ViT-B distill, 0.1 recipe | `full7555_vitb` | val_cos 0.9650 · NABirds 81.83 |
 | `WingCLIP-0.1-beta` | 0.1-alpha + ground-truth fine-tune | `ft_clean_01` | GT-val 77.61 |
 | **`WingCLIP-0.1`** | **0.1-beta + WiSE-FT alpha 0.90** | `ft_clean_01` | **NABirds 89.93** |
 | `WingCLIP-0.2-alpha` | full ViT-B distill, 0.2 recipe | `full7555_locked_ep25` | NABirds 78.4 · retired, see C6 |
-| `WingCLIP-0.3-alpha` | full TinyCLIP-39M distill | `full7555_tiny39` | val_cos 0.9436 |
+| `WingCLIP-0.3-alpha` | full TinyCLIP-39M distill, teacher WingCLIP-0.1, see [F4](#phase-f-shrink-the-model-to-clear-the-size-gate) | `full7555_tiny39` | val_cos 0.9436 |
 | `WingCLIP-0.3-beta` | 0.3-alpha + ground-truth fine-tune on fresh photos | `ft_tiny39_fresh` | see the alpha sweep |
-| **`WingCLIP-0.3`** | **0.3-beta + WiSE-FT alpha 0.60. THIS IS WHAT SHIPS.** | `ft_tiny39_fresh/wise_a0.60.pt` | **NABirds 86.90**, beating teacher BioCLIP-2 at 86.41, at 38.3M params against 86.6M |
+| **`WingCLIP-0.3`** | **0.3-beta + WiSE-FT alpha 0.60. THIS IS WHAT SHIPS.** | `ft_tiny39_fresh/wise_a0.60.pt` | **NABirds 86.90** at 38.3M params. Retains 96.6% of its TEACHER WingCLIP-0.1 (89.93, 86.6M) and beats the GRAND-teacher BioCLIP-2 (86.41, 304.0M) |
 
 ### Measured results
 
