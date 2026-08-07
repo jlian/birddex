@@ -120,8 +120,9 @@ export default function OutingReview({
     ? new Date(overriddenStartTime.getTime() + (cluster.endTime.getTime() - cluster.startTime.getTime()))
     : cluster.endTime
 
-  // Check if these photos match an existing outing
-  const matchingOuting = findMatchingOuting(cluster, data.outings)
+  // Match against outings that existed when this review began. A newly saved
+  // outing must not become its own "existing outing" while confirmation runs.
+  const [matchingOuting] = useState(() => findMatchingOuting(cluster, data.outings))
   const [useExistingOuting, setUseExistingOuting] = useState(!!matchingOuting)
 
   const fetchLocationName = useCallback(async (lat: number, lon: number) => {
