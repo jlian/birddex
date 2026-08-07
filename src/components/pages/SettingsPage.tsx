@@ -57,6 +57,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [deleteStep, setDeleteStep] = useState<'choose' | 'confirm-account' | null>(null)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
   const [useGeoContext, setUseGeoContext] = useState(() => {
     const stored = localStorage.getItem('wingdex_useGeoContext')
     return stored === null ? true : stored === 'true'
@@ -818,14 +819,19 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <Button variant="outline" onClick={() => setDeleteStep('choose')}>Go back</Button>
+                    <Button variant="outline" disabled={isDeletingAccount} onClick={() => setDeleteStep('choose')}>Go back</Button>
                     <Button
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      disabled={isDeletingAccount}
                       onClick={async () => {
+                        setIsDeletingAccount(true)
                         try {
-                          const result = await authClient.deleteUser()
-                          if (result.error) {
-                            toast.error(result.error.message || 'Failed to delete account')
+                          const response = await fetchWithLocalAuthRetry('/api/auth/delete-account', {
+                            method: 'POST',
+                          })
+                          if (!response.ok) {
+                            const message = await response.text().catch(() => '')
+                            toast.error(message || 'Failed to delete account')
                             return
                           }
                           data.clearAllData()
@@ -834,10 +840,12 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                           onSignedOut?.()
                         } catch {
                           toast.error('Failed to delete account')
+                        } finally {
+                          setIsDeletingAccount(false)
                         }
                       }}
                     >
-                      Delete my account forever
+                      {isDeletingAccount ? 'Deleting account...' : 'Delete my account forever'}
                     </Button>
                   </AlertDialogFooter>
                 </>
