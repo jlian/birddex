@@ -43,13 +43,17 @@ if [[ ${#PRIORS[@]} -ne 1 ]]; then
 fi
 PRIOR="${PRIORS[0]}"
 
-# Only rewrite when the source is newer, so this stays cheap on every build.
-if [[ ! -f "$DEST/text_classifier_int8.bin" || "$CLASSIFIER" -nt "$DEST/text_classifier_int8.bin" ]]; then
+# Rewrite only when the bytes actually differ. mtime is not enough: a preserved
+# or restored workspace can leave a stale generated file with a newer timestamp
+# than freshly checked-out sources, silently bundling old classifier/prior data
+# against a new Core ML model. Content comparison is the same guard used for
+# taxonomy.json below.
+if [[ ! -f "$DEST/text_classifier_int8.bin" ]] || ! cmp -s "$CLASSIFIER" "$DEST/text_classifier_int8.bin"; then
   cp "$CLASSIFIER" "$DEST/text_classifier_int8.bin"
   echo "copied text_classifier_int8.bin"
 fi
 
-if [[ ! -f "$DEST/occurrence.bin" || "$PRIOR" -nt "$DEST/occurrence.bin" ]]; then
+if [[ ! -f "$DEST/occurrence.bin" ]] || ! gunzip -c "$PRIOR" | cmp -s - "$DEST/occurrence.bin"; then
   gunzip -c "$PRIOR" > "$DEST/occurrence.bin"
   echo "decompressed $(basename "$PRIOR") -> occurrence.bin"
 fi
