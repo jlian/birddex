@@ -222,6 +222,15 @@ binary, cut on the client, keeps the file count low. Cloudflare Pages permits
 
 ---
 
+
+## Phase H: post-ship research
+
+Queued after the on-device cutover. Nothing here blocks a ship.
+
+| ID | Title | Description | ● | Findings |
+|----|-------|-------------|---|----------|
+| H1 | Train against the co-occurrence signal the prior cannot use | Designed 2026-07-21, half-built, then lost: `distill/build_cooccurrence.py` is committed and its docstring states the idea, but it is wired into NOTHING. `train_student.py` has zero references to it, and the recipe sweep listed co-occurrence weighting as an axis that no run ever used. The argument is stronger now than when it was written: vision-only scores 81.10 and the geo/month prior takes it to 95.09, so the reranker is carrying **14 points**. But a prior can only separate species that DIFFER geographically. For a confusable pair sharing the same cells in the same month it contributes nothing and the encoder is alone, which is exactly the residual error. Hard-example weighting targets pairs that are both visually confusable (teacher-embedding similarity) AND geographically co-occurring (the `jaccard` column that script already emits) | ⬜ | **Queued.** Build the missing half: pair visual confusability from teacher embeddings with `cooccurrence.parquet`, then weight the distillation loss toward those pairs. **Do NOT score this on overall NABirds top-1.** Overall accuracy can barely move while the targeted subset improves a lot, so the run needs its own metric: top-1 restricted to confusable co-occurring pairs, measured before and after. Without that metric the experiment cannot answer its own question. Needs a retrain, so it is a real cost, not a cheap sweep arm |
+
 ## Follow-ups after the cutover
 
 Recorded so they do not become folklore.
