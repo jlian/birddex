@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import OutingReview from '@/components/flows/OutingReview'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 import type { Outing } from '@/lib/types'
@@ -36,6 +36,10 @@ function createDataStore(): WingDexDataStore {
 }
 
 describe('OutingReview', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('does not offer a newly created outing as an existing outing while confirming', async () => {
     const data = createDataStore()
     data.addOuting = vi.fn(async (outing: Outing) => {
@@ -76,6 +80,66 @@ describe('OutingReview', () => {
     )
 
     expect(screen.queryByText('Add to existing outing?')).not.toBeInTheDocument()
+
+    await act(async () => finishConfirmation())
+  })
+
+  it('does not restart GPS lookup when the default location changes while confirming', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{
+        category: 'leisure',
+        type: 'park',
+        name: 'Discovery Park',
+        address: { city: 'Seattle', state: 'Washington' },
+      }],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const data = createDataStore()
+    let finishConfirmation: () => void = () => undefined
+    const onConfirm = vi.fn(() => new Promise<void>(resolve => {
+      finishConfirmation = resolve
+    }))
+    const cluster = {
+      photos: [],
+      startTime: new Date('2026-08-07T12:00:00Z'),
+      endTime: new Date('2026-08-07T13:00:00Z'),
+      centerLat: 47.6573,
+      centerLon: -122.4055,
+    }
+
+    const { rerender } = render(
+      <OutingReview
+        cluster={cluster}
+        data={data}
+        userId="user-1"
+        defaultLocationName="Previous location"
+        autoLookupGps
+        onConfirm={onConfirm}
+      />,
+    )
+
+    await screen.findByText('Discovery Park, Seattle, Washington')
+    expect(fetchMock).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce())
+
+    rerender(
+      <OutingReview
+        cluster={cluster}
+        data={data}
+        userId="user-1"
+        defaultLocationName="Discovery Park, Seattle, Washington"
+        autoLookupGps
+        onConfirm={onConfirm}
+      />,
+    )
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(screen.queryByText('Identifying location from GPS...')).not.toBeInTheDocument()
 
     await act(async () => finishConfirmation())
   })

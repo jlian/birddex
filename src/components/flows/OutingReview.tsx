@@ -85,6 +85,7 @@ export default function OutingReview({
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
   const preparedOutingRef = useRef<Outing | null>(null)
+  const defaultLocationNameRef = useRef(defaultLocationName)
   const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
@@ -290,7 +291,7 @@ export default function OutingReview({
       debug('geocoding', 'Reverse geocoding failed')
       toast.warning('Could not look up location name, using coordinates instead')
       // Fall back to default location or coordinate string
-      const fallback = defaultLocationName || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
+      const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
       debug('geocoding', 'Using location fallback')
       setSuggestedLocation(fallback)
       setLocationName(fallback)
@@ -299,7 +300,7 @@ export default function OutingReview({
     } finally {
       setIsLoadingLocation(false)
     }
-  }, [defaultLocationName])
+  }, [])
 
   // Automatically look up location name from GPS when enabled
   useEffect(() => {
