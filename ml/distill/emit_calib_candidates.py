@@ -26,6 +26,26 @@ def log(m):
     print("[" + time.strftime("%H:%M:%S") + "] " + str(m), flush=True)
 
 
+
+# --- DCT scaled decode, opt-in via the CAP env var ---------------------
+# libjpeg can decode at 1/1, 1/2, 1/4 or 1/8 scale straight from the DCT
+# coefficients, so the full-size bitmap is never materialized. PIL exposes
+# it as im.draft(). It only snaps to those fractions, so the result is the
+# smallest power-of-two reduction that stays at or above the cap; the
+# normal preprocess resize then finishes the job.
+#
+# CAP=500 answers the shipping-path question: is decoding straight to
+# ~500px lossy next to a full decode followed by one resize?
+_CAP = int(os.environ.get("CAP", "0"))
+
+
+def _open_image(path):
+    im = Image.open(path)
+    if _CAP > 0:
+        # draft() must run BEFORE load(), and no-ops for non-JPEG.
+        im.draft("RGB", (_CAP, _CAP))
+    return im.convert("RGB")
+
 def load_student(checkpoint, distill_dir, device):
     sys.path.insert(0, distill_dir)
     from train_student import Student
@@ -122,7 +142,7 @@ def main():
             missing += 1
             continue
         try:
-            im = Image.open(path).convert("RGB")
+            im = _open_image(path)
         except Exception:
             missing += 1
             continue

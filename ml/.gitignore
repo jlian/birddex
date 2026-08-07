@@ -30,3 +30,10 @@ ml-mobileclip/
 *.npz
 *.npy
 *.duckdb
+
+# Held-out originals re-downloaded from iNat at full size for the preprocessing
+# study. ~3.5 GB, regenerable: distill/fetch_large.py + val_ids_seed0.json.
+heldout-orig/
+heldout-orig-corpus/
+val_ids_seed0.json
+val_split_seed0.json
