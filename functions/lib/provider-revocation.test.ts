@@ -135,15 +135,23 @@ describe('provider revocation', () => {
 })
 
 describe('Apple native token capture', () => {
+  const idToken = (subject: string) => [
+    'header',
+    btoa(JSON.stringify({ sub: subject })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_'),
+    'signature',
+  ].join('.')
+
   it('exchanges an authorization code for stored revocation credentials', async () => {
     const fetcher = vi.fn<Fetcher>(async () => Response.json({
       access_token: 'access',
       refresh_token: 'refresh',
+      id_token: idToken('apple-subject-1'),
     }))
 
     await expect(exchangeAppleAuthorizationCode('one-time-code', 'app-secret', fetcher)).resolves.toEqual({
       accessToken: 'access',
       refreshToken: 'refresh',
+      subject: 'apple-subject-1',
     })
     expect(String(fetcher.mock.calls[0][1]?.body)).toContain('code=one-time-code')
   })
@@ -168,10 +176,12 @@ describe('Apple native token capture', () => {
     await expect(storeNativeAppleRevocationCredentials(db, 'user-1', {
       accessToken: 'native-access',
       refreshToken: 'native-refresh',
+      subject: 'apple-subject-1',
     })).resolves.toBe(true)
 
     expect(statements[0].sql).toContain("providerId = 'apple'")
-    expect(statements[0].values).toEqual(['user-1'])
+    expect(statements[0].sql).toContain('accountId = ?2')
+    expect(statements[0].values).toEqual(['user-1', 'apple-subject-1'])
     expect(statements[1].sql).toContain('INSERT INTO apple_native_revocation_credential')
     expect(statements[1].sql).not.toContain('UPDATE account')
     expect(statements[1].values).toEqual([
@@ -179,5 +189,40 @@ describe('Apple native token capture', () => {
       'native-access',
       'native-refresh',
     ])
+  })
+
+  it('rejects token responses without an Apple subject', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => Response.json({
+      access_token: 'access',
+      refresh_token: 'refresh',
+      id_token: idToken(''),
+    }))
+
+    await expect(exchangeAppleAuthorizationCode('one-time-code', 'app-secret', fetcher)).rejects.toEqual(
+      new ProviderRevocationError('apple', 'Apple token response omitted a valid subject'),
+    )
+  })
+
+  it('does not store credentials when the Apple subject is not linked', async () => {
+    let inserted = false
+    const db = {
+      prepare(sql: string) {
+        return {
+          bind() { return this },
+          async first() { return null },
+          async run() {
+            if (sql.includes('INSERT INTO apple_native_revocation_credential')) inserted = true
+            return { meta: { changes: 1 } }
+          },
+        }
+      },
+    } as unknown as D1Database
+
+    await expect(storeNativeAppleRevocationCredentials(db, 'user-1', {
+      accessToken: 'native-access',
+      refreshToken: 'native-refresh',
+      subject: 'different-apple-subject',
+    })).resolves.toBe(false)
+    expect(inserted).toBe(false)
   })
 })

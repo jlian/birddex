@@ -171,6 +171,23 @@ export async function revokeProvidersAndDeleteUser(
 export interface AppleTokenResponse {
   accessToken: string
   refreshToken: string
+  subject: string
+}
+
+function appleSubject(idToken: string): string {
+  const payload = idToken.split('.')[1]
+  if (!payload) {
+    throw new ProviderRevocationError('apple', 'Apple token response omitted a valid subject')
+  }
+  try {
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+      .padEnd(Math.ceil(payload.length / 4) * 4, '=')
+    const decoded = JSON.parse(atob(base64)) as { sub?: unknown }
+    if (typeof decoded.sub === 'string' && decoded.sub.length > 0) return decoded.sub
+  } catch {
+    // Report malformed token responses consistently below.
+  }
+  throw new ProviderRevocationError('apple', 'Apple token response omitted a valid subject')
 }
 
 export async function storeNativeAppleRevocationCredentials(
@@ -179,8 +196,9 @@ export async function storeNativeAppleRevocationCredentials(
   tokens: AppleTokenResponse,
 ): Promise<boolean> {
   const account = await db.prepare(
-    `SELECT id FROM account WHERE userId = ?1 AND providerId = 'apple'`
-  ).bind(userId).first<{ id: string }>()
+    `SELECT id FROM account
+     WHERE userId = ?1 AND providerId = 'apple' AND accountId = ?2`
+  ).bind(userId, tokens.subject).first<{ id: string }>()
   if (!account) return false
 
   await db.prepare(
@@ -213,9 +231,17 @@ export async function exchangeAppleAuthorizationCode(
   if (!response.ok) {
     throw new ProviderRevocationError('apple', 'Apple authorization code exchange failed', response.status)
   }
-  const body = await response.json() as { access_token?: string; refresh_token?: string }
-  if (!body.access_token || !body.refresh_token) {
+  const body = await response.json() as {
+    access_token?: string
+    refresh_token?: string
+    id_token?: string
+  }
+  if (!body.access_token || !body.refresh_token || !body.id_token) {
     throw new ProviderRevocationError('apple', 'Apple token response omitted revocation credentials')
   }
-  return { accessToken: body.access_token, refreshToken: body.refresh_token }
+  return {
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token,
+    subject: appleSubject(body.id_token),
+  }
 }
