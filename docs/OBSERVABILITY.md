@@ -105,6 +105,7 @@ Logs must never include:
 - outbound geocoding URLs (which contain the provider key), raw place queries, or coordinates
 
 Geocoding logs only route-level completion status and result counts. WingDex does not cache provider responses or log upstream URLs and payloads.
+Automatic Worker invocation logs are disabled because request URLs can contain place queries or coordinates; structured application logs remain enabled.
 
 Geoapify Free currently allows 3,000 credits per day and 5 requests per second. A submitted place search costs one credit. A GPS suggestion costs one Places credit and, only when no named outdoor place is found, one reverse-geocoding credit. Monitor the Geoapify project dashboard and upgrade before normal daily usage approaches the quota; repeated quota pressure or abuse should trigger an authenticated per-user limit rather than global coordination infrastructure.
 
