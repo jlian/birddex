@@ -21,6 +21,8 @@ struct OutingReviewView: View {
     @State private var locationName = ""
     @State private var isLoadingLocation = false
     @State private var suggestedLocation = ""
+    @State private var locationAttribution: GeocodingResult.Attribution?
+    @State private var suggestedLocationAttribution: GeocodingResult.Attribution?
 
     /// Extracted ISO 3166-2 state/province code from geocoding.
     @State private var inferredStateProvince: String?
@@ -276,6 +278,7 @@ struct OutingReviewView: View {
                 && suggestedLocation != locationSearchQuery {
                 Button("Use GPS: \(suggestedLocation)") {
                     locationName = suggestedLocation
+                    locationAttribution = suggestedLocationAttribution
                     dismissLocationSearch()
                 }
                 .font(.subheadline)
@@ -308,15 +311,18 @@ struct OutingReviewView: View {
             if !suggestedLocation.isEmpty && suggestedLocation != locationName {
                 Button("Use GPS: \(suggestedLocation)") {
                     locationName = suggestedLocation
+                    locationAttribution = suggestedLocationAttribution
                 }
                 .font(.subheadline)
             }
         }
 
-        Link("Location data © OpenStreetMap contributors", destination: URL(string: "https://www.openstreetmap.org/copyright")!)
-            .font(.footnote)
-            .tint(Color.foregroundText)
-            .accessibilityIdentifier("outing.locationAttribution")
+        if let locationAttribution {
+            Link(locationAttribution.label, destination: locationAttribution.url)
+                .font(.footnote)
+                .tint(Color.foregroundText)
+                .accessibilityIdentifier("outing.locationAttribution")
+        }
     }
 
     private func dismissLocationSearch() {
@@ -356,6 +362,8 @@ struct OutingReviewView: View {
         didInitialize = false
         locationName = ""
         suggestedLocation = ""
+        locationAttribution = nil
+        suggestedLocationAttribution = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
         overriddenStartTime = nil
@@ -425,6 +433,8 @@ struct OutingReviewView: View {
             if let result {
                 locationName = result.label
                 suggestedLocation = result.label
+                locationAttribution = result.attribution
+                suggestedLocationAttribution = result.attribution
                 inferredStateProvince = result.stateProvince
                 inferredCountryCode = result.countryCode
             } else {
@@ -445,6 +455,8 @@ struct OutingReviewView: View {
             : viewModel.lastLocationName
         locationName = fallback
         suggestedLocation = fallback
+        locationAttribution = nil
+        suggestedLocationAttribution = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
     }
@@ -484,6 +496,8 @@ struct OutingReviewView: View {
         }
         locationName = result.label
         suggestedLocation = result.label
+        locationAttribution = result.attribution
+        suggestedLocationAttribution = result.attribution
         inferredCountryCode = result.countryCode
         inferredStateProvince = result.stateProvince
         dismissLocationSearch()
@@ -493,6 +507,7 @@ struct OutingReviewView: View {
         let name = locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         locationName = name
+        locationAttribution = nil
         overriddenCoords = nil
         inferredCountryCode = nil
         inferredStateProvince = nil
