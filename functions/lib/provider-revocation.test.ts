@@ -4,6 +4,7 @@ import {
   ProviderRevocationError,
   revokeProviderAccount,
   revokeProvidersAndDeleteUser,
+  storeNativeAppleRevocationCredentials,
   type ProviderAccount,
 } from './provider-revocation'
 
@@ -11,6 +12,8 @@ type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respons
 
 const env = {
   APPLE_APP_CLIENT_SECRET: 'apple-app-secret',
+  APPLE_CLIENT_ID: 'app.wingdex.signin',
+  APPLE_CLIENT_SECRET: 'apple-web-secret',
   GITHUB_CLIENT_ID: 'github-client',
   GITHUB_CLIENT_SECRET: 'github-secret',
   GOOGLE_CLIENT_ID: 'google-client',
@@ -18,14 +21,40 @@ const env = {
 }
 
 describe('provider revocation', () => {
-  it('revokes an Apple refresh token for the native app client', async () => {
+  it('revokes a web Apple token with its Services ID credentials', async () => {
     const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 200 }))
     await revokeProviderAccount({ providerId: 'apple', refreshToken: 'refresh' }, env, fetcher)
 
     const [url, init] = fetcher.mock.calls[0]
     expect(url).toBe('https://appleid.apple.com/auth/revoke')
-    expect(String(init?.body)).toContain('client_id=app.wingdex')
+    expect(String(init?.body)).toContain('client_id=app.wingdex.signin')
+    expect(String(init?.body)).toContain('client_secret=apple-web-secret')
     expect(String(init?.body)).toContain('token_type_hint=refresh_token')
+  })
+
+  it('revokes a native Apple token with its bundle ID credentials', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 200 }))
+    await revokeProviderAccount({
+      providerId: 'apple',
+      nativeRefreshToken: 'native-refresh',
+    }, env, fetcher)
+
+    expect(String(fetcher.mock.calls[0][1]?.body)).toContain('client_id=app.wingdex')
+    expect(String(fetcher.mock.calls[0][1]?.body)).toContain('client_secret=apple-app-secret')
+    expect(String(fetcher.mock.calls[0][1]?.body)).toContain('token=native-refresh')
+  })
+
+  it('revokes both web and native Apple grants with their issuing clients', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 200 }))
+    await revokeProviderAccount({
+      providerId: 'apple',
+      refreshToken: 'web-refresh',
+      nativeRefreshToken: 'native-refresh',
+    }, env, fetcher)
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(String(fetcher.mock.calls[0][1]?.body)).toContain('client_id=app.wingdex.signin')
+    expect(String(fetcher.mock.calls[1][1]?.body)).toContain('client_id=app.wingdex')
   })
 
   it('treats already-invalid Google and missing GitHub grants as idempotent success', async () => {
@@ -117,5 +146,38 @@ describe('Apple native token capture', () => {
       refreshToken: 'refresh',
     })
     expect(String(fetcher.mock.calls[0][1]?.body)).toContain('code=one-time-code')
+  })
+
+  it('stores native credentials separately from Better Auth web tokens', async () => {
+    const statements: Array<{ sql: string; values: unknown[] }> = []
+    const db = {
+      prepare(sql: string) {
+        const statement = { sql, values: [] as unknown[] }
+        statements.push(statement)
+        return {
+          bind(...values: unknown[]) {
+            statement.values = values
+            return this
+          },
+          async first() { return { id: 'apple-account-1' } },
+          async run() { return { meta: { changes: 1 } } },
+        }
+      },
+    } as unknown as D1Database
+
+    await expect(storeNativeAppleRevocationCredentials(db, 'user-1', {
+      accessToken: 'native-access',
+      refreshToken: 'native-refresh',
+    })).resolves.toBe(true)
+
+    expect(statements[0].sql).toContain("providerId = 'apple'")
+    expect(statements[0].values).toEqual(['user-1'])
+    expect(statements[1].sql).toContain('INSERT INTO apple_native_revocation_credential')
+    expect(statements[1].sql).not.toContain('UPDATE account')
+    expect(statements[1].values).toEqual([
+      'apple-account-1',
+      'native-access',
+      'native-refresh',
+    ])
   })
 })

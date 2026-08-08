@@ -2,10 +2,14 @@ export interface ProviderAccount {
   providerId: string
   accessToken?: string | null
   refreshToken?: string | null
+  nativeAccessToken?: string | null
+  nativeRefreshToken?: string | null
 }
 
 type ProviderEnv = Pick<Env,
   | 'APPLE_APP_CLIENT_SECRET'
+  | 'APPLE_CLIENT_ID'
+  | 'APPLE_CLIENT_SECRET'
   | 'GITHUB_CLIENT_ID'
   | 'GITHUB_CLIENT_SECRET'
   | 'GOOGLE_CLIENT_ID'
@@ -35,23 +39,49 @@ function requiredToken(account: ProviderAccount): string {
   return token
 }
 
-async function revokeApple(account: ProviderAccount, env: ProviderEnv, fetcher: Fetcher): Promise<void> {
-  if (!env.APPLE_APP_CLIENT_SECRET) {
-    throw new ProviderRevocationError('apple', 'Native Apple revocation is not configured')
-  }
+async function revokeAppleToken(
+  account: ProviderAccount,
+  clientId: string,
+  clientSecret: string,
+  fetcher: Fetcher,
+): Promise<void> {
   const token = requiredToken(account)
   const response = await fetcher('https://appleid.apple.com/auth/revoke', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: 'app.wingdex',
-      client_secret: env.APPLE_APP_CLIENT_SECRET,
+      client_id: clientId,
+      client_secret: clientSecret,
       token,
       token_type_hint: account.refreshToken ? 'refresh_token' : 'access_token',
     }),
   })
   if (!response.ok) {
     throw new ProviderRevocationError('apple', 'Apple credential revocation failed', response.status)
+  }
+}
+
+async function revokeApple(account: ProviderAccount, env: ProviderEnv, fetcher: Fetcher): Promise<void> {
+  const hasWebCredential = !!(account.refreshToken || account.accessToken)
+  const hasNativeCredential = !!(account.nativeRefreshToken || account.nativeAccessToken)
+  if (!hasWebCredential && !hasNativeCredential) requiredToken(account)
+
+  if (hasWebCredential) {
+    if (!env.APPLE_CLIENT_ID || !env.APPLE_CLIENT_SECRET) {
+      throw new ProviderRevocationError('apple', 'Web Apple revocation is not configured')
+    }
+    await revokeAppleToken(account, env.APPLE_CLIENT_ID, env.APPLE_CLIENT_SECRET, fetcher)
+  }
+
+  if (hasNativeCredential) {
+    if (!env.APPLE_APP_CLIENT_SECRET) {
+      throw new ProviderRevocationError('apple', 'Native Apple revocation is not configured')
+    }
+    await revokeAppleToken({
+      providerId: 'apple',
+      accessToken: account.nativeAccessToken,
+      refreshToken: account.nativeRefreshToken,
+    }, 'app.wingdex', env.APPLE_APP_CLIENT_SECRET, fetcher)
   }
 }
 
@@ -118,7 +148,15 @@ export async function revokeProvidersAndDeleteUser(
   fetcher: Fetcher = fetch,
 ): Promise<number> {
   const accounts = await db
-    .prepare('SELECT providerId, accessToken, refreshToken FROM account WHERE userId = ?')
+    .prepare(
+      `SELECT account.providerId, account.accessToken, account.refreshToken,
+              native.accessToken AS nativeAccessToken,
+              native.refreshToken AS nativeRefreshToken
+       FROM account
+       LEFT JOIN apple_native_revocation_credential AS native
+         ON native.authAccountId = account.id
+       WHERE account.userId = ?`
+    )
     .bind(userId)
     .all<ProviderAccount>()
 
@@ -133,6 +171,28 @@ export async function revokeProvidersAndDeleteUser(
 export interface AppleTokenResponse {
   accessToken: string
   refreshToken: string
+}
+
+export async function storeNativeAppleRevocationCredentials(
+  db: D1Database,
+  userId: string,
+  tokens: AppleTokenResponse,
+): Promise<boolean> {
+  const account = await db.prepare(
+    `SELECT id FROM account WHERE userId = ?1 AND providerId = 'apple'`
+  ).bind(userId).first<{ id: string }>()
+  if (!account) return false
+
+  await db.prepare(
+    `INSERT INTO apple_native_revocation_credential
+       (authAccountId, accessToken, refreshToken, updatedAt)
+     VALUES (?1, ?2, ?3, datetime('now'))
+     ON CONFLICT(authAccountId) DO UPDATE SET
+       accessToken = excluded.accessToken,
+       refreshToken = excluded.refreshToken,
+       updatedAt = excluded.updatedAt`
+  ).bind(account.id, tokens.accessToken, tokens.refreshToken).run()
+  return true
 }
 
 export async function exchangeAppleAuthorizationCode(

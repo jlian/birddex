@@ -106,6 +106,15 @@ async function claimRequest(db: D1Database, cacheKey: string, ownerId: string, n
   return (result.meta.changes || 0) > 0
 }
 
+async function renewClaim(db: D1Database, cacheKey: string, ownerId: string): Promise<boolean> {
+  const result = await db.prepare(
+    `UPDATE geocoding_inflight
+     SET expiresAt = ?1
+     WHERE cacheKey = ?2 AND ownerId = ?3`
+  ).bind(Date.now() + FLIGHT_TTL_MS, cacheKey, ownerId).run()
+  return (result.meta.changes || 0) > 0
+}
+
 async function waitForClaimOrCache<T>(db: D1Database, cacheKey: string, ownerId: string): Promise<T | null> {
   while (true) {
     const now = Date.now()
@@ -122,14 +131,15 @@ async function waitForClaimOrCache<T>(db: D1Database, cacheKey: string, ownerId:
   }
 }
 
-async function acquireUpstreamLease(db: D1Database): Promise<void> {
+async function acquireUpstreamLease(db: D1Database, maintainOwnership: () => Promise<boolean>): Promise<boolean> {
   while (true) {
+    if (!await maintainOwnership()) return false
     const now = Date.now()
     const result = await db
       .prepare('UPDATE geocoding_rate_limit SET nextAllowedAt = ?1 WHERE id = 1 AND nextAllowedAt <= ?2')
       .bind(now + UPSTREAM_INTERVAL_MS, now)
       .run()
-    if ((result.meta.changes || 0) > 0) return
+    if ((result.meta.changes || 0) > 0) return maintainOwnership()
 
     const row = await db
       .prepare('SELECT nextAllowedAt FROM geocoding_rate_limit WHERE id = 1')
@@ -190,27 +200,81 @@ async function requestNominatim<T>(
   })
 
   try {
-    await acquireUpstreamLease(db)
-    const response = await fetcher(url, {
-      headers: {
-        Accept: 'application/json',
-        'Accept-Language': 'en',
-        'User-Agent': USER_AGENT,
-      },
-    })
-    if (!response.ok) {
-      const retryAfter = response.headers.get('Retry-After') || undefined
-      if (retryAfter) await extendRateLimit(db, retryAfter)
-      throw new GeocodingUpstreamError(response.status, retryAfter)
+    const ownsClaim = await acquireUpstreamLease(
+      db,
+      () => renewClaim(db, cacheKey, ownerId),
+    )
+    if (!ownsClaim) return requestNominatim(db, path, params, fetcher, log)
+
+    const cachedAfterWait = await readCached<T>(db, cacheKey, Date.now())
+    if (cachedAfterWait !== null) return cachedAfterWait
+    if (!await renewClaim(db, cacheKey, ownerId)) {
+      return requestNominatim(db, path, params, fetcher, log)
     }
 
-    const body = await response.json() as T
-    await db.prepare(
-      `INSERT INTO geocoding_cache (cacheKey, response, expiresAt)
-       VALUES (?1, ?2, ?3)
-       ON CONFLICT(cacheKey) DO UPDATE SET response = excluded.response, expiresAt = excluded.expiresAt`
-    ).bind(cacheKey, JSON.stringify(body), Date.now() + CACHE_TTL_MS).run()
-    return body
+    const controller = new AbortController()
+    let lostOwnership = false
+    let heartbeat = Promise.resolve()
+    const heartbeatTimer = setInterval(() => {
+      heartbeat = heartbeat.then(async () => {
+        if (!await renewClaim(db, cacheKey, ownerId)) {
+          lostOwnership = true
+          controller.abort()
+        }
+      })
+    }, Math.floor(FLIGHT_TTL_MS / 3))
+
+    let shouldRejoin = false
+    let result: T | undefined
+    try {
+      let response: Response | undefined
+      try {
+        response = await fetcher(url, {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Language': 'en',
+            'User-Agent': USER_AGENT,
+          },
+          signal: controller.signal,
+        })
+      } catch (error) {
+        if (lostOwnership) {
+          shouldRejoin = true
+        } else {
+          throw error
+        }
+      }
+
+      if (response) {
+        if (lostOwnership || !await renewClaim(db, cacheKey, ownerId)) {
+          shouldRejoin = true
+        } else if (!response.ok) {
+          const retryAfter = response.headers.get('Retry-After') || undefined
+          if (retryAfter) await extendRateLimit(db, retryAfter)
+          throw new GeocodingUpstreamError(response.status, retryAfter)
+        } else {
+          const body = await response.json() as T
+          if (lostOwnership || !await renewClaim(db, cacheKey, ownerId)) {
+            shouldRejoin = true
+          } else {
+            await db.prepare(
+              `INSERT INTO geocoding_cache (cacheKey, response, expiresAt)
+               VALUES (?1, ?2, ?3)
+               ON CONFLICT(cacheKey) DO UPDATE SET response = excluded.response, expiresAt = excluded.expiresAt`
+            ).bind(cacheKey, JSON.stringify(body), Date.now() + CACHE_TTL_MS).run()
+            result = body
+          }
+        }
+      }
+    } finally {
+      clearInterval(heartbeatTimer)
+      await heartbeat
+    }
+
+    if (lostOwnership || shouldRejoin || result === undefined) {
+      return requestNominatim(db, path, params, fetcher, log)
+    }
+    return result
   } finally {
     await db
       .prepare('DELETE FROM geocoding_inflight WHERE cacheKey = ? AND ownerId = ?')
