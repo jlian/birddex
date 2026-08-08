@@ -137,6 +137,11 @@ final class BirdIdFlowUITests: XCTestCase {
         let selectedLabel = firstResult.label
         firstResult.tap()
         XCTAssertEqual(locationName.label, selectedLabel)
+        continueButton.tap()
+        XCTAssertTrue(
+            app.staticTexts["confirm.speciesName"].waitForExistence(timeout: 180),
+            "Selected place was not persisted before species confirmation"
+        )
     }
 
     func testGeocodingFailureFallsBackToCoordinatesAndAllowsManualEntry() {
