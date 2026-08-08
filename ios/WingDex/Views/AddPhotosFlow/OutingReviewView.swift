@@ -214,6 +214,7 @@ struct OutingReviewView: View {
             TextField("Search for a place...", text: $locationSearchQuery)
                 .textFieldStyle(.plain)
                 .autocorrectionDisabled()
+                .accessibilityIdentifier("outing.locationSearch")
                 .focused($isLocationFieldFocused)
                 .onSubmit {
                     submitPlaceSearch()
@@ -236,6 +237,7 @@ struct OutingReviewView: View {
                 }
             }
             .disabled(locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSearchingPlace)
+            .accessibilityIdentifier("outing.locationSearchSubmit")
 
             ForEach(placeResults) { item in
                 Button {
@@ -248,6 +250,7 @@ struct OutingReviewView: View {
                     .contentShape(Rectangle())
                 }
                 .tint(.primary)
+                .accessibilityIdentifier("outing.locationResult")
             }
 
             if !locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -270,6 +273,7 @@ struct OutingReviewView: View {
             HStack {
                 Text(locationName.isEmpty ? "Tap to set location" : locationName)
                     .foregroundStyle(locationName.isEmpty ? .secondary : .primary)
+                    .accessibilityIdentifier("outing.locationName")
                 Spacer()
                 Button {
                     isEditingLocation = true
@@ -293,6 +297,7 @@ struct OutingReviewView: View {
 
         Link("Location data © OpenStreetMap contributors", destination: URL(string: "https://www.openstreetmap.org/copyright")!)
             .font(.caption)
+            .accessibilityIdentifier("outing.locationAttribution")
     }
 
     private func dismissLocationSearch() {
@@ -379,6 +384,13 @@ struct OutingReviewView: View {
                 isLoadingLocation = false
             }
         }
+
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-failure") {
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+            return
+        }
+        #endif
 
         do {
             let result = try await GeocodingService(auth: auth).reverse(latitude: roundedLat, longitude: roundedLon)
