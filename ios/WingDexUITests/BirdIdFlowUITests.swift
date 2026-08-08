@@ -136,6 +136,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
         let locationName = app.staticTexts["outing.locationName"]
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
+        let gpsLabel = locationName.label
         locationName.tap()
         let searchField = app.textFields["outing.locationSearch"]
         XCTAssertTrue(scrollUntilVisible(searchField, in: app))
@@ -155,6 +156,11 @@ final class BirdIdFlowUITests: XCTestCase {
             scrollUntilVisible(app.descendants(matching: .any)["outing.locationSourceAttribution"], in: app),
             "Selected search result did not retain source attribution"
         )
+        let useGPS = app.buttons["Use GPS: \(gpsLabel)"]
+        XCTAssertTrue(scrollUntilVisible(useGPS, in: app), "Selecting a search result replaced the GPS suggestion")
+        useGPS.tap()
+        XCTAssertEqual(locationName.label, gpsLabel)
+        XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
         continueButton.tap()
         XCTAssertTrue(
             app.staticTexts["confirm.speciesName"].waitForExistence(timeout: 180),
@@ -183,8 +189,16 @@ final class BirdIdFlowUITests: XCTestCase {
         let useEnteredName = app.buttons["Use entered name without searching"]
         XCTAssertTrue(scrollUntilVisible(useEnteredName, in: app))
         useEnteredName.tap()
-        XCTAssertEqual(locationName.label, "Manual Test Location")
-        XCTAssertFalse(app.descendants(matching: .any)["outing.locationAttribution"].exists)
+        XCTAssertTrue(
+            waitUntil(timeout: 5) { locationName.label == "Manual Test Location" },
+            "Manual location name was not applied"
+        )
+        XCTAssertTrue(
+            waitUntil(timeout: 5) {
+                !app.descendants(matching: .any)["outing.locationAttribution"].exists
+            },
+            "Manual location retained provider attribution"
+        )
     }
 
     func testDismissingOutingReviewCancelsDelayedGeocoding() {

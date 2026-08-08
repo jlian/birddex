@@ -25,6 +25,8 @@ struct OutingReviewView: View {
     @State private var locationSecondaryAttribution: GeocodingResult.Attribution?
     @State private var suggestedLocationAttribution: GeocodingResult.Attribution?
     @State private var suggestedLocationSecondaryAttribution: GeocodingResult.Attribution?
+    @State private var suggestedStateProvince: String?
+    @State private var suggestedCountryCode: String?
 
     /// Extracted ISO 3166-2 state/province code from geocoding.
     @State private var inferredStateProvince: String?
@@ -276,12 +278,10 @@ struct OutingReviewView: View {
                 .font(.subheadline)
             }
 
-            if !suggestedLocation.isEmpty && suggestedLocation != locationName
+            if !suggestedLocation.isEmpty && (overriddenCoords != nil || suggestedLocation != locationName)
                 && suggestedLocation != locationSearchQuery {
                 Button("Use GPS: \(suggestedLocation)") {
-                    locationName = suggestedLocation
-                    locationAttribution = suggestedLocationAttribution
-                    locationSecondaryAttribution = suggestedLocationSecondaryAttribution
+                    restoreSuggestedLocation()
                     dismissLocationSearch()
                 }
                 .font(.subheadline)
@@ -311,11 +311,9 @@ struct OutingReviewView: View {
                 isEditingLocation = true
             }
 
-            if !suggestedLocation.isEmpty && suggestedLocation != locationName {
+            if !suggestedLocation.isEmpty && (overriddenCoords != nil || suggestedLocation != locationName) {
                 Button("Use GPS: \(suggestedLocation)") {
-                    locationName = suggestedLocation
-                    locationAttribution = suggestedLocationAttribution
-                    locationSecondaryAttribution = suggestedLocationSecondaryAttribution
+                    restoreSuggestedLocation()
                 }
                 .font(.subheadline)
             }
@@ -383,6 +381,8 @@ struct OutingReviewView: View {
         locationSecondaryAttribution = nil
         suggestedLocationAttribution = nil
         suggestedLocationSecondaryAttribution = nil
+        suggestedStateProvince = nil
+        suggestedCountryCode = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
         overriddenStartTime = nil
@@ -456,6 +456,8 @@ struct OutingReviewView: View {
                 locationSecondaryAttribution = result.secondaryAttribution
                 suggestedLocationAttribution = result.attribution
                 suggestedLocationSecondaryAttribution = result.secondaryAttribution
+                suggestedStateProvince = result.stateProvince
+                suggestedCountryCode = result.countryCode
                 inferredStateProvince = result.stateProvince
                 inferredCountryCode = result.countryCode
             } else {
@@ -480,6 +482,8 @@ struct OutingReviewView: View {
         locationSecondaryAttribution = nil
         suggestedLocationAttribution = nil
         suggestedLocationSecondaryAttribution = nil
+        suggestedStateProvince = nil
+        suggestedCountryCode = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
     }
@@ -518,14 +522,20 @@ struct OutingReviewView: View {
             overriddenCoords = coordinate
         }
         locationName = result.label
-        suggestedLocation = result.label
         locationAttribution = result.attribution
         locationSecondaryAttribution = result.secondaryAttribution
-        suggestedLocationAttribution = result.attribution
-        suggestedLocationSecondaryAttribution = result.secondaryAttribution
         inferredCountryCode = result.countryCode
         inferredStateProvince = result.stateProvince
         dismissLocationSearch()
+    }
+
+    private func restoreSuggestedLocation() {
+        locationName = suggestedLocation
+        locationAttribution = suggestedLocationAttribution
+        locationSecondaryAttribution = suggestedLocationSecondaryAttribution
+        inferredStateProvince = suggestedStateProvince
+        inferredCountryCode = suggestedCountryCode
+        overriddenCoords = nil
     }
 
     private func useEnteredLocationName() {
