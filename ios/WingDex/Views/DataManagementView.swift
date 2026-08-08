@@ -17,19 +17,23 @@ struct DataManagementView: View {
         Form {
             // Delete All Data
             Section {
-                Button("Delete All Data", role: .destructive) {
+                Button("Delete All Data") {
                     showingDeleteDataConfirmation = true
                 }
+                .foregroundStyle(Color.foregroundText)
             } footer: {
                 Text("Removes all your outings, observations, and species data. Your account and login credentials are kept.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.mutedText)
             }
 
             // Delete Account & All Data (two-stage)
             if auth.userId != nil {
                 Section {
-                    Button("Delete Account & All Data", role: .destructive) {
+                    Button("Delete Account & All Data") {
                         showingDeleteAccountStep1 = true
                     }
+                    .foregroundStyle(Color.foregroundText)
                     .disabled(isDeleting)
                     .alert(
                         "Delete your entire account?",
@@ -69,6 +73,8 @@ struct DataManagementView: View {
                     }
                 } footer: {
                     Text("Permanently deletes your account, login credentials, passkeys, and all data. You will be signed out immediately.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.mutedText)
                 }
             }
         }

@@ -170,7 +170,7 @@ struct SettingsView: View {
             if !profile.name.isEmpty {
                 HStack {
                     Text("Welcome,")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.foregroundText)
 
                     Button {
                         let newName = FunNames.generateBirdName()
@@ -178,10 +178,14 @@ struct SettingsView: View {
                         profile.save(name: newName, image: FunNames.emojiAvatarDataUrl(emoji))
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.secondary)
+                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("Generate a new display name")
 
                     Text(profile.name)
                         .fontWeight(.medium)
@@ -192,10 +196,14 @@ struct SettingsView: View {
                         isEditingName = true
                     } label: {
                         Image(systemName: "pencil")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.secondary)
+                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("Edit display name")
                 }
                 .alert("Update Display Name", isPresented: $isEditingName) {
                     TextField("Display name", text: $editedName)
@@ -230,8 +238,8 @@ struct SettingsView: View {
                             }
                         } label: {
                             Text(verbatim: emoji)
-                                .font(.system(size: 24))
-                                .frame(width: 36, height: 36)
+                                .font(.title2)
+                                .frame(width: 44, height: 44)
                                 .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay(
@@ -241,6 +249,8 @@ struct SettingsView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Use \(emoji) avatar")
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
                 .padding(.vertical, 2)
@@ -309,6 +319,8 @@ struct SettingsView: View {
             Text("Bird Identification")
         } footer: {
             Text("Uses photo location and month on this device to improve identification. WingDex may forward rounded coordinates to OpenStreetMap to suggest an outing location, and exact coordinates are saved by WingDex with your outing and photo metadata.")
+                .font(.footnote)
+                .foregroundStyle(Color.mutedText)
         }
     }
 
@@ -335,7 +347,7 @@ struct SettingsView: View {
                 DataManagementView()
             } label: {
                 Label("Delete Data...", systemImage: "trash")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.foregroundText)
             }
         }
     }
