@@ -204,7 +204,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
     ...(Object.keys(socialProviders).length > 0 ? { socialProviders } : {}),
     user: {
       deleteUser: {
-        enabled: true,
+        enabled: false,
       },
     },
     account: {
