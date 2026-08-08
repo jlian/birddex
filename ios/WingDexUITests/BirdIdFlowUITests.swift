@@ -164,4 +164,27 @@ final class BirdIdFlowUITests: XCTestCase {
         app.buttons["Use entered name without searching"].tap()
         XCTAssertEqual(locationName.label, "Manual Test Location")
     }
+
+    func testDismissingOutingReviewCancelsDelayedGeocoding() {
+        let app = launchApp(extraArguments: ["--ui-test-geocoding-delay"])
+        XCTAssertTrue(
+            app.staticTexts["Identifying location from GPS..."].waitForExistence(timeout: 120),
+            "Delayed reverse geocoding never started"
+        )
+
+        app.buttons["Close"].tap()
+        XCTAssertTrue(app.alerts["Discard progress?"].waitForExistence(timeout: 5))
+        app.alerts["Discard progress?"].buttons["Discard"].tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 5) {
+                !app.buttons["Close"].exists
+                    && !app.staticTexts["Identifying location from GPS..."].exists
+            },
+            "Wizard did not dismiss"
+        )
+
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertFalse(app.staticTexts["outing.locationName"].exists)
+        XCTAssertFalse(app.staticTexts["Identifying location from GPS..."].exists)
+    }
 }
