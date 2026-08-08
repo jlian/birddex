@@ -91,6 +91,8 @@ struct OutingReviewView: View {
             } footer: {
                 if hasGps {
                     Text("Coordinates are saved with your outing and photo metadata. Rounded coordinates may be sent to OpenStreetMap to suggest a location name.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.mutedText)
                 }
             }
 
@@ -101,14 +103,22 @@ struct OutingReviewView: View {
 
             // Location name with inline place search
             if !useExistingOuting {
-                Section("Location") {
+                Section {
                     locationSection
+                } header: {
+                    Text("Location")
+                        .font(.headline)
+                        .foregroundStyle(Color.foregroundText)
                 }
             }
 
             // Photo thumbnails grid
-            Section("Photos (\(cluster?.photos.count ?? 0))") {
+            Section {
                 photoGridSection
+            } header: {
+                Text("Photos (\(cluster?.photos.count ?? 0))")
+                    .font(.headline)
+                    .foregroundStyle(Color.foregroundText)
             }
         }
         .formStyle(.grouped)
@@ -272,15 +282,21 @@ struct OutingReviewView: View {
             // Static display with pencil to edit
             HStack {
                 Text(locationName.isEmpty ? "Tap to set location" : locationName)
-                    .foregroundStyle(locationName.isEmpty ? .secondary : .primary)
+                    .font(.body)
+                    .foregroundStyle(locationName.isEmpty ? Color.mutedText : Color.foregroundText)
                     .accessibilityIdentifier("outing.locationName")
                 Spacer()
                 Button {
                     isEditingLocation = true
                 } label: {
-                    Image(systemName: "pencil")
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.foregroundText)
+                        .frame(width: 44, height: 44)
                 }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Edit location")
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -296,7 +312,8 @@ struct OutingReviewView: View {
         }
 
         Link("Location data © OpenStreetMap contributors", destination: URL(string: "https://www.openstreetmap.org/copyright")!)
-            .font(.caption)
+            .font(.footnote)
+            .tint(Color.foregroundText)
             .accessibilityIdentifier("outing.locationAttribution")
     }
 
