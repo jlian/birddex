@@ -1,0 +1,21 @@
+# Content Rights and Attribution Worksheet
+
+Use this ledger for App Review's content-rights question and for release audits. Repository references document implemented attribution; they do not replace the source terms.
+
+| Source | WingDex use | Implemented attribution or license evidence | Submission status |
+|---|---|---|---|
+| WingCLIP model | On-device bird image encoder | Project model documentation identifies WingCLIP-0.3 and its BioCLIP-2/TinyCLIP lineage; model artifacts ship locally | **Confirm** final model-card licenses and redistribution rights |
+| iNaturalist Open Data | Distillation photos and geographic occurrence prior | Identification UI credits iNaturalist occurrence data; model documentation records open-data training source | **Confirm** corpus manifest contains only accepted photo licenses and all required notices |
+| Wikimedia Commons / Wikipedia | Species reference images and descriptions | Identification and species views link to Wikimedia/Wikipedia and display source/license text where available | **Confirm** API-derived per-file author/license requirements are preserved for every displayed asset |
+| eBird / Cornell Lab | Taxonomy names/codes and user CSV interoperability | Settings and documentation identify eBird import/export; no claim of eBird endorsement | **Confirm** taxonomy redistribution and trademark wording against current eBird terms |
+| BirdLife International | Optional species factsheet links and factsheet IDs | UI labels and links BirdLife International; no BirdLife range dataset ships | **Confirm** factsheet-ID/link use and non-commercial restrictions |
+| OpenStreetMap / Nominatim | Explicit place search and rounded-coordinate reverse geocoding | Web and iOS show linked `Location data © OpenStreetMap contributors`; privacy policy identifies OSMF/Nominatim; results are cached | **Confirm** ODbL attribution placement and public API use remain acceptable at expected production volume |
+| WingDex app source and original design | Application code, copy, and original assets | Repository is MIT-licensed | Ready, subject to owner confirmation of authorship |
+
+## Release checks
+
+- [ ] Review the final app's Settings, outing review, species detail, and identification screens for visible attribution.
+- [ ] Verify attribution remains visible at accessibility text sizes and in dark mode.
+- [ ] Preserve third-party notices required by the final model and data artifacts in the distributed app or linked legal page.
+- [ ] Record the exact model, taxonomy, occurrence-prior, and source-data versions used by the submitted build.
+- [ ] Obtain owner confirmation that WingDex remains within every non-commercial restriction relied upon by the model/data pipeline.
