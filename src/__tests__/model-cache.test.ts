@@ -25,15 +25,15 @@ const TOTAL = Object.values(FILES).reduce((a, b) => a + b, 0)
 
 let store: Map<string, ArrayBuffer>
 let networkCalls: number
+let cacheWrites: number
 
-function fakeResponse(bytes: number) {
+function fakeResponse(bytes: number, status = 200, headers: Record<string, string> = {}) {
   const buf = new ArrayBuffer(bytes)
   let sent = 0
   const res = {
-    ok: true,
-    status: 200,
-    headers: { get: (k: string) => (k === 'content-length' ? String(bytes) : null) },
-    clone: () => fakeResponse(bytes),
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: (key: string) => headers[key] ?? (key === 'content-length' ? String(bytes) : null) },
     arrayBuffer: async () => buf,
     body: {
       getReader: () => ({
@@ -52,6 +52,7 @@ function fakeResponse(bytes: number) {
 beforeEach(() => {
   store = new Map()
   networkCalls = 0
+  cacheWrites = 0
   vi.stubGlobal('caches', {
     open: async () => ({
       match: async (url: string) => {
@@ -59,6 +60,7 @@ beforeEach(() => {
         return b ? fakeResponse(b.byteLength) : undefined
       },
       put: async (url: string, res: { arrayBuffer: () => Promise<ArrayBuffer> }) => {
+        cacheWrites++
         store.set(url, await res.arrayBuffer())
       },
       // preloadAssets prunes after every run. Without these the prune threw
@@ -120,6 +122,87 @@ describe('model asset cache', () => {
     const out = await preloadAssets(URLS)
     expect(out.size).toBe(4)
     expect(networkCalls).toBe(4)
+    expect(cacheWrites).toBe(4)
+  })
+
+  it('retries a transient network failure and caches the successful response once', async () => {
+    let attempts = 0
+    vi.stubGlobal('fetch', async (url: string) => {
+      networkCalls++
+      attempts++
+      if (attempts === 1) throw new TypeError('Failed to fetch')
+      return fakeResponse(FILES[url] ?? 1024)
+    })
+
+    const { preloadAssets } = await import('@/lib/model-cache')
+    await preloadAssets([URLS[0]])
+
+    expect(networkCalls).toBe(2)
+    expect(cacheWrites).toBe(1)
+  })
+
+  it('retries a retryable HTTP status', async () => {
+    let attempts = 0
+    vi.stubGlobal('fetch', async (url: string) => {
+      networkCalls++
+      attempts++
+      return attempts === 1
+        ? fakeResponse(0, 503, { 'Retry-After': '0' })
+        : fakeResponse(FILES[url] ?? 1024)
+    })
+
+    const { preloadAssets } = await import('@/lib/model-cache')
+    await preloadAssets([URLS[0]])
+
+    expect(networkCalls).toBe(2)
+  })
+
+  it('does not retry a permanent HTTP status and names the failed asset', async () => {
+    vi.stubGlobal('fetch', async () => {
+      networkCalls++
+      return fakeResponse(0, 404)
+    })
+
+    const { preloadAssets } = await import('@/lib/model-cache')
+    await expect(preloadAssets([URLS[0]])).rejects.toThrow(
+      'wingclip_visual_int8.onnx download failed after 1 attempt: HTTP 404',
+    )
+    expect(networkCalls).toBe(1)
+    expect(cacheWrites).toBe(0)
+  })
+
+  it('keeps progress monotonic when a streamed attempt fails and retries', async () => {
+    let attempts = 0
+    vi.stubGlobal('fetch', async (url: string) => {
+      networkCalls++
+      attempts++
+      if (attempts === 1) {
+        let reads = 0
+        return {
+          ...fakeResponse(FILES[url] ?? 1024),
+          body: {
+            getReader: () => ({
+              read: async () => {
+                reads++
+                if (reads === 1) return { done: false, value: new Uint8Array(512) }
+                throw new TypeError('connection reset')
+              },
+            }),
+          },
+        }
+      }
+      return fakeResponse(FILES[url] ?? 1024)
+    })
+
+    const { preloadAssets } = await import('@/lib/model-cache')
+    const seen: number[] = []
+    await preloadAssets([URLS[0]], progress => seen.push(progress.loaded))
+
+    expect(networkCalls).toBe(2)
+    for (let index = 1; index < seen.length; index++) {
+      expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1])
+    }
+    expect(seen.at(-1)).toBe(FILES[URLS[0]])
   })
 
   it('makes ZERO network calls on a warm load', async () => {
