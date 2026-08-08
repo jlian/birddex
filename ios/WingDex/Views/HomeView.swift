@@ -8,6 +8,7 @@ struct HomeView: View {
     @Environment(\.showWingDex) private var showWingDex
     @Environment(\.showOutings) private var showOutings
     @Environment(\.showSettings) private var showSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var committedSpeciesEntry: DexEntry?
     @State private var actionDestination: OutingActionDestination?
 
@@ -28,6 +29,8 @@ struct HomeView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showSettings() } label: {
                             AvatarView(imageURL: auth.userImage, name: auth.userName, size: 40)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel("Settings")
                         }
                         // WHY negative padding: shifts the avatar closer to the trailing edge
                         // to match Apple Music's profile button position. Without this, the
@@ -116,11 +119,11 @@ struct HomeView: View {
 
             VStack(spacing: 12) {
                 Text("Got bird pics?")
-                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                    .font(.system(.largeTitle, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
 
                 Text("Upload your photos, ID the birds, and build your WingDex.")
-                    .font(.system(size: 16))
+                    .font(.body)
                     .foregroundStyle(Color.mutedText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -131,10 +134,10 @@ struct HomeView: View {
             } label: {
                 Label {
                     Text("Upload & Identify")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.body.weight(.medium))
                 } icon: {
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 16))
+                        .font(.body)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -154,10 +157,10 @@ struct HomeView: View {
             Section {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("\(store.dex.count)")
-                        .font(.system(size: 48, weight: .semibold, design: .serif))
+                        .font(.system(.largeTitle, design: .serif, weight: .semibold))
                         .foregroundStyle(Color.foregroundText)
                     Text("species observed")
-                        .font(.system(size: 18, design: .serif))
+                        .font(.system(.title3, design: .serif))
                         .italic()
                         .foregroundStyle(Color.mutedText)
                 }
@@ -173,9 +176,9 @@ struct HomeView: View {
                     } label: {
                         HStack(spacing: 5) {
                             Text("Recent Species")
-                                .font(.system(size: 18, weight: .semibold, design: .serif))
+                                .font(.system(.title3, design: .serif, weight: .semibold))
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                         }
                         .foregroundStyle(Color.foregroundText)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,7 +190,8 @@ struct HomeView: View {
                     GeometryReader { geo in
                         let spacing: CGFloat = 10
                         let padding: CGFloat = 16
-                        let cardSize = (geo.size.width - padding * 2 - spacing * 2) / 2.25
+                        let visibleCards: CGFloat = dynamicTypeSize.isAccessibilitySize ? 1.1 : 2.25
+                        let cardSize = (geo.size.width - padding * 2 - spacing * 2) / visibleCards
                         SpeciesCarousel(
                             entries: recentSpecies,
                             store: store,
@@ -198,7 +202,7 @@ struct HomeView: View {
                         )
                         .frame(height: cardSize)
                     }
-                    .aspectRatio(2.25, contentMode: .fit)
+                    .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1.1 : 2.25, contentMode: .fit)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                 }
@@ -213,9 +217,9 @@ struct HomeView: View {
                     } label: {
                         HStack(spacing: 5) {
                             Text("Recent Outings")
-                                .font(.system(size: 18, weight: .semibold, design: .serif))
+                                .font(.system(.title3, design: .serif, weight: .semibold))
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                         }
                         .foregroundStyle(Color.foregroundText)
                         .frame(maxWidth: .infinity, alignment: .leading)

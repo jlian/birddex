@@ -387,35 +387,19 @@ struct BirdRow: View {
 
 // MARK: - Species Card
 
-/// Square gradient-overlay species card for horizontal scroll (Home recent species).
-/// Image fills the card with species name overlaid at the bottom with gradient.
+/// Square image card for the Home recent-species carousel.
+/// The UIKit carousel cell owns its scalable caption and accessibility behavior.
 struct SpeciesCard: View {
     let entry: DexEntry
     var size: CGFloat = 120
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            BirdThumbnail(url: entry.thumbnailUrl, size: size, cornerRadius: 0)
-                .frame(width: size, height: size)
-
-            // Gradient overlay
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.6)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-
-            Text(getDisplayName(entry.speciesName))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineLimit(2)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 8)
-        }
+        BirdThumbnail(url: entry.thumbnailUrl, size: size, cornerRadius: 0)
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 
@@ -447,9 +431,9 @@ struct OutingRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(outing.locationName.isEmpty ? "Outing" : outing.locationName)
-                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 if let observation {
                     HStack(spacing: 4) {
@@ -462,11 +446,11 @@ struct OutingRow: View {
                         Text(observation.certainty.rawValue.capitalized)
                             .foregroundStyle(observation.certainty == .possible ? .orange : Color.mutedText)
                     }
-                    .font(.system(size: 13))
+                    .font(.caption)
                     .foregroundStyle(Color.mutedText)
                 } else {
                     Text("\(DateFormatting.formatDate(outing.startTime, style: .medium)) \u{00B7} \(speciesNames.count) species")
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .foregroundStyle(Color.mutedText)
                 }
 
@@ -475,9 +459,9 @@ struct OutingRow: View {
                         speciesNames.prefix(2).map { getDisplayName($0) }.joined(separator: ", ")
                         + (speciesNames.count > 2 ? " +\(speciesNames.count - 2) more" : "")
                     )
-                    .font(.system(size: 13))
+                    .font(.caption)
                     .foregroundStyle(Color.mutedText)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 }
             }
         }
@@ -493,8 +477,8 @@ struct OutingRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
             Image(systemName: "mappin")
-                .font(.system(size: 14))
-                .foregroundStyle(Color.mutedText.opacity(0.5))
+                .font(.body)
+                .foregroundStyle(Color.mutedText)
                 .frame(width: 48, height: 48)
                 .background(Color.warmBorder.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 8))

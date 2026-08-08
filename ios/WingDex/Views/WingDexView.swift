@@ -139,6 +139,8 @@ struct WingDexView: View {
 
                 Button { showSettings() } label: {
                     AvatarView(imageURL: auth.userImage, name: auth.userName, size: 40)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Settings")
                 }
             }
             .padding(.trailing, -12)
