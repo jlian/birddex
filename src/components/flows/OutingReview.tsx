@@ -54,6 +54,8 @@ export default function OutingReview({
   const preparedOutingRef = useRef<Outing | null>(null)
   const defaultLocationNameRef = useRef(defaultLocationName)
   const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
+  const [locationAttribution, setLocationAttribution] = useState<GeocodingResult['attribution'] | null>(null)
+  const [suggestedLocationAttribution, setSuggestedLocationAttribution] = useState<GeocodingResult['attribution'] | null>(null)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
 
@@ -102,7 +104,9 @@ export default function OutingReview({
       
       debug('geocoding', 'Location identified')
       setSuggestedLocation(result.label)
+      setSuggestedLocationAttribution(result.attribution)
       setLocationName(result.label)
+      setLocationAttribution(result.attribution)
       setInferredStateProvince(result.stateProvince)
       setInferredCountryCode(result.countryCode)
     } catch (error) {
@@ -112,7 +116,9 @@ export default function OutingReview({
       const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
       debug('geocoding', 'Using location fallback')
       setSuggestedLocation(fallback)
+      setSuggestedLocationAttribution(null)
       setLocationName(fallback)
+      setLocationAttribution(null)
       setInferredStateProvince(undefined)
       setInferredCountryCode(undefined)
     } finally {
@@ -216,6 +222,12 @@ export default function OutingReview({
 
   const searchAbortRef = useRef<AbortController | null>(null)
 
+  const cancelPlaceSearch = useCallback(() => {
+    searchAbortRef.current?.abort()
+    searchAbortRef.current = null
+    setIsSearchingPlace(false)
+  }, [])
+
   const searchPlace = useCallback(async (query: string) => {
     if (!query.trim()) return
     searchAbortRef.current?.abort()
@@ -226,19 +238,22 @@ export default function OutingReview({
       const results = await searchPlaces(query, controller.signal)
       if (!controller.signal.aborted) setPlaceResults(results)
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
+      if (controller.signal.aborted) return
       debug('geocoding', 'Place search failed')
       toast.error('Place search failed')
     } finally {
-      if (!controller.signal.aborted) setIsSearchingPlace(false)
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null
+        setIsSearchingPlace(false)
+      }
     }
   }, [])
 
   const selectPlace = (place: GeocodingResult) => {
-    searchAbortRef.current?.abort()
-    setIsSearchingPlace(false)
+    cancelPlaceSearch()
     setOverriddenCoords({ lat: place.lat, lon: place.lon })
     setLocationName(place.label)
+    setLocationAttribution(place.attribution)
     setInferredStateProvince(place.stateProvince)
     setInferredCountryCode(place.countryCode)
     setPlaceResults([])
@@ -249,8 +264,9 @@ export default function OutingReview({
   const useEnteredLocation = () => {
     const name = locationSearchQuery.trim()
     if (!name) return
-    searchAbortRef.current?.abort()
+    cancelPlaceSearch()
     setLocationName(name)
+    setLocationAttribution(null)
     setOverriddenCoords(null)
     setInferredStateProvince(undefined)
     setInferredCountryCode(undefined)
@@ -378,11 +394,13 @@ export default function OutingReview({
                     placeholder="Search for a place..."
                     value={locationSearchQuery}
                     onChange={e => {
+                      cancelPlaceSearch()
                       setLocationSearchQuery(e.target.value)
                       setPlaceResults([])
                     }}
                     onKeyDown={e => {
                       if (e.key === 'Escape') {
+                        cancelPlaceSearch()
                         setIsEditingLocation(false)
                         setLocationSearchQuery('')
                         setPlaceResults([])
@@ -425,7 +443,9 @@ export default function OutingReview({
                     type="button"
                     className="text-xs text-primary hover:underline"
                     onClick={() => {
+                      cancelPlaceSearch()
                       setLocationName(suggestedLocation)
+                      setLocationAttribution(suggestedLocationAttribution)
                       setOverriddenCoords(null)
                       setInferredStateProvince(undefined)
                       setInferredCountryCode(undefined)
@@ -462,14 +482,16 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
-            <a
-              href="https://www.openstreetmap.org/copyright"
-              target="_blank"
-              rel="noreferrer"
-              className="block text-xs text-muted-foreground underline underline-offset-2"
-            >
-              Location data © OpenStreetMap contributors
-            </a>
+            {locationAttribution && (
+              <a
+                href={locationAttribution.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-xs text-muted-foreground underline underline-offset-2"
+              >
+                {locationAttribution.label}
+              </a>
+            )}
           </div>
           )}
 
