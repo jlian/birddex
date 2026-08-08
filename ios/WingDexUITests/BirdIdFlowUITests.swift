@@ -125,7 +125,7 @@ final class BirdIdFlowUITests: XCTestCase {
         let localWorkerAvailable = await localWorkerIsAvailable()
         try XCTSkipUnless(
             localWorkerAvailable,
-            "Requires the current local WingDex Worker and Nominatim access"
+            "Requires the current local WingDex Worker and Geoapify access"
         )
         let app = launchApp(extraEnvironment: [
             "API_BASE_URL": "https://localhost.wingdex.app",
@@ -150,6 +150,10 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertTrue(
             scrollUntilVisible(app.descendants(matching: .any)["outing.locationAttribution"], in: app),
             "Selected search result did not retain provider attribution"
+        )
+        XCTAssertTrue(
+            scrollUntilVisible(app.descendants(matching: .any)["outing.locationSourceAttribution"], in: app),
+            "Selected search result did not retain source attribution"
         )
         continueButton.tap()
         XCTAssertTrue(

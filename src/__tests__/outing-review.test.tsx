@@ -253,8 +253,12 @@ describe('OutingReview', () => {
           lat: 47.6573,
           lon: -122.4055,
           attribution: {
-            label: 'Location data by Example Maps',
-            url: 'https://maps.example/attribution',
+            label: 'Powered by Geoapify',
+            url: 'https://www.geoapify.com/',
+          },
+          secondaryAttribution: {
+            label: '© OpenStreetMap contributors',
+            url: 'https://www.openstreetmap.org/copyright',
           },
         },
       }),
@@ -277,14 +281,19 @@ describe('OutingReview', () => {
       />,
     )
 
-    const attribution = await screen.findByRole('link', { name: 'Location data by Example Maps' })
-    expect(attribution).toHaveAttribute('href', 'https://maps.example/attribution')
+    const attribution = await screen.findByRole('link', { name: 'Powered by Geoapify' })
+    expect(attribution).toHaveAttribute('href', 'https://www.geoapify.com/')
+    expect(screen.getByRole('link', { name: '© OpenStreetMap contributors' })).toHaveAttribute(
+      'href',
+      'https://www.openstreetmap.org/copyright',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Discovery Park, Seattle/ }))
     const searchInput = screen.getByPlaceholderText('Search for a place...')
     fireEvent.change(searchInput, { target: { value: 'My birding spot' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
 
-    expect(screen.queryByRole('link', { name: 'Location data by Example Maps' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Powered by Geoapify' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '© OpenStreetMap contributors' })).not.toBeInTheDocument()
   })
 })

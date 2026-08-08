@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractRegionCodes,
-  formatNominatimLabel,
-  normalizeNominatimResult,
+  formatGeoapifyLabel,
+  normalizeGeoapifyResult,
   parseCoordinate,
   roundCoordinate,
-  scoreNominatimResult,
 } from './geocoding'
 
 describe('parseCoordinate', () => {
@@ -14,7 +13,7 @@ describe('parseCoordinate', () => {
     expect(parseCoordinate('+180.0', 'longitude')).toBe(180)
   })
 
-  it.each(['', 'Infinity', 'NaN', '0x10', '91'])('rejects invalid latitude %j', (value) => {
+  it.each(['', 'Infinity', 'NaN', '0x10', '91'])('rejects invalid latitude %j', value => {
     expect(() => parseCoordinate(value, 'latitude')).toThrow('Invalid latitude')
   })
 })
@@ -26,49 +25,55 @@ describe('roundCoordinate', () => {
   })
 })
 
-describe('Nominatim normalization', () => {
+describe('Geoapify normalization', () => {
   const park = {
-    lat: '47.6205',
-    lon: '-122.3493',
-    category: 'leisure',
-    type: 'park',
-    namedetails: { 'name:en': 'Discovery Park' },
-    address: {
-      city: 'Seattle',
-      state: 'Washington',
-      country_code: 'us',
-      'ISO3166-2-lvl4': 'US-WA',
-    },
+    name: 'Discovery Park',
+    formatted: 'Discovery Park, Seattle, WA, United States of America',
+    lat: 47.6205,
+    lon: -122.3493,
+    city: 'Seattle',
+    state: 'Washington',
+    state_code: 'WA',
+    country_code: 'us',
   }
 
-  it('preserves scoring and concise labels', () => {
-    expect(scoreNominatimResult(park)).toBe(100)
-    expect(formatNominatimLabel(park)).toBe('Discovery Park, Seattle, Washington')
+  it('creates a concise label', () => {
+    expect(formatGeoapifyLabel(park)).toBe('Discovery Park, Seattle, Washington')
+    expect(formatGeoapifyLabel({ formatted: 'Fallback address' })).toBe('Fallback address')
   })
 
-  it('extracts direct and fallback region codes', () => {
+  it('extracts valid region codes', () => {
     expect(extractRegionCodes(park)).toEqual({ stateProvince: 'US-WA', countryCode: 'US' })
-    expect(extractRegionCodes({ address: { country_code: 'ca', state_code: 'bc' } })).toEqual({
+    expect(extractRegionCodes({ country_code: 'ca', state_code: 'CA-BC' })).toEqual({
       stateProvince: 'CA-BC',
       countryCode: 'CA',
     })
+    expect(extractRegionCodes({ country_code: 'invalid', state_code: 'WA' })).toEqual({
+      stateProvince: undefined,
+      countryCode: undefined,
+    })
   })
 
-  it('returns a provider-independent attributed result', () => {
-    expect(normalizeNominatimResult(park)).toEqual({
+  it('returns an attributed provider-independent result', () => {
+    expect(normalizeGeoapifyResult(park)).toEqual({
       label: 'Discovery Park, Seattle, Washington',
       lat: 47.6205,
       lon: -122.3493,
       stateProvince: 'US-WA',
       countryCode: 'US',
       attribution: {
-        label: 'Location data © OpenStreetMap contributors',
+        label: 'Powered by Geoapify',
+        url: 'https://www.geoapify.com/',
+      },
+      secondaryAttribution: {
+        label: '© OpenStreetMap contributors',
         url: 'https://www.openstreetmap.org/copyright',
       },
     })
   })
 
-  it('rejects unusable provider coordinates', () => {
-    expect(normalizeNominatimResult({ ...park, lat: 'unknown' })).toBeNull()
+  it('rejects unusable provider results', () => {
+    expect(normalizeGeoapifyResult({ ...park, lat: 'unknown' })).toBeNull()
+    expect(normalizeGeoapifyResult({ lat: 47, lon: -122 })).toBeNull()
   })
 })

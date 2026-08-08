@@ -13,6 +13,7 @@ struct GeocodingResult: Codable, Identifiable, Sendable {
     let stateProvince: String?
     let countryCode: String?
     let attribution: Attribution
+    let secondaryAttribution: Attribution?
 
     enum CodingKeys: String, CodingKey {
         case label
@@ -21,6 +22,7 @@ struct GeocodingResult: Codable, Identifiable, Sendable {
         case stateProvince
         case countryCode
         case attribution
+        case secondaryAttribution
     }
 }
 

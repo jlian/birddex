@@ -70,7 +70,7 @@ Pretty format example:
 ## Environment-specific configuration
 
 ### Production
-No env vars needed. Defaults to `LOG_LEVEL=info`, JSON format. You see request completions (1 line each with durationMs + status + userId), audit events, and all warnings/errors.
+`GEOAPIFY_KEY` is required as a secret for geocoding. Logging defaults to `LOG_LEVEL=info`, JSON format. You see request completions (1 line each with durationMs + status + userId), audit events, and all warnings/errors.
 
 Cloudflare automatic trace capture is disabled in `wrangler.toml`. Outbound fetch spans can retain complete request URLs, including submitted geocoding queries or rounded coordinates. Request-scoped structured logs remain enabled and deliberately record only route names, statuses, durations, safe identifiers, counts, and enums.
 
@@ -102,9 +102,11 @@ Logs must never include:
 - raw or signed session tokens, cookies, authorization headers, OAuth callback URLs, passkey credential IDs, or challenge payloads
 - email addresses, profile image URLs/data, filenames, notes, outing/location names, species-name arrays, CSV contents, or image data
 - request/response bodies, provider payloads, database/provider exception messages, or stack traces
-- outbound geocoding URLs, raw place queries, coordinates, or geocoding cache keys
+- outbound geocoding URLs (which contain the provider key), raw place queries, or coordinates
 
-The geocoding cache logs only `hit`/`miss`, request type, and expired-row counts. Cached provider responses have a 30-day logical TTL, and bounded cleanup physically deletes expired cache and stale in-flight rows during later geocoding requests.
+Geocoding logs only route-level completion status and result counts. WingDex does not cache provider responses or log upstream URLs and payloads.
+
+Geoapify Free currently allows 3,000 credits per day and 5 requests per second. A submitted place search costs one credit. A GPS suggestion costs one Places credit and, only when no named outdoor place is found, one reverse-geocoding credit. Monitor the Geoapify project dashboard and upgrade before normal daily usage approaches the quota; repeated quota pressure or abuse should trigger an authenticated per-user limit rather than global coordination infrastructure.
 
 Use a stable operation summary plus safe metadata in catch blocks, for example: `Outing deletion failed; inspect the trace and database operation` with `{ outingId }`. The trace ID is the correlation handle; raw exception text is not a logging shortcut.
 
