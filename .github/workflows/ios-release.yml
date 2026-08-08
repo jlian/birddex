@@ -353,7 +353,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: WingDex-${{ needs.preflight.outputs.release_version }}
-          path: build/export
+          path: build
 
       - name: Write App Store Connect API key
         run: |
