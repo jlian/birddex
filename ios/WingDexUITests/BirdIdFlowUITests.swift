@@ -95,11 +95,6 @@ final class BirdIdFlowUITests: XCTestCase {
         )
         XCTAssertFalse(locationName.label.isEmpty, "Resolved outing location was empty")
         XCTAssertNotEqual(locationName.label, "Unknown Location")
-        let attribution = app.descendants(matching: .any)["outing.locationAttribution"]
-        XCTAssertTrue(
-            scrollUntilVisible(attribution, in: app),
-            "OpenStreetMap attribution was missing from outing review"
-        )
         continueButton.tap()
 
         // A sub-0.8 result routes to the crop prompt instead of the confirm step, and
@@ -152,6 +147,10 @@ final class BirdIdFlowUITests: XCTestCase {
         let selectedLabel = firstResult.label
         firstResult.tap()
         XCTAssertEqual(locationName.label, selectedLabel)
+        XCTAssertTrue(
+            scrollUntilVisible(app.descendants(matching: .any)["outing.locationAttribution"], in: app),
+            "Selected search result did not retain provider attribution"
+        )
         continueButton.tap()
         XCTAssertTrue(
             app.staticTexts["confirm.speciesName"].waitForExistence(timeout: 180),
@@ -169,17 +168,19 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntil(timeout: 30) { continueButton.isHittable })
 
         let locationName = app.staticTexts["outing.locationName"]
-    XCTAssertTrue(scrollUntilVisible(locationName, in: app))
+        XCTAssertTrue(scrollUntilVisible(locationName, in: app))
         XCTAssertEqual(locationName.label, "47.712deg, -122.372deg")
+        XCTAssertFalse(app.descendants(matching: .any)["outing.locationAttribution"].exists)
 
         locationName.tap()
         let searchField = app.textFields["outing.locationSearch"]
-    XCTAssertTrue(scrollUntilVisible(searchField, in: app))
+        XCTAssertTrue(scrollUntilVisible(searchField, in: app))
         searchField.typeText("Manual Test Location")
-    let useEnteredName = app.buttons["Use entered name without searching"]
-    XCTAssertTrue(scrollUntilVisible(useEnteredName, in: app))
-    useEnteredName.tap()
+        let useEnteredName = app.buttons["Use entered name without searching"]
+        XCTAssertTrue(scrollUntilVisible(useEnteredName, in: app))
+        useEnteredName.tap()
         XCTAssertEqual(locationName.label, "Manual Test Location")
+        XCTAssertFalse(app.descendants(matching: .any)["outing.locationAttribution"].exists)
     }
 
     func testDismissingOutingReviewCancelsDelayedGeocoding() {
