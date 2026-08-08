@@ -14,6 +14,19 @@ class MemoryD1 {
   private inflight = new Map<string, { ownerId: string; expiresAt: number }>()
   private nextAllowedAt = 0
 
+  seedExpired(cacheKey: string, expiresAt: number) {
+    this.cache.set(cacheKey, { response: '{}', expiresAt })
+    this.inflight.set(cacheKey, { ownerId: 'expired-owner', expiresAt })
+  }
+
+  hasCacheKey(cacheKey: string): boolean {
+    return this.cache.has(cacheKey)
+  }
+
+  hasInflightKey(cacheKey: string): boolean {
+    return this.inflight.has(cacheKey)
+  }
+
   prepare(sql: string) {
     const statement: BoundStatement = { sql: sql.replace(/\s+/g, ' ').trim(), values: [] }
     const bind = (...values: unknown[]) => {
@@ -36,6 +49,28 @@ class MemoryD1 {
     }
     const run = async () => {
       const [firstValue, secondValue, thirdValue, fourthValue] = statement.values
+      if (statement.sql.startsWith('DELETE FROM geocoding_cache WHERE cacheKey IN')) {
+        let changes = 0
+        for (const [key, row] of [...this.cache.entries()]) {
+          if (changes >= 25) break
+          if (row.expiresAt <= Number(firstValue)) {
+            this.cache.delete(key)
+            changes++
+          }
+        }
+        return { meta: { changes } }
+      }
+      if (statement.sql.startsWith('DELETE FROM geocoding_inflight WHERE cacheKey IN')) {
+        let changes = 0
+        for (const [key, row] of [...this.inflight.entries()]) {
+          if (changes >= 25) break
+          if (row.expiresAt <= Number(firstValue)) {
+            this.inflight.delete(key)
+            changes++
+          }
+        }
+        return { meta: { changes } }
+      }
       if (statement.sql.startsWith('INSERT INTO geocoding_inflight')) {
         const key = String(firstValue)
         const existing = this.inflight.get(key)
@@ -92,6 +127,25 @@ const providerResult = {
 }
 
 describe('geocoding gateway', () => {
+  it('physically deletes expired cache state without logging lookup data', async () => {
+    const memory = new MemoryD1()
+    memory.seedExpired('sensitive-cache-key', Date.now() - 1)
+    const database = memory as unknown as D1Database
+    const fetcher = vi.fn<Fetcher>(async () => Response.json([providerResult]))
+    const debug = vi.fn<Logger['debug']>()
+    const log = { debug } as unknown as Logger
+
+    await searchPlaces(database, 'Green Lake', fetcher, log)
+
+    expect(memory.hasCacheKey('sensitive-cache-key')).toBe(false)
+    expect(memory.hasInflightKey('sensitive-cache-key')).toBe(false)
+    expect(debug).toHaveBeenCalledWith('geocoding/cache/delete', expect.objectContaining({
+      properties: { cacheRows: 1, inflightRows: 1 },
+    }))
+    expect(JSON.stringify(debug.mock.calls)).not.toContain('sensitive-cache-key')
+    expect(JSON.stringify(debug.mock.calls)).not.toContain('Green Lake')
+  })
+
   it('normalizes a submitted search and reuses its cached provider response', async () => {
     const database = new MemoryD1() as unknown as D1Database
     const fetcher = vi.fn<Fetcher>(async () => Response.json([providerResult]))
