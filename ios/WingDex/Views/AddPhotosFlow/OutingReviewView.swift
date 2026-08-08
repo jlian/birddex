@@ -164,6 +164,8 @@ struct OutingReviewView: View {
             ),
             displayedComponents: [.date, .hourAndMinute]
         )
+        .foregroundStyle(.primary)
+        .tint(.primary)
     }
 
     // MARK: - GPS Status
@@ -283,7 +285,7 @@ struct OutingReviewView: View {
             HStack {
                 Text(locationName.isEmpty ? "Tap to set location" : locationName)
                     .font(.body)
-                    .foregroundStyle(locationName.isEmpty ? Color.mutedText : Color.foregroundText)
+                    .foregroundStyle(locationName.isEmpty ? Color.secondary : Color.primary)
                     .accessibilityIdentifier("outing.locationName")
                 Spacer()
                 Button {
@@ -405,7 +407,7 @@ struct OutingReviewView: View {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-delay") {
             do {
-                try await Task.sleep(for: .seconds(2))
+                try await Task.sleep(for: .seconds(10))
             } catch {
                 return
             }
