@@ -61,6 +61,7 @@ struct AddPhotosFlow: View {
                 } label: {
                     Image(systemName: "xmark")
                 }
+                .accessibilityLabel("Close")
             }
         }
         .alert("Discard progress?", isPresented: $showCloseConfirm) {

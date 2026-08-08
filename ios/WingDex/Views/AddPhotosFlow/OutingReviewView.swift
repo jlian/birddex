@@ -386,6 +386,13 @@ struct OutingReviewView: View {
         }
 
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-delay") {
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                return
+            }
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-failure") {
             applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
             return
