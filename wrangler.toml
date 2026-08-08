@@ -25,6 +25,9 @@ migrations_dir = "migrations"
 [observability]
 enabled = true
 
+[observability.logs]
+invocation_logs = false
+
 [observability.traces]
 enabled = false
 
