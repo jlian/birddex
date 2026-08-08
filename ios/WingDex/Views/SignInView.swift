@@ -37,6 +37,7 @@ struct SignInView: View {
     @Environment(DataStore.self) private var store
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isSigningIn = false
@@ -122,6 +123,8 @@ struct SignInView: View {
                             .font(.title3)
                             .foregroundStyle(.white.opacity(0.8))
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                     .menuStyle(.borderlessButton)
                     .buttonStyle(.plain)
                     #endif
@@ -141,7 +144,15 @@ struct SignInView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .foregroundStyle(.white)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 16 : 28)
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 16 : 0)
+                .background {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        Color.black
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .padding(.horizontal, 12)
+                    }
+                }
                 .padding(.bottom, 32)
 
                 // Social sign-in buttons
@@ -246,6 +257,8 @@ struct SignInView: View {
                         }
                         .buttonStyle(.plain)
                         .buttonSizing(.flexible)
+                        .frame(minHeight: btnHeight)
+                        .contentShape(Rectangle())
                         .foregroundStyle(.black)
                         .background(.white, in: Capsule())
 
@@ -258,6 +271,8 @@ struct SignInView: View {
                         }
                         .buttonStyle(.plain)
                         .buttonSizing(.flexible)
+                        .frame(minHeight: btnHeight)
+                        .contentShape(Rectangle())
                         .foregroundStyle(.black)
                         .background(.white, in: Capsule())
                     }
