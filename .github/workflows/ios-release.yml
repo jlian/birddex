@@ -203,6 +203,13 @@ jobs:
             -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
             | tail -30
 
+      - name: Inspect signed archive
+        if: steps.version.outputs.has_release == 'true'
+        working-directory: ios
+        env:
+          REQUIRE_SIGNED: '1'
+        run: scripts/inspect-archive.sh build/WingDex.xcarchive build/archive-inspection
+
       - name: Export IPA
         if: steps.version.outputs.has_release == 'true'
         working-directory: ios
@@ -223,7 +230,10 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: WingDex-${{ steps.version.outputs.release_version }}
-          path: ios/build/export/WingDex.ipa
+          path: |
+            ios/build/export/WingDex.ipa
+            ios/build/archive-inspection/
+            ios/build/WingDex.xcarchive/dSYMs/
           if-no-files-found: error
           retention-days: 7
 
@@ -304,7 +314,7 @@ jobs:
         if: steps.version.outputs.has_release == 'true'
         run: |
           echo "### Validated iOS v${{ steps.version.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tests, signed archive, and App Store export succeeded before publication." >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests, signed archive inspection, dSYM matching, and App Store export succeeded before publication." >> "$GITHUB_STEP_SUMMARY"
 
   publish:
     name: Publish & Upload to TestFlight
