@@ -43,6 +43,16 @@ export interface BirdIdResult {
   rangeAdjusted?: boolean
 }
 
+export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
+  return {
+    candidates: results.map(result => ({
+      species: `${result.commonName} (${result.scientificName})`,
+      confidence: result.confidence,
+    })),
+    rangeAdjusted: results.some(result => result.logP !== null),
+  }
+}
+
 /**
  * Bumped whenever the served model bytes change. The three /models/ files are
  * served immutable for a year (public/_headers) and the Cache API is
@@ -327,17 +337,10 @@ export async function identifyBirdLocally(
     5,
   )
 
-  return {
-    candidates: results.map(r => ({
-      species: r.commonName,
-      confidence: r.confidence,
-      // rangeStatus is BirdLife vocabulary. The Bayesian prior has no notion
-      // of present or out-of-range, only a probability, so it is omitted
-      // rather than faked from a threshold.
-    })),
-    // cropBox and multipleBirds intentionally absent, see the header.
-    rangeAdjusted: results.some(r => r.logP !== null),
-  }
+  // rangeStatus is BirdLife vocabulary. The Bayesian prior has no notion of
+  // present or out-of-range, only a probability, so it is omitted rather than
+  // faked from a threshold. cropBox and multipleBirds are absent by design.
+  return mapIdentifyResults(results)
 }
 
 /**
