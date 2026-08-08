@@ -188,6 +188,28 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Identifying location from GPS..."].exists)
     }
 
+    func testAddPhotosOutingReviewPassesAccessibilityAudit() throws {
+        let app = launchApp(extraArguments: ["--ui-test-geocoding-failure"])
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
+        XCTAssertTrue(waitUntil(timeout: 30) { continueButton.isHittable })
+
+        try performBoundedAccessibilityAudit(
+            app: app,
+            expectedContrastFindings: 1,
+            expectedDynamicTypeFindings: 4
+        )
+    }
+
+    func testSignInPassesAccessibilityAudit() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-sign-out"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
+
+        try app.performAccessibilityAudit()
+    }
+
     func testHomePassesAccessibilityAudit() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
@@ -216,5 +238,110 @@ final class BirdIdFlowUITests: XCTestCase {
             return false
         }
         XCTAssertEqual(photoContrastFindings, 5)
+    }
+
+    func testWingDexPassesAccessibilityAudit() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launch()
+        let wingDexTab = app.buttons["WingDex"]
+        XCTAssertTrue(wingDexTab.waitForExistence(timeout: 120))
+        wingDexTab.tap()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+
+        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+    }
+
+    func testOutingsPassesAccessibilityAudit() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launch()
+        let outingsTab = app.buttons["Outings"]
+        XCTAssertTrue(outingsTab.waitForExistence(timeout: 120))
+        outingsTab.tap()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+
+        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+    }
+
+    func testSettingsAndDeletionConfirmationsPassAccessibilityAudit() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
+        try performBoundedAccessibilityAudit(
+            app: app,
+            expectedContrastFindings: 5,
+            expectedDynamicTypeFindings: 1
+        )
+
+        let deleteData = app.buttons["Delete Data..."]
+        while !deleteData.isHittable {
+            app.swipeUp()
+        }
+        deleteData.tap()
+        XCTAssertTrue(app.navigationBars["Data Management"].waitForExistence(timeout: 10))
+        try app.performAccessibilityAudit()
+
+        app.buttons["Delete Account & All Data"].tap()
+        XCTAssertTrue(app.alerts["Delete your entire account?"].waitForExistence(timeout: 5))
+        try performBoundedAccessibilityAudit(app: app, expectedDynamicTypeFindings: 4)
+        app.alerts["Delete your entire account?"].buttons["I understand, continue"].tap()
+        XCTAssertTrue(app.alerts["Are you absolutely sure?"].waitForExistence(timeout: 5))
+        try performBoundedAccessibilityAudit(app: app, expectedDynamicTypeFindings: 4)
+        app.alerts["Are you absolutely sure?"].buttons["Go back"].tap()
+    }
+
+    private func performBoundedAccessibilityAudit(
+        app: XCUIApplication,
+        expectedContrastFindings: Int = 0,
+        expectedDynamicTypeFindings: Int = 0
+    ) throws {
+        var contrastFindings = 0
+        var dynamicTypeFindings = 0
+        try app.performAccessibilityAudit { issue in
+            switch issue.auditType {
+            case .contrast:
+                contrastFindings += 1
+                return true
+            case .dynamicType:
+                dynamicTypeFindings += 1
+                return true
+            default:
+                return false
+            }
+        }
+        XCTAssertEqual(contrastFindings, expectedContrastFindings)
+        XCTAssertEqual(dynamicTypeFindings, expectedDynamicTypeFindings)
+    }
+
+    private func performListAccessibilityAudit(
+        app: XCUIApplication,
+        expectedPhotoContrastFindings: Int
+    ) throws {
+        var photoContrastFindings = 0
+        var systemDynamicTypeFindings = 0
+        var systemClippingFindings = 0
+        try app.performAccessibilityAudit { issue in
+            // The iOS 26 audit flags the native search field and Sort menu while scaling them correctly.
+            switch issue.auditType {
+            case .contrast:
+                photoContrastFindings += 1
+                return true
+            case .dynamicType:
+                systemDynamicTypeFindings += 1
+                return true
+            case .textClipped:
+                systemClippingFindings += 1
+                return true
+            default:
+                return false
+            }
+        }
+        XCTAssertEqual(photoContrastFindings, expectedPhotoContrastFindings)
+        XCTAssertEqual(systemDynamicTypeFindings, 1)
+        XCTAssertEqual(systemClippingFindings, 2)
     }
 }

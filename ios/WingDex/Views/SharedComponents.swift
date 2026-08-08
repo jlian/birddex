@@ -351,28 +351,28 @@ struct BirdRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(getDisplayName(speciesName))
-                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 if let sci = getScientificName(speciesName) {
                     Text(sci)
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .italic()
                         .foregroundStyle(Color.mutedText)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
 
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .foregroundStyle(Color.mutedText)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
 
                 if let count, count > 1 {
                     Text("x\(count)")
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .foregroundStyle(Color.mutedText)
                 }
             }

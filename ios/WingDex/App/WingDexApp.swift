@@ -94,6 +94,11 @@ struct ContentView: View {
             Task { await auth.validateSession(force: false) }
         }
         .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
+                auth.signOut()
+            }
+            #endif
             if let discardedAccountID = auth.consumeDiscardedAccountID() {
                 store.clearCachedAccount(accountID: discardedAccountID)
             }
