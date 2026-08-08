@@ -70,6 +70,19 @@ describe('provider revocation', () => {
     )).resolves.toBeUndefined()
   })
 
+  it('treats an already-revoked Apple grant as success so retries reach remaining grants', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 400 }))
+    await expect(revokeProviderAccount({
+      providerId: 'apple',
+      refreshToken: 'already-revoked-web',
+      nativeRefreshToken: 'native-refresh',
+    }, env, fetcher)).resolves.toBeUndefined()
+
+    // The web token 400 (invalid_grant) must not short-circuit; the native grant is still revoked.
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(String(fetcher.mock.calls[1][1]?.body)).toContain('token=native-refresh')
+  })
+
   it('blocks deletion when a linked provider has no revocable token', async () => {
     await expect(revokeProviderAccount({ providerId: 'apple' }, env)).rejects.toEqual(
       new ProviderRevocationError('apple', 'apple must be signed in again before account deletion'),
