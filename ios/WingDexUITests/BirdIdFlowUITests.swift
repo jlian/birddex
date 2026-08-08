@@ -10,6 +10,14 @@ final class BirdIdFlowUITests: XCTestCase {
     private static let photo = "Great_blue_heron_roosting_at_Carkeek_Park.jpg"
     private static let expectedSpecies = "Great Blue Heron"
 
+    private var localWorkerURL: URL {
+        #if CI
+        URL(string: "http://localhost:5000")!
+        #else
+        URL(string: "https://localhost.wingdex.app")!
+        #endif
+    }
+
     private static var photoPath: String {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -59,8 +67,8 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     private func localWorkerIsAvailable() async -> Bool {
-        guard let url = URL(string: "https://localhost.wingdex.app/api/health"),
-              let (data, response) = try? await URLSession.shared.data(from: url),
+        let url = localWorkerURL.appendingPathComponent("api/health")
+        guard let (data, response) = try? await URLSession.shared.data(from: url),
               let http = response as? HTTPURLResponse
         else { return false }
         return (200...299).contains(http.statusCode) && !data.isEmpty
@@ -128,7 +136,7 @@ final class BirdIdFlowUITests: XCTestCase {
             "Requires the current local WingDex Worker and Geoapify access"
         )
         let app = launchApp(extraEnvironment: [
-            "API_BASE_URL": "https://localhost.wingdex.app",
+            "API_BASE_URL": localWorkerURL.absoluteString,
         ])
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
