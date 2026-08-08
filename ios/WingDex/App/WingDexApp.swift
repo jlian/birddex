@@ -269,12 +269,24 @@ struct MainTabView: View {
               args.index(after: flag) < args.endIndex,
               let image = UIImage(contentsOfFile: args[args.index(after: flag)])
         else { return }
+        let latitude = launchArgument("--ui-test-lat", in: args).flatMap(Double.init)
+        let longitude = launchArgument("--ui-test-lon", in: args).flatMap(Double.init)
         addPhotosVM.configure(
             auth: auth,
             dataStore: store
         )
-        addPhotosVM.addCameraPhoto(image, lat: nil, lon: nil)
+        if args.contains("--ui-test-clear-last-location") {
+            addPhotosVM.lastLocationName = ""
+        }
+        addPhotosVM.addCameraPhoto(image, lat: latitude, lon: longitude)
         await addPhotosVM.processSelectedPhotos()
+    }
+
+    private func launchArgument(_ name: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: name),
+              arguments.index(after: index) < arguments.endIndex
+        else { return nil }
+        return arguments[arguments.index(after: index)]
     }
     #endif
 }
