@@ -20,6 +20,103 @@
  */
 
 const CACHE_NAME = "wingdex-model-v3"
+const MAX_FETCH_ATTEMPTS = 3
+const MAX_RETRY_DELAY_MS = 5_000
+
+class RetryableFetchError extends Error {
+  constructor(message: string, readonly retryAfterMs?: number) {
+    super(message)
+  }
+}
+
+function assetName(url: string): string {
+  return url.split('/').pop()?.split('?')[0] || url
+}
+
+function retryDelay(response: Response, attempt: number): number {
+  const retryAfter = response.headers.get('Retry-After')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(MAX_RETRY_DELAY_MS, Math.ceil(seconds * 1_000))
+    }
+
+    const date = Date.parse(retryAfter)
+    if (Number.isFinite(date)) {
+      return Math.min(MAX_RETRY_DELAY_MS, Math.max(0, date - Date.now()))
+    }
+  }
+  return 250 * 2 ** (attempt - 1)
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds))
+}
+
+async function readResponse(
+  response: Response,
+  onChunk?: (bytesRead: number) => void,
+): Promise<ArrayBuffer> {
+  const reader = response.body?.getReader()
+  if (!reader) return response.arrayBuffer()
+
+  const chunks: Uint8Array[] = []
+  let bytesRead = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    bytesRead += value.byteLength
+    onChunk?.(bytesRead)
+  }
+
+  const bytes = new Uint8Array(bytesRead)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes.buffer
+}
+
+async function fetchAsset(
+  url: string,
+  onChunk?: (bytesRead: number) => void,
+): Promise<{ buffer: ArrayBuffer; contentType: string | null }> {
+  let lastError: unknown
+  let attempts = 0
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+    attempts = attempt
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        const message = `HTTP ${response.status}`
+        if (!isRetryableStatus(response.status)) throw new Error(message)
+        throw new RetryableFetchError(message, retryDelay(response, attempt))
+      }
+      return {
+        buffer: await readResponse(response, onChunk),
+        contentType: response.headers.get('Content-Type'),
+      }
+    } catch (error) {
+      lastError = error
+      const retryable = error instanceof RetryableFetchError
+        || !(error instanceof Error && /^HTTP \d+$/.test(error.message))
+      if (!retryable || attempt === MAX_FETCH_ATTEMPTS) break
+      await sleep(error instanceof RetryableFetchError && error.retryAfterMs !== undefined
+        ? error.retryAfterMs
+        : 250 * 2 ** (attempt - 1))
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError)
+  const attemptLabel = attempts === 1 ? 'attempt' : 'attempts'
+  throw new Error(`${assetName(url)} download failed after ${attempts} ${attemptLabel}: ${detail}`)
+}
 
 /** Cache API is unavailable in some private modes and constrained webviews. */
 async function openCache(): Promise<Cache | null> {
@@ -70,55 +167,29 @@ async function fetchCached(
     return buf
   }
 
-  // A network failure here throws a bare "Failed to fetch" with no indication
-  // of which of the four assets died, which is what the download gate then
-  // shows the user and what lands in a bug report.
-  let res: Response
-  try {
-    res = await fetch(url)
-  } catch (err) {
-    throw new Error(
-      "fetch " + url + " failed: " + (err instanceof Error ? err.message : String(err)),
-    )
-  }
-  if (!res.ok) throw new Error("fetch " + url + " failed: " + res.status)
+  const start = state?.loaded ?? 0
+  let reportedForAsset = 0
+  const { buffer, contentType } = await fetchAsset(url, bytesRead => {
+    reportedForAsset = Math.max(reportedForAsset, bytesRead)
+    onProgress?.({
+      loaded: start + reportedForAsset,
+      total: state?.total ?? 0,
+      current: url,
+      cached: false,
+    })
+  })
+  if (state) state.loaded = start + buffer.byteLength
 
-  // Tee the body so progress can be reported while the response is still
-  // streaming, then cache the completed copy. Only clone when someone is
-  // listening, or the extra branch is buffered in full and never read.
-  const reader = onProgress ? res.clone().body?.getReader() : undefined
-  if (reader && onProgress) {
-    const start = state?.loaded ?? 0
-    let seen = 0
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      seen += value.byteLength
-      onProgress({
-        loaded: start + seen,
-        total: state?.total ?? 0,
-        current: url,
-        cached: false,
-      })
-    }
-    if (state) state.loaded = start + seen
-  }
-
-  // Cache.put needs a response that has not been consumed. Persistence is
-  // best-effort: if the Cache API rejects (quota exceeded, private browsing,
-  // storage disabled) the bytes are already in hand, so keep them and let
-  // inference proceed rather than failing an otherwise successful 62 MiB
-  // download that every retry would only repeat.
+  // Persistence is best-effort. Cache the completed bytes rather than cloning
+  // the network response into extra multi-megabyte streaming branches.
   try {
-    await cache?.put(url, res.clone())
+    await cache?.put(url, new Response(buffer, {
+      headers: contentType ? { 'Content-Type': contentType } : undefined,
+    }))
   } catch (err) {
     console.warn("model-cache: persisting " + url + " failed, continuing uncached", err)
   }
-  const buf = await res.arrayBuffer()
-  // Without a reader the streaming branch never ran, so the running total is
-  // still missing this asset and every later asset would report low.
-  if (state && !reader) state.loaded += buf.byteLength
-  return buf
+  return buffer
 }
 
 /**
