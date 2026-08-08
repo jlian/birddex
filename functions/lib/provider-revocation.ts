@@ -56,7 +56,11 @@ async function revokeAppleToken(
       token_type_hint: account.refreshToken ? 'refresh_token' : 'access_token',
     }),
   })
-  if (!response.ok) {
+  // Apple answers an already-revoked or expired token with 400 invalid_grant. Treat it
+  // as idempotent success (as we do for Google's 400 and GitHub's 404) so a deletion that
+  // failed after a partial revocation can retry the remaining grants instead of throwing
+  // forever on the token it already revoked.
+  if (!response.ok && response.status !== 400) {
     throw new ProviderRevocationError('apple', 'Apple credential revocation failed', response.status)
   }
 }
