@@ -9,7 +9,7 @@ Use this ledger for App Review's content-rights question and for release audits.
 | Wikimedia Commons / Wikipedia | Species reference images and descriptions | Identification and species views link to Wikimedia/Wikipedia and display source/license text where available | **Confirm** API-derived per-file author/license requirements are preserved for every displayed asset |
 | eBird / Cornell Lab | Taxonomy names/codes and user CSV interoperability | Settings and documentation identify eBird import/export; no claim of eBird endorsement | **Confirm** taxonomy redistribution and trademark wording against current eBird terms |
 | BirdLife International | Optional species factsheet links and factsheet IDs | UI labels and links BirdLife International; no BirdLife range dataset ships | **Confirm** factsheet-ID/link use and non-commercial restrictions |
-| OpenStreetMap / Nominatim | Explicit place search and rounded-coordinate reverse geocoding | Web and iOS show linked `Location data © OpenStreetMap contributors`; privacy policy identifies OSMF/Nominatim; results are cached | **Confirm** ODbL attribution placement and public API use remain acceptable at expected production volume |
+| Geoapify / OpenStreetMap | Explicit place search and rounded-coordinate reverse geocoding | Web and iOS show linked `Powered by Geoapify` and `© OpenStreetMap contributors`; privacy policy identifies Geoapify; WingDex does not cache provider responses | Ready, subject to final visual attribution check |
 | WingDex app source and original design | Application code, copy, and original assets | Repository is MIT-licensed | Ready, subject to owner confirmation of authorship |
 
 ## Release checks

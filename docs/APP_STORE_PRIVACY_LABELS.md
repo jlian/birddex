@@ -28,15 +28,15 @@ Use this worksheet when completing App Store Connect. It records implemented beh
 - [x] **Purchases:** WingDex has no subscription or in-app purchase.
 - [x] **Health and Fitness, Financial Info, Contacts, Browsing History, Search History:** WingDex does not collect these categories as product data.
 
-Location searches submitted for geocoding are forwarded through WingDex to public Nominatim. They are not attached to WingDex application logs, but provider responses are cached for up to 30 days. **Confirm** with App Store Connect guidance whether these explicit place queries should be included under Search History despite being location-feature input rather than general web search.
+Location searches submitted for geocoding and rounded GPS coordinates are forwarded through WingDex to Geoapify. They are not attached to WingDex application logs, and WingDex does not cache provider responses. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics. **Confirm** with App Store Connect guidance whether explicit place queries should be included under Search History despite being location-feature input rather than general web search.
 
 ## Deletion and retention evidence
 
 - In-app account deletion removes the active account and associated sessions, passkeys, provider records, outings, observations, photos metadata, and dex metadata after provider revocation succeeds.
-- WingDex geocoding cache entries have a 30-day TTL and expired rows are physically purged in bounded batches.
+- WingDex does not retain a geocoding-provider response cache.
 - Automatic Cloudflare trace spans are disabled. Structured request logs exclude raw coordinates, location queries, filenames, notes, and request bodies.
 - [ ] **Owner/legal:** Record concrete hosting-log, backup, and disaster-recovery retention periods.
-- [ ] **Owner/legal:** Confirm Cloudflare DPA acceptance and the use of public Nominatim under OSMF's separate privacy policy.
+- [ ] **Owner/legal:** Confirm Cloudflare DPA acceptance and record acceptance of Geoapify's terms and privacy policy.
 
 ## Final binary checks
 

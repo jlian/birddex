@@ -11,8 +11,12 @@ final class GeocodingServiceTests: XCTestCase {
           "stateProvince": "US-WA",
           "countryCode": "US",
           "attribution": {
-            "label": "Location data © OpenStreetMap contributors",
-            "url": "https://www.openstreetmap.org/copyright"
+                        "label": "Powered by Geoapify",
+                        "url": "https://www.geoapify.com/"
+                    },
+                    "secondaryAttribution": {
+                        "label": "© OpenStreetMap contributors",
+                        "url": "https://www.openstreetmap.org/copyright"
           }
         }
         """#.utf8)
@@ -24,7 +28,8 @@ final class GeocodingServiceTests: XCTestCase {
         XCTAssertEqual(result.longitude, -122.4055)
         XCTAssertEqual(result.stateProvince, "US-WA")
         XCTAssertEqual(result.countryCode, "US")
-        XCTAssertEqual(result.attribution.url.absoluteString, "https://www.openstreetmap.org/copyright")
+        XCTAssertEqual(result.attribution.url.absoluteString, "https://www.geoapify.com/")
+        XCTAssertEqual(result.secondaryAttribution?.url.absoluteString, "https://www.openstreetmap.org/copyright")
     }
 
     func testResultIdentityIncludesCoordinatesAndLabel() throws {
@@ -35,9 +40,10 @@ final class GeocodingServiceTests: XCTestCase {
             stateProvince: "US-WA",
             countryCode: "US",
             attribution: .init(
-                label: "Location data © OpenStreetMap contributors",
-                url: URL(string: "https://www.openstreetmap.org/copyright")!
-            )
+                label: "Powered by Geoapify",
+                url: URL(string: "https://www.geoapify.com/")!
+            ),
+            secondaryAttribution: nil
         )
 
         XCTAssertEqual(result.id, "47.68,-122.33,Green Lake")

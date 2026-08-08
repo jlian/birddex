@@ -37,6 +37,8 @@ interface OutingReviewProps {
   ) => Promise<void>
 }
 
+type LocationAttributions = Pick<GeocodingResult, 'attribution' | 'secondaryAttribution'>
+
 export default function OutingReview({
   cluster,
   data,
@@ -54,8 +56,8 @@ export default function OutingReview({
   const preparedOutingRef = useRef<Outing | null>(null)
   const defaultLocationNameRef = useRef(defaultLocationName)
   const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
-  const [locationAttribution, setLocationAttribution] = useState<GeocodingResult['attribution'] | null>(null)
-  const [suggestedLocationAttribution, setSuggestedLocationAttribution] = useState<GeocodingResult['attribution'] | null>(null)
+  const [locationAttributions, setLocationAttributions] = useState<LocationAttributions | null>(null)
+  const [suggestedLocationAttributions, setSuggestedLocationAttributions] = useState<LocationAttributions | null>(null)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
 
@@ -104,9 +106,10 @@ export default function OutingReview({
       
       debug('geocoding', 'Location identified')
       setSuggestedLocation(result.label)
-      setSuggestedLocationAttribution(result.attribution)
+      const attributions = { attribution: result.attribution, secondaryAttribution: result.secondaryAttribution }
+      setSuggestedLocationAttributions(attributions)
       setLocationName(result.label)
-      setLocationAttribution(result.attribution)
+      setLocationAttributions(attributions)
       setInferredStateProvince(result.stateProvince)
       setInferredCountryCode(result.countryCode)
     } catch (error) {
@@ -116,9 +119,9 @@ export default function OutingReview({
       const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
       debug('geocoding', 'Using location fallback')
       setSuggestedLocation(fallback)
-      setSuggestedLocationAttribution(null)
+      setSuggestedLocationAttributions(null)
       setLocationName(fallback)
-      setLocationAttribution(null)
+      setLocationAttributions(null)
       setInferredStateProvince(undefined)
       setInferredCountryCode(undefined)
     } finally {
@@ -253,7 +256,9 @@ export default function OutingReview({
     cancelPlaceSearch()
     setOverriddenCoords({ lat: place.lat, lon: place.lon })
     setLocationName(place.label)
-    setLocationAttribution(place.attribution)
+    const attributions = { attribution: place.attribution, secondaryAttribution: place.secondaryAttribution }
+    setLocationAttributions(attributions)
+    setSuggestedLocationAttributions(attributions)
     setInferredStateProvince(place.stateProvince)
     setInferredCountryCode(place.countryCode)
     setPlaceResults([])
@@ -266,7 +271,7 @@ export default function OutingReview({
     if (!name) return
     cancelPlaceSearch()
     setLocationName(name)
-    setLocationAttribution(null)
+    setLocationAttributions(null)
     setOverriddenCoords(null)
     setInferredStateProvince(undefined)
     setInferredCountryCode(undefined)
@@ -445,7 +450,7 @@ export default function OutingReview({
                     onClick={() => {
                       cancelPlaceSearch()
                       setLocationName(suggestedLocation)
-                      setLocationAttribution(suggestedLocationAttribution)
+                      setLocationAttributions(suggestedLocationAttributions)
                       setOverriddenCoords(null)
                       setInferredStateProvince(undefined)
                       setInferredCountryCode(undefined)
@@ -482,16 +487,27 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
-            {locationAttribution && (
-              <a
-                href={locationAttribution.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-xs text-muted-foreground underline underline-offset-2"
-              >
-                {locationAttribution.label}
-              </a>
-            )}
+            {(() => {
+              const visible = placeResults[0]
+                ? { attribution: placeResults[0].attribution, secondaryAttribution: placeResults[0].secondaryAttribution }
+                : locationAttributions
+              if (!visible) return null
+              return (
+                <p className="text-xs text-muted-foreground">
+                  <a href={visible.attribution.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                    {visible.attribution.label}
+                  </a>
+                  {visible.secondaryAttribution && (
+                    <>
+                      {' · '}
+                      <a href={visible.secondaryAttribution.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                        {visible.secondaryAttribution.label}
+                      </a>
+                    </>
+                  )}
+                </p>
+              )
+            })()}
           </div>
           )}
 

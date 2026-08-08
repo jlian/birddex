@@ -1,20 +1,39 @@
+export const GEOAPIFY_ATTRIBUTION = {
+  label: 'Powered by Geoapify',
+  url: 'https://www.geoapify.com/',
+} as const
+
 export const OPENSTREETMAP_ATTRIBUTION = {
-  label: 'Location data © OpenStreetMap contributors',
+  label: '© OpenStreetMap contributors',
   url: 'https://www.openstreetmap.org/copyright',
 } as const
 
 export type CoordinateKind = 'latitude' | 'longitude'
 
-export interface NominatimResult {
-  place_id?: number
-  lat?: string
-  lon?: string
+export interface GeoapifyResult {
   name?: string
-  display_name?: string
-  category?: string
-  type?: string
-  namedetails?: Record<string, string>
-  address?: Record<string, string>
+  formatted?: string
+  address_line1?: string
+  address_line2?: string
+  lat?: number | string
+  lon?: number | string
+  country_code?: string
+  state_code?: string
+  state?: string
+  city?: string
+  town?: string
+  village?: string
+  suburb?: string
+  district?: string
+  county?: string
+}
+
+export interface GeoapifyResponse {
+  results: GeoapifyResult[]
+}
+
+export interface GeoapifyPlacesResponse {
+  features: Array<{ properties?: GeoapifyResult }>
 }
 
 export interface GeocodingResult {
@@ -23,7 +42,8 @@ export interface GeocodingResult {
   lon: number
   stateProvince?: string
   countryCode?: string
-  attribution: typeof OPENSTREETMAP_ATTRIBUTION
+  attribution: typeof GEOAPIFY_ATTRIBUTION
+  secondaryAttribution: typeof OPENSTREETMAP_ATTRIBUTION
 }
 
 const DECIMAL_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/
@@ -47,103 +67,54 @@ export function roundCoordinate(coordinate: number): number {
   return Object.is(rounded, -0) ? 0 : rounded
 }
 
-function normalizeStateProvinceCode(raw?: string): string | undefined {
+function normalizeCountryCode(raw?: string): string | undefined {
   const value = raw?.trim().toUpperCase()
-  if (!value) return undefined
-  return /^[A-Z]{2}-[A-Z0-9]{1,6}$/.test(value) ? value : undefined
+  return value && /^[A-Z]{2}$/.test(value) ? value : undefined
 }
 
-export function extractRegionCodes(result: NominatimResult): {
+function normalizeStateProvinceCode(raw: string | undefined, countryCode: string | undefined): string | undefined {
+  const value = raw?.trim().toUpperCase()
+  if (!value || !countryCode) return undefined
+  if (new RegExp(`^${countryCode}-[A-Z0-9]{1,6}$`).test(value)) return value
+  return /^[A-Z0-9]{1,6}$/.test(value) ? `${countryCode}-${value}` : undefined
+}
+
+export function extractRegionCodes(result: GeoapifyResult): {
   stateProvince?: string
   countryCode?: string
 } {
-  const address = result.address
-  if (!address) return {}
-
-  const countryCode = address.country_code?.trim().toUpperCase() || undefined
-  const directState =
-    normalizeStateProvinceCode(address['ISO3166-2-lvl4']) ||
-    normalizeStateProvinceCode(address['ISO3166-2-lvl3']) ||
-    normalizeStateProvinceCode(address['ISO3166-2-lvl5'])
-
-  if (directState || !countryCode) {
-    return { stateProvince: directState, countryCode }
+  const countryCode = normalizeCountryCode(result.country_code)
+  return {
+    stateProvince: normalizeStateProvinceCode(result.state_code, countryCode),
+    countryCode,
   }
-
-  const stateCode =
-    address.state_code?.trim().toUpperCase() ||
-    address.region_code?.trim().toUpperCase()
-  if (stateCode && /^[A-Z0-9]{1,6}$/.test(stateCode)) {
-    return { stateProvince: `${countryCode}-${stateCode}`, countryCode }
-  }
-
-  return { countryCode }
 }
 
-export function scoreNominatimResult(result: NominatimResult | null): number {
-  if (!result) return 0
-  const category = result.category?.toLowerCase() || ''
-  const type = result.type?.toLowerCase() || ''
-  const address = result.address || {}
-  const hasName = Boolean(result.name || result.namedetails?.['name:en'] || result.namedetails?.name)
-
-  let score = 0
-  if (category === 'leisure' && type === 'park') score += 100
-  else if (category === 'boundary' && type === 'protected_area') score += 95
-  else if (category === 'natural') score += 80
-  else if (category === 'waterway') score += 72
-  else if (category === 'place' && ['suburb', 'neighbourhood', 'village', 'town'].includes(type)) score += 60
-  else if (category === 'boundary' && type === 'administrative') score += 45
-
-  if (hasName) score += 5
-  if (address.city || address.town || address.village || address.county) score += 5
-  return Math.min(score, 100)
-}
-
-export function formatNominatimLabel(result: NominatimResult): string {
-  const address = result.address || {}
-  const primary =
-    result.namedetails?.['name:en'] ||
-    result.namedetails?.name ||
-    result.name ||
-    address.park ||
-    address.nature_reserve ||
-    address.recreation_ground ||
-    address.leisure ||
-    address.tourism ||
-    address.amenity ||
-    address.neighbourhood ||
-    address.suburb ||
-    address.village ||
-    address.town ||
-    address.city ||
-    address.county ||
-    address.state
-  const locality =
-    address.neighbourhood ||
-    address.suburb ||
-    address.village ||
-    address.town ||
-    address.city ||
-    address.county
-
-  return [primary, locality, address.state]
+export function formatGeoapifyLabel(result: GeoapifyResult): string {
+  const locality = result.city || result.town || result.village || result.suburb || result.district || result.county
+  const concise = [result.name || result.address_line1, locality, result.state]
+    .map(value => value?.trim())
     .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
     .slice(0, 3)
     .join(', ')
+  return concise || result.formatted?.trim() || ''
 }
 
-export function normalizeNominatimResult(result: NominatimResult): GeocodingResult | null {
+function providerCoordinate(value: number | string | undefined, kind: CoordinateKind): number {
+  return parseCoordinate(value === undefined ? null : String(value), kind)
+}
+
+export function normalizeGeoapifyResult(result: GeoapifyResult): GeocodingResult | null {
   let lat: number
   let lon: number
   try {
-    lat = parseCoordinate(result.lat || null, 'latitude')
-    lon = parseCoordinate(result.lon || null, 'longitude')
+    lat = providerCoordinate(result.lat, 'latitude')
+    lon = providerCoordinate(result.lon, 'longitude')
   } catch {
     return null
   }
 
-  const label = formatNominatimLabel(result) || result.display_name?.trim() || ''
+  const label = formatGeoapifyLabel(result)
   if (!label) return null
 
   return {
@@ -151,6 +122,7 @@ export function normalizeNominatimResult(result: NominatimResult): GeocodingResu
     lat,
     lon,
     ...extractRegionCodes(result),
-    attribution: OPENSTREETMAP_ATTRIBUTION,
+    attribution: GEOAPIFY_ATTRIBUTION,
+    secondaryAttribution: OPENSTREETMAP_ATTRIBUTION,
   }
 }
