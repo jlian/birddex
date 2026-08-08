@@ -346,20 +346,12 @@ struct AvatarView: View {
     }
 
     private var fallbackView: some View {
-        Group {
-            if let initial = name?.first {
-                Text(String(initial).uppercased())
-                    .font(.system(size: size * 0.45, weight: .medium))
-                    .foregroundStyle(Color.mutedText)
-                    .frame(width: size, height: size)
-                    .background(Color.mutedText.opacity(0.15))
-                    .clipShape(Circle())
-            } else {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: size * 0.8))
-                    .foregroundStyle(Color.mutedText)
-            }
-        }
+        Image(systemName: "person.fill")
+            .font(.system(size: size * 0.42, weight: .medium))
+            .foregroundStyle(Color.foregroundText)
+            .frame(width: size, height: size)
+            .background(Color.cardBg)
+            .clipShape(Circle())
     }
 }
 

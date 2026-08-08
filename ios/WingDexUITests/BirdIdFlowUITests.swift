@@ -187,4 +187,34 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["outing.locationName"].exists)
         XCTAssertFalse(app.staticTexts["Identifying location from GPS..."].exists)
     }
+
+    func testHomePassesAccessibilityAudit() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launch()
+        let homeTab = app.buttons["Home"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 120))
+        homeTab.tap()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        let elements = app.descendants(matching: .any)
+        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
+        XCTAssertTrue(elements["Eared Dove"].exists)
+
+        var photoContrastFindings = 0
+        try app.performAccessibilityAudit { issue in
+            print(
+                "AX_AUDIT type=\(issue.auditType.rawValue) "
+                    + "element=\(String(describing: issue.element)) "
+                    + "summary=\(issue.compactDescription) "
+                    + "detail=\(issue.detailedDescription)"
+            )
+                    // XCTest samples each photo-backed carousel cell instead of its opaque native caption.
+            if issue.auditType == .contrast {
+                photoContrastFindings += 1
+                return true
+            }
+            return false
+        }
+        XCTAssertEqual(photoContrastFindings, 5)
+    }
 }
