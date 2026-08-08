@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GeocodingUpstreamError, reverseGeocode, searchPlaces } from './geocoding-gateway'
 import type { Logger } from './log'
 
@@ -17,6 +17,16 @@ class MemoryD1 {
   seedExpired(cacheKey: string, expiresAt: number) {
     this.cache.set(cacheKey, { response: '{}', expiresAt })
     this.inflight.set(cacheKey, { ownerId: 'expired-owner', expiresAt })
+  }
+
+  delayUpstreamUntil(timestamp: number) {
+    this.nextAllowedAt = timestamp
+  }
+
+  seedInflightCache(response: unknown, expiresAt: number) {
+    const cacheKey = this.inflight.keys().next().value as string | undefined
+    if (!cacheKey) throw new Error('No in-flight geocoding request')
+    this.cache.set(cacheKey, { response: JSON.stringify(response), expiresAt })
   }
 
   hasCacheKey(cacheKey: string): boolean {
@@ -87,6 +97,15 @@ class MemoryD1 {
         }
         return { meta: { changes: 0 } }
       }
+      if (statement.sql.startsWith('UPDATE geocoding_inflight SET expiresAt')) {
+        const existing = this.inflight.get(String(secondValue))
+        if (existing?.ownerId !== String(thirdValue)) return { meta: { changes: 0 } }
+        this.inflight.set(String(secondValue), {
+          ownerId: existing.ownerId,
+          expiresAt: Number(firstValue),
+        })
+        return { meta: { changes: 1 } }
+      }
       if (statement.sql.startsWith('UPDATE geocoding_rate_limit SET nextAllowedAt = MAX')) {
         this.nextAllowedAt = Math.max(this.nextAllowedAt, Number(firstValue))
         return { meta: { changes: 1 } }
@@ -127,6 +146,10 @@ const providerResult = {
 }
 
 describe('geocoding gateway', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('physically deletes expired cache state without logging lookup data', async () => {
     const memory = new MemoryD1()
     memory.seedExpired('sensitive-cache-key', Date.now() - 1)
@@ -188,6 +211,64 @@ describe('geocoding gateway', () => {
     await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
     releaseFetch()
 
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
+
+  it('keeps identical misses coalesced while waiting beyond the flight lease', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-08T00:00:00Z'))
+    const memory = new MemoryD1()
+    memory.delayUpstreamUntil(Date.now() + 20_000)
+    const database = memory as unknown as D1Database
+    const fetcher = vi.fn<Fetcher>(async () => Response.json([providerResult]))
+
+    const first = searchPlaces(database, 'Green Lake', fetcher)
+    await vi.advanceTimersByTimeAsync(16_000)
+    const second = searchPlaces(database, 'Green Lake', fetcher)
+    await vi.advanceTimersByTimeAsync(6_000)
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
+
+  it('re-reads cache after waiting for the global upstream slot', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-08T00:00:00Z'))
+    const memory = new MemoryD1()
+    memory.delayUpstreamUntil(Date.now() + 5_000)
+    const database = memory as unknown as D1Database
+    const fetcher = vi.fn<Fetcher>(async () => Response.json([providerResult]))
+
+    const request = searchPlaces(database, 'Green Lake', fetcher)
+    await vi.advanceTimersByTimeAsync(1_000)
+    memory.seedInflightCache([providerResult], Date.now() + 60_000)
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    await expect(request).resolves.toHaveLength(1)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('keeps identical misses coalesced during an upstream call beyond the flight lease', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-08T00:00:00Z'))
+    const database = new MemoryD1() as unknown as D1Database
+    let releaseFetch: () => void = () => undefined
+    const blocked = new Promise<void>(resolve => { releaseFetch = resolve })
+    const fetcher = vi.fn<Fetcher>(async () => {
+      await blocked
+      return Response.json([providerResult])
+    })
+
+    const first = searchPlaces(database, 'Green Lake', fetcher)
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+    await vi.advanceTimersByTimeAsync(16_000)
+    const second = searchPlaces(database, 'Green Lake', fetcher)
+    await vi.advanceTimersByTimeAsync(250)
+    expect(fetcher).toHaveBeenCalledOnce()
+
+    releaseFetch()
+    await vi.runAllTimersAsync()
     await expect(Promise.all([first, second])).resolves.toHaveLength(2)
     expect(fetcher).toHaveBeenCalledOnce()
   })

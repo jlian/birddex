@@ -1,6 +1,10 @@
 import { createAuth } from '../../../lib/auth'
 import { createLogger, createRouteResponder } from '../../../lib/log'
-import { exchangeAppleAuthorizationCode, ProviderRevocationError } from '../../../lib/provider-revocation'
+import {
+  exchangeAppleAuthorizationCode,
+  ProviderRevocationError,
+  storeNativeAppleRevocationCredentials,
+} from '../../../lib/provider-revocation'
 
 export const onRequestPost: PagesFunction<Env> = async context => {
   const auth = createAuth(context.env, { request: context.request })
@@ -35,12 +39,12 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       body.authorizationCode,
       context.env.APPLE_APP_CLIENT_SECRET,
     )
-    const update = await context.env.DB.prepare(
-      `UPDATE account
-       SET accessToken = ?1, refreshToken = ?2, updatedAt = datetime('now')
-       WHERE userId = ?3 AND providerId = 'apple'`
-    ).bind(tokens.accessToken, tokens.refreshToken, session.user.id).run()
-    if ((update.meta.changes || 0) !== 1) {
+    const stored = await storeNativeAppleRevocationCredentials(
+      context.env.DB,
+      session.user.id,
+      tokens,
+    )
+    if (!stored) {
       return route.fail(409, 'Apple account is not linked', 'Apple token exchange succeeded but no linked Apple account was found; restart native sign-in')
     }
     route.info('Stored native Apple revocation credentials')
