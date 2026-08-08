@@ -16,6 +16,7 @@ import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fu
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike, toStandardPasskeyLabel } from '@/lib/passkey-label'
 import { toast } from 'sonner'
 import { clientLog, logClientFailure } from '@/lib/client-log'
+import { generateTraceparent } from '@/lib/trace'
 import demoCsv from '@/assets/ebird-import.csv?raw'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 
@@ -826,8 +827,10 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                       onClick={async () => {
                         setIsDeletingAccount(true)
                         try {
-                          const response = await fetchWithLocalAuthRetry('/api/auth/delete-account', {
+                          const response = await fetch('/api/auth/delete-account', {
                             method: 'POST',
+                            credentials: 'include',
+                            headers: { traceparent: generateTraceparent() },
                           })
                           if (!response.ok) {
                             const message = await response.text().catch(() => '')
