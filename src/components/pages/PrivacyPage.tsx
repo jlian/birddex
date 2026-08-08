@@ -9,7 +9,7 @@ export default function PrivacyPage() {
       <article className="space-y-6 text-sm text-muted-foreground leading-relaxed">
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">1. Introduction</h3>
-          <p>This Privacy Policy describes how WingDex™ ("we," "us," or "the Service") collects, uses, and shares information when you use the WingDex web application. By accessing or using WingDex, you acknowledge that you have read and understood this policy.</p>
+          <p>This Privacy Policy describes how WingDex™ ("we," "us," or "the Service") collects, uses, and shares information when you use the WingDex web application or iOS app. By accessing or using WingDex, you acknowledge that you have read and understood this policy.</p>
         </section>
 
         <section className="space-y-2">
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
             <li><strong>eBird / Cornell Lab of Ornithology:</strong> Taxonomy and species data for matching and display.</li>
             <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
             <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
-            <li><strong>OpenStreetMap / Nominatim:</strong> WingDex forwards explicitly submitted location searches and rounded coordinates through our server for geocoding. Exact outing and photo coordinates remain stored by WingDex as described above; they are not sent to Nominatim.</li>
+            <li><strong>OpenStreetMap Foundation / Nominatim:</strong> WingDex forwards explicitly submitted location searches and rounded coordinates through our server for geocoding. Exact outing and photo coordinates remain stored by WingDex as described above; they are not sent to Nominatim. OpenStreetMap Foundation operates this public service under its own privacy policy and may record API access data and analyze Nominatim queries to operate and improve its services.</li>
             <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
           </ul>
         </section>
@@ -67,7 +67,8 @@ export default function PrivacyPage() {
           <h3 className="font-semibold text-foreground">6. Data sharing and disclosure</h3>
           <p>We do not sell, rent, or trade your personal information. We may share information only:</p>
           <ul className="list-disc ml-5 space-y-0.5">
-            <li>With third-party service providers as described in Section 5, solely to operate the Service</li>
+            <li>With infrastructure and authentication providers as described in Section 5, solely to operate the Service</li>
+            <li>With OpenStreetMap Foundation when you submit a location search or WingDex requests a location suggestion, subject to its separate privacy policy</li>
             <li>If required by law, regulation, legal process, or governmental request</li>
             <li>To protect the rights, property, or safety of WingDex, its users, or the public</li>
           </ul>
@@ -75,7 +76,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">7. Data retention</h3>
-          <p>Your account data and birding records are retained while your account is active. If you request deletion, we will delete or anonymize your personal data within a reasonable timeframe, except where retention is required by law or for legitimate operational purposes.</p>
+          <p>Your account data and birding records are retained while your account is active. When in-app account deletion succeeds, WingDex deletes the active account record and its associated birding data, sessions, passkeys, and linked-provider records. WingDex caches geocoding provider responses for up to 30 days to reduce repeated requests; expired cache rows are deleted. Hosting providers may retain temporary operational or backup data under their own retention and recovery practices.</p>
         </section>
 
         <section className="space-y-1">

@@ -13,6 +13,7 @@ const USER_AGENT = 'WingDex/1.0 (https://wingdex.app; https://github.com/jlian/w
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const FLIGHT_TTL_MS = 15_000
 const UPSTREAM_INTERVAL_MS = 1_000
+const CLEANUP_BATCH_SIZE = 25
 
 type Fetcher = typeof fetch
 
@@ -67,6 +68,31 @@ async function readCached<T>(db: D1Database, cacheKey: string, now: number): Pro
   } catch {
     await db.prepare('DELETE FROM geocoding_cache WHERE cacheKey = ?').bind(cacheKey).run()
     return null
+  }
+}
+
+async function cleanupExpiredRows(db: D1Database, now: number, log?: Logger): Promise<void> {
+  const cacheResult = await db.prepare(
+    `DELETE FROM geocoding_cache
+     WHERE cacheKey IN (
+       SELECT cacheKey FROM geocoding_cache WHERE expiresAt <= ?1 LIMIT ${CLEANUP_BATCH_SIZE}
+     )`
+  ).bind(now).run()
+  const inflightResult = await db.prepare(
+    `DELETE FROM geocoding_inflight
+     WHERE cacheKey IN (
+       SELECT cacheKey FROM geocoding_inflight WHERE expiresAt <= ?1 LIMIT ${CLEANUP_BATCH_SIZE}
+     )`
+  ).bind(now).run()
+  const cacheRows = cacheResult.meta.changes || 0
+  const inflightRows = inflightResult.meta.changes || 0
+  if (cacheRows > 0 || inflightRows > 0) {
+    log?.debug('geocoding/cache/delete', {
+      category: 'Application',
+      resultType: 'Succeeded',
+      resultDescription: 'Expired geocoding state deleted',
+      properties: { cacheRows, inflightRows },
+    })
   }
 }
 
@@ -132,6 +158,7 @@ async function requestNominatim<T>(
   const url = buildUpstreamURL(path, params)
   const cacheKey = await hashCacheKey(`v1:${url.pathname}?${url.searchParams.toString()}`)
   const now = Date.now()
+  await cleanupExpiredRows(db, now, log)
   const cached = await readCached<T>(db, cacheKey, now)
   if (cached !== null) {
     log?.debug('geocoding/cache/read', {
