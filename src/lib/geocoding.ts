@@ -8,6 +8,10 @@ export interface GeocodingResult {
     label: string
     url: string
   }
+  secondaryAttribution?: {
+    label: string
+    url: string
+  }
 }
 
 async function fetchGeocoding<T>(url: URL, signal?: AbortSignal): Promise<T> {

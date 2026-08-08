@@ -22,7 +22,9 @@ struct OutingReviewView: View {
     @State private var isLoadingLocation = false
     @State private var suggestedLocation = ""
     @State private var locationAttribution: GeocodingResult.Attribution?
+    @State private var locationSecondaryAttribution: GeocodingResult.Attribution?
     @State private var suggestedLocationAttribution: GeocodingResult.Attribution?
+    @State private var suggestedLocationSecondaryAttribution: GeocodingResult.Attribution?
 
     /// Extracted ISO 3166-2 state/province code from geocoding.
     @State private var inferredStateProvince: String?
@@ -92,7 +94,7 @@ struct OutingReviewView: View {
                 gpsStatusSection
             } footer: {
                 if hasGps {
-                    Text("Coordinates are saved with your outing and photo metadata. Rounded coordinates may be sent to OpenStreetMap to suggest a location name.")
+                    Text("Coordinates are saved with your outing and photo metadata. Rounded coordinates may be sent to Geoapify to suggest a location name.")
                         .font(.footnote)
                         .foregroundStyle(Color.mutedText)
                 }
@@ -279,6 +281,7 @@ struct OutingReviewView: View {
                 Button("Use GPS: \(suggestedLocation)") {
                     locationName = suggestedLocation
                     locationAttribution = suggestedLocationAttribution
+                    locationSecondaryAttribution = suggestedLocationSecondaryAttribution
                     dismissLocationSearch()
                 }
                 .font(.subheadline)
@@ -312,16 +315,30 @@ struct OutingReviewView: View {
                 Button("Use GPS: \(suggestedLocation)") {
                     locationName = suggestedLocation
                     locationAttribution = suggestedLocationAttribution
+                    locationSecondaryAttribution = suggestedLocationSecondaryAttribution
                 }
                 .font(.subheadline)
             }
         }
 
-        if let locationAttribution {
-            Link(locationAttribution.label, destination: locationAttribution.url)
-                .font(.footnote)
-                .tint(Color.foregroundText)
-                .accessibilityIdentifier("outing.locationAttribution")
+        let visibleAttribution = placeResults.first?.attribution ?? locationAttribution
+        let visibleSecondaryAttribution = placeResults.first?.secondaryAttribution ?? locationSecondaryAttribution
+        if visibleAttribution != nil || visibleSecondaryAttribution != nil {
+            HStack(spacing: 4) {
+                if let visibleAttribution {
+                    Link(visibleAttribution.label, destination: visibleAttribution.url)
+                        .accessibilityIdentifier("outing.locationAttribution")
+                }
+                if visibleAttribution != nil, visibleSecondaryAttribution != nil {
+                    Text("·")
+                }
+                if let visibleSecondaryAttribution {
+                    Link(visibleSecondaryAttribution.label, destination: visibleSecondaryAttribution.url)
+                        .accessibilityIdentifier("outing.locationSourceAttribution")
+                }
+            }
+            .font(.footnote)
+            .tint(Color.foregroundText)
         }
     }
 
@@ -363,7 +380,9 @@ struct OutingReviewView: View {
         locationName = ""
         suggestedLocation = ""
         locationAttribution = nil
+        locationSecondaryAttribution = nil
         suggestedLocationAttribution = nil
+        suggestedLocationSecondaryAttribution = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
         overriddenStartTime = nil
@@ -434,7 +453,9 @@ struct OutingReviewView: View {
                 locationName = result.label
                 suggestedLocation = result.label
                 locationAttribution = result.attribution
+                locationSecondaryAttribution = result.secondaryAttribution
                 suggestedLocationAttribution = result.attribution
+                suggestedLocationSecondaryAttribution = result.secondaryAttribution
                 inferredStateProvince = result.stateProvince
                 inferredCountryCode = result.countryCode
             } else {
@@ -456,7 +477,9 @@ struct OutingReviewView: View {
         locationName = fallback
         suggestedLocation = fallback
         locationAttribution = nil
+        locationSecondaryAttribution = nil
         suggestedLocationAttribution = nil
+        suggestedLocationSecondaryAttribution = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
     }
@@ -497,7 +520,9 @@ struct OutingReviewView: View {
         locationName = result.label
         suggestedLocation = result.label
         locationAttribution = result.attribution
+        locationSecondaryAttribution = result.secondaryAttribution
         suggestedLocationAttribution = result.attribution
+        suggestedLocationSecondaryAttribution = result.secondaryAttribution
         inferredCountryCode = result.countryCode
         inferredStateProvince = result.stateProvince
         dismissLocationSearch()
@@ -508,6 +533,7 @@ struct OutingReviewView: View {
         guard !name.isEmpty else { return }
         locationName = name
         locationAttribution = nil
+        locationSecondaryAttribution = nil
         overriddenCoords = nil
         inferredCountryCode = nil
         inferredStateProvince = nil

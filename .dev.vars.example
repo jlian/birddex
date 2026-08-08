@@ -5,6 +5,9 @@
 
 BETTER_AUTH_SECRET=local-dev-secret
 
+# Required for location search and rounded-coordinate suggestions.
+# GEOAPIFY_KEY=
+
 # --- Observability (optional) ---
 
 # LOG_LEVEL=Debug

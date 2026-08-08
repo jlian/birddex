@@ -16,6 +16,7 @@ interface Env {
   OPENAI_API_KEY: string
   OPENAI_MODEL: string
   OPENAI_MODEL_STRONG?: string
+  GEOAPIFY_KEY: string
   AI_DAILY_LIMIT_IDENTIFY?: string
   AI_DAILY_LIMIT_SUGGEST?: string
   TRUSTED_ORIGINS?: string
