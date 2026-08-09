@@ -71,7 +71,7 @@ describe('provider revocation', () => {
   })
 
   it('treats an already-revoked Apple grant as success so retries reach remaining grants', async () => {
-    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 400 }))
+    const fetcher = vi.fn<Fetcher>(async () => Response.json({ error: 'invalid_grant' }, { status: 400 }))
     await expect(revokeProviderAccount({
       providerId: 'apple',
       refreshToken: 'already-revoked-web',
@@ -81,6 +81,24 @@ describe('provider revocation', () => {
     // The web token 400 (invalid_grant) must not short-circuit; the native grant is still revoked.
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(String(fetcher.mock.calls[1][1]?.body)).toContain('token=native-refresh')
+  })
+
+  it('throws on an Apple 400 that is not invalid_grant so a live grant is never orphaned', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => Response.json({ error: 'invalid_client' }, { status: 400 }))
+    await expect(revokeProviderAccount(
+      { providerId: 'apple', refreshToken: 'web-refresh' },
+      env,
+      fetcher,
+    )).rejects.toMatchObject({ providerId: 'apple', status: 400 })
+  })
+
+  it('throws on an Apple 400 with a non-JSON body rather than swallowing it', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response('Bad Request', { status: 400 }))
+    await expect(revokeProviderAccount(
+      { providerId: 'apple', refreshToken: 'web-refresh' },
+      env,
+      fetcher,
+    )).rejects.toMatchObject({ providerId: 'apple', status: 400 })
   })
 
   it('blocks deletion when a linked provider has no revocable token', async () => {
