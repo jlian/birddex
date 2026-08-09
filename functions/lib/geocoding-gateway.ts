@@ -109,7 +109,7 @@ export async function reverseGeocode(
   const deadline = setTimeout(() => controller.abort(), GEOAPIFY_DEADLINE_MS)
   try {
     const places = parsePlacesResponse(await requestGeoapify(apiKey, '/v2/places', {
-      categories: 'leisure.park,natural,national_park',
+      categories: 'leisure.park,natural,natural.national_park',
       conditions: 'named',
       filter: `circle:${lon},${lat},1000`,
       bias: `proximity:${lon},${lat}`,
@@ -148,6 +148,8 @@ export async function searchPlaces(
     const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/search', {
       text: query,
       limit: '5',
+      // Geoapify defaults to countrycode:auto; its current Forward Geocoding docs
+      // explicitly prescribe countrycode:none to avoid IP-country prioritization.
       bias: 'countrycode:none',
     }, fetcher, controller.signal))
 
