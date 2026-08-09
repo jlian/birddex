@@ -19,9 +19,17 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   const limit = parseLimit(new URL(context.request.url).searchParams.get('limit'))
 
   if (!query.trim()) {
-    return route.complete(Response.json({ results: [] }), `Completed species search with empty query (limit ${limit})`)
+    return route.complete(Response.json({ results: [] }), 'Species search returned no matches because the query was empty')
   }
 
-  const results = searchSpecies(query, limit)
-  return route.complete(Response.json({ results }), `Completed species search with ${results.length} matches (limit ${limit})`)
+  const stage = 'taxonomy search'
+  try {
+    const results = searchSpecies(query, limit)
+    return route.complete(
+      Response.json({ results }),
+      `Species search returned ${results.length} ${results.length === 1 ? 'match' : 'matches'}`,
+    )
+  } catch {
+    return route.fail(500, 'Internal server error', `Species search failed during ${stage}`)
+  }
 }

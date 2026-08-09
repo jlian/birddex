@@ -10,17 +10,17 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     'export/outingCsv/export', 'Application'
   )
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to generate an outing CSV')
   }
 
   if (!outingId) {
     return route.fail(400, 'Missing outing id', 'URL path must include an outing ID segment')
   }
 
+  let stage = 'outing schema inspection'
   try {
-
-  const columnNames = await getOutingColumnNames(context.env.DB)
-  const outingQuery = `SELECT
+    const columnNames = await getOutingColumnNames(context.env.DB)
+    const outingQuery = `SELECT
       id,
       startTime,
       endTime,
@@ -37,10 +37,11 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       notes
     FROM outing WHERE id = ? AND userId = ? LIMIT 1`
 
-  const outingResult = await context.env.DB
-    .prepare(outingQuery)
-    .bind(outingId, userId)
-    .all<{
+    stage = 'outing database query'
+    const outingResult = await context.env.DB
+      .prepare(outingQuery)
+      .bind(outingId, userId)
+      .all<{
       id: string
       startTime: string
       endTime: string
@@ -55,49 +56,52 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       effortDistanceMiles?: number | null
       effortAreaAcres?: number | null
       notes?: string | null
-    }>()
+      }>()
 
-  const outing = outingResult.results[0]
-  if (!outing) {
-    return route.fail(404, 'Not found', `Outing ${outingId} not found or not owned by user`, { outingId })
-  }
+    const outing = outingResult.results[0]
+    if (!outing) {
+      return route.fail(404, 'Not found', 'Outing was not found for the authenticated account')
+    }
 
-  const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
-  const observationNotesSelect = supportsSpeciesCommentsColumn
-    ? 'COALESCE(speciesComments, notes) as notes'
-    : 'notes'
+    stage = 'observation schema inspection'
+    const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
+    const observationNotesSelect = supportsSpeciesCommentsColumn
+      ? 'COALESCE(speciesComments, notes) as notes'
+      : 'notes'
 
-  const observationsResult = await context.env.DB
-    .prepare(
-      `SELECT speciesName, count, certainty, ${observationNotesSelect}
+    stage = 'outing observation database query'
+    const observationsResult = await context.env.DB
+      .prepare(
+        `SELECT speciesName, count, certainty, ${observationNotesSelect}
        FROM observation
        WHERE outingId = ? AND userId = ?`
-    )
-    .bind(outingId, userId)
-    .all<{
-      speciesName: string
-      count: number
-      certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
-      notes?: string | null
-    }>()
+      )
+      .bind(outingId, userId)
+      .all<{
+        speciesName: string
+        count: number
+        certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
+        notes?: string | null
+      }>()
 
-  const csv = exportOutingToEBirdCSV(
-    {
-      ...outing,
-      allObsReported: outing.allObsReported == null ? null : outing.allObsReported === 1,
-    },
-    observationsResult.results,
-    true
-  )
-  const safeOutingId = outingId.replace(/[^a-zA-Z0-9._-]/g, '_')
-  return route.complete(new Response(csv, {
-    headers: {
-      'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="wingdex-outing-${safeOutingId}.csv"`,
-      'cache-control': 'no-store',
-    },
-  }), `Exported outing ${outingId} with ${observationsResult.results.length} observations`)
+    stage = 'outing CSV serialization'
+    const csv = exportOutingToEBirdCSV(
+      {
+        ...outing,
+        allObsReported: outing.allObsReported == null ? null : outing.allObsReported === 1,
+      },
+      observationsResult.results,
+      true
+    )
+    const safeOutingId = outingId.replace(/[^a-zA-Z0-9._-]/g, '_')
+    return route.complete(new Response(csv, {
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="wingdex-outing-${safeOutingId}.csv"`,
+        'cache-control': 'no-store',
+      },
+    }), `Generated outing CSV with ${observationsResult.results.length} ${observationsResult.results.length === 1 ? 'observation' : 'observations'}`)
   } catch {
-    return route.fail(500, 'Export failed', 'Outing export failed; inspect the trace and database query', { outingId })
+    return route.fail(500, 'Export failed', `Outing CSV generation failed during ${stage}`)
   }
 }

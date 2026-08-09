@@ -4,6 +4,7 @@ import { passkey } from '@better-auth/passkey'
 import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
 import type { Logger } from './log'
+import { allowlistedProvider } from './provider-revocation'
 
 type CreateAuthOptions = {
   request?: Request
@@ -20,6 +21,16 @@ type SocialProviderConfig = {
   appBundleIdentifier?: string
 }
 
+type CreatedUserKind = 'anonymous' | 'authenticated'
+
+function hookPath(context: { path?: unknown } | null): string | null {
+  return typeof context?.path === 'string' ? context.path : null
+}
+
+function providerDescription(providerId: string): string {
+  const provider = allowlistedProvider(providerId)
+  return provider === 'unsupported' ? 'an unsupported provider' : `the ${provider} provider`
+}
 
 function isLoopbackOrigin(value: string | null): value is string {
   if (!value) return false
@@ -104,6 +115,7 @@ export function normalizeAuthRequest(env: Env, request: Request): Request {
 }
 
 export function createAuth(env: Env, options: CreateAuthOptions = {}) {
+  const createdUsers = new Map<string, CreatedUserKind>()
   const database = new Kysely({
     dialect: new D1Dialect({ database: env.DB }),
   })
@@ -219,11 +231,15 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
     databaseHooks: options.log ? {
       user: {
         create: {
-          after: async () => {
+          after: async (user) => {
+            const userKind: CreatedUserKind = user.isAnonymous === true ? 'anonymous' : 'authenticated'
+            createdUsers.set(user.id, userKind)
             options.log?.info('auth/account/create', {
               category: 'Application',
               resultType: 'Succeeded',
-              resultDescription: 'Created a WingDex user during authentication',
+              resultDescription: userKind === 'anonymous'
+                ? 'Created a temporary anonymous WingDex account for the guest session'
+                : 'Created a persistent WingDex account during authentication',
             })
           },
         },
@@ -231,10 +247,41 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
       account: {
         create: {
           after: async (account) => {
+            const target = createdUsers.has(account.userId) ? 'a newly created WingDex account' : 'an existing WingDex account'
             options.log?.info('auth/provider/link', {
               category: 'Application',
               resultType: 'Succeeded',
-              resultDescription: `Linked ${account.providerId} credentials to a WingDex user`,
+              resultDescription: `Linked ${providerDescription(account.providerId)} to ${target} during authentication`,
+            })
+          },
+        },
+      },
+      session: {
+        create: {
+          after: async (session, context) => {
+            const createdUserKind = createdUsers.get(session.userId)
+            const path = hookPath(context)
+            const resultDescription = createdUserKind === 'anonymous'
+              ? 'Created a server session for a newly created temporary anonymous account'
+              : createdUserKind === 'authenticated'
+                ? 'Created a server session for a newly created persistent account'
+                : path?.endsWith('/passkey/verify-authentication')
+                  ? 'Created a server session after successful passkey authentication'
+                  : 'Created a server session during authentication for an existing account'
+            options.log?.info('auth/session/create', {
+              category: 'Application',
+              resultType: 'Succeeded',
+              resultDescription,
+            })
+          },
+        },
+        delete: {
+          after: async (_session, context) => {
+            if (!hookPath(context)?.endsWith('/sign-out')) return
+            options.log?.info('auth/session/delete', {
+              category: 'Application',
+              resultType: 'Succeeded',
+              resultDescription: 'Deleted the server session during sign-out; the authentication cookie can now be cleared',
             })
           },
         },

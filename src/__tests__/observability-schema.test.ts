@@ -4,8 +4,8 @@ import { createLogger, createRouteResponder, requestCompletionLevel, RESULT_DESC
 describe('createLogger schema', () => {
   function captureLogs(fn: (log: ReturnType<typeof createLogger>) => void, logLevel = 'debug'): unknown[] {
     const out: unknown[] = []
-    const spyLog = vi.spyOn(console, 'log').mockImplementation((s: string) => { out.push(JSON.parse(s)) })
-    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { out.push(JSON.parse(s)) })
+    const spyLog = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { out.push(entry) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((entry: unknown) => { out.push(entry) })
     try {
       const log = createLogger({ env: { LOG_LEVEL: logLevel }, traceId: 'trace123', spanId: 'span456', userId: 'u1', identity: { authMethod: 'session' } })
       fn(log)
@@ -30,6 +30,7 @@ describe('createLogger schema', () => {
       identity: { authMethod: 'session' },
     })
     expect(typeof (entry as { time: string }).time).toBe('string')
+    expect(entry).not.toHaveProperty('message')
   })
 
   it('omits resultDescription, durationMs, properties when absent', () => {
@@ -85,7 +86,7 @@ describe('createLogger schema', () => {
   it('routes errors to console.error', () => {
     const errs: unknown[] = []
     const spyLog = vi.spyOn(console, 'log').mockImplementation(() => {})
-    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { errs.push(JSON.parse(s)) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((entry: unknown) => { errs.push(entry) })
     try {
       const log = createLogger({ env: {}, traceId: 't', spanId: 's' })
       log.error('foo/bar/read', { category: 'Application', resultType: 'Failed', resultSignature: 500, resultDescription: 'boom' })
@@ -99,7 +100,7 @@ describe('createLogger schema', () => {
 
   it('legacy DEBUG=1 maps to debug level', () => {
     const out: unknown[] = []
-    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { out.push(JSON.parse(s)) })
+    const spy = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { out.push(entry) })
     try {
       const log = createLogger({ env: { DEBUG: '1' }, traceId: 't', spanId: 's' })
       log.debug('foo/bar/read')
@@ -119,7 +120,7 @@ describe('createLogger schema', () => {
 
   it('withResourceId extends the resourceId path', () => {
     const out: unknown[] = []
-    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { out.push(JSON.parse(s)) })
+    const spy = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { out.push(entry) })
     try {
       const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't', spanId: 's', resourceId: '/users/u1' })
       const scoped = log.withResourceId('outings/abc')
@@ -153,8 +154,8 @@ describe('createLogger schema', () => {
 describe('createRouteResponder', () => {
   function captureLogs(fn: (log: ReturnType<typeof createLogger>) => void, logLevel = 'debug'): unknown[] {
     const out: unknown[] = []
-    const spyLog = vi.spyOn(console, 'log').mockImplementation((s: string) => { out.push(JSON.parse(s)) })
-    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { out.push(JSON.parse(s)) })
+    const spyLog = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { out.push(entry) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((entry: unknown) => { out.push(entry) })
     try {
       const log = createLogger({ env: { LOG_LEVEL: logLevel }, traceId: 't1', spanId: 's1' })
       fn(log)
@@ -167,8 +168,8 @@ describe('createRouteResponder', () => {
 
   it('fail() returns a response with its middleware completion description', async () => {
     const logs: unknown[] = []
-    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
-    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
+    const spy = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { logs.push(entry) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((entry: unknown) => { logs.push(entry) })
     try {
       const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
       const route = createRouteResponder(log, 'data/outings/write', 'Application')
@@ -218,6 +219,31 @@ describe('createRouteResponder', () => {
     })
   })
 
+  it('succeeded() and failed() emit explicit durable outcomes', () => {
+    const entries = captureLogs(log => {
+      const route = createRouteResponder(log, 'auth/account/delete', 'Application')
+      route.succeeded('Deleted the local account')
+      route.failed('Local account deletion failed')
+    })
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        level: 'Info',
+        operationName: 'auth/account/delete',
+        category: 'Application',
+        resultType: 'Succeeded',
+        resultDescription: 'Deleted the local account',
+      }),
+      expect.objectContaining({
+        level: 'Error',
+        operationName: 'auth/account/delete',
+        category: 'Application',
+        resultType: 'Failed',
+        resultDescription: 'Local account deletion failed',
+      }),
+    ])
+  })
+
   it('debug() emits with properties', () => {
     const [entry] = captureLogs(log => {
       const route = createRouteResponder(log, 'data/dex/read', 'Application')
@@ -232,8 +258,8 @@ describe('createRouteResponder', () => {
 
   it('failWithHeaders() returns Response with custom headers', () => {
     const logs: unknown[] = []
-    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
-    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
+    const spy = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { logs.push(entry) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((entry: unknown) => { logs.push(entry) })
     try {
       const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
       const route = createRouteResponder(log, 'birdId/identify/invoke', 'Application')
@@ -248,8 +274,8 @@ describe('createRouteResponder', () => {
 
   it('complete() attaches terminal outcome detail without immediate logs', async () => {
     const logs: unknown[] = []
-    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
-    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
+    const spy = vi.spyOn(console, 'log').mockImplementation((entry: unknown) => { logs.push(entry) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((entry: unknown) => { logs.push(entry) })
     try {
       const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
       const route = createRouteResponder(log, 'export/sightings/export', 'Application')

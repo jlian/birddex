@@ -30,7 +30,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const allowedProviders = new Set(['github', 'apple', 'google'])
   if (!allowedProviders.has(provider)) {
-    return route.fail(400, 'Unsupported provider parameter', `Unsupported OAuth provider: ${provider}; allowed: github, apple, google`)
+    return route.fail(
+      400,
+      'Unsupported provider parameter',
+      'Unsupported OAuth provider; allowed providers are github, apple, and google',
+    )
   }
 
   // Mobile social OAuth must start in hosted-oauth mode so the provider sees

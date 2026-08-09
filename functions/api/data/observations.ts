@@ -49,6 +49,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object'
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 function getPatchBindings(patch: ObservationPatch): {
   updateFields: string[]
   bindings: Array<string | number | null>
@@ -200,7 +204,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/observations/write', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to persist observations')
   }
 
   let body: unknown
@@ -218,7 +222,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const dexUpdates = await computeDex(context.env.DB, userId)
     return route.complete(
       Response.json({ observations: [], dexUpdates: enrichDexEntries(dexUpdates) }),
-      `No observations submitted; recomputed ${dexUpdates.length} dex entries`,
+      `No observations submitted; recomputed ${countLabel(dexUpdates.length, 'dex entry', 'dex entries')}`,
     )
   }
   if (hasConflictingObservationIds(body)) {
@@ -228,6 +232,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     return route.fail(400, 'Invalid photo references', 'A representative photo cannot reference multiple outings in one request')
   }
 
+  let observationBatchCommitted = false
+  let observationBatchVerified = false
   try {
     const outingIds = [...new Set(body.map(o => o.outingId))]
     const allOwned = await hasOwnedOutings(
@@ -303,10 +309,17 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     })
 
     await context.env.DB.batch(statements)
+    observationBatchCommitted = true
     if (!await hasCompatibleObservationIds(context.env.DB, userId, body, true)) {
+      if (body.length > 1) {
+        route.failed(`Committed ${body.length}-record observation batch, but post-commit ownership verification failed`)
+      }
       return route.fail(409, 'Observation ID conflict', 'One or more observation IDs were concurrently claimed by another account or outing', { count: body.length })
     }
-    const speciesNames = [...new Set(body.map(o => o.speciesName))]
+    observationBatchVerified = true
+    if (body.length > 1) {
+      route.succeeded(`Committed and verified ${body.length} observations across ${outingIds.length} ${outingIds.length === 1 ? 'outing' : 'outings'}; starting dex recomputation`)
+    }
 
     const observations = body.map(observation => ({
       ...observation,
@@ -319,10 +332,15 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const dexUpdates = await computeDex(context.env.DB, userId)
     return route.complete(
       Response.json({ observations, dexUpdates: enrichDexEntries(dexUpdates) }),
-      `Persisted ${body.length} observations across ${outingIds.length} outings and recomputed ${dexUpdates.length} dex entries`,
+      `Persisted ${countLabel(body.length, 'observation')} across ${countLabel(outingIds.length, 'outing')} and recomputed ${countLabel(dexUpdates.length, 'dex entry', 'dex entries')}`,
     )
     } catch {
-    return route.fail(500, 'Internal server error', 'Observation persistence failed; inspect the trace and database operation', { count: body.length })
+    const detail = observationBatchVerified
+      ? `Committed and verified ${countLabel(body.length, 'observation')}; post-commit dex recomputation failed`
+      : observationBatchCommitted
+        ? `Committed ${body.length}-record observation batch; post-commit ownership verification failed`
+        : `Observation persistence failed before the ${body.length}-record database batch committed`
+    return route.fail(500, 'Internal server error', detail)
   }
 }
 
@@ -330,7 +348,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/observations/write', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to patch observations')
   }
 
   let body: unknown
@@ -344,6 +362,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     return route.fail(400, 'Invalid patch payload', 'PATCH payload is not a valid object; expected {id, ...patch} or {ids, patch}')
   }
 
+  let committedBulkPatch: { updatedCount: number; requestedCount: number } | null = null
   try {
     const db = context.env.DB
     const supportsSpeciesComments = await hasObservationColumn(db, 'speciesComments')
@@ -368,14 +387,14 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     if (typeof patch.outingId === 'string') {
       const hasOuting = await hasOwnedOutings(db, userId, [patch.outingId])
       if (!hasOuting) {
-        return route.fail(400, 'Invalid outing reference', `Outing ${patch.outingId} is not owned by user or does not exist`, { outingId: patch.outingId })
+        return route.fail(400, 'Invalid outing reference', 'Target outing is not owned by the authenticated account or does not exist')
       }
     }
     if (typeof patch.outingId === 'string' || 'representativePhotoId' in patch) {
       const current = await listObservationsByIds(db, userId, [id])
       const currentObservation = current[0]
       if (!currentObservation) {
-        return route.fail(404, 'Not found', `Observation ${id} not found or not owned by user`, { observationId: id })
+        return route.fail(404, 'Not found', 'Observation was not found for the authenticated account')
       }
       const photoId = 'representativePhotoId' in patch
         ? patch.representativePhotoId
@@ -392,7 +411,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
       .run()
 
     if (updateResult.meta.changes === 0) {
-      return route.fail(404, 'Not found', `Observation ${id} not found or not owned by user`, { observationId: id })
+      return route.fail(404, 'Not found', 'Observation was not found for the authenticated account')
     }
 
     const updated = await listObservationsByIds(db, userId, [id])
@@ -400,7 +419,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
 
     return route.complete(
       Response.json({ observation: updated[0], dexUpdates: enrichDexEntries(dexUpdates) }),
-      `Patched 1 observation and recomputed ${dexUpdates.length} dex entries`,
+      `Patched 1 observation and recomputed ${countLabel(dexUpdates.length, 'dex entry', 'dex entries')}`,
     )
     }
 
@@ -427,7 +446,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     if (typeof patch.outingId === 'string') {
       const hasOuting = await hasOwnedOutings(db, userId, [patch.outingId])
       if (!hasOuting) {
-        return route.fail(400, 'Invalid outing reference', `Outing ${patch.outingId} is not owned by user or does not exist`, { outingId: patch.outingId })
+        return route.fail(400, 'Invalid outing reference', 'Target outing is not owned by the authenticated account or does not exist')
       }
     }
     if (typeof patch.outingId === 'string' || 'representativePhotoId' in patch) {
@@ -455,20 +474,27 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     const updatedCount = updateResults.reduce((sum, result) => sum + (result.meta?.changes || 0), 0)
 
     if (updatedCount === 0) {
-      return route.fail(404, 'Not found', `None of the ${ids.length} observations were found or owned by user`, { count: ids.length })
+      return route.fail(404, 'Not found', `No observations were patched from ${countLabel(ids.length, 'requested record')}`)
     }
 
+    if (ids.length > 1) {
+      committedBulkPatch = { updatedCount, requestedCount: ids.length }
+      route.succeeded(`Committed bulk observation patch for ${updatedCount} of ${countLabel(ids.length, 'requested record')}; starting result verification and dex recomputation`)
+    }
     const observations = await listObservationsByIds(db, userId, ids)
     const dexUpdates = await computeDex(db, userId)
 
     return route.complete(
       Response.json({ observations, dexUpdates: enrichDexEntries(dexUpdates) }),
-      `Patched ${updatedCount} observations and recomputed ${dexUpdates.length} dex entries`,
+      `Patched ${countLabel(updatedCount, 'observation')} and recomputed ${countLabel(dexUpdates.length, 'dex entry', 'dex entries')}`,
     )
     }
 
     return route.fail(400, 'Invalid patch payload', 'PATCH payload does not match single-id or bulk-ids shape')
     } catch {
-      return route.fail(500, 'Internal server error', 'Observation patch failed; inspect the trace and database operation')
+      const detail = committedBulkPatch
+        ? `Committed bulk observation patch for ${committedBulkPatch.updatedCount} of ${countLabel(committedBulkPatch.requestedCount, 'requested record')}; result verification or dex recomputation failed`
+        : 'Observation patch failed before a multi-record update was known to have committed'
+      return route.fail(500, 'Internal server error', detail)
   }
 }

@@ -1,6 +1,14 @@
 import { createAuth } from '../../lib/auth'
 import { waitForPasskeyOwnership } from '../../lib/passkey-ownership'
-import { createRouteResponder, createLogger } from '../../lib/log'
+import { createRouteResponder, createLogger, type Logger } from '../../lib/log'
+
+export function logPasskeyAccountUpgrade(log: Logger | undefined): void {
+  log?.info('auth/account/upgrade', {
+    category: 'Application',
+    resultType: 'Succeeded',
+    resultDescription: 'Upgraded the temporary anonymous account to a persistent passkey-backed WingDex account',
+  })
+}
 
 export const onRequestPost: PagesFunction<Env> = async context => {
   let route = createRouteResponder((context.data as RequestData).log, 'auth/finalizePasskey/invoke', 'Application')
@@ -43,12 +51,23 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const requestedName = typeof body.name === 'string' ? body.name.trim() : ''
     const nextName = requestedName.length > 0 ? requestedName : (session.user.name || 'Bird Enthusiast')
 
-    await context.env.DB
+    const update = await context.env.DB
       .prepare('UPDATE "user" SET isAnonymous = 0, name = ?, updatedAt = datetime(\'now\') WHERE id = ?')
       .bind(nextName, session.user.id)
       .run()
-    return route.complete(Response.json({ success: true }), 'Finalized passkey upgrade and marked user as non-anonymous')
+    if (update.meta.changes < 1) {
+      return route.fail(
+        409,
+        'Account no longer available',
+        'Passkey account upgrade did not update an account row; sign in again before retrying finalization',
+      )
+    }
+    logPasskeyAccountUpgrade(enrichedLog)
+    return route.complete(
+      Response.json({ success: true }),
+      'Completed passkey account finalization; the durable account upgrade is recorded as an Application event',
+    )
   } catch {
-    return route.fail(500, 'Internal server error', 'Passkey finalization failed; inspect the trace and database operation', { userId: session.user.id })
+    return route.fail(500, 'Internal server error', 'Passkey account upgrade failed during the durable user update; retry finalization with the owned passkey')
   }
 }

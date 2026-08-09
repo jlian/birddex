@@ -85,11 +85,17 @@ describe('provider revocation', () => {
 
   it('throws on an Apple 400 that is not invalid_grant so a live grant is never orphaned', async () => {
     const fetcher = vi.fn<Fetcher>(async () => Response.json({ error: 'invalid_client' }, { status: 400 }))
-    await expect(revokeProviderAccount(
-      { providerId: 'apple', refreshToken: 'web-refresh' },
-      env,
-      fetcher,
-    )).rejects.toMatchObject({ providerId: 'apple', status: 400 })
+    try {
+      await revokeProviderAccount(
+        { providerId: 'apple', refreshToken: 'web-refresh' },
+        env,
+        fetcher,
+      )
+      expect.unreachable('Expected Apple revocation to fail')
+    } catch (error) {
+      expect(error).toMatchObject({ providerId: 'apple', status: 400 })
+      expect(String(error)).not.toContain('invalid_client')
+    }
   })
 
   it('throws on an Apple 400 with a non-JSON body rather than swallowing it', async () => {
@@ -106,6 +112,19 @@ describe('provider revocation', () => {
       providerId: 'apple',
       outcome: 'manual_action_required',
     })
+  })
+
+  it('does not echo an arbitrary unsupported provider value', async () => {
+    await expect(revokeProviderAccount({ providerId: 'private-provider-value' }, env)).rejects.toMatchObject({
+      providerId: 'unsupported',
+      message: 'Account deletion cannot revoke an unsupported linked provider',
+    })
+
+    try {
+      await revokeProviderAccount({ providerId: 'private-provider-value' }, env)
+    } catch (error) {
+      expect(String(error)).not.toContain('private-provider-value')
+    }
   })
 
   it('sends the GitHub revocation as JSON', async () => {

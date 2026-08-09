@@ -1,10 +1,18 @@
 import { createAuth } from '../../../lib/auth'
-import { createLogger, createRouteResponder } from '../../../lib/log'
+import { createLogger, createRouteResponder, type Logger } from '../../../lib/log'
 import {
   exchangeAppleAuthorizationCode,
   ProviderRevocationError,
   storeNativeAppleRevocationCredentials,
 } from '../../../lib/provider-revocation'
+
+export function logNativeAppleRevocationCredentialStorage(log: Logger): void {
+  log.info('auth/appleRevocationToken/write', {
+    category: 'Application',
+    resultType: 'Succeeded',
+    resultDescription: 'Durably stored native Apple revocation credentials for future account deletion',
+  })
+}
 
 export const onRequestPost: PagesFunction<Env> = async context => {
   let route = createRouteResponder((context.data as RequestData).log, 'auth/appleRevocationToken/write', 'Application')
@@ -50,9 +58,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     if (!stored) {
       return route.fail(409, 'Apple account is not linked', 'Apple token exchange succeeded but no linked Apple account was found; restart native sign-in')
     }
+    logNativeAppleRevocationCredentialStorage(log)
     return route.complete(
       Response.json({ success: true }, { headers: { 'Cache-Control': 'no-store' } }),
-      'Stored native Apple revocation credentials',
+      'Completed native Apple revocation credential capture; durable storage is recorded as an Application event',
     )
   } catch (error) {
     if (error instanceof ProviderRevocationError) {

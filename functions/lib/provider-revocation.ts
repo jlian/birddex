@@ -6,6 +6,21 @@ export interface ProviderAccount {
   nativeRefreshToken?: string | null
 }
 
+export type LinkedProvider = 'apple' | 'google' | 'github' | 'credential'
+export type SafeLinkedProvider = LinkedProvider | 'unsupported'
+
+export function allowlistedProvider(providerId: string): SafeLinkedProvider {
+  switch (providerId) {
+    case 'apple':
+    case 'google':
+    case 'github':
+    case 'credential':
+      return providerId
+    default:
+      return 'unsupported'
+  }
+}
+
 type ProviderEnv = Pick<Env,
   | 'APPLE_APP_CLIENT_SECRET'
   | 'APPLE_CLIENT_ID'
@@ -21,7 +36,7 @@ type Fetcher = typeof fetch
 export type ProviderRevocationOutcome = 'revoked' | 'manual_action_required' | 'skipped' | 'failed'
 
 export interface ProviderRevocationResult {
-  providerId: string
+  providerId: SafeLinkedProvider
   outcome: ProviderRevocationOutcome
 }
 
@@ -30,14 +45,19 @@ export interface AccountDeletionResult {
   manualAppleRevocationRequired: boolean
 }
 
-export type ProviderRevocationObserver = (
-  phase: 'started' | 'completed',
-  result: ProviderRevocationResult,
-) => void
+export type AccountDeletionEvent =
+  | { stage: 'linked-provider-preflight'; outcome: 'succeeded'; providerCount: number }
+  | { stage: 'linked-provider-preflight'; outcome: 'failed' }
+  | { stage: 'provider-revocation'; phase: 'started'; providerId: SafeLinkedProvider }
+  | { stage: 'provider-revocation'; phase: 'completed'; result: ProviderRevocationResult; upstreamStatus?: number }
+  | { stage: 'local-deletion'; phase: 'started' }
+  | { stage: 'local-deletion'; phase: 'completed'; outcome: 'succeeded' | 'failed' }
+
+export type AccountDeletionObserver = (event: AccountDeletionEvent) => void
 
 export class ProviderRevocationError extends Error {
   constructor(
-    readonly providerId: string,
+    readonly providerId: SafeLinkedProvider,
     message: string,
     readonly status?: number,
   ) {
@@ -45,12 +65,18 @@ export class ProviderRevocationError extends Error {
   }
 }
 
+export class AccountDeletionStageError extends Error {
+  constructor(readonly stage: 'linked-provider-preflight' | 'local-deletion') {
+    super(`Account deletion failed during ${stage}`)
+  }
+}
+
 function requiredToken(account: ProviderAccount): string {
   const token = account.refreshToken || account.accessToken
   if (!token) {
     throw new ProviderRevocationError(
-      account.providerId,
-      `${account.providerId} must be signed in again before account deletion`,
+      allowlistedProvider(account.providerId),
+      'The linked provider must be signed in again before account deletion',
     )
   }
   return token
@@ -88,7 +114,7 @@ async function revokeAppleToken(
       throw new ProviderRevocationError('apple', 'Apple credential revocation returned an unparseable 400 body', 400)
     }
     if (error === 'invalid_grant') return
-    throw new ProviderRevocationError('apple', `Apple credential revocation failed: ${String(error)}`, 400)
+    throw new ProviderRevocationError('apple', 'Apple credential revocation failed', 400)
   }
   throw new ProviderRevocationError('apple', 'Apple credential revocation failed', response.status)
 }
@@ -175,7 +201,7 @@ export async function revokeProviderAccount(
     case 'credential':
       return { providerId: 'credential', outcome: 'skipped' }
     default:
-      throw new ProviderRevocationError(account.providerId, `Unsupported linked provider: ${account.providerId}`)
+      throw new ProviderRevocationError('unsupported', 'Account deletion cannot revoke an unsupported linked provider')
   }
 }
 
@@ -184,35 +210,64 @@ export async function revokeProvidersAndDeleteUser(
   userId: string,
   env: ProviderEnv,
   fetcher: Fetcher = fetch,
-  observer?: ProviderRevocationObserver,
+  observer?: AccountDeletionObserver,
 ): Promise<AccountDeletionResult> {
-  const accounts = await db
-    .prepare(
-      `SELECT account.providerId, account.accessToken, account.refreshToken,
-              native.accessToken AS nativeAccessToken,
-              native.refreshToken AS nativeRefreshToken
-       FROM account
-       LEFT JOIN apple_native_revocation_credential AS native
-         ON native.authAccountId = account.id
-       WHERE account.userId = ?`
-    )
-    .bind(userId)
-    .all<ProviderAccount>()
+  let accounts: D1Result<ProviderAccount>
+  try {
+    accounts = await db
+      .prepare(
+        `SELECT account.providerId, account.accessToken, account.refreshToken,
+                native.accessToken AS nativeAccessToken,
+                native.refreshToken AS nativeRefreshToken
+         FROM account
+         LEFT JOIN apple_native_revocation_credential AS native
+           ON native.authAccountId = account.id
+         WHERE account.userId = ?`
+      )
+      .bind(userId)
+      .all<ProviderAccount>()
+    observer?.({
+      stage: 'linked-provider-preflight',
+      outcome: 'succeeded',
+      providerCount: accounts.results.length,
+    })
+  } catch {
+    observer?.({ stage: 'linked-provider-preflight', outcome: 'failed' })
+    throw new AccountDeletionStageError('linked-provider-preflight')
+  }
 
   const outcomes: ProviderRevocationResult[] = []
   for (const account of accounts.results) {
-    observer?.('started', { providerId: account.providerId, outcome: 'skipped' })
+    const providerId = allowlistedProvider(account.providerId)
+    if (providerId !== 'credential') {
+      observer?.({ stage: 'provider-revocation', phase: 'started', providerId })
+    }
     try {
       const result = await revokeProviderAccount(account, env, fetcher)
       outcomes.push(result)
-      observer?.('completed', result)
+      observer?.({ stage: 'provider-revocation', phase: 'completed', result })
     } catch (error) {
-      observer?.('completed', { providerId: account.providerId, outcome: 'failed' })
+      observer?.({
+        stage: 'provider-revocation',
+        phase: 'completed',
+        result: { providerId, outcome: 'failed' },
+        upstreamStatus: error instanceof ProviderRevocationError ? error.status : undefined,
+      })
       throw error
     }
   }
 
-  await db.prepare('DELETE FROM "user" WHERE id = ?').bind(userId).run()
+  observer?.({ stage: 'local-deletion', phase: 'started' })
+  try {
+    const deletion = await db.prepare('DELETE FROM "user" WHERE id = ?').bind(userId).run()
+    if (deletion.meta.changes < 1) {
+      throw new AccountDeletionStageError('local-deletion')
+    }
+    observer?.({ stage: 'local-deletion', phase: 'completed', outcome: 'succeeded' })
+  } catch {
+    observer?.({ stage: 'local-deletion', phase: 'completed', outcome: 'failed' })
+    throw new AccountDeletionStageError('local-deletion')
+  }
   return {
     revokedProviderCount: outcomes.filter(result => result.outcome === 'revoked').length,
     manualAppleRevocationRequired: outcomes.some(

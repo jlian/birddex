@@ -14,13 +14,17 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     )
   } catch (error) {
     if (error instanceof GeocodingConfigurationError) {
-      return route.fail(503, 'Geocoding service unavailable', 'GEOAPIFY_KEY is not configured')
+      return route.fail(503, 'Geocoding service unavailable', 'Geocoding search could not start because the provider is not configured')
     }
     if (error instanceof GeocodingUpstreamError) {
       const headers: Record<string, string> = error.retryAfter ? { 'Retry-After': error.retryAfter } : {}
-      const detail = error.status === 504
-        ? 'Location search timed out after 5 seconds; retry the search'
-        : `Location search provider failed with HTTP ${error.providerStatus || 'network error'}; retry the search`
+      const detail = error.failure === 'timeout'
+        ? 'Geocoding search timed out after 5 seconds; retry the search'
+        : error.failure === 'network'
+          ? 'Geocoding search network request failed; retry the search'
+          : error.failure === 'unusable payload'
+            ? 'Geocoding search returned an unusable provider payload; retry the search'
+            : `Geocoding search provider returned HTTP ${error.providerStatus}; retry the search`
       return route.failWithHeaders(error.status, 'Geocoding service unavailable', headers, detail)
     }
     if (error instanceof Error && error.message === 'Invalid search query') {

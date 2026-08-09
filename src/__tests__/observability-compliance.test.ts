@@ -39,6 +39,7 @@ const EXEMPT_HANDLERS = new Set([
 function getHandlerFiles(): Array<{ path: string; rel: string; content: string }> {
   return listTsFiles(FUNCTIONS_API_DIR)
     .filter(f => !f.includes('_middleware'))
+    .filter(f => !f.endsWith('.test.ts'))
     .map(f => ({
       path: f,
       rel: relative(FUNCTIONS_API_DIR, f),
@@ -165,6 +166,12 @@ describe('ROUTE_MAP compliance', () => {
   it('fallback operationName is low-cardinality (no dynamic paths)', () => {
     // The resolveOperation fallback should be a fixed string, not include pathname
     expect(middleware).toContain("return { op: 'requests/unknown'")
+  })
+
+  it('request metadata uses route templates rather than raw pathnames', () => {
+    expect(middleware).toContain("route: '/api/data/outings/:id'")
+    expect(middleware).toContain("'http.route': routeTemplate")
+    expect(middleware).not.toContain("'http.route': pathname")
   })
 
   it('middleware strips private route outcome transport headers before responding', () => {

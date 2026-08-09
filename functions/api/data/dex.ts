@@ -17,6 +17,10 @@ function isDexMetaPatch(value: unknown): value is DexMetaPatch {
   return typeof value.speciesName === 'string'
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMetaPatch) {
   const existingResult = await db
     .prepare('SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND speciesName = ? LIMIT 1')
@@ -47,14 +51,14 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log?.withResourceId('dex'), 'data/dex/read', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to read the dex')
   }
 
   try {
     const dex = await computeDex(context.env.DB, userId)
     return route.complete(Response.json(enrichDexEntries(dex)), `Computed dex with ${dex.length} species`)
   } catch {
-    return route.fail(500, 'Internal server error', 'Dex read failed; inspect the trace and database query')
+    return route.fail(500, 'Internal server error', 'Dex read failed during database query or result computation')
   }
 }
 
@@ -62,7 +66,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log?.withResourceId('dex'), 'data/dex/write', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to patch dex metadata')
   }
 
   let body: unknown
@@ -77,15 +81,26 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     return route.fail(400, 'Invalid dex patch payload', 'Dex patch payload failed validation; expected {speciesName} with optional addedDate, bestPhotoId, notes')
   }
 
+  let appliedPatchCount = 0
   try {
     for (const patch of patches) {
       await upsertDexMetaPatch(context.env.DB, userId, patch)
+      appliedPatchCount += 1
+    }
+    if (patches.length > 1) {
+      route.succeeded(`Applied ${appliedPatchCount} of ${countLabel(patches.length, 'dex metadata patch', 'dex metadata patches')}; starting dex recomputation`)
     }
     const dexUpdates = await computeDex(context.env.DB, userId)
     return route.complete(Response.json({
       dexUpdates: enrichDexEntries(dexUpdates),
-    }), `Applied ${patches.length} dex metadata patches and recomputed ${dexUpdates.length} dex entries`)
+    }), `Applied ${countLabel(patches.length, 'dex metadata patch', 'dex metadata patches')} and recomputed ${countLabel(dexUpdates.length, 'dex entry', 'dex entries')}`)
   } catch {
-    return route.fail(500, 'Internal server error', 'Dex patch failed; inspect the trace and database batch', { patchCount: patches.length })
+    if (patches.length > 1 && appliedPatchCount > 0 && appliedPatchCount < patches.length) {
+      route.failed(`Applied ${appliedPatchCount} of ${countLabel(patches.length, 'dex metadata patch', 'dex metadata patches')} before a later database write failed`)
+    }
+    const detail = appliedPatchCount > 0
+      ? `Applied ${appliedPatchCount} of ${countLabel(patches.length, 'dex metadata patch', 'dex metadata patches')}; a later database write or dex recomputation failed`
+      : 'Dex metadata patch failed before any requested patch was applied'
+    return route.fail(500, 'Internal server error', detail)
   }
 }

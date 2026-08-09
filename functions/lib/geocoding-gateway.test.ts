@@ -45,12 +45,14 @@ describe('Geoapify geocoding gateway', () => {
     const fetcher = vi.fn<Fetcher>(async () => Response.json({
       features: [{ properties: providerResult }],
     }))
+    const onReverseFallback = vi.fn()
 
-    await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher)).resolves.toMatchObject({
+    await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)).resolves.toMatchObject({
       label: 'Green Lake Park, Seattle, Washington',
     })
 
     expect(fetcher).toHaveBeenCalledOnce()
+    expect(onReverseFallback).not.toHaveBeenCalled()
     const url = new URL(String(fetcher.mock.calls[0][0]))
     expect(url.pathname).toBe('/v2/places')
     expect(url.searchParams.get('filter')).toBe('circle:-122.328,47.680,1000')
@@ -62,12 +64,16 @@ describe('Geoapify geocoding gateway', () => {
     const fetcher = vi.fn<Fetcher>()
       .mockResolvedValueOnce(Response.json({ features: [] }))
       .mockResolvedValueOnce(Response.json({ results: [providerResult] }))
+    const onReverseFallback = vi.fn()
 
-    await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher)).resolves.toMatchObject({
+    await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)).resolves.toMatchObject({
       label: 'Green Lake Park, Seattle, Washington',
     })
 
     expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(onReverseFallback).toHaveBeenCalledOnce()
+    expect(onReverseFallback).toHaveBeenCalledWith()
+    expect(onReverseFallback.mock.invocationCallOrder[0]).toBeLessThan(fetcher.mock.invocationCallOrder[1])
     const url = new URL(String(fetcher.mock.calls[1][0]))
     expect(url.pathname).toBe('/v1/geocode/reverse')
     expect(url.searchParams.get('lat')).toBe('47.680')
@@ -115,10 +121,10 @@ describe('Geoapify geocoding gateway', () => {
       new GeocodingUpstreamError(502, undefined, 0),
     )
     await expect(searchPlaces('test-key', 'Sensitive Place', malformed)).rejects.toEqual(
-      new GeocodingUpstreamError(502, undefined, 200),
+      new GeocodingUpstreamError(502, undefined, 200, 'search', 'unusable payload'),
     )
     await expect(searchPlaces('test-key', 'Sensitive Place', wrongShape)).rejects.toEqual(
-      new GeocodingUpstreamError(502, undefined, 200),
+      new GeocodingUpstreamError(502, undefined, 200, 'search', 'unusable payload'),
     )
   })
 

@@ -31,7 +31,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     'data/outings/write', 'Application'
   )
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to patch an outing')
   }
 
   if (!outingId) {
@@ -49,6 +49,8 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     return route.fail(400, 'Invalid outing patch payload', 'Outing patch payload is not a valid object')
   }
 
+  let stage = 'outing schema inspection'
+  let outingUpdated = false
   try {
 
   const updates = body as UpdateOutingBody
@@ -126,18 +128,21 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
   }
 
   if (updateFields.length === 0) {
-    return route.fail(400, 'No valid fields to update', `No valid fields to update for outing ${outingId}`, { outingId })
+    return route.fail(400, 'No valid fields to update', 'Outing patch contains no recognized fields')
   }
 
   const updateStatement = `UPDATE outing SET ${updateFields.join(', ')} WHERE id = ? AND userId = ?`
+  stage = 'outing database update'
   const updateResult = await context.env.DB.prepare(updateStatement)
     .bind(...bindings, outingId, userId)
     .run()
 
   if (updateResult.meta.changes === 0) {
-    return route.fail(404, 'Not found', `Outing ${outingId} not found or not owned by user`, { outingId })
+    return route.fail(404, 'Not found', 'Outing was not found for the authenticated account')
   }
 
+  outingUpdated = true
+  stage = 'updated outing readback'
   const outingResult = await context.env.DB.prepare(
     'SELECT * FROM outing WHERE id = ? AND userId = ? LIMIT 1'
   )
@@ -164,9 +169,10 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
 
   const outing = outingResult.results[0]
   if (!outing) {
-    return route.fail(404, 'Not found', `Outing ${outingId} not found after successful update`, { outingId })
+    return route.fail(404, 'Not found', 'Outing could not be read after its database update committed')
   }
 
+  stage = 'updated outing response assembly'
   return route.complete(Response.json({
     ...outing,
     defaultLocationName: outing.defaultLocationName || undefined,
@@ -179,9 +185,12 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     allObsReported: outing.allObsReported == null ? undefined : outing.allObsReported === 1,
     effortDistanceMiles: outing.effortDistanceMiles ?? undefined,
     effortAreaAcres: outing.effortAreaAcres ?? undefined,
-  }), `Updated outing ${outingId} with ${updateFields.length} fields`)
+  }), `Updated 1 outing with ${updateFields.length} ${updateFields.length === 1 ? 'field' : 'fields'}`)
   } catch {
-    return route.fail(500, 'Internal server error', 'Outing patch failed; inspect the trace and database operation', { outingId })
+    const detail = outingUpdated
+      ? `Outing patch committed, but failed during ${stage}`
+      : `Outing patch failed during ${stage} before the database update was known to commit`
+    return route.fail(500, 'Internal server error', detail)
   }
 }
 
@@ -193,25 +202,31 @@ export const onRequestDelete: PagesFunction<Env> = async context => {
     'data/outings/delete', 'Application'
   )
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to delete an outing')
   }
 
   if (!outingId) {
     return route.fail(400, 'Missing outing id', 'URL path must include an outing ID segment')
   }
 
+  let outingDeleted = false
   try {
     const deleteResult = await context.env.DB.prepare('DELETE FROM outing WHERE id = ? AND userId = ?')
       .bind(outingId, userId)
       .run()
 
     if (deleteResult.meta.changes === 0) {
-      return route.fail(404, 'Not found', `Outing ${outingId} not found or not owned by user; it may have been deleted by another client`, { outingId })
+      return route.fail(404, 'Not found', 'Outing was not found for the authenticated account; it may have been deleted by another client')
     }
 
+    outingDeleted = true
+    route.succeeded('Deleted 1 outing with cascaded observations and photos; starting post-delete dex recomputation')
     const dexUpdates = await computeDex(context.env.DB, userId)
-    return route.complete(Response.json({ dexUpdates: enrichDexEntries(dexUpdates) }), `Deleted outing ${outingId} and recomputed ${dexUpdates.length} dex entries`)
+    return route.complete(Response.json({ dexUpdates: enrichDexEntries(dexUpdates) }), `Deleted 1 outing with cascaded observations and photos, then recomputed ${dexUpdates.length} ${dexUpdates.length === 1 ? 'dex entry' : 'dex entries'}`)
   } catch {
-    return route.fail(500, 'Internal server error', 'Outing deletion failed; inspect the trace and database operation', { outingId })
+    const detail = outingDeleted
+      ? 'Outing, observations, and photos were deleted; post-delete dex recomputation failed'
+      : 'Outing deletion failed before the database delete committed'
+    return route.fail(500, 'Internal server error', detail)
   }
 }

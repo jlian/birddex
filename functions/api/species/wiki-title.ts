@@ -8,15 +8,20 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   if (!name?.trim()) {
     return route.complete(
       Response.json({ wikiTitle: null, common: null, scientific: null, thumbnailUrl: null }),
-      'Completed wiki metadata lookup with empty species name',
+      'Wikipedia metadata lookup returned no metadata because the species name was empty',
     )
   }
 
-  const metadata = getWikiMetadata(name)
-  return route.complete(Response.json({
-    wikiTitle: metadata.wikiTitle || null,
-    common: metadata.common || null,
-    scientific: metadata.scientific || null,
-    thumbnailUrl: metadata.thumbnailUrl || null,
-  }), `Completed wiki metadata lookup (${metadata.wikiTitle ? 'title found' : 'title missing'})`)
+  const stage = 'taxonomy metadata lookup'
+  try {
+    const metadata = getWikiMetadata(name)
+    return route.complete(Response.json({
+      wikiTitle: metadata.wikiTitle || null,
+      common: metadata.common || null,
+      scientific: metadata.scientific || null,
+      thumbnailUrl: metadata.thumbnailUrl || null,
+    }), `Wikipedia metadata lookup ${metadata.wikiTitle ? 'found a title' : 'returned no title'}`)
+  } catch {
+    return route.fail(500, 'Internal server error', `Wikipedia metadata lookup failed during ${stage}`)
+  }
 }

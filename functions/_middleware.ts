@@ -13,52 +13,61 @@ const DEFAULT_BODY_LIMIT = 1 * 1024 * 1024 // 1 MB for all other API routes
 
 /** Route map: pathname prefix + optional method -> operationName + category.
  *  Ordered longest-prefix-first so /api/data/outings/ beats /api/data/outings. */
-const ROUTE_MAP: Array<{ prefix: string; method?: string; op: string; category: Category }> = [
-  { prefix: '/api/health', op: 'health/database/read', category: 'Application' },
-  { prefix: '/api/data/outings/', method: 'DELETE', op: 'data/outings/delete', category: 'Application' },
-  { prefix: '/api/data/outings/', method: 'PATCH', op: 'data/outings/write', category: 'Application' },
-  { prefix: '/api/data/outings', method: 'POST', op: 'data/outings/write', category: 'Application' },
-  { prefix: '/api/data/observations', method: 'POST', op: 'data/observations/write', category: 'Application' },
-  { prefix: '/api/data/observations', method: 'PATCH', op: 'data/observations/write', category: 'Application' },
-  { prefix: '/api/data/photos', method: 'POST', op: 'data/photos/write', category: 'Application' },
-  { prefix: '/api/data/dex', method: 'GET', op: 'data/dex/read', category: 'Application' },
-  { prefix: '/api/data/dex', method: 'PATCH', op: 'data/dex/write', category: 'Application' },
-  { prefix: '/api/data/clear', method: 'DELETE', op: 'data/clear/delete', category: 'Audit' },
-  { prefix: '/api/data/all', method: 'GET', op: 'data/all/read', category: 'Application' },
-  { prefix: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Application' },
-  { prefix: '/api/auth/linked-providers', op: 'auth/linkedProviders/read', category: 'Application' },
-  { prefix: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Application' },
-  { prefix: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Application' },
-  { prefix: '/api/auth/mobile/start', op: 'auth/mobileOAuth/invoke', category: 'Application' },
-  { prefix: '/api/auth/mobile/callback', op: 'auth/mobileOAuth/invoke', category: 'Application' },
-  { prefix: '/api/auth/', op: 'auth/sessions/invoke', category: 'Application' },
-  { prefix: '/api/import/ebird-csv/confirm', op: 'import/ebirdCsvConfirm/write', category: 'Application' },
-  { prefix: '/api/import/ebird-csv', op: 'import/ebirdCsv/import', category: 'Application' },
-  { prefix: '/api/export/outing/', op: 'export/outingCsv/export', category: 'Application' },
-  { prefix: '/api/export/dex', op: 'export/dex/export', category: 'Application' },
-  { prefix: '/api/export/sightings', op: 'export/sightings/export', category: 'Application' },
-  { prefix: '/api/species/search', op: 'species/search/read', category: 'Application' },
-  { prefix: '/api/species/ebird-code', op: 'species/ebirdCode/read', category: 'Application' },
-  { prefix: '/api/species/wiki-title', op: 'species/wikiTitle/read', category: 'Application' },
-  { prefix: '/api/geocoding/reverse', op: 'geocoding/reverse/read', category: 'Application' },
-  { prefix: '/api/geocoding/search', op: 'geocoding/search/read', category: 'Application' },
+const ROUTE_MAP: Array<{ prefix: string; route: string; method?: string; op: string; category: Category }> = [
+  { prefix: '/api/health', route: '/api/health', op: 'health/database/read', category: 'Application' },
+  { prefix: '/api/data/outings/', route: '/api/data/outings/:id', method: 'DELETE', op: 'data/outings/delete', category: 'Application' },
+  { prefix: '/api/data/outings/', route: '/api/data/outings/:id', method: 'PATCH', op: 'data/outings/write', category: 'Application' },
+  { prefix: '/api/data/outings', route: '/api/data/outings', method: 'POST', op: 'data/outings/write', category: 'Application' },
+  { prefix: '/api/data/observations', route: '/api/data/observations', method: 'POST', op: 'data/observations/write', category: 'Application' },
+  { prefix: '/api/data/observations', route: '/api/data/observations', method: 'PATCH', op: 'data/observations/write', category: 'Application' },
+  { prefix: '/api/data/photos', route: '/api/data/photos', method: 'POST', op: 'data/photos/write', category: 'Application' },
+  { prefix: '/api/data/dex', route: '/api/data/dex', method: 'GET', op: 'data/dex/read', category: 'Application' },
+  { prefix: '/api/data/dex', route: '/api/data/dex', method: 'PATCH', op: 'data/dex/write', category: 'Application' },
+  { prefix: '/api/data/clear', route: '/api/data/clear', method: 'DELETE', op: 'data/clear/delete', category: 'Audit' },
+  { prefix: '/api/data/all', route: '/api/data/all', method: 'GET', op: 'data/all/read', category: 'Application' },
+  { prefix: '/api/auth/finalize-passkey', route: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Application' },
+  { prefix: '/api/auth/linked-providers', route: '/api/auth/linked-providers', op: 'auth/linkedProviders/read', category: 'Application' },
+  { prefix: '/api/auth/apple/revocation-token', route: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Application' },
+  { prefix: '/api/auth/delete-account', route: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Application' },
+  { prefix: '/api/auth/mobile/start', route: '/api/auth/mobile/start', op: 'auth/mobileOAuth/invoke', category: 'Application' },
+  { prefix: '/api/auth/mobile/callback', route: '/api/auth/mobile/callback', op: 'auth/mobileOAuth/invoke', category: 'Application' },
+  { prefix: '/api/auth/', route: '/api/auth/:path', op: 'auth/sessions/invoke', category: 'Application' },
+  { prefix: '/api/import/ebird-csv/confirm', route: '/api/import/ebird-csv/confirm', op: 'import/ebirdCsvConfirm/write', category: 'Application' },
+  { prefix: '/api/import/ebird-csv', route: '/api/import/ebird-csv', op: 'import/ebirdCsv/import', category: 'Application' },
+  { prefix: '/api/export/outing/', route: '/api/export/outing/:id', op: 'export/outingCsv/export', category: 'Application' },
+  { prefix: '/api/export/dex', route: '/api/export/dex', op: 'export/dex/export', category: 'Application' },
+  { prefix: '/api/export/sightings', route: '/api/export/sightings', op: 'export/sightings/export', category: 'Application' },
+  { prefix: '/api/species/search', route: '/api/species/search', op: 'species/search/read', category: 'Application' },
+  { prefix: '/api/species/ebird-code', route: '/api/species/ebird-code', op: 'species/ebirdCode/read', category: 'Application' },
+  { prefix: '/api/species/wiki-title', route: '/api/species/wiki-title', op: 'species/wikiTitle/read', category: 'Application' },
+  { prefix: '/api/geocoding/reverse', route: '/api/geocoding/reverse', op: 'geocoding/reverse/read', category: 'Application' },
+  { prefix: '/api/geocoding/search', route: '/api/geocoding/search', op: 'geocoding/search/read', category: 'Application' },
 ]
 
-function resolveOperation(pathname: string, method: string): { op: string; category: Category } {
+export function resolveOperation(pathname: string, method: string): { op: string; category: Category; route: string } {
   for (const route of ROUTE_MAP) {
-    if (pathname.startsWith(route.prefix) && (!route.method || route.method === method)) {
-      return { op: route.op, category: route.category }
+    const isCatchAll = route.prefix === '/api/auth/'
+    const isDynamicSegment = route.prefix.endsWith('/') && !isCatchAll
+    const remainder = isDynamicSegment ? pathname.slice(route.prefix.length) : ''
+    const pathMatches = isCatchAll
+      ? pathname.startsWith(route.prefix)
+      : isDynamicSegment
+        ? pathname.startsWith(route.prefix) && remainder.length > 0 && !remainder.includes('/')
+        : pathname === route.prefix
+    if (pathMatches && (!route.method || route.method === method)) {
+      return { op: route.op, category: route.category, route: route.route }
     }
   }
-  return { op: 'requests/unknown', category: 'Application' }
+  return { op: 'requests/unknown', category: 'Application', route: '/api/:unknown' }
 }
 
 /** Extract entity ID segment from dynamic route paths for resourceId. */
-function extractEntitySegment(pathname: string): string | null {
-  const outingMatch = pathname.match(/^\/api\/data\/outings\/([^/]+)/)
-  if (outingMatch) return `outings/${outingMatch[1]}`
-  const exportOutingMatch = pathname.match(/^\/api\/export\/outing\/([^/]+)/)
-  if (exportOutingMatch) return `outings/${exportOutingMatch[1]}`
+export function extractEntitySegment(pathname: string): string | null {
+  const generatedOutingId = /^outing_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const outingMatch = pathname.match(/^\/api\/data\/outings\/([^/]+)$/)
+  if (outingMatch && generatedOutingId.test(outingMatch[1])) return `outings/${outingMatch[1]}`
+  const exportOutingMatch = pathname.match(/^\/api\/export\/outing\/([^/]+)$/)
+  if (exportOutingMatch && generatedOutingId.test(exportOutingMatch[1])) return `outings/${exportOutingMatch[1]}`
   return null
 }
 
@@ -107,7 +116,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const method = context.request.method
   const hasBearer = !!context.request.headers.get('authorization')
   const hasCookie = !!context.request.headers.get('cookie')
-  const { op, category: routeCategory } = resolveOperation(pathname, method)
+  const { op, category: routeCategory, route: routeTemplate } = resolveOperation(pathname, method)
 
   // Build logger with pre-auth identity (no userId yet)
   let log = createLogger({
@@ -128,7 +137,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   // --- HTTP method validation ---
   if (!ALLOWED_METHODS.has(method)) {
-    log.warn('requests/validation/validate', { category: 'Request', resultType: 'Failed', resultSignature: 405, resultDescription: `Method ${method} is not allowed; supported methods are GET, POST, PATCH, DELETE, OPTIONS`, durationMs: Date.now() - start })
+    log.warn('requests/validation/validate', { category: 'Request', resultType: 'Failed', resultSignature: 405, resultDescription: 'Request used an unsupported HTTP method; use GET, POST, PATCH, DELETE, or OPTIONS', durationMs: Date.now() - start })
     const methodResponse = errorResponse('Method Not Allowed', 405, {
       Allow: Array.from(ALLOWED_METHODS).join(', '),
     })
@@ -167,10 +176,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       addTraceHeaders(response, traceCtx)
       // Suppress completion log for /api/health (internal infra polling, not user-triggered)
       if (pathname !== '/api/health') {
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeOutcomeMetadata(response)))
+        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, takeOutcomeMetadata(response)))
       } else if (!response.ok) {
         // Always log health failures
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeOutcomeMetadata(response)))
+        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, takeOutcomeMetadata(response)))
       }
       return response
     } catch (err) {
@@ -217,7 +226,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   try {
     const response = withSecurityHeaders(await context.next())
     addTraceHeaders(response, traceCtx)
-    context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeOutcomeMetadata(response)))
+    context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, takeOutcomeMetadata(response)))
     return response
   } catch (err) {
     return handleUnexpectedError(err, log, traceCtx, op, start)
@@ -242,7 +251,7 @@ async function emitCompletionLog(
   response: Response,
   durationMs: number,
   method: string,
-  pathname: string,
+  routeTemplate: string,
   outcome?: { resultDescription?: string; resultType?: ResultType },
 ): Promise<void> {
   const status = response.status
@@ -250,7 +259,7 @@ async function emitCompletionLog(
   const resultDescription = outcome?.resultDescription || (resultType === 'Succeeded'
     ? `${op} completed successfully`
     : `${op} failed with HTTP ${status}`)
-  const fields = { category: 'Request' as const, resultType: resultType as 'Succeeded' | 'Failed', resultSignature: status, resultDescription, durationMs, properties: { 'http.method': method, 'http.route': pathname } }
+  const fields = { category: 'Request' as const, resultType: resultType as 'Succeeded' | 'Failed', resultSignature: status, resultDescription, durationMs, properties: { 'http.method': method, 'http.route': routeTemplate } }
   const level = requestCompletionLevel(status, resultType)
   if (level === 'Error') {
     log.error(op, fields)
