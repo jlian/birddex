@@ -32,6 +32,7 @@ describe('Geoapify geocoding gateway', () => {
     expect(url.searchParams.get('text')).toBe('Green Lake')
     expect(url.searchParams.get('limit')).toBe('5')
     expect(url.searchParams.get('lang')).toBe('en')
+    expect(url.searchParams.get('bias')).toBe('countrycode:none')
     expect(url.searchParams.get('apiKey')).toBe('test-key')
     expect(results).toEqual([expect.objectContaining({
       label: 'Green Lake Park, Seattle, Washington',
@@ -54,7 +55,7 @@ describe('Geoapify geocoding gateway', () => {
     expect(url.pathname).toBe('/v2/places')
     expect(url.searchParams.get('filter')).toBe('circle:-122.328,47.680,1000')
     expect(url.searchParams.get('bias')).toBe('proximity:-122.328,47.680')
-    expect(url.searchParams.get('categories')).toBe('leisure.park,natural,national_park')
+    expect(url.searchParams.get('categories')).toBe('leisure.park,natural,natural.national_park')
   })
 
   it('falls back to one reverse-geocoding request when no outdoor place is nearby', async () => {

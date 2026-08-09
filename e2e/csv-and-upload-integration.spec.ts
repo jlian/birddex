@@ -67,10 +67,6 @@ function mockGeocoding(page: Page, locationName: string) {
             lon: -122.41,
             stateProvince: 'US-WA',
             countryCode: 'US',
-            attribution: {
-              label: 'Location data © OpenStreetMap contributors',
-              url: 'https://www.openstreetmap.org/copyright',
-            },
           },
         }),
       })
@@ -85,10 +81,6 @@ function mockGeocoding(page: Page, locationName: string) {
             lon: -122.41,
             stateProvince: 'US-WA',
             countryCode: 'US',
-            attribution: {
-              label: 'Location data © OpenStreetMap contributors',
-              url: 'https://www.openstreetmap.org/copyright',
-            },
           }],
         }),
       })
@@ -308,7 +300,8 @@ test.describe('CSV import + photo upload integration', () => {
     await dialog.getByRole('button', { name: 'Search locations' }).click()
     await expect(dialog.getByText('Discovery Park, Seattle')).toBeVisible()
     expect(searchRequestCount).toBe(1)
-    await expect(dialog.getByRole('link', { name: 'Location data © OpenStreetMap contributors' })).toBeVisible()
+    await expect(dialog.getByRole('link', { name: 'Powered by Geoapify' })).toBeVisible()
+    await expect(dialog.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible()
   })
 
   // @live: asserts CONVERGENCE onto a named species, which needs a known
