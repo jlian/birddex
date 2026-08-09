@@ -182,10 +182,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
         .run()
     }
 
-    const scopedRoute = createRouteResponder(route.log?.withResourceId(`outings/${body.id}`), 'data/outings/write', 'Application')
-    scopedRoute.debug('Created outing', { outingId: body.id })
-
-    return Response.json({
+    return route.complete(Response.json({
       id: body.id,
       userId,
       startTime: body.startTime,
@@ -204,7 +201,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       effortAreaAcres: supportsChecklistColumns ? (effortAreaAcres ?? undefined) : undefined,
       notes,
       createdAt: persistedCreatedAt,
-    })
+    }), `Upserted outing ${body.id} with ${supportsRegionColumns ? 'region' : 'basic'} fields`)
   } catch {
     return route.fail(500, 'Internal server error', 'Outing creation failed; inspect the trace and database operation', { outingId: body.id })
   }

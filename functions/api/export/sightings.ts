@@ -78,13 +78,13 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       true
     )
 
-    return new Response(emptyCsv, {
+    return route.complete(new Response(emptyCsv, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',
         'content-disposition': 'attachment; filename="wingdex-sightings.csv"',
         'cache-control': 'no-store',
       },
-    })
+    }), 'Exported empty sightings CSV (no observations found)')
     }
 
     const byOuting = new Map<string, ExportRow[]>()
@@ -133,15 +133,13 @@ export const onRequestGet: PagesFunction<Env> = async context => {
 
     const csv = csvChunks.join('\n')
 
-    route.debug(`Exported ${rows.length} sightings across ${byOuting.size} outings`, { sightingCount: rows.length, outingCount: byOuting.size })
-
-    return new Response(csv, {
+    return route.complete(new Response(csv, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       'content-disposition': `attachment; filename="wingdex-sightings-${new Date().toISOString().split('T')[0]}.csv"`,
       'cache-control': 'no-store',
     },
-    })
+    }), `Exported ${rows.length} sightings across ${byOuting.size} outings`)
     } catch {
       return route.fail(500, 'Export failed', 'Sightings export failed; inspect the trace and database query')
   }

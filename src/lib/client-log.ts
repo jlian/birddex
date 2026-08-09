@@ -6,10 +6,11 @@
  * properties, etc.). Used by web mutations to replace silent
  * `.catch(() => undefined)` swallows.
  *
- * Emits to console.error (warn/error) or console.log (info/debug) so dev tools
- * surface failures and browser-shipping log collectors (Sentry/Datadog/etc.)
- * can pick them up.
+ * Emits only to the local browser console via console.error (warn/error) or
+ * console.log (info/debug).
  */
+
+import { WingDexApiError } from '@/lib/api-error'
 
 export type ClientLogLevel = 'Info' | 'Warning' | 'Error' | 'Debug'
 export type ClientResultType = 'Succeeded' | 'Failed'
@@ -51,13 +52,18 @@ export const clientLog = {
 
 /**
  * Log a fetch/mutation failure using only safe operational metadata.
- * The status prefix selects the severity, while thrown messages and response
- * bodies are intentionally excluded from structured logs.
+ * Typed HTTP status selects the severity, while thrown messages and response
+ * bodies are intentionally excluded from structured logs. A server trace ID,
+ * when present, is included only in the existing properties object.
  */
 export function logClientFailure(operationName: string, err: unknown, properties?: Record<string, unknown>): void {
-  const message = err instanceof Error ? err.message : String(err)
-  const statusMatch = /^(\d{3})\s/.exec(message)
-  const resultSignature = statusMatch ? Number(statusMatch[1]) : undefined
+  const statusMatch = err instanceof Error ? /^(\d{3})\s/.exec(err.message) : null
+  const resultSignature = err instanceof WingDexApiError
+    ? err.status
+    : statusMatch ? Number(statusMatch[1]) : undefined
+  const logProperties = err instanceof WingDexApiError && err.traceId
+    ? { ...properties, traceId: err.traceId }
+    : properties
   const logger = resultSignature !== undefined && resultSignature >= 400 && resultSignature < 500
     ? clientLog.warn
     : clientLog.error
@@ -67,6 +73,6 @@ export function logClientFailure(operationName: string, err: unknown, properties
     resultDescription: resultSignature !== undefined
       ? `Client request failed with HTTP ${resultSignature}`
       : 'Client request failed; inspect the operation and browser network trace',
-    properties,
+    properties: logProperties,
   })
 }

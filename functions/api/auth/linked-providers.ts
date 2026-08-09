@@ -2,11 +2,12 @@ import { createAuth } from '../../lib/auth'
 import { createRouteResponder, createLogger } from '../../lib/log'
 
 export const onRequestGet: PagesFunction<Env> = async context => {
+  let route = createRouteResponder((context.data as RequestData).log, 'auth/linkedProviders/read', 'Application')
   const auth = createAuth(context.env, { request: context.request })
   const session = await auth.api.getSession({ headers: context.request.headers })
 
   if (!session?.user?.id) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Linked provider lookup requires an authenticated session')
   }
 
   // Enrich logger with userId after auth (middleware skips session check for /api/auth/* routes)
@@ -19,7 +20,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     identity: { authMethod: 'session' },
     resourceId: `/users/${session.user.id}`,
   }) : undefined
-  const route = createRouteResponder(enrichedLog, 'auth/linkedProviders/read', 'Application')
+  route = createRouteResponder(enrichedLog, 'auth/linkedProviders/read', 'Application')
 
   try {
 
@@ -35,11 +36,9 @@ export const onRequestGet: PagesFunction<Env> = async context => {
         .filter((providerId): providerId is string => Boolean(providerId))
     )
   )
-  route.debug(`User has ${providers.length} linked auth providers`, { providerCount: providers.length })
-
-  return Response.json({ providers }, {
+  return route.complete(Response.json({ providers }, {
     headers: { 'cache-control': 'no-store' },
-  })
+  }), `Fetched ${providers.length} linked auth providers`)
   } catch {
     return route.fail(500, 'Internal server error', 'Linked provider lookup failed; inspect the trace and authentication database operation')
   }

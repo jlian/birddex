@@ -3,11 +3,12 @@ import { waitForPasskeyOwnership } from '../../lib/passkey-ownership'
 import { createRouteResponder, createLogger } from '../../lib/log'
 
 export const onRequestPost: PagesFunction<Env> = async context => {
+  let route = createRouteResponder((context.data as RequestData).log, 'auth/finalizePasskey/invoke', 'Application')
   const auth = createAuth(context.env, { request: context.request })
   const session = await auth.api.getSession({ headers: context.request.headers })
 
   if (!session?.user?.id) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Passkey finalization requires an authenticated session')
   }
 
   // Enrich logger with userId after auth (middleware skips session check for /api/auth/* routes)
@@ -19,7 +20,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     identity: { authMethod: 'session' },
     resourceId: `/users/${session.user.id}`,
   }) : undefined
-  const route = createRouteResponder(enrichedLog, 'auth/finalizePasskey/invoke', 'Application')
+  route = createRouteResponder(enrichedLog, 'auth/finalizePasskey/invoke', 'Application')
 
   let body: { name?: string; passkeyId?: string }
   try {
@@ -46,9 +47,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       .prepare('UPDATE "user" SET isAnonymous = 0, name = ?, updatedAt = datetime(\'now\') WHERE id = ?')
       .bind(nextName, session.user.id)
       .run()
-    route.info('User finalized passkey upgrade and is no longer anonymous')
-
-    return Response.json({ success: true })
+    return route.complete(Response.json({ success: true }), 'Finalized passkey upgrade and marked user as non-anonymous')
   } catch {
     return route.fail(500, 'Internal server error', 'Passkey finalization failed; inspect the trace and database operation', { userId: session.user.id })
   }

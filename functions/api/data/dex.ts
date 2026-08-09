@@ -52,8 +52,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
 
   try {
     const dex = await computeDex(context.env.DB, userId)
-    route.debug(`Computed dex with ${dex.length} species`, { speciesCount: dex.length })
-  return Response.json(enrichDexEntries(dex))
+    return route.complete(Response.json(enrichDexEntries(dex)), `Computed dex with ${dex.length} species`)
   } catch {
     return route.fail(500, 'Internal server error', 'Dex read failed; inspect the trace and database query')
   }
@@ -82,12 +81,10 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     for (const patch of patches) {
       await upsertDexMetaPatch(context.env.DB, userId, patch)
     }
-    route.debug(`Upserted ${patches.length} dex metadata patches`, { patchCount: patches.length })
-
     const dexUpdates = await computeDex(context.env.DB, userId)
-    return Response.json({
+    return route.complete(Response.json({
       dexUpdates: enrichDexEntries(dexUpdates),
-    })
+    }), `Applied ${patches.length} dex metadata patches and recomputed ${dexUpdates.length} dex entries`)
   } catch {
     return route.fail(500, 'Internal server error', 'Dex patch failed; inspect the trace and database batch', { patchCount: patches.length })
   }

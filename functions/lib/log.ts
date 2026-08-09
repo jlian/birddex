@@ -12,6 +12,13 @@ export type LogLevel = 'Trace' | 'Debug' | 'Info' | 'Warning' | 'Error' | 'Criti
 export type ResultType = 'Succeeded' | 'Failed'
 export type Category = 'Audit' | 'Application' | 'Request'
 export const RESULT_DESCRIPTION_HEADER = 'X-WingDex-Result-Description'
+export const RESULT_TYPE_HEADER = 'X-WingDex-Result-Type'
+
+export function requestCompletionLevel(status: number, resultType: ResultType): 'Info' | 'Warning' | 'Error' {
+  if (status >= 500) return 'Error'
+  if (status >= 400 || resultType === 'Failed') return 'Warning'
+  return 'Info'
+}
 
 const LEVEL_RANK: Record<LogLevel, number> = {
   Trace: 0, Debug: 1, Info: 2, Warning: 3, Error: 4, Critical: 5,
@@ -38,7 +45,7 @@ export interface LogFields {
   category?: Category
   resultType?: ResultType
   resultSignature?: number | string
-  /** Human-readable: cause + mitigation. Omit on success. */
+  /** Human-readable terminal summary; failures include cause + mitigation. */
   resultDescription?: string
   durationMs?: number
   properties?: Record<string, unknown>
@@ -170,8 +177,9 @@ export function createLogger(ctx: LoggerContext): Logger {
  * Route-level responder that eliminates boilerplate in route handlers.
  *
  * Binds operationName and category once so every log call and error response
- * gets them automatically. The fail() method logs + returns a Response in
- * one call, making it impossible to forget a log site.
+ * gets them automatically. The fail()/complete() helpers do not log directly,
+ * they transport terminal outcome details to middleware for the single
+ * request completion event.
  *
  * Usage:
  *   const route = createRouteResponder(log, 'data/outings/write', 'Application')
@@ -179,10 +187,12 @@ export function createLogger(ctx: LoggerContext): Logger {
  *   route.debug('Created outing', { outingId })
  */
 export interface RouteResponder {
-  /** Log + return an error Response. Uses body as resultDescription unless detail is provided. */
+  /** Return an error Response and carry terminal outcome detail to middleware. */
   fail(status: number, body: string, detail?: string, properties?: Record<string, unknown>): Response
-  /** Log + return an error Response with extra headers (e.g. Retry-After). */
+  /** Return an error Response with extra headers and carry terminal outcome detail. */
   failWithHeaders(status: number, body: string, headers: Record<string, string>, detail?: string, properties?: Record<string, unknown>): Response
+  /** Return a success/redirect Response and carry terminal outcome detail to middleware. */
+  complete(response: Response, resultDescription: string): Response
   /** Info-level business event. */
   info(resultDescription: string, properties?: Record<string, unknown>): void
   /** Debug-level sub-step detail. */
@@ -202,21 +212,33 @@ export function createRouteResponder(
     return value.replace(/[^\x20-\x7E]/g, ' ').slice(0, 1_024)
   }
 
+  function attachOutcomeHeaders(response: Response, resultDescription: string, resultType?: ResultType): Response {
+    const patched = new Response(response.body, response)
+    patched.headers.set(RESULT_DESCRIPTION_HEADER, safeHeaderValue(resultDescription))
+    if (resultType) {
+      patched.headers.set(RESULT_TYPE_HEADER, resultType)
+    }
+    return patched
+  }
+
   function failureResponse(status: number, body: string, headers: Record<string, string>, resultDescription: string): Response {
     return new Response(body, {
       status,
-      headers: { ...headers, [RESULT_DESCRIPTION_HEADER]: safeHeaderValue(resultDescription) },
+      headers,
     })
   }
 
   return {
     fail(status, body, detail, properties) {
       void properties
-      return failureResponse(status, body, {}, detail || body)
+      return attachOutcomeHeaders(failureResponse(status, body, {}, detail || body), detail || body, 'Failed')
     },
     failWithHeaders(status, body, headers, detail, properties) {
       void properties
-      return failureResponse(status, body, headers, detail || body)
+      return attachOutcomeHeaders(failureResponse(status, body, headers, detail || body), detail || body, 'Failed')
+    },
+    complete(response, resultDescription) {
+      return attachOutcomeHeaders(response, resultDescription)
     },
     info(resultDescription, properties) {
       log?.info(operationName, { category, resultDescription, ...(properties ? { properties } : {}) })

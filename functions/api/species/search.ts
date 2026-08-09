@@ -19,9 +19,9 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   const limit = parseLimit(new URL(context.request.url).searchParams.get('limit'))
 
   if (!query.trim()) {
-    return Response.json({ results: [] })
+    return route.complete(Response.json({ results: [] }), `Completed species search with empty query (limit ${limit})`)
   }
 
   const results = searchSpecies(query, limit)
-  return Response.json({ results })
+  return route.complete(Response.json({ results }), `Completed species search with ${results.length} matches (limit ${limit})`)
 }

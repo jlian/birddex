@@ -12,7 +12,9 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
   const auth = createAuth(context.env, { request: context.request })
   const session = await auth.api.getSession({ headers: context.request.headers })
-  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 })
+  if (!session?.user?.id) {
+    return originRoute.fail(401, 'Unauthorized', 'Account deletion requires an authenticated session')
+  }
 
   const log = createLogger({
     env: context.env,
@@ -55,15 +57,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
         }
       },
     )
-    route.info(
-      result.manualAppleRevocationRequired
-        ? 'Deleted the local account after revoking available providers; manual Apple revocation is still required'
-        : 'Revoked linked providers and deleted the local account',
-    )
-    return Response.json({
+    return route.complete(Response.json({
       success: true,
       manualAppleRevocationRequired: result.manualAppleRevocationRequired,
-    }, { headers: { 'Cache-Control': 'no-store' } })
+    }, { headers: { 'Cache-Control': 'no-store' } }),
+    result.manualAppleRevocationRequired
+      ? 'Deleted local account after revoking available providers; manual Apple revocation remains required'
+      : 'Revoked linked providers and deleted local account')
   } catch (error) {
     if (error instanceof ProviderRevocationError) {
       const status = error.status ? 502 : error.message.includes('not configured') ? 503 : 409

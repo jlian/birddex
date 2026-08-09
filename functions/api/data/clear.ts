@@ -12,9 +12,8 @@ export const onRequestDelete: PagesFunction<Env> = async context => {
       context.env.DB.prepare('DELETE FROM outing WHERE userId = ?').bind(userId),
       context.env.DB.prepare('DELETE FROM dex_meta WHERE userId = ?').bind(userId),
     ])
-    route.info('Deleted all outings and dex metadata for user')
 
-    return Response.json({ cleared: true })
+    return route.complete(Response.json({ cleared: true }), 'Cleared all outings and dex metadata for the authenticated user')
   } catch {
     return route.fail(500, 'Internal server error', 'Data clear failed; inspect the trace and database batch')
   }

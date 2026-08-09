@@ -12,15 +12,13 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   try {
   const dex = await computeDex(context.env.DB, userId)
   const csv = exportDexToCSV(dex)
-  route.debug(`Exported dex CSV with ${dex.length} species (${csv.length} bytes)`, { speciesCount: dex.length, csvLength: csv.length })
-
-  return new Response(csv, {
+  return route.complete(new Response(csv, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       'content-disposition': 'attachment; filename="wingdex-dex.csv"',
       'cache-control': 'no-store',
     },
-  })
+  }), `Exported dex CSV with ${dex.length} species`)
   } catch {
     return route.fail(500, 'Internal server error', 'Dex export failed; inspect the trace and database query')
   }

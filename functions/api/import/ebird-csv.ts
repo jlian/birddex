@@ -44,7 +44,6 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   try {
     const csvContent = await file.text()
     const previews = parseEBirdCSV(csvContent, typeof profileTimezone === 'string' ? profileTimezone : undefined)
-    route.debug(`Parsed ${previews.length} sighting rows from ${file.size}-byte CSV`, { fileSize: file.size, rowCount: previews.length })
 
     const existingDexRows = await computeDex(context.env.DB, userId)
     const existingDex = new Map(existingDexRows.map(row => [row.speciesName, row]))
@@ -62,7 +61,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     updates: previewsWithIds.filter(preview => preview.conflict === 'update_dates').length,
     }
 
-    return Response.json({ previews: previewsWithIds, summary })
+    return route.complete(
+      Response.json({ previews: previewsWithIds, summary }),
+      `Prepared ${previewsWithIds.length} import previews from uploaded CSV`,
+    )
     } catch {
       return route.fail(500, 'Internal server error', 'eBird CSV import failed; inspect the trace and parser/database operation', { fileSize: file.size })
   }

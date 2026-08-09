@@ -216,7 +216,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
   if (body.length === 0) {
     const dexUpdates = await computeDex(context.env.DB, userId)
-    return Response.json({ observations: [], dexUpdates: enrichDexEntries(dexUpdates) })
+    return route.complete(
+      Response.json({ observations: [], dexUpdates: enrichDexEntries(dexUpdates) }),
+      `No observations submitted; recomputed ${dexUpdates.length} dex entries`,
+    )
   }
   if (hasConflictingObservationIds(body)) {
     return route.fail(400, 'Duplicate observation IDs', 'Observation payload must contain unique IDs', { count: body.length })
@@ -304,11 +307,6 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       return route.fail(409, 'Observation ID conflict', 'One or more observation IDs were concurrently claimed by another account or outing', { count: body.length })
     }
     const speciesNames = [...new Set(body.map(o => o.speciesName))]
-    const scopedRoute = outingIds.length === 1
-      ? createRouteResponder(route.log?.withResourceId(`outings/${outingIds[0]}/observations`), 'data/observations/write', 'Application')
-      : route
-    scopedRoute.info(`Persisted ${body.length} observations for ${speciesNames.length} species in ${outingIds.length} outings`, { observationCount: body.length, speciesCount: speciesNames.length, outingCount: outingIds.length })
-    scopedRoute.debug('Observation insert details', { outingCount: outingIds.length, speciesCount: speciesNames.length })
 
     const observations = body.map(observation => ({
       ...observation,
@@ -319,7 +317,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     }))
 
     const dexUpdates = await computeDex(context.env.DB, userId)
-    return Response.json({ observations, dexUpdates: enrichDexEntries(dexUpdates) })
+    return route.complete(
+      Response.json({ observations, dexUpdates: enrichDexEntries(dexUpdates) }),
+      `Persisted ${body.length} observations across ${outingIds.length} outings and recomputed ${dexUpdates.length} dex entries`,
+    )
     } catch {
     return route.fail(500, 'Internal server error', 'Observation persistence failed; inspect the trace and database operation', { count: body.length })
   }
@@ -397,7 +398,10 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     const updated = await listObservationsByIds(db, userId, [id])
     const dexUpdates = await computeDex(db, userId)
 
-    return Response.json({ observation: updated[0], dexUpdates: enrichDexEntries(dexUpdates) })
+    return route.complete(
+      Response.json({ observation: updated[0], dexUpdates: enrichDexEntries(dexUpdates) }),
+      `Patched 1 observation and recomputed ${dexUpdates.length} dex entries`,
+    )
     }
 
     if (Array.isArray(body.ids) && body.ids.every(id => typeof id === 'string') && isObject(body.patch)) {
@@ -457,7 +461,10 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     const observations = await listObservationsByIds(db, userId, ids)
     const dexUpdates = await computeDex(db, userId)
 
-    return Response.json({ observations, dexUpdates: enrichDexEntries(dexUpdates) })
+    return route.complete(
+      Response.json({ observations, dexUpdates: enrichDexEntries(dexUpdates) }),
+      `Patched ${updatedCount} observations and recomputed ${dexUpdates.length} dex entries`,
+    )
     }
 
     return route.fail(400, 'Invalid patch payload', 'PATCH payload does not match single-id or bulk-ids shape')

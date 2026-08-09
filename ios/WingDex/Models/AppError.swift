@@ -79,7 +79,7 @@ enum AppError: Error, Equatable, Identifiable {
                 return map(urlError, fallback: fallback, rateLimit: rateLimit)
             case .invalidResponse:
                 return .invalidResponse
-            case .http(let status, let message, let retryAfter):
+            case .http(let status, let message, let retryAfter, _):
                 if status == 401 { return .sessionExpired }
                 if status == 429 {
                     if let rateLimit {

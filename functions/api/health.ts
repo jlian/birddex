@@ -14,7 +14,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const result = await context.env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>()
     if (result?.ok === 1) {
-      return Response.json({ status: 'ok', db: 'ok' })
+      return route.complete(Response.json({ status: 'ok', db: 'ok' }), 'D1 health check succeeded')
     }
     return degraded('unexpected', route.fail(503, 'D1 health check returned unexpected result', 'D1 health check returned an unexpected result; the database may be in a degraded state'))
   } catch {

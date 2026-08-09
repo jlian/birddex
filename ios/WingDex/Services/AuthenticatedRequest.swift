@@ -17,6 +17,27 @@ private let log = Logger(subsystem: Config.bundleID, category: "API")
 /// This helper encapsulates both patterns so callers don't need to know which to use.
 enum AuthenticatedRequest {
 
+    static func traceID(from response: HTTPURLResponse) -> String? {
+        normalizedTraceID(response.value(forHTTPHeaderField: "X-Trace-Id"))
+    }
+
+    static func referenceSuffix(traceID: String?) -> String {
+        guard let traceID = normalizedTraceID(traceID) else { return "" }
+        return " [ref: \(traceID.suffix(8))]"
+    }
+
+    private static func normalizedTraceID(_ value: String?) -> String? {
+        guard let value,
+              value.utf8.count == 32,
+              value.unicodeScalars.allSatisfy({ scalar in
+                  (48...57).contains(scalar.value)
+                      || (65...70).contains(scalar.value)
+                      || (97...102).contains(scalar.value)
+              })
+        else { return nil }
+        return value.lowercased()
+    }
+
     static func instrument(_ request: inout URLRequest) {
         if request.value(forHTTPHeaderField: "Origin") == nil {
             request.setValue(Config.apiBaseURL.absoluteString, forHTTPHeaderField: "Origin")
@@ -120,13 +141,16 @@ enum AuthenticatedRequest {
         guard let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode)
         else {
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let http = response as? HTTPURLResponse
+            let status = http?.statusCode ?? -1
+            let traceID = http.flatMap(traceID(from:))
+            let reference = referenceSuffix(traceID: traceID)
             if (400...499).contains(status) {
-                logger.warning("\(context): HTTP \(status)")
+                logger.warning("\(context): HTTP \(status)\(reference, privacy: .public)")
             } else {
-                logger.error("\(context): HTTP \(status)")
+                logger.error("\(context): HTTP \(status)\(reference, privacy: .public)")
             }
-            throw PasskeyError.serverError("\(context) (HTTP \(status))")
+            throw PasskeyError.serverError("\(context) (HTTP \(status))", traceID: traceID)
         }
         return http
     }

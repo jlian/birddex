@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let log = Logger(subsystem: Config.bundleID, category: "Geocoding")
 
 struct GeocodingResult: Codable, Identifiable, Sendable {
     var id: String { "\(latitude),\(longitude),\(label)" }
@@ -20,7 +23,7 @@ struct GeocodingResult: Codable, Identifiable, Sendable {
 enum GeocodingServiceError: Error {
     case invalidURL
     case invalidResponse
-    case server(statusCode: Int)
+    case server(statusCode: Int, traceID: String?)
 }
 
 @MainActor
@@ -71,11 +74,27 @@ final class GeocodingService {
             context: "Geocoding"
         )
         guard let http = response as? HTTPURLResponse else {
+            log.error("Geocoding failed: invalid HTTP response")
             throw GeocodingServiceError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
-            throw GeocodingServiceError.server(statusCode: http.statusCode)
+            let traceID = AuthenticatedRequest.traceID(from: http)
+            let reference = AuthenticatedRequest.referenceSuffix(traceID: traceID)
+            if (400...499).contains(http.statusCode) {
+                log.warning("Geocoding failed: HTTP \(http.statusCode)\(reference, privacy: .public)")
+            } else {
+                log.error("Geocoding failed: HTTP \(http.statusCode)\(reference, privacy: .public)")
+            }
+            throw GeocodingServiceError.server(statusCode: http.statusCode, traceID: traceID)
         }
-        return try JSONDecoder().decode(Response.self, from: data)
+        do {
+            return try JSONDecoder().decode(Response.self, from: data)
+        } catch {
+            let reference = AuthenticatedRequest.referenceSuffix(
+                traceID: AuthenticatedRequest.traceID(from: http)
+            )
+            log.error("Geocoding failed: response decoding failed\(reference, privacy: .public)")
+            throw error
+        }
     }
 }

@@ -3,7 +3,7 @@
  *
  * These tests read handler source files as text and verify structural
  * patterns that enforce the observability contract. They catch regressions
- * like missing createRouteResponder, raw logger calls, or route.fail()
+ * like missing createRouteResponder, missing route.complete(), or route.fail()
  * without detail arguments - issues that would otherwise only surface
  * during code review.
  */
@@ -52,6 +52,11 @@ describe('handler instrumentation compliance', () => {
 
   it('every non-exempt handler uses createRouteResponder', () => {
     const missing = instrumented.filter(h => !h.content.includes('createRouteResponder'))
+    expect(missing.map(h => h.rel)).toEqual([])
+  })
+
+  it('every non-exempt handler uses route.complete() for terminal success responses', () => {
+    const missing = instrumented.filter(h => !h.content.includes('route.complete('))
     expect(missing.map(h => h.rel)).toEqual([])
   })
 
@@ -160,6 +165,15 @@ describe('ROUTE_MAP compliance', () => {
   it('fallback operationName is low-cardinality (no dynamic paths)', () => {
     // The resolveOperation fallback should be a fixed string, not include pathname
     expect(middleware).toContain("return { op: 'requests/unknown'")
+  })
+
+  it('middleware strips private route outcome transport headers before responding', () => {
+    expect(middleware).toContain('response.headers.delete(RESULT_DESCRIPTION_HEADER)')
+    expect(middleware).toContain('response.headers.delete(RESULT_TYPE_HEADER)')
+  })
+
+  it('middleware honors route-supplied semantic resultType override when present', () => {
+    expect(middleware).toContain("const resultType = outcome?.resultType || (status < 400 ? 'Succeeded' : 'Failed')")
   })
 })
 

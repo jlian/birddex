@@ -102,14 +102,12 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     speciesComments: observation.speciesComments || undefined,
   }))
 
-  route.debug(`Fetched ${outings.length} outings, ${photos.length} photos, ${observations.length} observations, ${dex.length} dex entries`, { outingCount: outings.length, photoCount: photos.length, observationCount: observations.length, dexCount: dex.length })
-
-  return Response.json({
+  return route.complete(Response.json({
     outings,
     photos,
     observations,
     dex: enrichDexEntries(dex),
-  })
+  }), `Fetched ${outings.length} outings, ${photos.length} photos, ${observations.length} observations, and ${dex.length} dex entries`)
   } catch {
     return route.fail(500, 'Internal server error', 'Bulk data fetch failed; inspect the trace and database operations')
   }

@@ -90,15 +90,13 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     true
   )
   const safeOutingId = outingId.replace(/[^a-zA-Z0-9._-]/g, '_')
-  route.debug(`Exported outing ${outingId} with ${observationsResult.results.length} observations`, { outingId, observationCount: observationsResult.results.length })
-
-  return new Response(csv, {
+  return route.complete(new Response(csv, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       'content-disposition': `attachment; filename="wingdex-outing-${safeOutingId}.csv"`,
       'cache-control': 'no-store',
     },
-  })
+  }), `Exported outing ${outingId} with ${observationsResult.results.length} observations`)
   } catch {
     return route.fail(500, 'Export failed', 'Outing export failed; inspect the trace and database query', { outingId })
   }

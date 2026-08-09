@@ -32,6 +32,8 @@ import { StatCard } from '@/components/ui/stat-card'
 import { getDisplayName } from '@/lib/utils'
 import { formatStoredDate, formatStoredTimeWithTZ } from '@/lib/timezone'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
+import { assertWingDexApiResponse, getWingDexApiErrorMessage } from '@/lib/api-error'
+import { logClientFailure } from '@/lib/client-log'
 import { toast } from 'sonner'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 import type { Outing, Observation } from '@/lib/types'
@@ -392,10 +394,7 @@ function OutingDetail({
   const handleExport = async () => {
     try {
       const response = await fetchWithLocalAuthRetry(`/api/export/outing/${outing.id}`, { credentials: 'include' })
-      if (!response.ok) {
-        const body = await response.text().catch(() => '')
-        throw new Error(body || `Export failed (${response.status})`)
-      }
+      await assertWingDexApiResponse(response, 'Export failed')
 
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -406,8 +405,9 @@ function OutingDetail({
       URL.revokeObjectURL(url)
       toast.success('Outing exported in eBird Record CSV format')
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Unknown error'
+      const detail = getWingDexApiErrorMessage(error, 'Please try again.')
       toast.error(`Failed to export outing: ${detail}`)
+      logClientFailure('export/outing/export', error, { outingId: outing.id })
     }
   }
 

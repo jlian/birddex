@@ -318,11 +318,11 @@ final class Phase9FoundationTests: XCTestCase {
             .notSignedIn
         )
         XCTAssertEqual(
-            IntentDataError.map(DataServiceError.http(status: 500, message: nil, retryAfter: nil)),
+            IntentDataError.map(DataServiceError.http(status: 500, message: nil, retryAfter: nil, traceID: nil)),
             .server
         )
         XCTAssertEqual(
-            IntentDataError.map(DataServiceError.http(status: 429, message: nil, retryAfter: nil)),
+            IntentDataError.map(DataServiceError.http(status: 429, message: nil, retryAfter: nil, traceID: nil)),
             .rateLimited
         )
     }

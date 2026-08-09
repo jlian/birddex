@@ -1,6 +1,41 @@
 @testable import WingDex
 import XCTest
 
+final class AuthenticatedRequestTraceTests: XCTestCase {
+    func testExtractsAndNormalizesSafeTraceID() throws {
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 500,
+            httpVersion: nil,
+            headerFields: ["X-Trace-Id": "0123456789ABCDEF0123456789abcdef"]
+        ))
+
+        let traceID = AuthenticatedRequest.traceID(from: response)
+
+        XCTAssertEqual(traceID, "0123456789abcdef0123456789abcdef")
+        XCTAssertEqual(AuthenticatedRequest.referenceSuffix(traceID: traceID), " [ref: 89abcdef]")
+    }
+
+    func testRejectsUnsafeTraceIDs() throws {
+        for value in [
+            "0123456789abcdef0123456789abcde",
+            "0123456789abcdef0123456789abcdef0",
+            "0123456789abcdef0123456789abcdeg",
+            "0123456789abcdef 123456789abcdef",
+        ] {
+            let response = try XCTUnwrap(HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 500,
+                httpVersion: nil,
+                headerFields: ["X-Trace-Id": value]
+            ))
+            XCTAssertNil(AuthenticatedRequest.traceID(from: response), value)
+        }
+        XCTAssertEqual(AuthenticatedRequest.referenceSuffix(traceID: nil), "")
+        XCTAssertEqual(AuthenticatedRequest.referenceSuffix(traceID: "unsafe\nreference"), "")
+    }
+}
+
 final class AuthCallbackParsingTests: XCTestCase {
 
     // MARK: - parseCallbackURL
@@ -241,6 +276,22 @@ final class DataStoreSessionTests: XCTestCase {
 }
 
 final class AppErrorTests: XCTestCase {
+    func testHTTPErrorModelsRetainTraceIDs() {
+        let traceID = "0123456789abcdef0123456789abcdef"
+        let dataError = DataServiceError.http(
+            status: 503,
+            message: nil,
+            retryAfter: nil,
+            traceID: traceID
+        )
+        guard case .http(_, _, _, let retainedDataTraceID) = dataError else {
+            return XCTFail("Expected data HTTP error")
+        }
+        XCTAssertEqual(retainedDataTraceID, traceID)
+        XCTAssertEqual(AuthError.oauthFailed("HTTP 503", traceID: traceID).traceID, traceID)
+        XCTAssertEqual(PasskeyError.serverError("HTTP 503", traceID: traceID).traceID, traceID)
+    }
+
     func testExistingAppErrorIsPreserved() {
         let error = AppError.message("Specific recovery guidance")
         XCTAssertEqual(AppError.map(error), error)
@@ -260,7 +311,7 @@ final class AppErrorTests: XCTestCase {
     }
 
     func testRateLimitIncludesConfiguredLimitAndRetryAfter() {
-        let error = DataServiceError.http(status: 429, message: nil, retryAfter: 120)
+        let error = DataServiceError.http(status: 429, message: nil, retryAfter: 120, traceID: nil)
         let mapped = AppError.map(error, rateLimit: Config.aiDailyRateLimit)
         XCTAssertEqual(mapped, .rateLimited(limit: Config.aiDailyRateLimit, retryAfter: 120))
         XCTAssertTrue(mapped?.message.contains("150 requests/day") == true)
@@ -268,7 +319,7 @@ final class AppErrorTests: XCTestCase {
     }
 
     func testUnrelatedRateLimitUsesGenericCopy() {
-        let error = DataServiceError.http(status: 429, message: nil, retryAfter: 120)
+        let error = DataServiceError.http(status: 429, message: nil, retryAfter: 120, traceID: nil)
         XCTAssertEqual(AppError.map(error), .message("Too many requests. Try again later."))
     }
 
@@ -281,12 +332,23 @@ final class AppErrorTests: XCTestCase {
     }
 
     func testSafeClientMessageIsPreserved() {
-        let error = DataServiceError.http(status: 409, message: "This import was already confirmed.", retryAfter: nil)
+        let error = DataServiceError.http(
+            status: 409,
+            message: "This import was already confirmed.",
+            retryAfter: nil,
+            traceID: "0123456789abcdef0123456789abcdef"
+        )
         XCTAssertEqual(AppError.map(error), .message("This import was already confirmed."))
     }
 
     func testServerAndDecodingFailuresUseSafeCopy() {
-        XCTAssertEqual(AppError.map(DataServiceError.http(status: 500, message: nil, retryAfter: nil)), .server)
+        let error = DataServiceError.http(
+            status: 500,
+            message: nil,
+            retryAfter: nil,
+            traceID: "0123456789abcdef0123456789abcdef"
+        )
+        XCTAssertEqual(AppError.map(error), .server)
         XCTAssertEqual(AppError.map(DataServiceError.invalidResponse), .invalidResponse)
     }
 }

@@ -8,8 +8,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const body = await context.request.json() as { query?: unknown }
     const query = typeof body.query === 'string' ? body.query : ''
     const results = await searchPlaces(context.env.GEOAPIFY_KEY, query, fetch)
-    route.debug('Geocoding search completed', { resultCount: results.length })
-    return Response.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } })
+    return route.complete(
+      Response.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } }),
+      `Completed geocoding search with ${results.length} results`,
+    )
   } catch (error) {
     if (error instanceof GeocodingConfigurationError) {
       return route.fail(503, 'Geocoding service unavailable', 'GEOAPIFY_KEY is not configured')

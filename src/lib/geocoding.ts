@@ -1,3 +1,6 @@
+import { assertWingDexApiResponse } from '@/lib/api-error'
+import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
+
 export interface GeocodingResult {
   label: string
   lat: number
@@ -13,16 +16,14 @@ async function fetchGeocoding<T>(path: string, body: object, signal?: AbortSigna
     ? AbortSignal.any([signal, timeoutController.signal])
     : timeoutController.signal
   try {
-    const response = await fetch(path, {
+    const response = await fetchWithLocalAuthRetry(path, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: combinedSignal,
     })
-    if (!response.ok) {
-      throw new Error(`Geocoding request failed (HTTP ${response.status})`)
-    }
+    await assertWingDexApiResponse(response, 'Geocoding request failed')
     return response.json() as Promise<T>
   } finally {
     window.clearTimeout(timeout)

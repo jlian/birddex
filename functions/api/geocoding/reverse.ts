@@ -12,8 +12,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       body.lon === undefined ? null : String(body.lon),
       fetch,
     )
-    route.debug(result ? 'Geocoding result returned' : 'No geocoding result found')
-    return Response.json({ result }, { headers: { 'Cache-Control': 'private, no-store' } })
+    return route.complete(
+      Response.json({ result }, { headers: { 'Cache-Control': 'private, no-store' } }),
+      `Completed reverse geocoding (${result ? 'result found' : 'no result'})`,
+    )
   } catch (error) {
     if (error instanceof GeocodingConfigurationError) {
       return route.fail(503, 'Geocoding service unavailable', 'GEOAPIFY_KEY is not configured')

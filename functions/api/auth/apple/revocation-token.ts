@@ -7,9 +7,12 @@ import {
 } from '../../../lib/provider-revocation'
 
 export const onRequestPost: PagesFunction<Env> = async context => {
+  let route = createRouteResponder((context.data as RequestData).log, 'auth/appleRevocationToken/write', 'Application')
   const auth = createAuth(context.env, { request: context.request })
   const session = await auth.api.getSession({ headers: context.request.headers })
-  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 })
+  if (!session?.user?.id) {
+    return route.fail(401, 'Unauthorized', 'Apple credential capture requires an authenticated session')
+  }
 
   const log = createLogger({
     env: context.env,
@@ -19,7 +22,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     identity: { authMethod: 'bearer' },
     resourceId: `/users/${session.user.id}`,
   })
-  const route = createRouteResponder(log, 'auth/appleRevocationToken/write', 'Application')
+  route = createRouteResponder(log, 'auth/appleRevocationToken/write', 'Application')
 
   let body: { authorizationCode?: unknown }
   try {
@@ -47,8 +50,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     if (!stored) {
       return route.fail(409, 'Apple account is not linked', 'Apple token exchange succeeded but no linked Apple account was found; restart native sign-in')
     }
-    route.info('Stored native Apple revocation credentials')
-    return Response.json({ success: true }, { headers: { 'Cache-Control': 'no-store' } })
+    return route.complete(
+      Response.json({ success: true }, { headers: { 'Cache-Control': 'no-store' } }),
+      'Stored native Apple revocation credentials',
+    )
   } catch (error) {
     if (error instanceof ProviderRevocationError) {
       return route.fail(502, 'Apple credential capture failed', `Apple token exchange failed with HTTP ${error.status || 'unknown'}`)
