@@ -44,6 +44,7 @@ struct OutingReviewView: View {
     @State private var overriddenCoords: CLLocationCoordinate2D?
     @State private var reverseGeocodingTask: Task<Void, Never>?
     @State private var placeSearchTask: Task<Void, Never>?
+    @State private var placeSearchGeneration = 0
 
     /// Whether to add photos to an existing matching outing
     @State private var matchingOuting: Outing?
@@ -492,25 +493,31 @@ struct OutingReviewView: View {
         let query = locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, let clusterID = cluster?.id else { return }
         placeSearchTask?.cancel()
+        placeSearchGeneration += 1
+        let generation = placeSearchGeneration
         isSearchingPlace = true
         placeResults = []
         placeSearchTask = Task {
             defer {
-                if cluster?.id == clusterID {
+                // Only the current search may clear the loading state. A cancelled
+                // predecessor shares this cluster, so guarding on clusterID alone
+                // would let it hide progress for its live replacement.
+                if placeSearchGeneration == generation {
                     isSearchingPlace = false
                 }
             }
             do {
                 let results = try await GeocodingService(auth: auth).search(query: query)
                 try Task.checkCancellation()
-                guard cluster?.id == clusterID,
+                guard placeSearchGeneration == generation,
+                      cluster?.id == clusterID,
                       locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query else { return }
                 placeResults = results
             } catch is CancellationError {
                 return
             } catch {
                 log.error("Place search failed")
-                guard cluster?.id == clusterID else { return }
+                guard placeSearchGeneration == generation, cluster?.id == clusterID else { return }
                 viewModel.error = AppError.map(error, fallback: "Could not search locations. Try again.")
             }
         }
