@@ -107,6 +107,18 @@ describe('provider revocation', () => {
     )
   })
 
+  it('sends the GitHub revocation as JSON', async () => {
+    // Without an explicit content type, fetch labels the JSON body text/plain
+    // and GitHub can reject the revocation, which would block account deletion.
+    const fetcher = vi.fn<Fetcher>(async () => new Response(null, { status: 204 }))
+    await revokeProviderAccount({ providerId: 'github', accessToken: 'github-token' }, env, fetcher)
+
+    const [, init] = fetcher.mock.calls[0]
+    const headers = new Headers(init?.headers)
+    expect(headers.get('Content-Type')).toBe('application/json')
+    expect(JSON.parse(String(init?.body))).toEqual({ access_token: 'github-token' })
+  })
+
   it('does not delete locally after a provider failure', async () => {
     const accounts: ProviderAccount[] = [
       { providerId: 'github', accessToken: 'github-token' },
