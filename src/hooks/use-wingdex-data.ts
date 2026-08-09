@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Photo, Outing, Observation, DexEntry } from '@/lib/types'
 import { getUserStorageKey } from '@/lib/storage-keys'
 import { fetchWithLocalAuthRetry, isLocalRuntime } from '@/lib/local-auth-fetch'
+import { assertWingDexApiResponse } from '@/lib/api-error'
 import { logClientFailure } from '@/lib/client-log'
 
 export type WingDexDataStore = ReturnType<typeof useWingDexData>
@@ -143,10 +144,7 @@ async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise
     ...init,
   })
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(body ? `${response.status} ${body}` : `${response.status} ${response.statusText}`)
-  }
+  await assertWingDexApiResponse(response)
 
   return response.json() as Promise<T>
 }

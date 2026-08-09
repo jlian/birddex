@@ -90,7 +90,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   }
 
   if (body.length === 0) {
-    return Response.json([])
+    return route.complete(Response.json([]), 'No photos submitted for persistence')
   }
   if (hasConflictingPhotoIds(body)) {
     return route.fail(400, 'Duplicate photo IDs', 'Photo payload must contain unique IDs', { count: body.length })
@@ -140,12 +140,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       return route.fail(409, 'Photo ID conflict', 'One or more photo IDs were concurrently claimed by another account or outing', { count: body.length })
     }
     const outingIds = [...new Set(body.map(p => p.outingId))]
-    const scopedRoute = outingIds.length === 1
-    ? createRouteResponder(route.log?.withResourceId(`outings/${outingIds[0]}/photos`), 'data/photos/write', 'Application')
-    : route
-    scopedRoute.debug(`Persisted ${body.length} photos into ${outingIds.length} outings`, { photoCount: body.length, outingCount: outingIds.length })
 
-    return Response.json(
+    return route.complete(Response.json(
     body.map(photo => ({
       ...photo,
       dataUrl: '',
@@ -153,7 +149,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       exifTime: photo.exifTime || undefined,
       gps: photo.gps ? { lat: photo.gps.lat, lon: photo.gps.lon } : undefined,
     }))
-    )
+    ), `Persisted ${body.length} photos across ${outingIds.length} outings`)
     } catch {
     return route.fail(500, 'Internal server error', 'Photo persistence failed; inspect the trace and database operation', { count: body.length })
   }

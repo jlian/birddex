@@ -33,4 +33,17 @@ final class GeocodingServiceTests: XCTestCase {
 
         XCTAssertEqual(result.id, "47.68,-122.33,Green Lake")
     }
+
+    func testServerErrorRetainsTraceID() {
+        let error = GeocodingServiceError.server(
+            statusCode: 503,
+            traceID: "0123456789abcdef0123456789abcdef"
+        )
+
+        guard case .server(let statusCode, let traceID) = error else {
+            return XCTFail("Expected server error")
+        }
+        XCTAssertEqual(statusCode, 503)
+        XCTAssertEqual(traceID, "0123456789abcdef0123456789abcdef")
+    }
 }

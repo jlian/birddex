@@ -1,5 +1,6 @@
 import demoCsv from '@/assets/ebird-import.csv?raw'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
+import { assertWingDexApiResponse } from '@/lib/api-error'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 
 export async function loadDemoData(data: WingDexDataStore): Promise<void> {
@@ -13,10 +14,7 @@ export async function loadDemoData(data: WingDexDataStore): Promise<void> {
     credentials: 'include',
     body: formData,
   })
-  if (!previewRes.ok) {
-    const body = await previewRes.text().catch(() => '')
-    throw new Error(body || `Preview failed (${previewRes.status})`)
-  }
+  await assertWingDexApiResponse(previewRes, 'Preview failed')
 
   const { previews } = await previewRes.json() as { previews: Array<{ previewId: string }> }
 
@@ -26,10 +24,7 @@ export async function loadDemoData(data: WingDexDataStore): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ previewIds: previews.map((p) => p.previewId) }),
   })
-  if (!confirmRes.ok) {
-    const body = await confirmRes.text().catch(() => '')
-    throw new Error(body || `Confirm failed (${confirmRes.status})`)
-  }
+  await assertWingDexApiResponse(confirmRes, 'Confirmation failed')
 
   await data.refresh()
 }

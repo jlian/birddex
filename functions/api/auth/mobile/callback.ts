@@ -61,9 +61,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   if (!session?.user?.id || !session?.session?.token) {
-    route.log?.warn('auth/mobileOAuth/invoke', { category: 'Application', resultType: 'Failed', resultSignature: 302, resultDescription: 'Mobile OAuth callback could not resolve a session from cookies; the OAuth flow may have failed or cookies were lost' })
     const errorUrl = `${APP_SCHEME}://auth/callback?error=no_session`
-    return Response.redirect(errorUrl, 302)
+    return route.failWithHeaders(
+      302,
+      '',
+      { Location: errorUrl },
+      'Mobile OAuth callback failed because no session could be resolved from callback cookies',
+    )
   }
 
   // Enrich logger with userId after auth (middleware skips session check for /api/auth/* routes)
@@ -97,6 +101,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   const callbackUrl = `${APP_SCHEME}://auth/callback?${parts.join('&')}`
-  route.debug(`OAuth callback redirecting to app for user ${session.user.id}`, { userId: session.user.id })
-  return Response.redirect(callbackUrl, 302)
+  return route.complete(
+    Response.redirect(callbackUrl, 302),
+    'Completed mobile OAuth callback redirect to app scheme',
+  )
 }

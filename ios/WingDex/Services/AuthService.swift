@@ -51,9 +51,21 @@ final class AuthService: @unchecked Sendable {
     private static let userEmailKey = "user_email"
     private static let userImageKey = "user_image"
 
+    private static func referenceSuffix(for error: Error) -> String {
+        let traceID: String?
+        if let authError = error as? AuthError {
+            traceID = authError.traceID
+        } else if let passkeyError = error as? PasskeyError {
+            traceID = passkeyError.traceID
+        } else {
+            traceID = nil
+        }
+        return AuthenticatedRequest.referenceSuffix(traceID: traceID)
+    }
+
     init() {
         restoreSession()
-        log.info("AuthService init - authenticated: \(self.isAuthenticated), userId: \(self.userId ?? "nil")")
+        log.info("AuthService initialized - authenticated: \(self.isAuthenticated)")
     }
 
     /// Validate the locally-cached session with the server.
@@ -97,16 +109,22 @@ final class AuthService: @unchecked Sendable {
             )
             if let http = response as? HTTPURLResponse,
                Self.sessionValidationRejects(statusCode: http.statusCode, data: data) {
-                log.warning("Session rejected by server, signing out")
-                invalidateSession(rejectedToken: token)
+                invalidateSession(
+                    rejectedToken: token,
+                    traceID: AuthenticatedRequest.traceID(from: http)
+                )
             } else if let http = response as? HTTPURLResponse,
                     (200...299).contains(http.statusCode),
                     isCurrentSession(token: token) {
                 lastSuccessfulSessionValidation = now
+            } else if let http = response as? HTTPURLResponse {
+                let reference = AuthenticatedRequest.referenceSuffix(
+                    traceID: AuthenticatedRequest.traceID(from: http)
+                )
+                log.error("Session validation failed: HTTP \(http.statusCode)\(reference, privacy: .public)")
             }
         } catch {
             // Network error - don't sign out, user may be offline
-            log.info("Session validation skipped because the request failed")
         }
     }
 
@@ -168,6 +186,8 @@ final class AuthService: @unchecked Sendable {
 
     /// Sign in with Apple using a pre-obtained credential.
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async throws {
+        log.info("Apple sign-in started")
+        do {
         guard let identityTokenData = credential.identityToken,
                             let identityToken = String(data: identityTokenData, encoding: .utf8),
                             let authorizationCodeData = credential.authorizationCode,
@@ -200,8 +220,12 @@ final class AuthService: @unchecked Sendable {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode)
         else {
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw AuthError.oauthFailed("Apple sign-in failed (HTTP \(statusCode))")
+            let http = response as? HTTPURLResponse
+            let statusCode = http?.statusCode ?? 0
+            throw AuthError.oauthFailed(
+                "Apple sign-in failed (HTTP \(statusCode))",
+                traceID: http.flatMap(AuthenticatedRequest.traceID(from:))
+            )
         }
 
         try processTokenResponse(data: data, response: response)
@@ -209,6 +233,12 @@ final class AuthService: @unchecked Sendable {
             try await captureAppleRevocationToken(authorizationCode: authorizationCode)
         } catch {
             signOut()
+            throw error
+        }
+        log.info("Apple sign-in succeeded")
+        } catch {
+            let reference = Self.referenceSuffix(for: error)
+            log.error("Apple sign-in failed\(reference, privacy: .public)")
             throw error
         }
     }
@@ -231,8 +261,12 @@ final class AuthService: @unchecked Sendable {
             logger: log
         )
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw AuthError.oauthFailed("Apple account setup failed (HTTP \(status))")
+            let http = response as? HTTPURLResponse
+            let status = http?.statusCode ?? 0
+            throw AuthError.oauthFailed(
+                "Apple account setup failed (HTTP \(status))",
+                traceID: http.flatMap(AuthenticatedRequest.traceID(from:))
+            )
         }
     }
 
@@ -240,6 +274,7 @@ final class AuthService: @unchecked Sendable {
     /// Creates a temporary session - useful for local dev and demo-first UX.
     func signInAnonymously() async throws {
         log.info("Starting anonymous sign-in")
+        do {
         // Clear any stale session cookies so Better Auth doesn't reject
         // with "Anonymous users cannot sign in again anonymously".
         clearAPICookies()
@@ -260,21 +295,27 @@ final class AuthService: @unchecked Sendable {
             throw AuthError.oauthFailed("Invalid response")
         }
 
-        log.info("Anonymous sign-in response: \(httpResponse.statusCode)")
-
         guard (200...299).contains(httpResponse.statusCode) else {
-            log.error("Anonymous sign-in failed: HTTP \(httpResponse.statusCode)")
-            throw AuthError.oauthFailed("Anonymous sign-in failed (\(httpResponse.statusCode))")
+            throw AuthError.oauthFailed(
+                "Anonymous sign-in failed (\(httpResponse.statusCode))",
+                traceID: AuthenticatedRequest.traceID(from: httpResponse)
+            )
         }
 
         try processTokenResponse(data: data, response: response)
-        log.info("Anonymous sign-in succeeded - userId: \(self.userId ?? "nil")")
+        log.info("Anonymous sign-in succeeded")
+        } catch {
+            let reference = Self.referenceSuffix(for: error)
+            log.error("Anonymous sign-in failed\(reference, privacy: .public)")
+            throw error
+        }
     }
 
     /// Generic OAuth flow via ASWebAuthenticationSession.
     /// Opens Better Auth's sign-in URL with callbackURL pointed at our mobile bridge.
     private func signInWithProvider(_ provider: String) async throws {
         log.info("Starting OAuth flow for provider: \(provider)")
+        do {
         var components = URLComponents(url: Config.apiBaseURL.appendingPathComponent("api/auth/mobile/start"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "provider", value: provider),
@@ -283,11 +324,15 @@ final class AuthService: @unchecked Sendable {
             throw AuthError.oauthFailed("Invalid sign-in URL")
         }
 
-        log.debug("OAuth URL: \(signInURL)")
         let callbackURL = try await performWebAuth(url: signInURL)
         log.debug("OAuth callback received for provider: \(provider)")
         try processAuthCallback(url: callbackURL)
         log.info("OAuth sign-in succeeded for \(provider)")
+        } catch {
+            let reference = Self.referenceSuffix(for: error)
+            log.error("OAuth sign-in failed for \(provider)\(reference, privacy: .public)")
+            throw error
+        }
     }
 
     /// Sign out - clear all state. Session invalidation happens server-side via expiry.
@@ -299,8 +344,10 @@ final class AuthService: @unchecked Sendable {
 
     /// Clear a rejected session only if it is still the active session.
     @discardableResult
-    func invalidateSession(rejectedToken: String) -> Bool {
+    func invalidateSession(rejectedToken: String, traceID: String? = nil) -> Bool {
         guard sessionToken == rejectedToken else { return false }
+        let reference = AuthenticatedRequest.referenceSuffix(traceID: traceID)
+        log.warning("Session invalidated\(reference, privacy: .public)")
         signInMessage = "Your session expired. Please sign in again."
         clearSession()
         return true
@@ -372,11 +419,18 @@ final class AuthService: @unchecked Sendable {
             context: "Update profile", logger: log
         )
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let http = response as? HTTPURLResponse
+            let statusCode = http?.statusCode ?? 0
+            let traceID = http.flatMap(AuthenticatedRequest.traceID(from:))
+            let reference = AuthenticatedRequest.referenceSuffix(traceID: traceID)
+            log.error("Profile update failed: HTTP \(statusCode)\(reference, privacy: .public)")
             if statusCode == 401 {
-                invalidateSession(rejectedToken: token)
+                invalidateSession(rejectedToken: token, traceID: traceID)
             }
-            throw AuthError.oauthFailed("Profile update failed (HTTP \(statusCode))")
+            throw AuthError.oauthFailed(
+                "Profile update failed (HTTP \(statusCode))",
+                traceID: traceID
+            )
         }
 
         guard Self.isSameSession(currentToken: sessionToken, initiatingToken: token) else { return }
@@ -387,6 +441,8 @@ final class AuthService: @unchecked Sendable {
 
     /// Revoke linked providers, then permanently delete the account and its data.
     func deleteAccount() async throws -> Bool {
+        log.info("Account deletion started")
+        do {
         let token = try validToken()
         let url = Config.apiBaseURL.appendingPathComponent("api/auth/delete-account")
         var request = URLRequest(url: url)
@@ -402,15 +458,26 @@ final class AuthService: @unchecked Sendable {
             context: "Delete account", logger: log
         )
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let http = response as? HTTPURLResponse
+            let statusCode = http?.statusCode ?? 0
+            let traceID = http.flatMap(AuthenticatedRequest.traceID(from:))
             if statusCode == 401 {
-                invalidateSession(rejectedToken: token)
+                invalidateSession(rejectedToken: token, traceID: traceID)
             }
-            throw AuthError.oauthFailed("Account deletion failed (HTTP \(statusCode))")
+            throw AuthError.oauthFailed(
+                "Account deletion failed (HTTP \(statusCode))",
+                traceID: traceID
+            )
         }
 
         let result = try? JSONDecoder().decode(AccountDeletionResponse.self, from: data)
+        log.info("Account deletion succeeded")
         return result?.manualAppleRevocationRequired ?? false
+        } catch {
+            let reference = Self.referenceSuffix(for: error)
+            log.error("Account deletion failed\(reference, privacy: .public)")
+            throw error
+        }
     }
 
     private struct AccountDeletionResponse: Decodable {
@@ -422,6 +489,7 @@ final class AuthService: @unchecked Sendable {
     /// Sign in with a passkey. Presents the system passkey sheet.
     func signInWithPasskey() async throws {
         log.info("Starting passkey sign-in")
+        do {
         let service = PasskeyService()
         let result = try await service.authenticate()
 
@@ -436,6 +504,12 @@ final class AuthService: @unchecked Sendable {
 
         isAuthenticated = true
         persistSession()
+        log.info("Passkey sign-in succeeded")
+        } catch {
+            let reference = Self.referenceSuffix(for: error)
+            log.error("Passkey sign-in failed\(reference, privacy: .public)")
+            throw error
+        }
     }
 
     /// Sign up with a passkey: create anonymous session, register passkey, finalize.
@@ -443,6 +517,7 @@ final class AuthService: @unchecked Sendable {
     /// screen stays visible throughout.
     func signUpWithPasskey() async throws {
         log.info("Starting passkey sign-up flow")
+        do {
 
         // 0. Clean slate - clear any stale session
         clearAPICookies()
@@ -466,9 +541,16 @@ final class AuthService: @unchecked Sendable {
             for: anonRequest, session: Self.bearerSession,
             context: "Create passkey account", logger: log
         )
-        guard let anonHttp = anonResponse as? HTTPURLResponse,
-              (200...299).contains(anonHttp.statusCode),
-              let anonJson = try JSONSerialization.jsonObject(with: anonData) as? [String: Any],
+        guard let anonHttp = anonResponse as? HTTPURLResponse else {
+            throw AuthError.oauthFailed("Failed to create account")
+        }
+        guard (200...299).contains(anonHttp.statusCode) else {
+            throw AuthError.oauthFailed(
+                "Failed to create account (HTTP \(anonHttp.statusCode))",
+                traceID: AuthenticatedRequest.traceID(from: anonHttp)
+            )
+        }
+        guard let anonJson = try JSONSerialization.jsonObject(with: anonData) as? [String: Any],
               let rawToken = anonJson["token"] as? String
         else {
             throw AuthError.oauthFailed("Failed to create account")
@@ -482,7 +564,7 @@ final class AuthService: @unchecked Sendable {
         let user = anonJson["user"] as? [String: Any]
         userId = user?["id"] as? String
 
-        log.info("Anonymous session created for sign-up - userId: \(self.userId ?? "nil")")
+        log.info("Anonymous session created for passkey sign-up")
 
         // 2. Fetch full user info to ensure signed token is set
         if signedSessionToken == nil {
@@ -517,9 +599,12 @@ final class AuthService: @unchecked Sendable {
         guard let finalizeHttp = finalizeResponse as? HTTPURLResponse,
               (200...299).contains(finalizeHttp.statusCode)
         else {
-            let status = (finalizeResponse as? HTTPURLResponse)?.statusCode ?? -1
-            log.error("Finalize failed: HTTP \(status)")
-            throw AuthError.oauthFailed("Account setup failed")
+            let http = finalizeResponse as? HTTPURLResponse
+            let status = http?.statusCode ?? -1
+            throw AuthError.oauthFailed(
+                "Account setup failed (HTTP \(status))",
+                traceID: http.flatMap(AuthenticatedRequest.traceID(from:))
+            )
         }
 
         // 5. Clear ALL cookies before any Bearer-authenticated requests.
@@ -535,7 +620,7 @@ final class AuthService: @unchecked Sendable {
         isAuthenticated = true
         persistSession()
 
-        log.info("Passkey sign-up succeeded - \(birdName)")
+        log.info("Passkey sign-up succeeded")
 
         // 7. Push avatar to server in background (off critical path).
         // This runs after isAuthenticated is set and DataStore.fetchAll
@@ -548,9 +633,15 @@ final class AuthService: @unchecked Sendable {
             do {
                 try await self.updateProfile(name: birdName, image: avatarDataUrl, token: rawToken)
             } catch {
-                log.warning("Post-signup profile update failed")
+                let reference = await Self.referenceSuffix(for: error)
+                log.warning("Post-signup profile update failed\(reference, privacy: .public)")
             }
             await MainActor.run { self.clearAPICookies() }
+        }
+        } catch {
+            let reference = Self.referenceSuffix(for: error)
+            log.error("Passkey sign-up failed\(reference, privacy: .public)")
+            throw error
         }
     }
 
@@ -610,7 +701,10 @@ final class AuthService: @unchecked Sendable {
             return
         }
         guard httpResponse.statusCode == 200 else {
-            log.warning("fetchUserInfo: HTTP \(httpResponse.statusCode)")
+            let reference = AuthenticatedRequest.referenceSuffix(
+                traceID: AuthenticatedRequest.traceID(from: httpResponse)
+            )
+            log.warning("fetchUserInfo: HTTP \(httpResponse.statusCode)\(reference, privacy: .public)")
             return
         }
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -757,7 +851,6 @@ final class AuthService: @unchecked Sendable {
     private func processAuthCallback(url: URL) throws {
         log.info("Processing callback (\(url.host ?? "?"))")
         let result = try Self.parseCallbackURL(url)
-        log.info("Got token (\(result.token.count) chars)")
 
         resetSessionValidation()
         sessionToken = result.token
@@ -835,6 +928,7 @@ final class AuthService: @unchecked Sendable {
         guard let expiry = formatter.date(from: expiryString),
               expiry > Date.now
         else {
+            log.warning("Expired cached session invalidated")
             discardedAccountID = keychain[Self.userIdKey]
             signInMessage = "Your session expired. Please sign in again."
             clearSession()
@@ -915,15 +1009,20 @@ final class AuthenticationPresentationContextProvider: NSObject,
 
 enum AuthError: LocalizedError {
     case notAuthenticated
-    case oauthFailed(String)
+    case oauthFailed(String, traceID: String? = nil)
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated:
             "Not authenticated"
-        case .oauthFailed(let message):
+        case .oauthFailed(let message, _):
             "Log in failed: \(message)"
         }
+    }
+
+    var traceID: String? {
+        guard case .oauthFailed(_, let traceID) = self else { return nil }
+        return traceID
     }
 }
 

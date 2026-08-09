@@ -12,10 +12,11 @@ import {
 import { Download, Upload, Info, Database, CaretDown, Sun, Moon, Desktop, Trash, GlobeHemisphereWest, Key, SignOut, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
 import { authClient } from '@/lib/auth-client'
 import { fetchWithLocalAuthRetry, isLocalRuntime } from '@/lib/local-auth-fetch'
+import { assertWingDexApiResponse, getWingDexApiErrorMessage } from '@/lib/api-error'
 import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fun-names'
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike, toStandardPasskeyLabel } from '@/lib/passkey-label'
 import { toast } from 'sonner'
-import { clientLog, logClientFailure } from '@/lib/client-log'
+import { logClientFailure } from '@/lib/client-log'
 import { generateTraceparent } from '@/lib/trace'
 import demoCsv from '@/assets/ebird-import.csv?raw'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
@@ -192,10 +193,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         }
       }
 
-      if (!previewResponse.ok) {
-        const body = await previewResponse.text().catch(() => '')
-        throw new Error(body || `Preview failed (${previewResponse.status})`)
-      }
+      await assertWingDexApiResponse(previewResponse, 'Preview failed')
 
       const previewPayload = await previewResponse.json() as {
         previews: Array<{ previewId: string; speciesName: string; conflict?: 'new' | 'duplicate' | 'update_dates' }>
@@ -217,10 +215,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         body: JSON.stringify({ previewIds: selectedPreviewIds }),
       })
 
-      if (!confirmResponse.ok) {
-        const body = await confirmResponse.text().catch(() => '')
-        throw new Error(body || `Confirm failed (${confirmResponse.status})`)
-      }
+      await assertWingDexApiResponse(confirmResponse, 'Confirmation failed')
 
       const confirmPayload = await confirmResponse.json() as {
         imported: { outings: number; newSpecies: number }
@@ -238,12 +233,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
 
       await data.refresh()
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Unknown error'
+      const detail = getWingDexApiErrorMessage(error, 'Please try again.')
       toast.error(`Failed to import eBird data: ${detail}`)
-      clientLog.error('import/ebirdCsv/import', {
-        resultType: 'Failed',
-        resultDescription: 'The eBird CSV import flow failed during preview, confirmation, or refresh',
-      })
+      logClientFailure('import/ebirdCsv/import', error)
     }
 
     if (importFileRef.current) {
@@ -254,10 +246,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
   const handleExportDex = async () => {
     try {
       const response = await fetchWithLocalAuthRetry('/api/export/sightings', { credentials: 'include' })
-      if (!response.ok) {
-        const body = await response.text().catch(() => '')
-        throw new Error(body || `Export failed (${response.status})`)
-      }
+      await assertWingDexApiResponse(response, 'Export failed')
 
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -268,8 +257,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
       URL.revokeObjectURL(url)
       toast.success('Sightings CSV exported')
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Unknown error'
+      const detail = getWingDexApiErrorMessage(error, 'Please try again.')
       toast.error(`Failed to export sightings CSV: ${detail}`)
+      logClientFailure('export/sightings/export', error)
     }
   }
 
@@ -716,10 +706,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                         credentials: 'include',
                         body: formData,
                       })
-                      if (!previewRes.ok) {
-                        const body = await previewRes.text().catch(() => '')
-                        throw new Error(body || `Preview failed (${previewRes.status})`)
-                      }
+                      await assertWingDexApiResponse(previewRes, 'Preview failed')
 
                       const { previews } = await previewRes.json() as {
                         previews: Array<{ previewId: string }>
@@ -731,10 +718,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ previewIds: previews.map(p => p.previewId) }),
                       })
-                      if (!confirmRes.ok) {
-                        const body = await confirmRes.text().catch(() => '')
-                        throw new Error(body || `Confirm failed (${confirmRes.status})`)
-                      }
+                      await assertWingDexApiResponse(confirmRes, 'Confirmation failed')
 
                       const { imported } = await confirmRes.json() as {
                         imported: { outings: number; newSpecies: number }
@@ -743,8 +727,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                       await data.refresh()
                       toast.success(`Demo data loaded: ${imported.outings} outings, ${imported.newSpecies} species`)
                     } catch (error) {
-                      const detail = error instanceof Error ? error.message : 'Unknown error'
+                      const detail = getWingDexApiErrorMessage(error, 'Please try again.')
                       toast.error(`Failed to load demo data: ${detail}`)
+                      logClientFailure('demo/data/import', error)
                     }
                   }}
                 >
@@ -832,11 +817,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                             credentials: 'include',
                             headers: { traceparent: generateTraceparent() },
                           })
-                          if (!response.ok) {
-                            const message = await response.text().catch(() => '')
-                            toast.error(message || 'Failed to delete account')
-                            return
-                          }
+                          await assertWingDexApiResponse(response, 'Failed to delete account')
                           const result = await response.json().catch(() => ({
                             manualAppleRevocationRequired: false,
                           })) as { manualAppleRevocationRequired?: boolean }
@@ -849,8 +830,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                             toast.success('Account deleted')
                           }
                           onSignedOut?.()
-                        } catch {
-                          toast.error('Failed to delete account')
+                        } catch (error) {
+                          toast.error(getWingDexApiErrorMessage(error, 'Failed to delete account'))
+                          logClientFailure('auth/account/delete', error)
                         } finally {
                           setIsDeletingAccount(false)
                         }

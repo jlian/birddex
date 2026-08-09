@@ -167,9 +167,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     return route.fail(404, 'Not found', `Outing ${outingId} not found after successful update`, { outingId })
   }
 
-  route.debug(`Updated outing ${outingId}`, { outingId, fieldCount: updateFields.length })
-
-  return Response.json({
+  return route.complete(Response.json({
     ...outing,
     defaultLocationName: outing.defaultLocationName || undefined,
     lat: outing.lat ?? undefined,
@@ -181,7 +179,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     allObsReported: outing.allObsReported == null ? undefined : outing.allObsReported === 1,
     effortDistanceMiles: outing.effortDistanceMiles ?? undefined,
     effortAreaAcres: outing.effortAreaAcres ?? undefined,
-  })
+  }), `Updated outing ${outingId} with ${updateFields.length} fields`)
   } catch {
     return route.fail(500, 'Internal server error', 'Outing patch failed; inspect the trace and database operation', { outingId })
   }
@@ -211,9 +209,8 @@ export const onRequestDelete: PagesFunction<Env> = async context => {
       return route.fail(404, 'Not found', `Outing ${outingId} not found or not owned by user; it may have been deleted by another client`, { outingId })
     }
 
-    route.debug(`Deleted outing ${outingId}`, { outingId })
     const dexUpdates = await computeDex(context.env.DB, userId)
-    return Response.json({ dexUpdates: enrichDexEntries(dexUpdates) })
+    return route.complete(Response.json({ dexUpdates: enrichDexEntries(dexUpdates) }), `Deleted outing ${outingId} and recomputed ${dexUpdates.length} dex entries`)
   } catch {
     return route.fail(500, 'Internal server error', 'Outing deletion failed; inspect the trace and database operation', { outingId })
   }

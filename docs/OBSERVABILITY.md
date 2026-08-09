@@ -19,13 +19,19 @@ Every log line is a JSON object (or a compact one-liner when `LOG_FORMAT=pretty`
 | `resourceId` | when applicable | string | `/users/{userId}/outings/{id}` etc. |
 | `resultType` | recommended | string | `Succeeded` or `Failed` |
 | `resultSignature` | on HTTP responses | number | HTTP status code |
-| `resultDescription` | on failures | string | Human-readable: context, cause, mitigation |
+| `resultDescription` | on terminal outcomes | string | Human-readable summary for middleware completion log; failures include cause and mitigation |
 | `durationMs` | on completion | number | Wall-clock time (ms) |
 | `properties` | optional | object | Machine-queryable extras (counts, IDs, enums) |
 
 Middleware completion logs include OTel-convention transport fields in `properties`:
 - `http.method` - HTTP request method (GET, POST, PATCH, DELETE)
 - `http.route` - URL pathname (e.g. `/api/auth/callback/github`, `/api/data/outings/outing_123`)
+
+Route handlers transport terminal outcome details to middleware using private response headers:
+- `X-WingDex-Result-Description`
+- `X-WingDex-Result-Type` (optional semantic override)
+
+Middleware strips both headers before sending the response to clients.
 
 ## Log levels
 
@@ -207,17 +213,22 @@ Middleware resolves the session (and therefore `userId`) for non-`/api/auth/*` r
    ```ts
    const route = createRouteResponder((context.data as RequestData).log, 'data/outings/write', 'Application')
    ```
-2. **Use `route.fail(status, body, detail?, properties?)`** for all error responses. It logs + returns Response in one call - impossible to forget a log site:
+2. **Use `route.fail(status, body, detail?, properties?)`** for all error responses. It returns the response and carries terminal outcome detail to middleware for the single Request completion event:
    ```ts
    return route.fail(400, 'Invalid JSON body')
    return route.fail(404, 'Not found', `Outing ${outingId} not found or not owned by user`, { outingId })
    ```
-3. **Use `route.info()`, `route.debug()`, `route.trace()`** for success/diagnostic logging. Never repeat operationName or category.
-4. **Wrap all DB operations in try/catch** with `route.fail(500, 'Internal server error', detail, properties)` in the catch block.
-5. **Include entity context** in error messages: outing IDs, observation IDs, counts. Use the `detail` parameter for rich descriptions and `properties` for machine-queryable data.
-6. **Scope resourceId** when operating on a specific entity: `createRouteResponder(log?.withResourceId('outings/' + outingId), ...)`
-7. **Propagate `traceparent`** on outbound calls (web -> API, iOS -> API).
-8. **Expose only safe expected 4xx details** to clients. Never surface or log raw 5xx bodies, HTML, exception text, or provider/database payloads.
+3. **Use `route.complete(response, resultDescription)`** for successful/redirect terminal outcomes so middleware can emit one authoritative Request completion event:
+  ```ts
+  return route.complete(Response.json(result), `Persisted ${count} observations`)
+  return route.complete(Response.redirect(url, 302), 'Started OAuth redirect')
+  ```
+4. **Use `route.info()`, `route.debug()`, `route.trace()`** only for meaningful intermediate or durable Application events, not routine terminal completion.
+5. **Wrap all DB operations in try/catch** with `route.fail(500, 'Internal server error', detail, properties)` in the catch block.
+6. **Include entity context** in error messages: outing IDs, observation IDs, counts. Use the `detail` parameter for rich descriptions and `properties` for machine-queryable data.
+7. **Scope resourceId** when operating on a specific entity: `createRouteResponder(log?.withResourceId('outings/' + outingId), ...)`
+8. **Propagate `traceparent`** on outbound calls (web -> API, iOS -> API).
+9. **Expose only safe expected 4xx details** to clients. Never surface or log raw 5xx bodies, HTML, exception text, or provider/database payloads.
 
 ### Route handler template
 
@@ -225,7 +236,7 @@ Middleware resolves the session (and therefore `userId`) for non-`/api/auth/*` r
 export const onRequestPost: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/outings/write', 'Application')
-  if (!userId) return new Response('Unauthorized', { status: 401 })
+  if (!userId) return route.fail(401, 'Unauthorized', 'Outing write requires an authenticated session')
 
   let body: unknown
   try { body = await context.request.json() }
@@ -235,8 +246,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
   try {
     // ... DB operations ...
-    route.debug('Created outing', { outingId: body.id })
-    return Response.json(result)
+    return route.complete(Response.json(result), `Created outing ${body.id}`)
   } catch {
     return route.fail(500, 'Internal server error', 'Outing creation failed; inspect the trace and database operation', { outingId: body.id })
   }

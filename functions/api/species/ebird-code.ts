@@ -12,9 +12,9 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   const trimmed = name.trim()
 
   if (!trimmed) {
-    return Response.json({ ebirdCode: null })
+    return route.complete(Response.json({ ebirdCode: null }), 'Completed eBird code lookup with empty species name')
   }
 
   const ebirdCode = getEbirdCode(trimmed)
-  return Response.json({ ebirdCode: ebirdCode || null })
+  return route.complete(Response.json({ ebirdCode: ebirdCode || null }), `Completed eBird code lookup (${ebirdCode ? 'code found' : 'no code found'})`)
 }

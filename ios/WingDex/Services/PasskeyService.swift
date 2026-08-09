@@ -137,8 +137,13 @@ final class PasskeyService: NSObject, @unchecked Sendable {
     /// - signedToken: HMAC-signed token for cookie auth on passkey verify endpoint
     /// - displayName: Override for the Keychain "User Name" field (defaults to server value)
     func register(name: String, signedToken: String?, displayName: String? = nil) async throws {
+        log.info("Passkey registration started")
+        do {
         guard let signed = signedToken else {
-            throw PasskeyError.serverError("Missing signed session token for passkey registration")
+            throw PasskeyError.serverError(
+                "Missing signed session token for passkey registration",
+                traceID: nil
+            )
         }
 
         // Step 1 - Fetch registration options (cookie-only, no Bearer)
@@ -221,6 +226,13 @@ final class PasskeyService: NSObject, @unchecked Sendable {
             context: "Passkey registration failed", logger: log
         )
         log.info("Passkey registration succeeded")
+        } catch {
+            let reference = AuthenticatedRequest.referenceSuffix(
+                traceID: (error as? PasskeyError)?.traceID
+            )
+            log.error("Passkey registration failed\(reference, privacy: .public)")
+            throw error
+        }
     }
 
     // MARK: - List Passkeys
@@ -245,6 +257,8 @@ final class PasskeyService: NSObject, @unchecked Sendable {
     // MARK: - Delete Passkey
 
     func deletePasskey(id: String, signedToken: String) async throws {
+        log.info("Passkey deletion started")
+        do {
         let url = Config.apiBaseURL.appendingPathComponent("api/auth/passkey/delete-passkey")
         let request = AuthenticatedRequest.withCookieOnly(
             url: url,
@@ -263,6 +277,14 @@ final class PasskeyService: NSObject, @unchecked Sendable {
             response, data: data,
             context: "Failed to delete passkey", logger: log
         )
+        log.info("Passkey deletion succeeded")
+        } catch {
+            let reference = AuthenticatedRequest.referenceSuffix(
+                traceID: (error as? PasskeyError)?.traceID
+            )
+            log.error("Passkey deletion failed\(reference, privacy: .public)")
+            throw error
+        }
     }
 
     // MARK: - ASAuthorizationController Bridge
@@ -398,7 +420,7 @@ extension PasskeyService: ASAuthorizationControllerDelegate {
 // MARK: - Errors
 
 enum PasskeyError: LocalizedError {
-    case serverError(String)
+    case serverError(String, traceID: String? = nil)
     case invalidChallenge
     case invalidResponse
     case authenticationFailed
@@ -408,7 +430,7 @@ enum PasskeyError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .serverError(let message): message
+        case .serverError(let message, _): message
         case .invalidChallenge: "Invalid challenge from server"
         case .invalidResponse: "Invalid response from server"
         case .authenticationFailed: "Passkey authentication failed"
@@ -416,5 +438,10 @@ enum PasskeyError: LocalizedError {
         case .presentationUnavailable: "No active window is available for passkey authentication"
         case .unexpectedCredentialType: "Unexpected credential type"
         }
+    }
+
+    var traceID: String? {
+        guard case .serverError(_, let traceID) = self else { return nil }
+        return traceID
     }
 }

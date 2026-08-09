@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createLogger, createRouteResponder, RESULT_DESCRIPTION_HEADER } from '../../functions/lib/log'
+import { createLogger, createRouteResponder, requestCompletionLevel, RESULT_DESCRIPTION_HEADER, RESULT_TYPE_HEADER } from '../../functions/lib/log'
 
 describe('createLogger schema', () => {
   function captureLogs(fn: (log: ReturnType<typeof createLogger>) => void, logLevel = 'debug'): unknown[] {
@@ -244,6 +244,76 @@ describe('createRouteResponder', () => {
       spy.mockRestore()
       spyErr.mockRestore()
     }
+  })
+
+  it('complete() attaches terminal outcome detail without immediate logs', async () => {
+    const logs: unknown[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
+    const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
+    try {
+      const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
+      const route = createRouteResponder(log, 'export/sightings/export', 'Application')
+
+      const jsonResponse = route.complete(Response.json({ ok: true }), 'JSON response completed')
+      expect(jsonResponse.status).toBe(200)
+      expect(jsonResponse.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('JSON response completed')
+      await expect(jsonResponse.json()).resolves.toEqual({ ok: true })
+
+      const csvResponse = route.complete(
+        new Response('a,b\n1,2\n', { headers: { 'content-type': 'text/csv; charset=utf-8' } }),
+        'CSV export completed',
+      )
+      expect(csvResponse.headers.get('content-type')).toContain('text/csv')
+      await expect(csvResponse.text()).resolves.toBe('a,b\n1,2\n')
+
+      const emptyResponse = route.complete(new Response(null, { status: 204 }), 'No content completed')
+      expect(emptyResponse.status).toBe(204)
+      await expect(emptyResponse.text()).resolves.toBe('')
+
+      const redirectResponse = route.complete(Response.redirect('https://example.com/safe', 302), 'Redirect completed')
+      expect(redirectResponse.status).toBe(302)
+      expect(redirectResponse.headers.get('location')).toBe('https://example.com/safe')
+
+      expect(logs).toEqual([])
+    } finally {
+      spy.mockRestore()
+      spyErr.mockRestore()
+    }
+  })
+
+  it('complete() sanitizes and bounds terminal detail for middleware transport', () => {
+    const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
+    const route = createRouteResponder(log, 'test/op', 'Application')
+    const response = route.complete(Response.json({ ok: true }), `Unsafe\r\nvalue 🐦 ${'x'.repeat(2_000)}`)
+    const detail = response.headers.get(RESULT_DESCRIPTION_HEADER)
+
+    expect(detail).toBeTruthy()
+    expect(detail).not.toMatch(/[\r\n]/)
+    expect(detail).not.toContain('🐦')
+    expect(detail).toHaveLength(1_024)
+  })
+
+  it('failWithHeaders() marks semantic 302 failures via private resultType header', () => {
+    const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
+    const route = createRouteResponder(log, 'auth/mobileOAuth/invoke', 'Application')
+    const response = route.failWithHeaders(
+      302,
+      '',
+      { Location: 'wingdex://auth/callback?error=no_session' },
+      'Mobile OAuth callback failed because no session could be resolved from callback cookies',
+    )
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('Location')).toBe('wingdex://auth/callback?error=no_session')
+    expect(response.headers.get(RESULT_TYPE_HEADER)).toBe('Failed')
+    expect(response.headers.get(RESULT_DESCRIPTION_HEADER)).toContain('Mobile OAuth callback failed')
+  })
+
+  it('classifies semantic redirect failures at Warning level', () => {
+    expect(requestCompletionLevel(302, 'Failed')).toBe('Warning')
+    expect(requestCompletionLevel(302, 'Succeeded')).toBe('Info')
+    expect(requestCompletionLevel(422, 'Failed')).toBe('Warning')
+    expect(requestCompletionLevel(500, 'Failed')).toBe('Error')
   })
 
   it('bounds and sanitizes failure details carried to middleware', () => {

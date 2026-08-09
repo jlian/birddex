@@ -1,6 +1,6 @@
 import { createAuth } from './lib/auth'
-import { createLogger, RESULT_DESCRIPTION_HEADER } from './lib/log'
-import type { Category, Identity } from './lib/log'
+import { createLogger, requestCompletionLevel, RESULT_DESCRIPTION_HEADER, RESULT_TYPE_HEADER } from './lib/log'
+import type { Category, Identity, ResultType } from './lib/log'
 import { parseTraceparent, generateTraceContext, childSpanId, formatTraceparent } from './lib/trace-context'
 
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -167,10 +167,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       addTraceHeaders(response, traceCtx)
       // Suppress completion log for /api/health (internal infra polling, not user-triggered)
       if (pathname !== '/api/health') {
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeResultDescription(response)))
+        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeOutcomeMetadata(response)))
       } else if (!response.ok) {
         // Always log health failures
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeResultDescription(response)))
+        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeOutcomeMetadata(response)))
       }
       return response
     } catch (err) {
@@ -217,7 +217,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   try {
     const response = withSecurityHeaders(await context.next())
     addTraceHeaders(response, traceCtx)
-    context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeResultDescription(response)))
+    context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeOutcomeMetadata(response)))
     return response
   } catch (err) {
     return handleUnexpectedError(err, log, traceCtx, op, start)
@@ -225,22 +225,36 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 }
 
 /** Emit the single request-lifecycle completion log with dynamic level. */
-function takeResultDescription(response: Response): string | undefined {
+function takeOutcomeMetadata(response: Response): { resultDescription?: string; resultType?: ResultType } {
   const resultDescription = response.headers.get(RESULT_DESCRIPTION_HEADER) || undefined
+  const rawResultType = response.headers.get(RESULT_TYPE_HEADER)
+  const resultType = rawResultType === 'Succeeded' || rawResultType === 'Failed'
+    ? rawResultType
+    : undefined
   response.headers.delete(RESULT_DESCRIPTION_HEADER)
-  return resultDescription
+  response.headers.delete(RESULT_TYPE_HEADER)
+  return { resultDescription, resultType }
 }
 
-async function emitCompletionLog(log: ReturnType<typeof createLogger>, op: string, response: Response, durationMs: number, method: string, pathname: string, detail?: string): Promise<void> {
+async function emitCompletionLog(
+  log: ReturnType<typeof createLogger>,
+  op: string,
+  response: Response,
+  durationMs: number,
+  method: string,
+  pathname: string,
+  outcome?: { resultDescription?: string; resultType?: ResultType },
+): Promise<void> {
   const status = response.status
-  const resultType = status < 400 ? 'Succeeded' : 'Failed'
-  const resultDescription = detail || (status < 400
+  const resultType = outcome?.resultType || (status < 400 ? 'Succeeded' : 'Failed')
+  const resultDescription = outcome?.resultDescription || (resultType === 'Succeeded'
     ? `${op} completed successfully`
     : `${op} failed with HTTP ${status}`)
   const fields = { category: 'Request' as const, resultType: resultType as 'Succeeded' | 'Failed', resultSignature: status, resultDescription, durationMs, properties: { 'http.method': method, 'http.route': pathname } }
-  if (status >= 500) {
+  const level = requestCompletionLevel(status, resultType)
+  if (level === 'Error') {
     log.error(op, fields)
-  } else if (status >= 400) {
+  } else if (level === 'Warning') {
     log.warn(op, fields)
   } else {
     log.info(op, fields)

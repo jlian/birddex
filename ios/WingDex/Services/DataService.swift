@@ -319,20 +319,23 @@ final class DataService: DataStoreService, Sendable {
         let bytesFragment = byteCount.map { " \($0)B" } ?? ""
         guard (200...299).contains(http.statusCode) else {
             let status = http.statusCode
+            let traceID = AuthenticatedRequest.traceID(from: http)
+            let reference = AuthenticatedRequest.referenceSuffix(traceID: traceID)
             if (400...499).contains(status) {
-                log.warning("\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)")
+                log.warning("\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)\(reference, privacy: .public)")
             } else {
-                log.error("\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)")
+                log.error("\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)\(reference, privacy: .public)")
             }
             // Server rejected the session - clear stale local auth state
             // so the UI shows the sign-in screen instead of a broken homepage.
             if status == 401 {
-                await auth.invalidateSession(rejectedToken: rejectedToken)
+                await auth.invalidateSession(rejectedToken: rejectedToken, traceID: traceID)
             }
             throw DataServiceError.http(
                 status: status,
                 message: Self.safePublicMessage(status: status, data: data),
-                retryAfter: http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+                retryAfter: http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init),
+                traceID: traceID
             )
         }
         log.debug("\(method) \(path) -> HTTP \(http.statusCode)\(durationFragment)\(bytesFragment)")
@@ -352,13 +355,13 @@ final class DataService: DataStoreService, Sendable {
 enum DataServiceError: LocalizedError {
     case network(URLError)
     case invalidResponse
-    case http(status: Int, message: String?, retryAfter: TimeInterval?)
+    case http(status: Int, message: String?, retryAfter: TimeInterval?, traceID: String?)
 
     var errorDescription: String? {
         switch self {
         case .network(let error): error.localizedDescription
         case .invalidResponse: "Invalid response"
-        case .http(let status, let message, _): message ?? "HTTP \(status)"
+        case .http(let status, let message, _, _): message ?? "HTTP \(status)"
         }
     }
 }

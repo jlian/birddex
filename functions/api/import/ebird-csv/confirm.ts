@@ -55,10 +55,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
   if (selectedPreviews.length === 0) {
     const dexUpdates = await computeDex(context.env.DB, userId)
-    return Response.json({
+    return route.complete(Response.json({
       imported: { outings: 0, observations: 0, newSpecies: 0 },
       dexUpdates: enrichDexEntries(dexUpdates),
-    })
+    }), `Confirmed import with 0 selected previews; recomputed ${dexUpdates.length} dex entries`)
   }
 
   // Snapshot species already in the user's dex before inserting
@@ -193,19 +193,18 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   if (insertStatements.length > 0) {
     await context.env.DB.batch(insertStatements)
   }
-  route.info(`Imported ${outings.length} outings and ${observations.length} observations`, { outingCount: outings.length, observationCount: observations.length })
 
   const dexUpdates = await computeDex(context.env.DB, userId)
   const newSpecies = dexUpdates.filter(row => !priorSpecies.has(row.speciesName)).length
 
-  return Response.json({
+  return route.complete(Response.json({
     imported: {
       outings: outings.length,
       observations: observations.length,
       newSpecies,
     },
     dexUpdates: enrichDexEntries(dexUpdates),
-  })
+  }), `Imported ${outings.length} outings and ${observations.length} observations with ${newSpecies} new species`)
   } catch {
     return route.fail(500, 'Internal server error', 'eBird import confirmation failed; inspect the trace and database batch', { previewCount: body.previewIds.length })
   }

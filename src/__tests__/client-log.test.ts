@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { clientLog, logClientFailure } from '../lib/client-log'
+import { WingDexApiError } from '../lib/api-error'
 
 function captureLogs(fn: () => void): unknown[] {
   const out: unknown[] = []
@@ -77,6 +78,26 @@ describe('clientLog', () => {
 })
 
 describe('logClientFailure', () => {
+  it('uses typed status and adds trace ID to existing properties', () => {
+    const error = new WingDexApiError({
+      status: 429,
+      statusText: 'Too Many Requests',
+      traceId: 'abcdef0123456789abcdef0123456789',
+      message: 'Try again later',
+    })
+    const [entry] = captureLogs(() => logClientFailure('data/outings/write', error, { outingId: 'abc' }))
+
+    expect(entry).toMatchObject({
+      level: 'Warning',
+      resultSignature: 429,
+      properties: {
+        outingId: 'abc',
+        traceId: 'abcdef0123456789abcdef0123456789',
+      },
+    })
+    expect(entry).not.toHaveProperty('traceId')
+  })
+
   it('extracts status code from error message prefix', () => {
     const [entry] = captureLogs(() => logClientFailure('data/outings/write', new Error('400 Invalid JSON body')))
     expect(entry).toMatchObject({

@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 
 import { authClient } from '@/lib/auth-client'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
+import { assertWingDexApiResponse } from '@/lib/api-error'
+import { logClientFailure } from '@/lib/client-log'
 import { generateBirdName } from '@/lib/fun-names'
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike } from '@/lib/passkey-label'
 import {
@@ -141,7 +143,10 @@ function AuthGateModal({
         ...(passkeyId ? { passkeyId } : {}),
       }),
     })
-    if (!finalizeRes.ok) {
+    try {
+      await assertWingDexApiResponse(finalizeRes, 'Account setup failed')
+    } catch (error) {
+      logClientFailure('auth/passkey/finalize', error)
       setIsLoading(false)
       setErrorMessage('Account setup failed. Please try again.')
       return
