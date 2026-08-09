@@ -6,6 +6,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // Do not force hosted mode here or localhost web OAuth callbacks will fail
   // state validation.
   const request = normalizeAuthRequest(context.env, context.request)
-  const auth = createAuth(context.env, { request })
+  const auth = createAuth(context.env, { request, log: (context.data as RequestData).log })
   return auth.handler(request)
 }

@@ -11,6 +11,7 @@
 export type LogLevel = 'Trace' | 'Debug' | 'Info' | 'Warning' | 'Error' | 'Critical'
 export type ResultType = 'Succeeded' | 'Failed'
 export type Category = 'Audit' | 'Application' | 'Request'
+export const RESULT_DESCRIPTION_HEADER = 'X-WingDex-Result-Description'
 
 const LEVEL_RANK: Record<LogLevel, number> = {
   Trace: 0, Debug: 1, Info: 2, Warning: 3, Error: 4, Critical: 5,
@@ -197,23 +198,25 @@ export function createRouteResponder(
   operationName: string,
   category: Category,
 ): RouteResponder {
-  function emitFail(status: number, resultDescription: string, properties?: Record<string, unknown>): void {
-    const fields: LogFields = { category, resultType: 'Failed', resultSignature: status, resultDescription, ...(properties ? { properties } : {}) }
-    if (status >= 500) {
-      log?.error(operationName, fields)
-    } else {
-      log?.warn(operationName, fields)
-    }
+  function safeHeaderValue(value: string): string {
+    return value.replace(/[^\x20-\x7E]/g, ' ').slice(0, 1_024)
+  }
+
+  function failureResponse(status: number, body: string, headers: Record<string, string>, resultDescription: string): Response {
+    return new Response(body, {
+      status,
+      headers: { ...headers, [RESULT_DESCRIPTION_HEADER]: safeHeaderValue(resultDescription) },
+    })
   }
 
   return {
     fail(status, body, detail, properties) {
-      emitFail(status, detail || body, properties)
-      return new Response(body, { status })
+      void properties
+      return failureResponse(status, body, {}, detail || body)
     },
     failWithHeaders(status, body, headers, detail, properties) {
-      emitFail(status, detail || body, properties)
-      return new Response(body, { status, headers })
+      void properties
+      return failureResponse(status, body, headers, detail || body)
     },
     info(resultDescription, properties) {
       log?.info(operationName, { category, resultDescription, ...(properties ? { properties } : {}) })

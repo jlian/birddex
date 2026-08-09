@@ -1,31 +1,31 @@
 export default function PrivacyPage() {
   return (
-    <div className="px-4 sm:px-6 py-6 space-y-6 max-w-3xl mx-auto">
+    <div className="px-5 sm:px-8 py-8 sm:py-10 space-y-8 max-w-2xl mx-auto">
       <div className="space-y-2">
         <h2 className="font-serif text-2xl font-semibold text-foreground">Privacy Policy</h2>
-        <p className="text-sm text-muted-foreground">Last updated: August 2026</p>
+        <p className="text-sm text-muted-foreground/90">Last updated: August 2026</p>
       </div>
 
-      <article className="space-y-6 text-sm text-muted-foreground leading-relaxed">
-        <section className="space-y-1">
-          <h3 className="font-semibold text-foreground">1. Introduction</h3>
+      <article className="space-y-8 text-[0.9375rem] text-foreground/75 leading-7">
+        <section className="space-y-3">
+          <h3 className="text-base font-semibold text-foreground">1. Introduction</h3>
           <p>This Privacy Policy describes how WingDex™ ("we," "us," or "the Service") collects, uses, and shares information when you use the WingDex web application or iOS app. By accessing or using WingDex, you acknowledge that you have read and understood this policy.</p>
         </section>
 
-        <section className="space-y-2">
-          <h3 className="font-semibold text-foreground">2. Information we collect</h3>
-          <div className="space-y-1">
+        <section className="space-y-4">
+          <h3 className="text-base font-semibold text-foreground">2. Information we collect</h3>
+          <div className="space-y-2">
             <h4 className="font-medium text-foreground">2.1 Information you provide</h4>
-            <ul className="list-disc ml-5 space-y-0.5">
+            <ul className="list-disc ml-5 space-y-1.5">
               <li><strong>Account information:</strong> Authentication credentials such as passkeys, or information from social login providers (e.g., display name, email address, and provider-issued identifiers).</li>
               <li><strong>Birding data:</strong> Observations, outings, species lists, notes, and related metadata you enter into the app.</li>
               <li><strong>Photos:</strong> Images you add for bird identification are processed entirely on your device. The image itself is never uploaded to us as part of identification; we store only associated metadata (capture time, GPS coordinates if present, file name) and a file fingerprint hash used for duplicate detection.</li>
               <li><strong>Imported data:</strong> Data you import from external sources such as eBird CSV exports.</li>
             </ul>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-2">
             <h4 className="font-medium text-foreground">2.2 Information collected automatically</h4>
-            <ul className="list-disc ml-5 space-y-0.5">
+            <ul className="list-disc ml-5 space-y-1.5">
               <li><strong>Usage data:</strong> Basic request metadata (e.g., timestamps, IP addresses, user-agent strings) through hosting infrastructure for operational and security purposes.</li>
               <li><strong>Local storage:</strong> Browser local storage and session cookies to maintain session state and preferences. We do not use third-party tracking or advertising cookies.</li>
             </ul>

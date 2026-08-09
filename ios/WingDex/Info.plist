@@ -36,7 +36,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>WingDex uses the camera so you can take bird photos for identification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>WingDex uses your location to tag where bird photos were taken. Exact coordinates are saved by WingDex with your outings and photo metadata, and WingDex may forward rounded coordinates to OpenStreetMap to suggest a location name.</string>
+	<string>WingDex uses your location to tag where bird photos were taken. Exact coordinates are saved by WingDex with your outings and photo metadata, and WingDex may forward rounded coordinates to Geoapify to suggest a location name.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>WingDex may save captured bird photos to your library when you choose to keep them.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

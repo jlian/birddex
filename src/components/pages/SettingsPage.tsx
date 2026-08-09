@@ -659,7 +659,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
             </label>
             <p className="text-xs text-muted-foreground">
               Uses photo location and month on this device to improve identification. WingDex may
-              forward rounded coordinates to OpenStreetMap to suggest an outing location, and exact
+              forward rounded coordinates to Geoapify to suggest an outing location, and exact
               coordinates are saved by WingDex with your outing and photo metadata.
             </p>
           </div>
@@ -837,9 +837,17 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                             toast.error(message || 'Failed to delete account')
                             return
                           }
+                          const result = await response.json().catch(() => ({
+                            manualAppleRevocationRequired: false,
+                          })) as { manualAppleRevocationRequired?: boolean }
+                          await onProfileUpdated?.()
                           data.clearAllData()
                           setDeleteStep(null)
-                          toast.success('Account deleted')
+                          if (result.manualAppleRevocationRequired) {
+                            toast.success('Account deleted. Remove WingDex from Sign in with Apple in your Apple Account settings.')
+                          } else {
+                            toast.success('Account deleted')
+                          }
                           onSignedOut?.()
                         } catch {
                           toast.error('Failed to delete account')

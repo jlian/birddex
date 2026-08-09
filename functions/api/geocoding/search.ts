@@ -1,11 +1,12 @@
 import { GeocodingConfigurationError, GeocodingUpstreamError, searchPlaces } from '../../lib/geocoding-gateway'
 import { createRouteResponder } from '../../lib/log'
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/search/read', 'Application')
-  const query = new URL(context.request.url).searchParams.get('q') || ''
 
   try {
+    const body = await context.request.json() as { query?: unknown }
+    const query = typeof body.query === 'string' ? body.query : ''
     const results = await searchPlaces(context.env.GEOAPIFY_KEY, query, fetch)
     route.debug('Geocoding search completed', { resultCount: results.length })
     return Response.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -15,11 +16,15 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     }
     if (error instanceof GeocodingUpstreamError) {
       const headers: Record<string, string> = error.retryAfter ? { 'Retry-After': error.retryAfter } : {}
-      return route.failWithHeaders(error.status, 'Geocoding service unavailable', headers, `Provider returned HTTP ${error.providerStatus}`)
+      const detail = error.status === 504
+        ? 'Location search timed out after 5 seconds; retry the search'
+        : `Location search provider failed with HTTP ${error.providerStatus || 'network error'}; retry the search`
+      return route.failWithHeaders(error.status, 'Geocoding service unavailable', headers, detail)
     }
     if (error instanceof Error && error.message === 'Invalid search query') {
       return route.fail(400, error.message)
     }
+    if (error instanceof SyntaxError) return route.fail(400, 'Invalid JSON body', 'Geocoding search request body is not valid JSON')
     throw error
   }
 }

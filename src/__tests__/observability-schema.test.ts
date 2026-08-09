@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createLogger, createRouteResponder } from '../../functions/lib/log'
+import { createLogger, createRouteResponder, RESULT_DESCRIPTION_HEADER } from '../../functions/lib/log'
 
 describe('createLogger schema', () => {
   function captureLogs(fn: (log: ReturnType<typeof createLogger>) => void, logLevel = 'debug'): unknown[] {
@@ -165,7 +165,7 @@ describe('createRouteResponder', () => {
     return out
   }
 
-  it('fail() returns Response with correct status and body', () => {
+  it('fail() returns a response with its middleware completion description', async () => {
     const logs: unknown[] = []
     const spy = vi.spyOn(console, 'log').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
     const spyErr = vi.spyOn(console, 'error').mockImplementation((s: string) => { logs.push(JSON.parse(s)) })
@@ -174,37 +174,35 @@ describe('createRouteResponder', () => {
       const route = createRouteResponder(log, 'data/outings/write', 'Application')
       const response = route.fail(400, 'Invalid JSON body')
       expect(response.status).toBe(400)
-      expect(logs[0]).toMatchObject({
-        level: 'Warning',
-        operationName: 'data/outings/write',
-        category: 'Application',
-        resultType: 'Failed',
-        resultSignature: 400,
-        resultDescription: 'Invalid JSON body',
-      })
+      expect(response.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Invalid JSON body')
+      expect(logs).toEqual([])
     } finally {
       spy.mockRestore()
       spyErr.mockRestore()
     }
   })
 
-  it('fail() uses detail as resultDescription when provided', () => {
-    const [entry] = captureLogs(log => {
+  it('fail() uses detail as the middleware resultDescription when provided', () => {
+    let response: Response | undefined
+    const entries = captureLogs(log => {
       const route = createRouteResponder(log, 'data/outings/write', 'Application')
-      route.fail(400, 'Invalid outing', 'Outing payload missing required field: locationName')
+      response = route.fail(400, 'Invalid outing', 'Outing payload missing required field: locationName')
     })
-    expect(entry).toMatchObject({
-      resultDescription: 'Outing payload missing required field: locationName',
-      resultSignature: 400,
-    })
+    expect(response?.headers.get(RESULT_DESCRIPTION_HEADER)).toBe(
+      'Outing payload missing required field: locationName',
+    )
+    expect(entries).toEqual([])
   })
 
-  it('fail() uses error level for 5xx', () => {
-    const [entry] = captureLogs(log => {
+  it('fail() leaves 5xx severity to middleware', () => {
+    let response: Response | undefined
+    const entries = captureLogs(log => {
       const route = createRouteResponder(log, 'birdId/identify/invoke', 'Application')
-      route.fail(500, 'Server error')
+      response = route.fail(500, 'Server error')
     })
-    expect(entry).toMatchObject({ level: 'Error', resultSignature: 500 })
+    expect(response?.status).toBe(500)
+    expect(response?.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Server error')
+    expect(entries).toEqual([])
   })
 
   it('info() emits with bound operationName and category', () => {
@@ -246,6 +244,18 @@ describe('createRouteResponder', () => {
       spy.mockRestore()
       spyErr.mockRestore()
     }
+  })
+
+  it('bounds and sanitizes failure details carried to middleware', () => {
+    const log = createLogger({ env: { LOG_LEVEL: 'debug' }, traceId: 't1', spanId: 's1' })
+    const route = createRouteResponder(log, 'test/op', 'Application')
+    const response = route.fail(400, 'Invalid request', `Unsafe\r\nvalue 🐦 ${'x'.repeat(2_000)}`)
+    const detail = response.headers.get('X-WingDex-Result-Description')
+
+    expect(detail).toBeTruthy()
+    expect(detail).not.toMatch(/[\r\n]/)
+    expect(detail).not.toContain('🐦')
+    expect(detail).toHaveLength(1_024)
   })
 
   it('exposes underlying logger via .log', () => {

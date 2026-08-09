@@ -181,7 +181,12 @@ describe('OutingReview', () => {
 
     fireEvent.submit(searchInput.closest('form')!)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/geocoding/search?q=Green+Lake')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/geocoding/search')
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ query: 'Green Lake' }),
+    })
   })
 
   it('cancels an in-flight place search when the query changes', async () => {
@@ -233,7 +238,6 @@ describe('OutingReview', () => {
         label: 'Obsolete result',
         lat: 47.6,
         lon: -122.3,
-        attribution: { label: 'Old provider', url: 'https://old.example' },
       }],
     }), {
       status: 200,
@@ -243,7 +247,7 @@ describe('OutingReview', () => {
     expect(screen.queryByText('Obsolete result')).not.toBeInTheDocument()
   })
 
-  it('renders provider attribution for geocoded locations and hides it for manual names', async () => {
+  it('always renders static provider attribution, including for manual names', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -252,14 +256,6 @@ describe('OutingReview', () => {
           label: 'Discovery Park, Seattle',
           lat: 47.6573,
           lon: -122.4055,
-          attribution: {
-            label: 'Powered by Geoapify',
-            url: 'https://www.geoapify.com/',
-          },
-          secondaryAttribution: {
-            label: '© OpenStreetMap contributors',
-            url: 'https://www.openstreetmap.org/copyright',
-          },
         },
       }),
     })
@@ -283,6 +279,7 @@ describe('OutingReview', () => {
 
     const attribution = await screen.findByRole('link', { name: 'Powered by Geoapify' })
     expect(attribution).toHaveAttribute('href', 'https://www.geoapify.com/')
+    expect(attribution.closest('p')).toHaveTextContent('Powered by Geoapify · © OpenStreetMap contributors')
     expect(screen.getByRole('link', { name: '© OpenStreetMap contributors' })).toHaveAttribute(
       'href',
       'https://www.openstreetmap.org/copyright',
@@ -293,7 +290,72 @@ describe('OutingReview', () => {
     fireEvent.change(searchInput, { target: { value: 'My birding spot' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
 
-    expect(screen.queryByRole('link', { name: 'Powered by Geoapify' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: '© OpenStreetMap contributors' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Powered by Geoapify' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeInTheDocument()
+  })
+
+  it('keeps static provider attribution visible when adding to an existing outing', () => {
+    const data = createDataStore()
+    data.outings = [{
+      id: 'outing-1',
+      userId: 'user-1',
+      locationName: 'Discovery Park',
+      startTime: '2026-08-07T12:00:00.000Z',
+      endTime: '2026-08-07T13:00:00.000Z',
+      notes: '',
+      createdAt: '2026-08-07T13:00:00.000Z',
+    }]
+
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:15:00Z'),
+          endTime: new Date('2026-08-07T12:45:00Z'),
+        }}
+        data={data}
+        userId="user-1"
+        onConfirm={vi.fn(async () => undefined)}
+      />,
+    )
+
+    expect(screen.getByRole('switch', { name: 'Add to existing outing?' })).toBeChecked()
+    expect(screen.getByText('Powered by Geoapify')).toBeInTheDocument()
+    expect(screen.getByText('© OpenStreetMap contributors')).toBeInTheDocument()
+  })
+
+  it('shows a compact retry action after a place search failure', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error('provider timeout'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+        }}
+        data={createDataStore()}
+        userId="user-1"
+        defaultLocationName="Discovery Park"
+        onConfirm={vi.fn(async () => undefined)}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Discovery Park/ }))
+    const searchInput = screen.getByPlaceholderText('Search for a place...')
+    fireEvent.change(searchInput, { target: { value: 'Green Lake' } })
+    fireEvent.submit(searchInput.closest('form')!)
+
+    const retry = await screen.findByRole('button', { name: 'Retry' })
+    expect(retry.closest('p')).toHaveTextContent('Search failed. Retry')
+    fireEvent.click(retry)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Search failed.')).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { createAuth } from './lib/auth'
-import { createLogger } from './lib/log'
+import { createLogger, RESULT_DESCRIPTION_HEADER } from './lib/log'
 import type { Category, Identity } from './lib/log'
 import { parseTraceparent, generateTraceContext, childSpanId, formatTraceparent } from './lib/trace-context'
 
@@ -25,10 +25,10 @@ const ROUTE_MAP: Array<{ prefix: string; method?: string; op: string; category: 
   { prefix: '/api/data/dex', method: 'PATCH', op: 'data/dex/write', category: 'Application' },
   { prefix: '/api/data/clear', method: 'DELETE', op: 'data/clear/delete', category: 'Audit' },
   { prefix: '/api/data/all', method: 'GET', op: 'data/all/read', category: 'Application' },
-  { prefix: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Audit' },
+  { prefix: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Application' },
   { prefix: '/api/auth/linked-providers', op: 'auth/linkedProviders/read', category: 'Application' },
-  { prefix: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Audit' },
-  { prefix: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Audit' },
+  { prefix: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Application' },
+  { prefix: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Application' },
   { prefix: '/api/auth/mobile/start', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/mobile/callback', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/', op: 'auth/sessions/invoke', category: 'Application' },
@@ -167,10 +167,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       addTraceHeaders(response, traceCtx)
       // Suppress completion log for /api/health (internal infra polling, not user-triggered)
       if (pathname !== '/api/health') {
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname))
+        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeResultDescription(response)))
       } else if (!response.ok) {
         // Always log health failures
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname))
+        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeResultDescription(response)))
       }
       return response
     } catch (err) {
@@ -217,7 +217,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   try {
     const response = withSecurityHeaders(await context.next())
     addTraceHeaders(response, traceCtx)
-    context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname))
+    context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, pathname, takeResultDescription(response)))
     return response
   } catch (err) {
     return handleUnexpectedError(err, log, traceCtx, op, start)
@@ -225,10 +225,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 }
 
 /** Emit the single request-lifecycle completion log with dynamic level. */
-async function emitCompletionLog(log: ReturnType<typeof createLogger>, op: string, response: Response, durationMs: number, method: string, pathname: string): Promise<void> {
+function takeResultDescription(response: Response): string | undefined {
+  const resultDescription = response.headers.get(RESULT_DESCRIPTION_HEADER) || undefined
+  response.headers.delete(RESULT_DESCRIPTION_HEADER)
+  return resultDescription
+}
+
+async function emitCompletionLog(log: ReturnType<typeof createLogger>, op: string, response: Response, durationMs: number, method: string, pathname: string, detail?: string): Promise<void> {
   const status = response.status
   const resultType = status < 400 ? 'Succeeded' : 'Failed'
-  const fields = { category: 'Request' as const, resultType: resultType as 'Succeeded' | 'Failed', resultSignature: status, resultDescription: `HTTP ${status}`, durationMs, properties: { 'http.method': method, 'http.route': pathname } }
+  const resultDescription = detail || (status < 400
+    ? `${op} completed successfully`
+    : `${op} failed with HTTP ${status}`)
+  const fields = { category: 'Request' as const, resultType: resultType as 'Succeeded' | 'Failed', resultSignature: status, resultDescription, durationMs, properties: { 'http.method': method, 'http.route': pathname } }
   if (status >= 500) {
     log.error(op, fields)
   } else if (status >= 400) {
