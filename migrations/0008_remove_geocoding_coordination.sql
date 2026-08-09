@@ -1,3 +1,10 @@
-DROP TABLE IF EXISTS geocoding_cache;
-DROP TABLE IF EXISTS geocoding_inflight;
-DROP TABLE IF EXISTS geocoding_rate_limit;
+-- Intentionally a no-op for this rollout.
+--
+-- The Geoapify refactor stops querying the geocoding_cache, geocoding_inflight,
+-- and geocoding_rate_limit tables, but the release workflow applies D1 migrations
+-- BEFORE deploying the replacement Worker. Dropping these tables here would break
+-- the still-live previous Worker (which references them on every request) during
+-- the deploy window, and permanently if the deploy fails.
+--
+-- Defer the DROP TABLE statements to a follow-up migration that ships only after
+-- the Geoapify Worker is confirmed live in every environment (expand/contract).
