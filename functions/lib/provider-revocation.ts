@@ -56,13 +56,24 @@ async function revokeAppleToken(
       token_type_hint: account.refreshToken ? 'refresh_token' : 'access_token',
     }),
   })
-  // Apple answers an already-revoked or expired token with 400 invalid_grant. Treat it
-  // as idempotent success (as we do for Google's 400 and GitHub's 404) so a deletion that
-  // failed after a partial revocation can retry the remaining grants instead of throwing
-  // forever on the token it already revoked.
-  if (!response.ok && response.status !== 400) {
-    throw new ProviderRevocationError('apple', 'Apple credential revocation failed', response.status)
+  if (response.ok) return
+  // Apple answers an already-revoked or expired token with 400 invalid_grant. Treat only that
+  // documented idempotent case as success (mirroring Google's 400 and GitHub's 404) so a
+  // deletion that failed after a partial revocation can retry the remaining grants instead of
+  // throwing forever on the token it already revoked. Other 400s (notably invalid_client for an
+  // expired or malformed client-secret JWT) mean the grant is still live, so they must throw to
+  // stop us deleting the local account while Apple keeps the sign-in active.
+  if (response.status === 400) {
+    let error: unknown
+    try {
+      error = ((await response.json()) as { error?: unknown }).error
+    } catch {
+      throw new ProviderRevocationError('apple', 'Apple credential revocation returned an unparseable 400 body', 400)
+    }
+    if (error === 'invalid_grant') return
+    throw new ProviderRevocationError('apple', `Apple credential revocation failed: ${String(error)}`, 400)
   }
+  throw new ProviderRevocationError('apple', 'Apple credential revocation failed', response.status)
 }
 
 async function revokeApple(account: ProviderAccount, env: ProviderEnv, fetcher: Fetcher): Promise<void> {
