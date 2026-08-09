@@ -107,6 +107,22 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Rebuilding an existing release checks out the app source at its tag, but
+      # older tags predate CI tooling this job needs. ios-v0.8.0, for example, has
+      # neither scripts/inspect-archive.sh nor the pinned Package.resolved that
+      # -onlyUsePackageVersionsFromResolvedFile requires, so the rebuild would fail
+      # before upload. Restore just those files from the dispatching commit so the
+      # tagged app builds with current release tooling. The normal release path
+      # already checks out GITHUB_SHA, so it needs nothing here.
+      - name: Restore release tooling from current commit
+        if: inputs.release_version != ''
+        env:
+          TOOLING_REF: ${{ github.sha }}
+        run: |
+          git checkout "$TOOLING_REF" -- \
+            ios/scripts/inspect-archive.sh \
+            ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
