@@ -126,6 +126,9 @@ async function revokeGitHub(account: ProviderAccount, env: ProviderEnv, fetcher:
     method: 'DELETE',
     headers: {
       Accept: 'application/vnd.github+json',
+      // Without this, fetch labels the JSON body text/plain and GitHub can reject
+      // the revocation, which would block account deletion.
+      'Content-Type': 'application/json',
       Authorization: `Basic ${btoa(`${env.GITHUB_CLIENT_ID}:${env.GITHUB_CLIENT_SECRET}`)}`,
       'User-Agent': 'WingDex/1.0',
       'X-GitHub-Api-Version': '2022-11-28',
