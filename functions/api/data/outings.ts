@@ -47,7 +47,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/outings/write', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to create or update an outing')
   }
 
   let body: unknown
@@ -61,13 +61,14 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     return route.fail(400, 'Invalid outing payload', 'Outing payload missing required fields: id, startTime, endTime, locationName, createdAt')
   }
 
+  let stage = 'outing conflict check'
   try {
     const existing = await context.env.DB
       .prepare('SELECT userId, createdAt FROM outing WHERE id = ?')
       .bind(body.id)
       .first<{ userId: string; createdAt: string }>()
     if (existing && existing.userId !== userId) {
-      return route.fail(409, 'Outing ID conflict', 'Outing ID already belongs to another account', { outingId: body.id })
+      return route.fail(409, 'Outing ID conflict', 'Outing ID already belongs to another account')
     }
     const persistedCreatedAt = existing?.createdAt ?? body.createdAt
 
@@ -88,6 +89,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       typeof body.effortAreaAcres === 'number' && Number.isFinite(body.effortAreaAcres)
         ? body.effortAreaAcres
         : null
+    stage = 'outing schema inspection'
     const columnNames = await getOutingColumnNames(context.env.DB)
     const supportsRegionColumns = columnNames.has('stateProvince') && columnNames.has('countryCode')
     const supportsChecklistColumns =
@@ -97,6 +99,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       columnNames.has('effortDistanceMiles') &&
       columnNames.has('effortAreaAcres')
 
+    stage = 'outing database upsert'
     if (supportsRegionColumns && supportsChecklistColumns) {
       await context.env.DB.prepare(
         `INSERT INTO outing (id, userId, startTime, endTime, locationName, defaultLocationName, lat, lon, stateProvince, countryCode, protocol, numberObservers, allObsReported, effortDistanceMiles, effortAreaAcres, notes, createdAt)
@@ -201,8 +204,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       effortAreaAcres: supportsChecklistColumns ? (effortAreaAcres ?? undefined) : undefined,
       notes,
       createdAt: persistedCreatedAt,
-    }), `Upserted outing ${body.id} with ${supportsRegionColumns ? 'region' : 'basic'} fields`)
+    }), `Upserted 1 outing using the ${supportsRegionColumns ? 'region' : 'basic'} schema`)
   } catch {
-    return route.fail(500, 'Internal server error', 'Outing creation failed; inspect the trace and database operation', { outingId: body.id })
+    return route.fail(500, 'Internal server error', `Outing upsert failed during ${stage}`)
   }
 }

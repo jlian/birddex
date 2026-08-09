@@ -6,6 +6,10 @@ type EncodedPreview = ImportPreview & { previewId: string }
 
 const MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 function encodePreviewId(preview: ImportPreview): string {
   const json = JSON.stringify(preview)
   const bytes = new TextEncoder().encode(json)
@@ -21,7 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'import/ebirdCsv/import', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to preview an eBird import')
   }
 
   let formData: FormData
@@ -41,10 +45,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   }
 
   const profileTimezone = formData.get('profileTimezone')
+  let stage = 'read the uploaded CSV file'
   try {
     const csvContent = await file.text()
+    stage = 'parse the uploaded eBird CSV'
     const previews = parseEBirdCSV(csvContent, typeof profileTimezone === 'string' ? profileTimezone : undefined)
 
+    stage = 'read the existing dex for conflict detection'
     const existingDexRows = await computeDex(context.env.DB, userId)
     const existingDex = new Map(existingDexRows.map(row => [row.speciesName, row]))
     const withConflicts = detectImportConflicts(previews, existingDex)
@@ -63,9 +70,9 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
     return route.complete(
       Response.json({ previews: previewsWithIds, summary }),
-      `Prepared ${previewsWithIds.length} import previews from uploaded CSV`,
+      `Parsed uploaded eBird CSV into ${countLabel(summary.total, 'preview')}: ${countLabel(summary.new, 'new preview')}, ${countLabel(summary.duplicates, 'duplicate')}, and ${countLabel(summary.updates, 'date update')}`,
     )
     } catch {
-      return route.fail(500, 'Internal server error', 'eBird CSV import failed; inspect the trace and parser/database operation', { fileSize: file.size })
+      return route.fail(500, 'Internal server error', `eBird import preview failed during stage: ${stage}`)
   }
 }

@@ -122,11 +122,10 @@ export function createLogger(ctx: LoggerContext): Logger {
       : undefined
     if (merged && Object.keys(merged).length > 0) entry.properties = merged
 
-    const json = JSON.stringify(entry)
     if (level === 'Error' || level === 'Critical') {
-      console.error(json)
+      console.error(entry)
     } else {
-      console.log(json)
+      console.log(entry)
     }
   }
 
@@ -195,6 +194,10 @@ export interface RouteResponder {
   complete(response: Response, resultDescription: string): Response
   /** Info-level business event. */
   info(resultDescription: string, properties?: Record<string, unknown>): void
+  /** Info-level durable business outcome. */
+  succeeded(resultDescription: string, properties?: Record<string, unknown>): void
+  /** Error-level failed durable business outcome. */
+  failed(resultDescription: string, properties?: Record<string, unknown>): void
   /** Debug-level sub-step detail. */
   debug(resultDescription: string, properties?: Record<string, unknown>): void
   /** Trace-level data dump. */
@@ -242,6 +245,22 @@ export function createRouteResponder(
     },
     info(resultDescription, properties) {
       log?.info(operationName, { category, resultDescription, ...(properties ? { properties } : {}) })
+    },
+    succeeded(resultDescription, properties) {
+      log?.info(operationName, {
+        category,
+        resultType: 'Succeeded',
+        resultDescription,
+        ...(properties ? { properties } : {}),
+      })
+    },
+    failed(resultDescription, properties) {
+      log?.error(operationName, {
+        category,
+        resultType: 'Failed',
+        resultDescription,
+        ...(properties ? { properties } : {}),
+      })
     },
     debug(resultDescription, properties) {
       log?.debug(operationName, { category, resultDescription, ...(properties ? { properties } : {}) })

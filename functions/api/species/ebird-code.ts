@@ -12,9 +12,17 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   const trimmed = name.trim()
 
   if (!trimmed) {
-    return route.complete(Response.json({ ebirdCode: null }), 'Completed eBird code lookup with empty species name')
+    return route.complete(Response.json({ ebirdCode: null }), 'eBird code lookup returned no code because the species name was empty')
   }
 
-  const ebirdCode = getEbirdCode(trimmed)
-  return route.complete(Response.json({ ebirdCode: ebirdCode || null }), `Completed eBird code lookup (${ebirdCode ? 'code found' : 'no code found'})`)
+  const stage = 'taxonomy code lookup'
+  try {
+    const ebirdCode = getEbirdCode(trimmed)
+    return route.complete(
+      Response.json({ ebirdCode: ebirdCode || null }),
+      `eBird code lookup ${ebirdCode ? 'found a code' : 'returned no code'}`,
+    )
+  } catch {
+    return route.fail(500, 'Internal server error', `eBird code lookup failed during ${stage}`)
+  }
 }

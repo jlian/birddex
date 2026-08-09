@@ -11,6 +11,10 @@ function isConfirmBody(value: unknown): value is ConfirmBody {
   return Array.isArray(data.previewIds) && data.previewIds.every(id => typeof id === 'string')
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 function decodePreviewId(previewId: string): ImportPreview | null {
   try {
     const binary = atob(previewId)
@@ -28,7 +32,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'import/ebirdCsvConfirm/write', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to confirm an eBird import')
   }
 
   let body: unknown
@@ -42,6 +46,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     return route.fail(400, 'Invalid confirm payload', 'Expected { previewIds: string[] }')
   }
 
+  const selectedPreviewCount = body.previewIds.length
+  let validPreviewCount = 0
+  let persistedOutingCount = 0
+  let persistedObservationCount = 0
+  let importBatchCommitted = false
+  let stage = 'decode selected previews'
+
   try {
     const selectedPreviews = body.previewIds
     .map(previewId => decodePreviewId(previewId))
@@ -52,20 +63,26 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       }
       return true
     })
+  validPreviewCount = selectedPreviews.length
 
   if (selectedPreviews.length === 0) {
+    stage = 'recompute dex for an empty selection'
     const dexUpdates = await computeDex(context.env.DB, userId)
     return route.complete(Response.json({
       imported: { outings: 0, observations: 0, newSpecies: 0 },
       dexUpdates: enrichDexEntries(dexUpdates),
-    }), `Confirmed import with 0 selected previews; recomputed ${dexUpdates.length} dex entries`)
+    }), `Confirmed eBird import with ${countLabel(selectedPreviewCount, 'selected preview')} and 0 valid previews; persisted no records and recomputed ${countLabel(dexUpdates.length, 'dex entry', 'dex entries')}`)
   }
 
   // Snapshot species already in the user's dex before inserting
+  stage = 'read the pre-import dex snapshot'
   const priorDex = await computeDex(context.env.DB, userId)
   const priorSpecies = new Set(priorDex.map(row => row.speciesName))
 
   const { outings, observations } = groupPreviewsIntoOutings(selectedPreviews, userId)
+  persistedOutingCount = outings.length
+  persistedObservationCount = observations.length
+  stage = 'inspect the import database schema'
   const columnNames = await getOutingColumnNames(context.env.DB)
   const supportsRegionColumns = columnNames.has('stateProvince') && columnNames.has('countryCode')
   const supportsChecklistColumns =
@@ -191,9 +208,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   }
 
   if (insertStatements.length > 0) {
+    stage = 'commit the eBird import batch'
     await context.env.DB.batch(insertStatements)
+    importBatchCommitted = true
+    route.succeeded(`Committed eBird import batch from ${countLabel(selectedPreviewCount, 'selected preview')} and ${countLabel(validPreviewCount, 'valid preview')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}`)
   }
 
+  stage = 'recompute dex after the committed import batch'
   const dexUpdates = await computeDex(context.env.DB, userId)
   const newSpecies = dexUpdates.filter(row => !priorSpecies.has(row.speciesName)).length
 
@@ -204,8 +225,11 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       newSpecies,
     },
     dexUpdates: enrichDexEntries(dexUpdates),
-  }), `Imported ${outings.length} outings and ${observations.length} observations with ${newSpecies} new species`)
+  }), `Confirmed eBird import from ${countLabel(selectedPreviewCount, 'selected preview')} and ${countLabel(validPreviewCount, 'valid preview')}, persisting ${countLabel(outings.length, 'outing')} and ${countLabel(observations.length, 'observation')} with ${newSpecies} new species`)
   } catch {
-    return route.fail(500, 'Internal server error', 'eBird import confirmation failed; inspect the trace and database batch', { previewCount: body.previewIds.length })
+    if (importBatchCommitted) {
+      return route.fail(500, 'Internal server error', `Committed eBird import batch with ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}; post-commit dex recomputation failed`)
+    }
+    return route.fail(500, 'Internal server error', `eBird import confirmation failed during stage: ${stage}; no import batch was committed`)
   }
  }

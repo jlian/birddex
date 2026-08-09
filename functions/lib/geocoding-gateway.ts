@@ -11,6 +11,8 @@ const GEOAPIFY_ORIGIN = 'https://api.geoapify.com'
 const GEOAPIFY_DEADLINE_MS = 5_000
 
 type Fetcher = typeof fetch
+export type GeocodingStage = 'places lookup' | 'reverse fallback' | 'search'
+export type GeocodingFailure = 'timeout' | 'network' | 'provider status' | 'unusable payload'
 
 export class GeocodingConfigurationError extends Error {
   constructor() {
@@ -23,8 +25,12 @@ export class GeocodingUpstreamError extends Error {
     readonly status: number,
     readonly retryAfter?: string,
     readonly providerStatus: number = status,
+    readonly stage: GeocodingStage = 'search',
+    readonly failure: GeocodingFailure = providerStatus === 0
+      ? status === 504 ? 'timeout' : 'network'
+      : 'provider status',
   ) {
-    super(`Geocoding provider returned HTTP ${providerStatus}`)
+    super(`Geocoding ${stage} failed: ${failure}`)
   }
 }
 
@@ -44,6 +50,7 @@ async function requestGeoapify(
   params: Record<string, string>,
   fetcher: Fetcher,
   signal: AbortSignal,
+  stage: GeocodingStage,
 ): Promise<unknown> {
   if (!apiKey?.trim()) throw new GeocodingConfigurationError()
 
@@ -58,28 +65,28 @@ async function requestGeoapify(
   try {
     response = await fetcher(url, { headers: { Accept: 'application/json' }, signal })
   } catch {
-    if (signal.aborted) throw new GeocodingUpstreamError(504, undefined, 0)
-    throw new GeocodingUpstreamError(502, undefined, 0)
+    if (signal.aborted) throw new GeocodingUpstreamError(504, undefined, 0, stage, 'timeout')
+    throw new GeocodingUpstreamError(502, undefined, 0, stage, 'network')
   }
 
   if (!response.ok) {
     const retryAfter = response.headers.get('Retry-After') || undefined
     const publicStatus = response.status === 429 ? 429 : 502
-    throw new GeocodingUpstreamError(publicStatus, retryAfter, response.status)
+    throw new GeocodingUpstreamError(publicStatus, retryAfter, response.status, stage, 'provider status')
   }
 
   try {
     return await response.json()
   } catch {
-    throw new GeocodingUpstreamError(502, undefined, response.status)
+    throw new GeocodingUpstreamError(502, undefined, response.status, stage, 'unusable payload')
   }
 }
 
-function parseGeocodingResponse(body: unknown): GeoapifyResponse {
+function parseGeocodingResponse(body: unknown, stage: GeocodingStage): GeoapifyResponse {
   const results = body && typeof body === 'object' && 'results' in body
     ? (body as Partial<GeoapifyResponse>).results
     : undefined
-  if (!Array.isArray(results)) throw new GeocodingUpstreamError(502, undefined, 200)
+  if (!Array.isArray(results)) throw new GeocodingUpstreamError(502, undefined, 200, stage, 'unusable payload')
   return { results }
 }
 
@@ -87,7 +94,7 @@ function parsePlacesResponse(body: unknown): GeoapifyPlacesResponse {
   const features = body && typeof body === 'object' && 'features' in body
     ? (body as Partial<GeoapifyPlacesResponse>).features
     : undefined
-  if (!Array.isArray(features)) throw new GeocodingUpstreamError(502, undefined, 200)
+  if (!Array.isArray(features)) throw new GeocodingUpstreamError(502, undefined, 200, 'places lookup', 'unusable payload')
   return { features }
 }
 
@@ -100,6 +107,7 @@ export async function reverseGeocode(
   rawLatitude: string | null,
   rawLongitude: string | null,
   fetcher: Fetcher = fetch,
+  onReverseFallback?: () => void,
 ): Promise<GeocodingResult | null> {
   const latitude = parseCoordinate(rawLatitude, 'latitude')
   const longitude = parseCoordinate(rawLongitude, 'longitude')
@@ -114,17 +122,18 @@ export async function reverseGeocode(
       filter: `circle:${lon},${lat},1000`,
       bias: `proximity:${lon},${lat}`,
       limit: '5',
-    }, fetcher, controller.signal))
+    }, fetcher, controller.signal, 'places lookup'))
     const nearbyPlace = places.features
       .map(feature => feature.properties ? normalizeGeoapifyResult(feature.properties) : null)
       .find(result => result !== null)
     if (nearbyPlace) return nearbyPlace
 
+    onReverseFallback?.()
     const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/reverse', {
       lat,
       lon,
       limit: '1',
-    }, fetcher, controller.signal))
+    }, fetcher, controller.signal, 'reverse fallback'), 'reverse fallback')
 
     return response.results.map(normalizeGeoapifyResult).find(result => result !== null) ?? null
   } finally {
@@ -151,7 +160,7 @@ export async function searchPlaces(
       // Geoapify defaults to countrycode:auto; its current Forward Geocoding docs
       // explicitly prescribe countrycode:none to avoid IP-country prioritization.
       bias: 'countrycode:none',
-    }, fetcher, controller.signal))
+    }, fetcher, controller.signal, 'search'), 'search')
 
     return response.results
       .map(normalizeGeoapifyResult)

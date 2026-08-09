@@ -71,11 +71,15 @@ function hasConflictingPhotoIds(photos: CreatePhotoInput[]): boolean {
   return outingsById.size !== photos.length
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 export const onRequestPost: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/photos/write', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to persist photos')
   }
 
   let body: unknown
@@ -86,28 +90,30 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   }
 
   if (!Array.isArray(body) || !body.every(isCreatePhotoInput)) {
-    return route.fail(400, 'Invalid photos payload', 'Photos payload failed validation; expected array of {id, outingId, fileHash, fileName}', { count: Array.isArray(body) ? body.length : 0 })
+    return route.fail(400, 'Invalid photos payload', 'Photos payload failed validation; expected an array of photo records with required identifiers and file metadata')
   }
 
   if (body.length === 0) {
     return route.complete(Response.json([]), 'No photos submitted for persistence')
   }
   if (hasConflictingPhotoIds(body)) {
-    return route.fail(400, 'Duplicate photo IDs', 'Photo payload must contain unique IDs', { count: body.length })
+    return route.fail(400, 'Duplicate photo IDs', 'Photo payload must contain unique IDs')
   }
 
+  let stage = 'outing ownership validation'
   try {
     const allOwned = await hasOwnedOutings(
-    context.env.DB,
-    userId,
-    body.map(photo => photo.outingId)
+      context.env.DB,
+      userId,
+      body.map(photo => photo.outingId)
     )
     if (!allOwned) {
-    const failOutingIds = [...new Set(body.map(p => p.outingId))]
-    return route.fail(400, 'Invalid outing reference', `One or more outing IDs are not owned by user or do not exist`, { outingIds: failOutingIds })
+      return route.fail(400, 'Invalid outing reference', 'One or more referenced outings are not owned by the authenticated account or do not exist')
     }
+
+    stage = 'existing photo ID compatibility check'
     if (!await hasCompatiblePhotoIds(context.env.DB, userId, body)) {
-      return route.fail(409, 'Photo ID conflict', 'One or more photo IDs already belong to another account or outing', { count: body.length })
+      return route.fail(409, 'Photo ID conflict', 'One or more photo IDs already belong to another account or outing')
     }
 
     const statements = body.map(photo =>
@@ -135,22 +141,25 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     )
     )
 
+    stage = 'photo database batch write'
     await context.env.DB.batch(statements)
+
+    stage = 'post-write photo ID compatibility verification'
     if (!await hasCompatiblePhotoIds(context.env.DB, userId, body, true)) {
-      return route.fail(409, 'Photo ID conflict', 'One or more photo IDs were concurrently claimed by another account or outing', { count: body.length })
+      return route.fail(409, 'Photo ID conflict', 'Photo batch was written, but post-write ownership verification found an ID conflict')
     }
     const outingIds = [...new Set(body.map(p => p.outingId))]
 
     return route.complete(Response.json(
-    body.map(photo => ({
-      ...photo,
-      dataUrl: '',
-      thumbnail: '',
-      exifTime: photo.exifTime || undefined,
-      gps: photo.gps ? { lat: photo.gps.lat, lon: photo.gps.lon } : undefined,
-    }))
-    ), `Persisted ${body.length} photos across ${outingIds.length} outings`)
-    } catch {
-    return route.fail(500, 'Internal server error', 'Photo persistence failed; inspect the trace and database operation', { count: body.length })
+      body.map(photo => ({
+        ...photo,
+        dataUrl: '',
+        thumbnail: '',
+        exifTime: photo.exifTime || undefined,
+        gps: photo.gps ? { lat: photo.gps.lat, lon: photo.gps.lon } : undefined,
+      }))
+    ), `Persisted ${countLabel(body.length, 'photo')} across ${countLabel(outingIds.length, 'outing')}`)
+  } catch {
+    return route.fail(500, 'Internal server error', `Photo persistence failed during ${stage} for ${countLabel(body.length, 'record')}`)
   }
 }

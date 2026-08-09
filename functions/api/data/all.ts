@@ -44,71 +44,77 @@ type ObservationRow = {
   notes: string
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 export const onRequestGet: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/all/read', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to read account data')
   }
 
+  let stage = 'observation schema inspection'
   try {
+    const db = context.env.DB
+    const supportsSpeciesComments = await hasObservationColumn(db, 'speciesComments')
+    const observationSpeciesCommentsSelect = supportsSpeciesComments
+      ? 'speciesComments'
+      : 'NULL as speciesComments'
 
-  const db = context.env.DB
-  const supportsSpeciesComments = await hasObservationColumn(db, 'speciesComments')
-  const observationSpeciesCommentsSelect = supportsSpeciesComments
-    ? 'speciesComments'
-    : 'NULL as speciesComments'
+    stage = 'concurrent outing, photo, observation, and dex reads'
+    const [outingsResult, photosResult, observationsResult, dex] = await Promise.all([
+      db.prepare('SELECT * FROM outing WHERE userId = ? ORDER BY startTime DESC').bind(userId).all<OutingRow>(),
+      db.prepare('SELECT id, outingId, exifTime, gpsLat, gpsLon, fileHash, fileName FROM photo WHERE userId = ?')
+        .bind(userId)
+        .all<PhotoRow>(),
+      db.prepare(`SELECT id, outingId, speciesName, count, certainty, representativePhotoId, aiConfidence, ${observationSpeciesCommentsSelect}, notes FROM observation WHERE userId = ?`)
+        .bind(userId)
+        .all<ObservationRow>(),
+      computeDex(db, userId),
+    ])
 
-  const [outingsResult, photosResult, observationsResult, dex] = await Promise.all([
-    db.prepare('SELECT * FROM outing WHERE userId = ? ORDER BY startTime DESC').bind(userId).all<OutingRow>(),
-    db.prepare('SELECT id, outingId, exifTime, gpsLat, gpsLon, fileHash, fileName FROM photo WHERE userId = ?')
-      .bind(userId)
-      .all<PhotoRow>(),
-    db.prepare(`SELECT id, outingId, speciesName, count, certainty, representativePhotoId, aiConfidence, ${observationSpeciesCommentsSelect}, notes FROM observation WHERE userId = ?`)
-      .bind(userId)
-      .all<ObservationRow>(),
-    computeDex(db, userId),
-  ])
+    stage = 'account data response assembly'
+    const outings = outingsResult.results.map(outing => ({
+      ...outing,
+      defaultLocationName: outing.defaultLocationName || undefined,
+      lat: outing.lat ?? undefined,
+      lon: outing.lon ?? undefined,
+      stateProvince: outing.stateProvince ?? undefined,
+      countryCode: outing.countryCode ?? undefined,
+      protocol: outing.protocol ?? undefined,
+      numberObservers: outing.numberObservers ?? undefined,
+      allObsReported: outing.allObsReported == null ? undefined : outing.allObsReported === 1,
+      effortDistanceMiles: outing.effortDistanceMiles ?? undefined,
+      effortAreaAcres: outing.effortAreaAcres ?? undefined,
+    }))
 
-  const outings = outingsResult.results.map(outing => ({
-    ...outing,
-    defaultLocationName: outing.defaultLocationName || undefined,
-    lat: outing.lat ?? undefined,
-    lon: outing.lon ?? undefined,
-    stateProvince: outing.stateProvince ?? undefined,
-    countryCode: outing.countryCode ?? undefined,
-    protocol: outing.protocol ?? undefined,
-    numberObservers: outing.numberObservers ?? undefined,
-    allObsReported: outing.allObsReported == null ? undefined : outing.allObsReported === 1,
-    effortDistanceMiles: outing.effortDistanceMiles ?? undefined,
-    effortAreaAcres: outing.effortAreaAcres ?? undefined,
-  }))
+    const photos = photosResult.results.map(photo => ({
+      id: photo.id,
+      outingId: photo.outingId,
+      dataUrl: '',
+      thumbnail: '',
+      exifTime: photo.exifTime || undefined,
+      gps: photo.gpsLat != null && photo.gpsLon != null ? { lat: photo.gpsLat, lon: photo.gpsLon } : undefined,
+      fileHash: photo.fileHash,
+      fileName: photo.fileName,
+    }))
 
-  const photos = photosResult.results.map(photo => ({
-    id: photo.id,
-    outingId: photo.outingId,
-    dataUrl: '',
-    thumbnail: '',
-    exifTime: photo.exifTime || undefined,
-    gps: photo.gpsLat != null && photo.gpsLon != null ? { lat: photo.gpsLat, lon: photo.gpsLon } : undefined,
-    fileHash: photo.fileHash,
-    fileName: photo.fileName,
-  }))
+    const observations = observationsResult.results.map(observation => ({
+      ...observation,
+      representativePhotoId: observation.representativePhotoId || undefined,
+      aiConfidence: observation.aiConfidence ?? undefined,
+      speciesComments: observation.speciesComments || undefined,
+    }))
 
-  const observations = observationsResult.results.map(observation => ({
-    ...observation,
-    representativePhotoId: observation.representativePhotoId || undefined,
-    aiConfidence: observation.aiConfidence ?? undefined,
-    speciesComments: observation.speciesComments || undefined,
-  }))
-
-  return route.complete(Response.json({
-    outings,
-    photos,
-    observations,
-    dex: enrichDexEntries(dex),
-  }), `Fetched ${outings.length} outings, ${photos.length} photos, ${observations.length} observations, and ${dex.length} dex entries`)
+    return route.complete(Response.json({
+      outings,
+      photos,
+      observations,
+      dex: enrichDexEntries(dex),
+    }), `Loaded account data with ${countLabel(outings.length, 'outing')}, ${countLabel(photos.length, 'photo')}, ${countLabel(observations.length, 'observation')}, and ${countLabel(dex.length, 'dex entry', 'dex entries')}`)
   } catch {
-    return route.fail(500, 'Internal server error', 'Bulk data fetch failed; inspect the trace and database operations')
+    return route.fail(500, 'Internal server error', `Account data read failed during ${stage}`)
   }
 }

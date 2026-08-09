@@ -1,258 +1,389 @@
 # Observability: Structured Logging Reference
 
-WingDex emits structured logs from every Cloudflare Worker using a standard 6-level hierarchy. This document is the canonical reference for the schema, conventions, and operational practices.
+WingDex emits structured operational events from Cloudflare Workers. This document is the canonical reference for the emitted schema, event boundaries, privacy rules, and validation workflow.
+
+## Production representation
+
+The production logger passes one structured JavaScript object directly to `console.log` or `console.error`. It does not call `JSON.stringify`. Cloudflare already extracted fields from the previous JSON-string representation, so direct objects preserve field-level querying while removing unnecessary serialization.
+
+WingDex does not define a custom `message` or `summary` field. Use `operationName`, `resultDescription`, `resultType`, and the other structured fields. Cloudflare's default **Message** column may be blank for WingDex object events. Third-party warnings that emit strings can populate **Message**; they are not WingDex schema events.
+
+Each logger call is one log event. A routine API invocation normally emits one terminal `Request` event. Durable or interruptible transitions add `Application` or `Audit` events, so event count is intentionally greater than request count for those flows. Automatic Worker invocation logs are disabled to avoid a duplicate event per invocation. Cloudflare traces are disabled to avoid retaining outbound URLs and extra trace events.
+
+`LOG_FORMAT=pretty` is a local terminal convenience. It emits compact strings instead of structured objects and must not be enabled in preview or production.
 
 ## Schema
 
-Every log line is a JSON object (or a compact one-liner when `LOG_FORMAT=pretty`):
-
-| Field | Required | Type | Notes |
+| Field | Required | Type | Operational meaning |
 |---|---|---|---|
-| `time` | yes | string | ISO 8601 UTC timestamp |
-| `level` | yes | string | `Trace`, `Debug`, `Info`, `Warning`, `Error`, `Critical` |
-| `traceId` | yes | string | W3C trace-id (32 hex chars) |
-| `spanId` | yes | string | W3C span-id (16 hex chars) |
-| `operationName` | yes | string | `resourceType/subType/verb` (camelCase) |
-| `category` | recommended | string | `Audit`, `Application`, or `Request` |
-| `userId` | when known | string | Top-level for easy querying |
-| `identity` | when known | object | `{ isAnonymous, authMethod }` |
-| `resourceId` | when applicable | string | `/users/{userId}/outings/{id}` etc. |
-| `resultType` | recommended | string | `Succeeded` or `Failed` |
-| `resultSignature` | on HTTP responses | number | HTTP status code |
-| `resultDescription` | on terminal outcomes | string | Human-readable summary for middleware completion log; failures include cause and mitigation |
-| `durationMs` | on completion | number | Wall-clock time (ms) |
-| `properties` | optional | object | Machine-queryable extras (counts, IDs, enums) |
+| `time` | yes | string | ISO 8601 UTC event time |
+| `level` | yes | string | `Trace`, `Debug`, `Info`, `Warning`, `Error`, or `Critical` |
+| `traceId` | yes | string | W3C trace ID used to order events from one invocation |
+| `spanId` | yes | string | W3C span ID for the Worker invocation |
+| `operationName` | yes | string | Stable `resourceType/subType/verb` name |
+| `category` | operational events | string | `Request`, `Application`, or `Audit` |
+| `userId` | when middleware resolves it | string | Authenticated account correlation key |
+| `identity` | when known | object | Safe auth context: `isAnonymous` and/or `authMethod` |
+| `resourceId` | when middleware scopes it | string | Controlled hierarchy such as `/users/{userId}/outings/{outingId}` |
+| `resultType` | terminal outcomes | string | `Succeeded` or `Failed`; omitted on start markers |
+| `resultSignature` | terminal requests | number | HTTP status code |
+| `resultDescription` | operational events | string | Primary human-readable operational statement |
+| `durationMs` | terminal requests | number | Invocation wall-clock time |
+| `properties` | optional | object | Safe aggregate counts, booleans, enums, limits, or transport fields |
 
-Middleware completion logs include OTel-convention transport fields in `properties`:
-- `http.method` - HTTP request method (GET, POST, PATCH, DELETE)
-- `http.route` - URL pathname (e.g. `/api/auth/callback/github`, `/api/data/outings/outing_123`)
+Terminal `Request` events include:
 
-Route handlers transport terminal outcome details to middleware using private response headers:
+- `properties.http.method`: HTTP method.
+- `properties.http.route`: stable route template from middleware, never the raw pathname. Examples are `/api/data/outings/:id`, `/api/export/outing/:id`, `/api/auth/:path`, and `/api/:unknown`.
+
+Route handlers carry terminal outcome details to middleware in private response headers. Middleware consumes and removes them before returning the response:
+
 - `X-WingDex-Result-Description`
-- `X-WingDex-Result-Type` (optional semantic override)
+- `X-WingDex-Result-Type`
 
-Middleware strips both headers before sending the response to clients.
+`route.fail(..., properties)` and `route.failWithHeaders(..., properties)` currently discard the `properties` argument. They transport only `resultDescription` and `resultType`. Put the operationally useful, privacy-safe fact in `resultDescription`; do not depend on failure properties reaching the terminal `Request` event.
 
-## Log levels
+## Event boundaries
 
-Standard 6-level hierarchy, controlled by `LOG_LEVEL` env var:
+### Request
 
-| Level | Purpose | When to use |
-|---|---|---|
-| `Trace` | Ultra-verbose operational diagnostics | Safe pipeline state and aggregate maps. Never credentials or user content. |
-| `Debug` | Sub-step diagnostic detail | Bird-id pipeline stages, batch counts, import parsing. Local dev. |
-| `Info` | Significant business events | Request completion (1 per request), account lifecycle and other semantic events. **Production baseline.** |
-| `Warning` | Client errors, degraded paths | 4xx responses, validation failures. Emitted at `warn` level and above. |
-| `Error` | Server errors, exceptions | 5xx responses, unhandled exceptions. Emitted at `error` level and above. |
-| `Critical` | System-level failures | Reserved for data loss, security breach. Emitted at all levels. |
+`Request` is the authoritative terminal record for an API invocation. Middleware emits exactly one terminal event with status, duration, route template, result, and trace ID:
 
-### LOG_LEVEL env var
+- Successful and failed handler responses complete in middleware.
+- Pre-handler method, content-length, body-size, and session rejections emit their terminal event and return immediately.
+- An unhandled exception emits one failed terminal event.
+- OAuth callback redirects with an `error=` result are marked `Failed` even though the HTTP status is 3xx.
 
-| Value | What's visible | Where to use |
-|---|---|---|
-| `trace` | Everything | On-demand deep debugging sessions |
-| `debug` | Debug + Info + Warning + Error + Critical | **Local dev** (set in `.dev.vars`) |
-| `info` (default) | Info + Warning + Error + Critical | **Production** and **preview** |
-| `warn` (or `warning`) | Warning + Error + Critical | Quiet mode (errors and warnings only) |
-| `error` | Error + Critical only | Minimal output |
+Do not add a second route-level completion log. Successful `/api/health` polling is the intentional exception and emits no event; failed health checks still emit one terminal `Request` event.
 
-Legacy `DEBUG=1` maps to `LOG_LEVEL=debug` for backwards compatibility.
+### Application
 
-### LOG_FORMAT env var
+`Application` records a durable or interruptible business transition that cannot be reconstructed safely from HTTP completion alone. It answers questions such as "Did the database commit before post-processing failed?" and "Which external revocation completed before deletion stopped?"
 
-| Value | Output format | Where to use |
-|---|---|---|
-| (not set) | JSON (one object per line) | **Production**, preview, log analytics |
-| `pretty` | Compact one-liner | **Local dev** terminal |
+- External or multi-step transitions use a start marker before the interruptible boundary and an outcome after it. The outcome has `resultType`; the start marker does not.
+- A route's terminal `Request` event can be the outcome when it fully describes the external step. For example, geocoding emits an `Application` marker only when fallback starts, then the terminal `Request` records the final result.
+- Atomic database hooks run after the durable change. They emit only one `Succeeded` outcome, never a speculative start.
+- Routine reads, validation, and CRUD completion stay in the terminal `Request` event.
 
-Pretty format example:
-```
-19:04:24 INFO     data/all/read 200 42ms [u1234567] Fetched 5 outings, 12 photos
-19:04:24 DEBUG    birdId/llmCall/invoke [u1234567] LLM returned 3 raw candidates
-19:04:27 WARNING  import/ebirdCsv/import 400 [u1234567] No CSV file in form field
-19:04:27 ERROR    birdId/identify/invoke 502 2500ms [u1234567] AI returned unparseable response
-```
+### Audit
 
-## Environment-specific configuration
+`Audit` is reserved for the explicit all-data clear. The clear emits one durable `Audit` outcome after its deletion batch commits, in addition to the terminal `Request` event. Account lifecycle events are `Application`, not `Audit`.
 
-### Production
-`GEOAPIFY_KEY` is required as a secret for geocoding. Logging defaults to `LOG_LEVEL=info`, JSON format. You see one terminal Request event per request (duration, status, user ID, and actionable result description), selected semantic Application events, and all warnings/errors.
+## Levels and configuration
 
-Cloudflare automatic trace capture is disabled in `wrangler.toml`. Outbound fetch spans can retain complete request URLs, including the Geoapify API key, submitted geocoding queries, or rounded coordinates. WingDex still propagates W3C trace IDs through its structured Request and Application events. Automatic invocation logs are also disabled so they do not duplicate the terminal Request event and consume a second logging event for every call.
+| Level | Use |
+|---|---|
+| `Trace` | Additional safe diagnostic state during a short investigation |
+| `Debug` | Safe sub-step detail useful in local development |
+| `Info` | Successful terminal requests and expected durable transitions |
+| `Warning` | 4xx/semantic request failures and degraded paths requiring attention |
+| `Error` | 5xx outcomes, unexpected failures, or a transition that could not complete |
+| `Critical` | Reserved for confirmed data loss or a security breach |
 
-### Preview / staging
-Same as production: `LOG_LEVEL=info`, JSON format. Preview deployments use the same log config so you can verify the production log experience before merging.
+`LOG_LEVEL` controls the minimum level. `info` is the default for preview and production; `debug` is appropriate locally; `trace` is temporary. Legacy `DEBUG=1` maps to `debug`.
 
-### Local dev
-Add to `.dev.vars`:
-```
+Local terminal setup:
+
+```dotenv
 LOG_LEVEL=debug
 LOG_FORMAT=pretty
 ```
-You see sub-step detail (bird-id pipeline, import parsing, batch counts) in a compact terminal-friendly format.
 
-### Deep debugging
-Temporarily set `LOG_LEVEL=trace` to see additional safe pipeline diagnostics. Trace level does not permit credentials, response bodies, user-authored content, or provider/database exception text. Revert when done.
+Example pretty output:
 
-## Safe metadata policy
+```text
+19:04:24 INFO     data/all/read 200 42ms [u1234567] Loaded account data with 5 outings
+19:04:27 WARNING  import/ebirdCsv/import 400 [u1234567] CSV upload did not include a file
+19:04:28 ERROR    auth/account/delete 502 315ms [u1234567] Account deletion stopped before local deletion because GitHub revocation failed with upstream HTTP 503
+```
 
-Logs may include stable operational metadata needed to correlate and diagnose requests:
+## Account lifecycle timelines
 
-- top-level `userId`, internal `resourceId`, trace/span IDs
-- internal outing, observation, or photo IDs when they identify the affected resource
-- HTTP status, method, route, duration, response byte count
-- aggregate counts, booleans, enums, configured limits, and retry durations
+Atomic Better Auth database hooks emit outcome-only `Application` events after the database change succeeds:
 
-Logs must never include:
+| operationName | Emission condition |
+|---|---|
+| `auth/account/create` | A temporary anonymous or persistent account was created |
+| `auth/provider/link` | A GitHub, Apple, Google, or credential account was linked |
+| `auth/session/create` | A server session was created, including passkey authentication |
+| `auth/session/delete` | A server session was deleted by sign-out |
 
-- raw or signed session tokens, cookies, authorization headers, OAuth callback URLs, passkey credential IDs, or challenge payloads
-- email addresses, profile image URLs/data, filenames, notes, outing/location names, species-name arrays, CSV contents, or image data
-- request/response bodies, provider payloads, database/provider exception messages, or stack traces
-- outbound geocoding URLs (which contain the provider key), raw place queries, or coordinates
+Typical event order is:
 
-Geocoding logs only route-level completion status, safe provider failure class, and result counts. WingDex does not cache provider responses or log upstream URLs and payloads. Client-to-Worker geocoding uses POST JSON so place queries and coordinates are not present in the incoming URL.
-Automatic Worker invocation logs are disabled to avoid duplicating WingDex's single terminal Request event. Structured Application events are reserved for meaningful lifecycle milestones rather than routine HTTP completion.
+- New anonymous session: `auth/account/create`, `auth/session/create`, terminal `auth/sessions/invoke` Request.
+- New social account: `auth/account/create`, `auth/provider/link`, `auth/session/create`, terminal callback Request.
+- Existing account authentication: `auth/session/create`, terminal auth Request. A newly linked provider adds `auth/provider/link` before the session event.
 
-Geoapify Free currently allows 3,000 credits per day and 5 requests per second. A submitted place search costs one credit. A GPS suggestion costs one Places credit and, only when no named outdoor place is found, one reverse-geocoding credit. Monitor the Geoapify project dashboard and upgrade before normal daily usage approaches the quota; repeated quota pressure or abuse should trigger an authenticated per-user limit rather than global coordination infrastructure.
+Passkey events are also outcome-only because they are emitted only after the corresponding operation succeeds:
 
-Use a stable operation summary plus safe metadata in catch blocks, for example: `Outing deletion failed; inspect the trace and database operation` with `{ outingId }`. The trace ID is the correlation handle; raw exception text is not a logging shortcut.
+- `auth/passkey/create`: Better Auth returned success after durable passkey registration.
+- `auth/account/upgrade`: passkey finalization changed an anonymous user into a persistent account.
+- `auth/session/create`: successful passkey authentication created a session.
+- `auth/passkey/delete`: Better Auth returned success after deleting an owned passkey.
+- `auth/appleRevocationToken/write`: native Apple token exchange completed and revocation credentials were durably stored for future account deletion.
 
-### Tracing a specific user in production
-Query CF Workers Logs (or log analytics) by `userId` at Info level - it's a top-level field on every log line. If you need sub-step detail for a production issue, temporarily set `LOG_LEVEL=debug` in Cloudflare Workers env vars and redeploy. Revert after investigation.
+Each route also has its one terminal `Request` event. For passkey signup, registration and account finalization are separate invocations and therefore separate traces.
 
-## Category
+### Account deletion
 
-| Value | Meaning | Examples |
+Account deletion is externally interruptible and emits this ordered `Application` timeline under one trace:
+
+1. `auth/linkedProviders/read` outcome: provider preflight succeeded with a count, or failed before revocation/local deletion began.
+2. For each linked external provider, `auth/provider/revoke` start, followed by a `Succeeded` or `Failed` outcome. Credential accounts are the exception: they emit no external revocation start and one `Succeeded` no-external-revocation outcome.
+3. `auth/account/delete` start after all provider processing that permits deletion.
+4. `auth/account/delete` outcome after the local user delete succeeds or fails. The user delete cascades local account data.
+5. One terminal `auth/account/delete` `Request` event describes the HTTP result.
+
+Provider outcomes have intentionally different semantics:
+
+- Credential accounts emit no revocation start and one `Succeeded` no-external-revocation outcome because no external grant exists.
+- Apple without stored revocation credentials emits `Warning` + `Failed`: the external obligation remains incomplete and manual revocation in Apple Account settings is required, but local deletion continues.
+- A configured-provider revocation failure emits `Error` + `Failed` and stops before local deletion. Upstream HTTP status may be included; tokens and provider payloads may not.
+- Retrying deletion is expected to be idempotent after partial provider revocation or a local deletion failure.
+
+## Non-auth transition events
+
+These events exist only when the named durable/interruptible boundary is crossed:
+
+| operationName | category | Emission rule |
 |---|---|---|
-| `Audit` | Operations that specifically require a separate compliance/security record. | Data clear |
-| `Application` | Application logic and meaningful lifecycle milestones. | Account/provider lifecycle, passkey finalization, CRUD, bird ID, import/export |
-| `Request` | Middleware request lifecycle. | Completion log with durationMs, pre-auth rejections (405/413), unhandled 500s |
+| `data/clear/delete` | Audit | Outcome after the batch deletes outings, cascaded observations/photos, and dex metadata |
+| `import/ebirdCsvConfirm/write` | Application | Commit marker after a non-empty import batch, before dex recomputation |
+| `data/outings/delete` | Application | Delete marker after one outing and its cascades commit, before dex recomputation |
+| `geocoding/reverse/read` | Application | Start marker only when Places yields no usable outdoor place and reverse-geocoding fallback begins |
+| `data/observations/write` | Application | For POST batches larger than one: commit/verification marker before dex recomputation, including post-commit verification failure |
+| `data/observations/write` | Application | For PATCH batches larger than one: commit marker after at least one requested update, before readback/dex recomputation |
+| `data/dex/write` | Application | For batches larger than one: all-applied marker before recomputation, or partial-application marker if a later write fails |
 
-## operationName conventions
+Single observation writes, single observation patches, and single dex metadata patches use only the terminal `Request` outcome.
 
-Format: `resourceType/subType/verb` in camelCase.
+## Operation routing
 
-Verbs are specific to what the operation does: `read`, `write`, `delete`, `invoke`, `import`, `export`, `validate`.
+Every terminal route event has category `Request`. Middleware resolves the following stable route template and `operationName`; no bird-identification route is currently present.
 
-### Complete operationName table
+| Method | Stable route | operationName |
+|---|---|---|
+| any | `/api/health` | `health/database/read` |
+| POST | `/api/data/outings` | `data/outings/write` |
+| PATCH | `/api/data/outings/:id` | `data/outings/write` |
+| DELETE | `/api/data/outings/:id` | `data/outings/delete` |
+| POST, PATCH | `/api/data/observations` | `data/observations/write` |
+| POST | `/api/data/photos` | `data/photos/write` |
+| GET | `/api/data/dex` | `data/dex/read` |
+| PATCH | `/api/data/dex` | `data/dex/write` |
+| DELETE | `/api/data/clear` | `data/clear/delete` |
+| GET | `/api/data/all` | `data/all/read` |
+| POST | `/api/auth/finalize-passkey` | `auth/finalizePasskey/invoke` |
+| GET | `/api/auth/linked-providers` | `auth/linkedProviders/read` |
+| POST | `/api/auth/apple/revocation-token` | `auth/appleRevocationToken/write` |
+| POST | `/api/auth/delete-account` | `auth/account/delete` |
+| POST | `/api/auth/mobile/start` | `auth/mobileOAuth/invoke` |
+| POST | `/api/auth/mobile/callback` | `auth/mobileOAuth/invoke` |
+| varied | `/api/auth/:path` | `auth/sessions/invoke` |
+| POST | `/api/import/ebird-csv` | `import/ebirdCsv/import` |
+| POST | `/api/import/ebird-csv/confirm` | `import/ebirdCsvConfirm/write` |
+| GET | `/api/export/outing/:id` | `export/outingCsv/export` |
+| GET | `/api/export/dex` | `export/dex/export` |
+| GET | `/api/export/sightings` | `export/sightings/export` |
+| GET | `/api/species/search` | `species/search/read` |
+| GET | `/api/species/ebird-code` | `species/ebirdCode/read` |
+| GET | `/api/species/wiki-title` | `species/wikiTitle/read` |
+| POST | `/api/geocoding/reverse` | `geocoding/reverse/read` |
+| POST | `/api/geocoding/search` | `geocoding/search/read` |
+| any unmatched API route | `/api/:unknown` | `requests/unknown` |
 
-| Route file | operationName | category | Description |
-|---|---|---|---|
-| Middleware: request completion | Derived from ROUTE_MAP | Request | One per request with durationMs |
-| Middleware: 405/400/413 | `requests/validation/validate` | Request | Pre-auth rejections |
-| Middleware: 401 no session | `auth/sessions/validate` | Request | Session lookup failed |
-| Middleware: 500 unhandled | Route's op from map | Request | Unhandled exception |
-| api/health.ts | `health/database/read` | Application | |
-| api/identify-bird.ts | `birdId/identify/invoke` | Application | |
-| lib/bird-id.ts (LLM call) | `birdId/llmCall/invoke` | Application | |
-| lib/bird-id.ts (taxonomy) | `birdId/taxonomyMatch/invoke` | Application | |
-| lib/bird-id.ts (range filter) | `birdId/rangeFilter/invoke` | Application | |
-| lib/bird-id.ts (range priors) | `birdId/rangePriors/read` | Application | |
-| lib/bird-id.ts (range adjust) | `birdId/rangeAdjust/invoke` | Application | |
-| api/data/all.ts | `data/all/read` | Application | |
-| api/data/observations.ts | `data/observations/write` | Application | |
-| api/data/outings.ts | `data/outings/write` | Application | |
-| api/data/outings/[id].ts PATCH | `data/outings/write` | Application | |
-| api/data/outings/[id].ts DELETE | `data/outings/delete` | Application | |
-| api/data/photos.ts | `data/photos/write` | Application | |
-| api/data/dex.ts GET | `data/dex/read` | Application | |
-| api/data/dex.ts PATCH | `data/dex/write` | Application | |
-| api/data/clear.ts | `data/clear/delete` | Audit | Destructive |
-| api/auth/finalize-passkey.ts | `auth/finalizePasskey/invoke` | Application | Account lifecycle event |
-| api/auth/linked-providers.ts | `auth/linkedProviders/read` | Application | |
-| api/auth/mobile/start.ts | `auth/mobileOAuth/invoke` | Application | |
-| api/auth/mobile/callback.ts | `auth/mobileOAuth/invoke` | Application | |
-| api/import/ebird-csv.ts | `import/ebirdCsv/import` | Application | |
-| api/import/ebird-csv/confirm.ts | `import/ebirdCsvConfirm/write` | Application | |
-| api/export/dex.ts | `export/dex/export` | Application | |
-| api/export/sightings.ts | `export/sightings/export` | Application | |
-| api/export/outing/[id].ts | `export/outingCsv/export` | Application | |
-| api/species/search.ts | `species/search/read` | Application | |
-| api/species/ebird-code.ts | `species/ebirdCode/read` | Application | |
-| api/species/wiki-title.ts | `species/wikiTitle/read` | Application | |
+Middleware-only terminal operations are:
 
-## resourceId hierarchy
+| operationName | category | Condition |
+|---|---|---|
+| `requests/validation/validate` | Request | Invalid method/content length or oversized body |
+| `auth/sessions/validate` | Request | Missing or invalid session on a protected route |
 
-Auto-built by middleware after session check:
+Semantic operations not introduced by route mapping are:
 
-```
-/users/{userId}                                          -- base for all authenticated requests
-/users/{userId}/outings/{outingId}                       -- outing-specific (auto from URL params)
-/users/{userId}/outings/{outingId}/observations          -- observation batch ops (via withResourceId)
-/users/{userId}/outings/{outingId}/observations/{obsId}  -- single observation patch
-/users/{userId}/outings/{outingId}/photos                -- photo batch ops (via withResourceId)
-/users/{userId}/dex                                      -- dex read/write/export (via withResourceId)
-/users/{userId}/dex/{speciesName}                        -- single species dex patch
-```
+| operationName | category |
+|---|---|
+| `auth/account/create` | Application |
+| `auth/provider/link` | Application |
+| `auth/session/create` | Application |
+| `auth/session/delete` | Application |
+| `auth/passkey/create` | Application |
+| `auth/passkey/delete` | Application |
+| `auth/account/upgrade` | Application |
+| `auth/provider/revoke` | Application |
 
-Middleware auto-sets `/users/{userId}` and appends outing IDs from URL params (for `/api/data/outings/:id` and `/api/export/outing/:id`). When middleware scopes resourceId from URL params, it sets `context.data.autoScopedResourceId = true` so handlers know NOT to call `withResourceId` for the same entity. Route handlers extend with `log.withResourceId('dex')` or `log.withResourceId('outings/' + body.id)` only for body-derived entity IDs. Batch operations use the parent resource path and put individual IDs in `properties`.
+## Privacy and safe metadata
 
-## Error message quality
+Treat logs as operational records, not a copy of application state.
 
-Every `resultDescription` must follow the "include the affected entity" principle:
+Allowed:
 
-**Bad:** `"Invalid outing reference"`
-**Good:** `"Outing outing_abc123 referenced by 3 observations is not owned by user or does not exist; the outing may have been deleted by another client"`
+- Middleware-controlled top-level `userId`, `resourceId`, `traceId`, and `spanId`.
+- Stable route templates, status, method, duration, and configured limits.
+- Aggregate counts, booleans, bounded enums such as provider type or transition stage, and safe upstream status codes.
 
-Every error message should include:
-1. **Context**: what was being attempted
-2. **The error itself**: what specifically failed (with entity names/IDs)
-3. **Mitigation**: what to do about it
+Do not add arbitrary entity IDs, arrays of IDs, or user-supplied identifiers to `resultDescription` or `properties`. The middleware-generated `resourceId` is the controlled place for the current outing or account scope. IDs are pseudonymous data and should not be repeated merely because they are internal.
 
-## Health endpoint
+Never log:
 
-`/api/health` is polled every 30 seconds by the dev server health check script. Successful (2xx) completion logs are suppressed in middleware to avoid noise. Failures still log at Warning/Error level.
+- Session tokens, cookies, authorization headers, OAuth callback URLs, authorization codes, passkey credential IDs, challenges, or provider credentials.
+- Email addresses, profile URLs, filenames, notes, outing/location names, species names or arrays, CSV contents, image data, or other user-authored content.
+- Request/response bodies, provider payloads, database/provider exception messages, stack traces, or raw error objects.
+- Outbound geocoding URLs, place queries, coordinates, or the provider key.
 
-## Identity caveat
+Geocoding uses POST JSON so place queries and coordinates do not enter incoming URLs. Automatic traces remain disabled because outbound fetch spans can retain complete URLs, including provider keys or user-supplied query data.
 
-Middleware resolves the session (and therefore `userId`) for non-`/api/auth/*` routes. Auth routes only carry `authMethod` in `identity` - `userId` is absent.
+Write `resultDescription` first. It should state the attempted operation, the known durable state, and the next action without sensitive data. Prefer:
 
-## Required practices for new/changed code
-
-1. **Use `createRouteResponder`** at the top of every handler to bind operationName and category once:
-   ```ts
-   const route = createRouteResponder((context.data as RequestData).log, 'data/outings/write', 'Application')
-   ```
-2. **Use `route.fail(status, body, detail?, properties?)`** for all error responses. It returns the response and carries terminal outcome detail to middleware for the single Request completion event:
-   ```ts
-   return route.fail(400, 'Invalid JSON body')
-   return route.fail(404, 'Not found', `Outing ${outingId} not found or not owned by user`, { outingId })
-   ```
-3. **Use `route.complete(response, resultDescription)`** for successful/redirect terminal outcomes so middleware can emit one authoritative Request completion event:
-  ```ts
-  return route.complete(Response.json(result), `Persisted ${count} observations`)
-  return route.complete(Response.redirect(url, 302), 'Started OAuth redirect')
-  ```
-4. **Use `route.info()`, `route.debug()`, `route.trace()`** only for meaningful intermediate or durable Application events, not routine terminal completion.
-5. **Wrap all DB operations in try/catch** with `route.fail(500, 'Internal server error', detail, properties)` in the catch block.
-6. **Include entity context** in error messages: outing IDs, observation IDs, counts. Use the `detail` parameter for rich descriptions and `properties` for machine-queryable data.
-7. **Scope resourceId** when operating on a specific entity: `createRouteResponder(log?.withResourceId('outings/' + outingId), ...)`
-8. **Propagate `traceparent`** on outbound calls (web -> API, iOS -> API).
-9. **Expose only safe expected 4xx details** to clients. Never surface or log raw 5xx bodies, HTML, exception text, or provider/database payloads.
-
-### Route handler template
-
-```ts
-export const onRequestPost: PagesFunction<Env> = async context => {
-  const userId = (context.data as { user?: { id?: string } }).user?.id
-  const route = createRouteResponder((context.data as RequestData).log, 'data/outings/write', 'Application')
-  if (!userId) return route.fail(401, 'Unauthorized', 'Outing write requires an authenticated session')
-
-  let body: unknown
-  try { body = await context.request.json() }
-  catch { return route.fail(400, 'Invalid JSON body', 'Request body is not valid JSON') }
-
-  if (!isValid(body)) return route.fail(400, 'Invalid payload', 'Detailed description of what is wrong')
-
-  try {
-    // ... DB operations ...
-    return route.complete(Response.json(result), `Created outing ${body.id}`)
-  } catch {
-    return route.fail(500, 'Internal server error', 'Outing creation failed; inspect the trace and database operation', { outingId: body.id })
-  }
-}
+```text
+Outing, observations, and photos were deleted; post-delete dex recomputation failed
 ```
 
-### Choosing info vs debug
+Avoid raw exception text or an ID-heavy sentence. Use the trace ID for correlation and a separate safe `Application` event when a durable boundary needs to be queryable. A failure description should not claim rollback when the code may already have committed.
 
-Ask: "Would an ops engineer need to see this for every request in production?" If yes -> `route.info()`. If only useful when debugging -> `route.debug()`. Use `route.trace()` only for additional safe operational metadata, never for raw payloads or user content.
+## Required implementation practices
+
+1. Bind the route once with `createRouteResponder(log, operationName, category)`.
+2. Return `route.complete(response, resultDescription)` for successful/redirect outcomes and `route.fail(status, body, resultDescription)` for expected failures.
+3. Do not emit a route completion log; middleware owns the single terminal `Request` event.
+4. Use `route.info()` only for a result-less start/fallback marker. Use `route.succeeded()` or `route.failed()` for durable outcomes so `resultType` is explicit. External/multi-step work uses start+outcome; atomic committed hooks emit only an outcome.
+5. Put the useful safe fact in `resultDescription`. Do not rely on `route.fail` properties; they are discarded by the response-header transport.
+6. Extend `resourceId` only through `withResourceId` and avoid duplicating middleware's auto-scoped outing segment.
+7. Propagate `traceparent` on outbound WingDex calls.
+8. Expose only safe expected 4xx details. Never surface or log raw 5xx/provider/database content.
+
+## Pre-deployment validation
+
+### 1. Local Explorer
+
+Local Explorer is the primary validation workflow. Start the normal development stack:
+
+```bash
+npm run dev
+```
+
+Wrangler runs on port `8787` by default and enables Local Explorer/local observability by default. The read-only query endpoint is:
+
+```text
+http://localhost:8787/cdn-cgi/local/explorer/api/local/observability/query
+```
+
+If a different Wrangler port is configured, use the Local Explorer API URL printed at startup. The endpoint accepts only `SELECT`/`WITH` SQL over the `logs` and `spans` tables. In Wrangler 4.119, `logs` has the columns `trace_id`, `span_id`, `seq`, `ts_ms`, `level`, `message`, `operation`, and `created_at`. `message` is a JSON-encoded array of console arguments. WingDex passes its event object as the first argument, so select events where `json_type(message, '$[0]') = 'object'` and read fields below `$[0]`.
+
+Generate the account/data flow being changed, then begin with the complete structured event objects:
+
+```bash
+curl -sS -X POST \
+  http://localhost:8787/cdn-cgi/local/explorer/api/local/observability/query \
+  -H 'Content-Type: application/json' \
+  -d '{"sql":"SELECT json_extract(message, '\''$[0]'\'') AS event FROM logs WHERE json_type(message, '\''$[0]'\'') = '\''object'\'' ORDER BY ts_ms DESC LIMIT 20"}'
+```
+
+Use these read-only queries in Local Explorer to validate WingDex behavior.
+
+Recent WingDex events:
+
+```sql
+SELECT
+  json_type(message, '$[0]') AS argument_type,
+  json_extract(message, '$[0]') AS event,
+  json_extract(message, '$[0].properties."http.route"') AS http_route
+FROM logs
+WHERE json_type(message, '$[0]') = 'object'
+  AND json_extract(message, '$[0].operationName') IS NOT NULL
+ORDER BY ts_ms DESC
+LIMIT 50;
+```
+
+Ordered event sequence for one trace:
+
+```sql
+WITH wingdex AS (
+  SELECT
+    seq,
+    ts_ms,
+    json_extract(message, '$[0].time') AS time,
+    json_extract(message, '$[0].traceId') AS trace_id,
+    json_extract(message, '$[0].category') AS category,
+    json_extract(message, '$[0].operationName') AS operation_name,
+    json_extract(message, '$[0].resultType') AS result_type,
+    json_extract(message, '$[0].resultDescription') AS result_description
+  FROM logs
+  WHERE json_type(message, '$[0]') = 'object'
+)
+SELECT *
+FROM wingdex
+WHERE trace_id = ?
+ORDER BY ts_ms, seq;
+```
+
+Supply the trace ID through the request body's `params` array, for example `{"sql":"SELECT ... WHERE trace_id = ?","params":["TRACE_ID"]}`. Keep values out of the SQL string.
+
+Operation/category event counts:
+
+```sql
+WITH wingdex AS (
+  SELECT
+    json_extract(message, '$[0].category') AS category,
+    json_extract(message, '$[0].operationName') AS operation_name
+  FROM logs
+  WHERE json_type(message, '$[0]') = 'object'
+)
+SELECT category, operation_name, COUNT(*) AS event_count
+FROM wingdex
+WHERE operation_name IS NOT NULL
+GROUP BY category, operation_name
+ORDER BY category, operation_name;
+```
+
+Traces that do not have exactly one terminal Request event:
+
+```sql
+WITH wingdex AS (
+  SELECT
+    json_extract(message, '$[0].traceId') AS trace_id,
+    json_extract(message, '$[0].category') AS category,
+    json_extract(message, '$[0].operationName') AS operation_name
+  FROM logs
+  WHERE json_type(message, '$[0]') = 'object'
+), grouped AS (
+  SELECT
+    trace_id,
+    SUM(CASE WHEN category = 'Request' THEN 1 ELSE 0 END) AS request_events,
+    COUNT(*) AS wingdex_events
+  FROM wingdex
+  WHERE operation_name IS NOT NULL
+  GROUP BY trace_id
+)
+SELECT *
+FROM grouped
+WHERE request_events <> 1;
+```
+
+Successful health probes are absent by design, so they cannot appear as zero-event trace rows. A verified direct WingDex event has `argument_type = object`, while Cloudflare's default **Message** may still be blank. A representative two-transition flow has the category sequence `Application`, `Application`, `Request`; verify the flow's ordered `Application` events are followed by its single terminal `Request` event. Third-party string warnings are not WingDex events.
+
+Keep span inspection separate from log inspection. The `spans` table has an `attributes` JSONB column, and `json(attributes)` applies to spans only. Local Explorer may expose local request spans for development inspection. Production/preview Cloudflare trace export remains disabled by `wrangler.toml`; trace correlation in retained WingDex logs is through `traceId` and `spanId` fields.
+
+### 2. Preview live tail
+
+After local sequence/category checks pass, deploy preview and stream newly emitted events:
+
+```bash
+npx wrangler tail -e preview --format json
+```
+
+Exercise the changed flow while the tail is connected. Confirm route templates, one terminal `Request`, expected transition events, blank/default Message behavior, and absence of sensitive data. Tail is live-only and is not a retained-history query.
+
+### 3. Retained history
+
+Use the Cloudflare dashboard Workers Logs view for retained preview or production history. Wrangler OAuth credentials can stream `wrangler tail`, but they cannot query the historical Workers Telemetry API. Do not treat a failed historical API query from Wrangler credentials as missing logs; use the dashboard, or a separately authorized analytics integration, for historical investigation.
+
+## Environment summary
+
+| Environment | Level/format | Validation surface |
+|---|---|---|
+| Local | `debug`, optionally `pretty` | Local Explorer first; terminal strings only for human scanning |
+| Preview | `info`, structured objects | Live `wrangler tail -e preview --format json`, then dashboard history |
+| Production | `info`, structured objects | Cloudflare dashboard retained logs |
+
+Preview and production have `observability.enabled = true`, `invocation_logs = false`, and traces disabled. This leaves WingDex's structured events as the authoritative request and business-transition record.

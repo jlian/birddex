@@ -23,15 +23,21 @@ type ExportRow = {
   observationNotes?: string | null
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 export const onRequestGet: PagesFunction<Env> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'export/sightings/export', 'Application')
   if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
+    return route.fail(401, 'Unauthorized', 'Authentication is required to generate a sightings CSV')
   }
 
+  let stage = 'outing schema inspection'
   try {
     const columnNames = await getOutingColumnNames(context.env.DB)
+    stage = 'observation schema inspection'
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
     const observationNotesSelect = supportsSpeciesCommentsColumn
     ? 'COALESCE(ob.speciesComments, ob.notes)'
@@ -60,12 +66,14 @@ export const onRequestGet: PagesFunction<Env> = async context => {
        WHERE ob.userId = ?
        ORDER BY o.startTime ASC, o.id ASC, ob.id ASC`
 
+    stage = 'sightings database query'
     const rowsResult = await context.env.DB
-    .prepare(rowsQuery)
-    .bind(userId)
-    .all<ExportRow>()
+      .prepare(rowsQuery)
+      .bind(userId)
+      .all<ExportRow>()
 
     const rows = rowsResult.results
+    stage = 'sightings CSV serialization'
     if (rows.length === 0) {
     const emptyCsv = exportOutingToEBirdCSV(
       {
@@ -84,7 +92,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
         'content-disposition': 'attachment; filename="wingdex-sightings.csv"',
         'cache-control': 'no-store',
       },
-    }), 'Exported empty sightings CSV (no observations found)')
+    }), 'Generated empty sightings CSV because no observations were found')
     }
 
     const byOuting = new Map<string, ExportRow[]>()
@@ -139,8 +147,8 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       'content-disposition': `attachment; filename="wingdex-sightings-${new Date().toISOString().split('T')[0]}.csv"`,
       'cache-control': 'no-store',
     },
-    }), `Exported ${rows.length} sightings across ${byOuting.size} outings`)
-    } catch {
-      return route.fail(500, 'Export failed', 'Sightings export failed; inspect the trace and database query')
+    }), `Generated sightings CSV with ${countLabel(rows.length, 'sighting')} across ${countLabel(byOuting.size, 'outing')}`)
+  } catch {
+    return route.fail(500, 'Export failed', `Sightings CSV generation failed during ${stage}`)
   }
 }
