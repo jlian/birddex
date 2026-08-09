@@ -8,3 +8,10 @@
 --
 -- Defer the DROP TABLE statements to a follow-up migration that ships only after
 -- the Geoapify Worker is confirmed live in every environment (expand/contract).
+
+-- Follow-up: once this release is live and every Worker is serving Geoapify,
+-- add a migration that DROPs geocoding_cache, geocoding_inflight and
+-- geocoding_rate_limit. It must ship in a LATER release than this one. D1
+-- applies every pending migration before the deploy step, so bundling the
+-- drop with this change would run it against the still-live previous Worker
+-- and cause the exact outage this no-op exists to prevent.
