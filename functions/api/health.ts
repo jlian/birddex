@@ -1,4 +1,13 @@
-import { createRouteResponder } from '../lib/log'
+import { createRouteResponder, RESULT_DESCRIPTION_HEADER } from '../lib/log'
+
+function degraded(db: 'unexpected' | 'error', failure: Response): Response {
+  return Response.json({ status: 'degraded', db }, {
+    status: 503,
+    headers: {
+      [RESULT_DESCRIPTION_HEADER]: failure.headers.get(RESULT_DESCRIPTION_HEADER) || 'D1 health check failed',
+    },
+  })
+}
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const route = createRouteResponder((context.data as RequestData).log, 'health/database/read', 'Application')
@@ -7,10 +16,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     if (result?.ok === 1) {
       return Response.json({ status: 'ok', db: 'ok' })
     }
-    route.fail(503, 'D1 health check returned unexpected result', 'D1 health check returned an unexpected result; the database may be in a degraded state')
-    return Response.json({ status: 'degraded', db: 'unexpected' }, { status: 503 })
+    return degraded('unexpected', route.fail(503, 'D1 health check returned unexpected result', 'D1 health check returned an unexpected result; the database may be in a degraded state'))
   } catch {
-    route.fail(503, 'D1 health check failed', 'D1 health check failed; inspect the database binding and trace')
-    return Response.json({ status: 'degraded', db: 'error' }, { status: 503 })
+    return degraded('error', route.fail(503, 'D1 health check failed', 'D1 health check failed; inspect the database binding and trace'))
   }
 }

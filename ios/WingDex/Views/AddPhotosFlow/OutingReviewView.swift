@@ -15,18 +15,16 @@ struct OutingReviewView: View {
     @Bindable var viewModel: AddPhotosViewModel
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
+    @ScaledMetric(relativeTo: .caption) private var attributionFontSize: CGFloat = 12
 
     // MARK: - Local State
 
     @State private var locationName = ""
     @State private var isLoadingLocation = false
     @State private var suggestedLocation = ""
-    @State private var locationAttribution: GeocodingResult.Attribution?
-    @State private var locationSecondaryAttribution: GeocodingResult.Attribution?
-    @State private var suggestedLocationAttribution: GeocodingResult.Attribution?
-    @State private var suggestedLocationSecondaryAttribution: GeocodingResult.Attribution?
     @State private var suggestedStateProvince: String?
     @State private var suggestedCountryCode: String?
+    @State private var locationLookupFailed = false
 
     /// Extracted ISO 3166-2 state/province code from geocoding.
     @State private var inferredStateProvince: String?
@@ -45,6 +43,7 @@ struct OutingReviewView: View {
     @State private var reverseGeocodingTask: Task<Void, Never>?
     @State private var placeSearchTask: Task<Void, Never>?
     @State private var placeSearchGeneration = 0
+    @State private var placeSearchFailed = false
 
     /// Whether to add photos to an existing matching outing
     @State private var matchingOuting: Outing?
@@ -109,14 +108,18 @@ struct OutingReviewView: View {
             }
 
             // Location name with inline place search
-            if !useExistingOuting {
-                Section {
+            Section {
+                attributionCaption
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                if !useExistingOuting {
                     locationSection
-                } header: {
-                    Text("Location")
-                        .font(.headline)
-                        .foregroundStyle(Color.foregroundText)
+                } else if let existing = matchingOuting {
+                    Text(existing.locationName)
+                        .foregroundStyle(.secondary)
                 }
+            } header: {
+                Text("Location")
             }
 
             // Photo thumbnails grid
@@ -157,6 +160,39 @@ struct OutingReviewView: View {
             reverseGeocodingTask?.cancel()
             placeSearchTask?.cancel()
         }
+    }
+
+    private var attributionCaption: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                geoapifyAttributionLink(includeSeparator: true)
+                openStreetMapAttributionLink
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                geoapifyAttributionLink(includeSeparator: true)
+                openStreetMapAttributionLink
+            }
+        }
+        .font(.system(size: attributionFontSize))
+        .tint(Color.foregroundText)
+    }
+
+    private func geoapifyAttributionLink(includeSeparator: Bool) -> some View {
+        Link(destination: URL(string: "https://www.geoapify.com/")!) {
+            Text(includeSeparator ? "Powered by Geoapify ·" : "Powered by Geoapify")
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityIdentifier("outing.locationAttribution")
+    }
+
+    private var openStreetMapAttributionLink: some View {
+        Link(destination: URL(string: "https://www.openstreetmap.org/copyright")!) {
+            Text("© OpenStreetMap contributors")
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityIdentifier("outing.locationSourceAttribution")
     }
 
     // MARK: - Date/Time Section
@@ -272,6 +308,17 @@ struct OutingReviewView: View {
                 .accessibilityIdentifier("outing.locationResult")
             }
 
+            if placeSearchFailed {
+                HStack(spacing: 4) {
+                    Text("Search failed.")
+                        .foregroundStyle(.red)
+                    Button("Retry") { submitPlaceSearch() }
+                        .buttonStyle(.plain)
+                        .underline()
+                }
+                .font(.caption)
+            }
+
             if !locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button("Use entered name without searching") {
                     useEnteredLocationName()
@@ -320,24 +367,21 @@ struct OutingReviewView: View {
             }
         }
 
-        let visibleAttribution = placeResults.first?.attribution ?? locationAttribution
-        let visibleSecondaryAttribution = placeResults.first?.secondaryAttribution ?? locationSecondaryAttribution
-        if visibleAttribution != nil || visibleSecondaryAttribution != nil {
+        if locationLookupFailed, let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon {
             HStack(spacing: 4) {
-                if let visibleAttribution {
-                    Link(visibleAttribution.label, destination: visibleAttribution.url)
-                        .accessibilityIdentifier("outing.locationAttribution")
+                Text("Location lookup failed.")
+                    .foregroundStyle(.red)
+                Button("Retry") {
+                    let clusterID = cluster.id
+                    reverseGeocodingTask?.cancel()
+                    reverseGeocodingTask = Task {
+                        await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
+                    }
                 }
-                if visibleAttribution != nil, visibleSecondaryAttribution != nil {
-                    Text("·")
-                }
-                if let visibleSecondaryAttribution {
-                    Link(visibleSecondaryAttribution.label, destination: visibleSecondaryAttribution.url)
-                        .accessibilityIdentifier("outing.locationSourceAttribution")
-                }
+                .buttonStyle(.plain)
+                .underline()
             }
-            .font(.footnote)
-            .tint(Color.foregroundText)
+            .font(.caption)
         }
     }
 
@@ -378,12 +422,9 @@ struct OutingReviewView: View {
         didInitialize = false
         locationName = ""
         suggestedLocation = ""
-        locationAttribution = nil
-        locationSecondaryAttribution = nil
-        suggestedLocationAttribution = nil
-        suggestedLocationSecondaryAttribution = nil
         suggestedStateProvince = nil
         suggestedCountryCode = nil
+        locationLookupFailed = false
         inferredStateProvince = nil
         inferredCountryCode = nil
         overriddenStartTime = nil
@@ -392,6 +433,7 @@ struct OutingReviewView: View {
         locationSearchQuery = ""
         placeResults = []
         isSearchingPlace = false
+        placeSearchFailed = false
         matchingOuting = nil
         useExistingOuting = false
         isLoadingLocation = false
@@ -426,6 +468,7 @@ struct OutingReviewView: View {
         let roundedLat = (latitude * 1000).rounded() / 1000
         let roundedLon = (longitude * 1000).rounded() / 1000
         isLoadingLocation = true
+        locationLookupFailed = false
         defer {
             if cluster?.id == clusterID {
                 isLoadingLocation = false
@@ -453,10 +496,6 @@ struct OutingReviewView: View {
             if let result {
                 locationName = result.label
                 suggestedLocation = result.label
-                locationAttribution = result.attribution
-                locationSecondaryAttribution = result.secondaryAttribution
-                suggestedLocationAttribution = result.attribution
-                suggestedLocationSecondaryAttribution = result.secondaryAttribution
                 suggestedStateProvince = result.stateProvince
                 suggestedCountryCode = result.countryCode
                 inferredStateProvince = result.stateProvince
@@ -470,6 +509,7 @@ struct OutingReviewView: View {
             log.error("Reverse geocoding failed")
             guard cluster?.id == clusterID else { return }
             applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+            locationLookupFailed = true
         }
     }
 
@@ -479,10 +519,6 @@ struct OutingReviewView: View {
             : viewModel.lastLocationName
         locationName = fallback
         suggestedLocation = fallback
-        locationAttribution = nil
-        locationSecondaryAttribution = nil
-        suggestedLocationAttribution = nil
-        suggestedLocationSecondaryAttribution = nil
         suggestedStateProvince = nil
         suggestedCountryCode = nil
         inferredStateProvince = nil
@@ -496,6 +532,7 @@ struct OutingReviewView: View {
         placeSearchGeneration += 1
         let generation = placeSearchGeneration
         isSearchingPlace = true
+        placeSearchFailed = false
         placeResults = []
         placeSearchTask = Task {
             defer {
@@ -518,7 +555,7 @@ struct OutingReviewView: View {
             } catch {
                 log.error("Place search failed")
                 guard placeSearchGeneration == generation, cluster?.id == clusterID else { return }
-                viewModel.error = AppError.map(error, fallback: "Could not search locations. Try again.")
+                placeSearchFailed = true
             }
         }
     }
@@ -529,8 +566,6 @@ struct OutingReviewView: View {
             overriddenCoords = coordinate
         }
         locationName = result.label
-        locationAttribution = result.attribution
-        locationSecondaryAttribution = result.secondaryAttribution
         inferredCountryCode = result.countryCode
         inferredStateProvince = result.stateProvince
         dismissLocationSearch()
@@ -538,8 +573,6 @@ struct OutingReviewView: View {
 
     private func restoreSuggestedLocation() {
         locationName = suggestedLocation
-        locationAttribution = suggestedLocationAttribution
-        locationSecondaryAttribution = suggestedLocationSecondaryAttribution
         inferredStateProvince = suggestedStateProvince
         inferredCountryCode = suggestedCountryCode
         overriddenCoords = nil
@@ -549,8 +582,6 @@ struct OutingReviewView: View {
         let name = locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         locationName = name
-        locationAttribution = nil
-        locationSecondaryAttribution = nil
         overriddenCoords = nil
         inferredCountryCode = nil
         inferredStateProvince = nil

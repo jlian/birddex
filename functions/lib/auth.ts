@@ -3,6 +3,7 @@ import { anonymous, bearer } from 'better-auth/plugins'
 import { passkey } from '@better-auth/passkey'
 import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
+import type { Logger } from './log'
 
 type CreateAuthOptions = {
   request?: Request
@@ -10,6 +11,7 @@ type CreateAuthOptions = {
   // `hosted-oauth` forces the hosted auth URL so social providers see the
   // same public callback domain that is registered in their app settings.
   mode?: 'default' | 'hosted-oauth'
+  log?: Logger
 }
 
 type SocialProviderConfig = {
@@ -214,6 +216,30 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
         allowDifferentEmails: true,
       },
     },
+    databaseHooks: options.log ? {
+      user: {
+        create: {
+          after: async () => {
+            options.log?.info('auth/account/create', {
+              category: 'Application',
+              resultType: 'Succeeded',
+              resultDescription: 'Created a WingDex user during authentication',
+            })
+          },
+        },
+      },
+      account: {
+        create: {
+          after: async (account) => {
+            options.log?.info('auth/provider/link', {
+              category: 'Application',
+              resultType: 'Succeeded',
+              resultDescription: `Linked ${account.providerId} credentials to a WingDex user`,
+            })
+          },
+        },
+      },
+    } : undefined,
     plugins: [
       anonymous(),
       bearer(),

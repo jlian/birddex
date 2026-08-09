@@ -169,8 +169,13 @@ struct SettingsView: View {
         Section("Account") {
             if !profile.name.isEmpty {
                 HStack {
-                    Text("Welcome,")
-                        .foregroundStyle(Color.foregroundText)
+                    Text("Welcome, \(profile.name)")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+
+                    Spacer(minLength: 8)
 
                     Button {
                         let newName = FunNames.generateBirdName()
@@ -178,7 +183,7 @@ struct SettingsView: View {
                         profile.save(name: newName, image: FunNames.emojiAvatarDataUrl(emoji))
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.body)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(width: 44, height: 44)
                     }
@@ -187,16 +192,12 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                     .accessibilityLabel("Generate a new display name")
 
-                    Text(profile.name)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-
                     Button {
                         editedName = profile.name
                         isEditingName = true
                     } label: {
                         Image(systemName: "pencil")
-                            .font(.body)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(width: 44, height: 44)
                     }
@@ -318,7 +319,7 @@ struct SettingsView: View {
         } header: {
             Text("Bird Identification")
         } footer: {
-            Text("Uses photo location and month on this device to improve identification. WingDex may forward rounded coordinates to OpenStreetMap to suggest an outing location, and exact coordinates are saved by WingDex with your outing and photo metadata.")
+            Text("Uses photo location and month on this device to improve identification. WingDex may forward rounded coordinates to Geoapify to suggest an outing location, and exact coordinates are saved by WingDex with your outing and photo metadata.")
                 .font(.footnote)
                 .foregroundStyle(Color.mutedText)
         }
@@ -347,7 +348,7 @@ struct SettingsView: View {
                 DataManagementView()
             } label: {
                 Label("Delete Data...", systemImage: "trash")
-                    .foregroundStyle(Color.foregroundText)
+                    .foregroundStyle(.red)
             }
         }
     }

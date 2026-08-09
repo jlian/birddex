@@ -386,7 +386,7 @@ final class AuthService: @unchecked Sendable {
     }
 
     /// Revoke linked providers, then permanently delete the account and its data.
-    func deleteAccount() async throws {
+    func deleteAccount() async throws -> Bool {
         let token = try validToken()
         let url = Config.apiBaseURL.appendingPathComponent("api/auth/delete-account")
         var request = URLRequest(url: url)
@@ -397,7 +397,7 @@ final class AuthService: @unchecked Sendable {
         request.httpBody = Data("{}".utf8)
         AuthenticatedRequest.instrument(&request)
 
-        let (_, response) = try await AuthenticatedRequest.data(
+        let (data, response) = try await AuthenticatedRequest.data(
             for: request, session: Self.bearerSession,
             context: "Delete account", logger: log
         )
@@ -409,7 +409,12 @@ final class AuthService: @unchecked Sendable {
             throw AuthError.oauthFailed("Account deletion failed (HTTP \(statusCode))")
         }
 
-        signOut()
+        let result = try? JSONDecoder().decode(AccountDeletionResponse.self, from: data)
+        return result?.manualAppleRevocationRequired ?? false
+    }
+
+    private struct AccountDeletionResponse: Decodable {
+        let manualAppleRevocationRequired: Bool
     }
 
     // MARK: - Passkey Flows

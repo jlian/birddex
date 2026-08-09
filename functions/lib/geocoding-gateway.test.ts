@@ -121,6 +121,25 @@ describe('Geoapify geocoding gateway', () => {
     )
   })
 
+  it('aborts a provider request after five seconds', async () => {
+    vi.useFakeTimers()
+    const fetcher = vi.fn<Fetcher>((_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+    }))
+
+    try {
+      const request = searchPlaces('test-key', 'Green Lake', fetcher)
+      const expectation = expect(request).rejects.toEqual(
+        new GeocodingUpstreamError(504, undefined, 0),
+      )
+      await vi.advanceTimersByTimeAsync(5_000)
+      await expectation
+      expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('returns empty results when the provider has no usable matches', async () => {
     const fetcher = vi.fn<Fetcher>(async () => Response.json({
       results: [{ formatted: 'Missing coordinates' }, { lat: 47, lon: -122 }],

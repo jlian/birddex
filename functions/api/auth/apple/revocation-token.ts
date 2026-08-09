@@ -19,7 +19,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     identity: { authMethod: 'bearer' },
     resourceId: `/users/${session.user.id}`,
   })
-  const route = createRouteResponder(log, 'auth/appleRevocationToken/write', 'Audit')
+  const route = createRouteResponder(log, 'auth/appleRevocationToken/write', 'Application')
 
   let body: { authorizationCode?: unknown }
   try {

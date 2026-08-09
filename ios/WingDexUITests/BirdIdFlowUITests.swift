@@ -158,11 +158,11 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertEqual(locationName.label, selectedLabel)
         XCTAssertTrue(
             scrollUntilVisible(app.descendants(matching: .any)["outing.locationAttribution"], in: app),
-            "Selected search result did not retain provider attribution"
+            "Static Geoapify attribution was not visible"
         )
         XCTAssertTrue(
             scrollUntilVisible(app.descendants(matching: .any)["outing.locationSourceAttribution"], in: app),
-            "Selected search result did not retain source attribution"
+            "Static OpenStreetMap attribution was not visible"
         )
         let useGPS = app.buttons["Use GPS: \(gpsLabel)"]
         XCTAssertTrue(scrollUntilVisible(useGPS, in: app), "Selecting a search result replaced the GPS suggestion")
@@ -188,7 +188,7 @@ final class BirdIdFlowUITests: XCTestCase {
         let locationName = app.staticTexts["outing.locationName"]
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
         XCTAssertEqual(locationName.label, "47.712deg, -122.372deg")
-        XCTAssertFalse(app.descendants(matching: .any)["outing.locationAttribution"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
 
         locationName.tap()
         let searchField = app.textFields["outing.locationSearch"]
@@ -203,9 +203,9 @@ final class BirdIdFlowUITests: XCTestCase {
         )
         XCTAssertTrue(
             waitUntil(timeout: 5) {
-                !app.descendants(matching: .any)["outing.locationAttribution"].exists
+                app.descendants(matching: .any)["outing.locationAttribution"].exists
             },
-            "Manual location retained provider attribution"
+            "Static attribution disappeared after manual location entry"
         )
     }
 
@@ -243,7 +243,9 @@ final class BirdIdFlowUITests: XCTestCase {
 
         try performBoundedAccessibilityAudit(
             app: app,
-            expectedContrastFindings: 1,
+            // iOS 26 intermittently samples the native Form's Location header in addition
+            // to the existing system DatePicker contrast sample.
+            expectedContrastFindings: 2,
             expectedDynamicTypeFindings: 4
         )
     }

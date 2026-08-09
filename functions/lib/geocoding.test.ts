@@ -54,21 +54,13 @@ describe('Geoapify normalization', () => {
     })
   })
 
-  it('returns an attributed provider-independent result', () => {
+  it('returns a provider-independent result', () => {
     expect(normalizeGeoapifyResult(park)).toEqual({
       label: 'Discovery Park, Seattle, Washington',
       lat: 47.6205,
       lon: -122.3493,
       stateProvince: 'US-WA',
       countryCode: 'US',
-      attribution: {
-        label: 'Powered by Geoapify',
-        url: 'https://www.geoapify.com/',
-      },
-      secondaryAttribution: {
-        label: '© OpenStreetMap contributors',
-        url: 'https://www.openstreetmap.org/copyright',
-      },
     })
   })
 

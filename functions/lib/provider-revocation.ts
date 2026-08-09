@@ -18,6 +18,23 @@ type ProviderEnv = Pick<Env,
 
 type Fetcher = typeof fetch
 
+export type ProviderRevocationOutcome = 'revoked' | 'manual_action_required' | 'skipped' | 'failed'
+
+export interface ProviderRevocationResult {
+  providerId: string
+  outcome: ProviderRevocationOutcome
+}
+
+export interface AccountDeletionResult {
+  revokedProviderCount: number
+  manualAppleRevocationRequired: boolean
+}
+
+export type ProviderRevocationObserver = (
+  phase: 'started' | 'completed',
+  result: ProviderRevocationResult,
+) => void
+
 export class ProviderRevocationError extends Error {
   constructor(
     readonly providerId: string,
@@ -76,10 +93,10 @@ async function revokeAppleToken(
   throw new ProviderRevocationError('apple', 'Apple credential revocation failed', response.status)
 }
 
-async function revokeApple(account: ProviderAccount, env: ProviderEnv, fetcher: Fetcher): Promise<void> {
+async function revokeApple(account: ProviderAccount, env: ProviderEnv, fetcher: Fetcher): Promise<ProviderRevocationOutcome> {
   const hasWebCredential = !!(account.refreshToken || account.accessToken)
   const hasNativeCredential = !!(account.nativeRefreshToken || account.nativeAccessToken)
-  if (!hasWebCredential && !hasNativeCredential) requiredToken(account)
+  if (!hasWebCredential && !hasNativeCredential) return 'manual_action_required'
 
   if (hasWebCredential) {
     if (!env.APPLE_CLIENT_ID || !env.APPLE_CLIENT_SECRET) {
@@ -98,6 +115,7 @@ async function revokeApple(account: ProviderAccount, env: ProviderEnv, fetcher: 
       refreshToken: account.nativeRefreshToken,
     }, 'app.wingdex', env.APPLE_APP_CLIENT_SECRET, fetcher)
   }
+  return 'revoked'
 }
 
 async function revokeGoogle(account: ProviderAccount, env: ProviderEnv, fetcher: Fetcher): Promise<void> {
@@ -144,16 +162,18 @@ export async function revokeProviderAccount(
   account: ProviderAccount,
   env: ProviderEnv,
   fetcher: Fetcher = fetch,
-): Promise<void> {
+): Promise<ProviderRevocationResult> {
   switch (account.providerId) {
     case 'apple':
-      return revokeApple(account, env, fetcher)
+      return { providerId: 'apple', outcome: await revokeApple(account, env, fetcher) }
     case 'google':
-      return revokeGoogle(account, env, fetcher)
+      await revokeGoogle(account, env, fetcher)
+      return { providerId: 'google', outcome: 'revoked' }
     case 'github':
-      return revokeGitHub(account, env, fetcher)
+      await revokeGitHub(account, env, fetcher)
+      return { providerId: 'github', outcome: 'revoked' }
     case 'credential':
-      return
+      return { providerId: 'credential', outcome: 'skipped' }
     default:
       throw new ProviderRevocationError(account.providerId, `Unsupported linked provider: ${account.providerId}`)
   }
@@ -164,7 +184,8 @@ export async function revokeProvidersAndDeleteUser(
   userId: string,
   env: ProviderEnv,
   fetcher: Fetcher = fetch,
-): Promise<number> {
+  observer?: ProviderRevocationObserver,
+): Promise<AccountDeletionResult> {
   const accounts = await db
     .prepare(
       `SELECT account.providerId, account.accessToken, account.refreshToken,
@@ -178,12 +199,26 @@ export async function revokeProvidersAndDeleteUser(
     .bind(userId)
     .all<ProviderAccount>()
 
+  const outcomes: ProviderRevocationResult[] = []
   for (const account of accounts.results) {
-    await revokeProviderAccount(account, env, fetcher)
+    observer?.('started', { providerId: account.providerId, outcome: 'skipped' })
+    try {
+      const result = await revokeProviderAccount(account, env, fetcher)
+      outcomes.push(result)
+      observer?.('completed', result)
+    } catch (error) {
+      observer?.('completed', { providerId: account.providerId, outcome: 'failed' })
+      throw error
+    }
   }
 
   await db.prepare('DELETE FROM "user" WHERE id = ?').bind(userId).run()
-  return accounts.results.filter(account => account.providerId !== 'credential').length
+  return {
+    revokedProviderCount: outcomes.filter(result => result.outcome === 'revoked').length,
+    manualAppleRevocationRequired: outcomes.some(
+      result => result.providerId === 'apple' && result.outcome === 'manual_action_required',
+    ),
+  }
 }
 
 export interface AppleTokenResponse {

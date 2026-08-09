@@ -34,7 +34,7 @@ Location searches submitted for geocoding and rounded GPS coordinates are forwar
 
 - In-app account deletion removes the active account and associated sessions, passkeys, provider records, outings, observations, photos metadata, and dex metadata after provider revocation succeeds.
 - WingDex does not retain a geocoding-provider response cache.
-- Automatic Cloudflare trace spans are disabled. Structured request logs exclude raw coordinates, location queries, filenames, notes, and request bodies.
+- Automatic Cloudflare trace spans are disabled because outbound fetch spans can include the complete Geoapify URL and API key. Structured Request and Application logs retain W3C trace IDs while excluding raw coordinates, location queries, filenames, notes, and request bodies.
 - [ ] **Owner/legal:** Record concrete hosting-log, backup, and disaster-recovery retention periods.
 - [ ] **Owner/legal:** Confirm Cloudflare DPA acceptance and record acceptance of Geoapify's terms and privacy policy.
 

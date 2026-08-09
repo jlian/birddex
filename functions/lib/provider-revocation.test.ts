@@ -62,12 +62,12 @@ describe('provider revocation', () => {
       { providerId: 'google', accessToken: 'expired' },
       env,
       vi.fn(async () => new Response(null, { status: 400 })),
-    )).resolves.toBeUndefined()
+    )).resolves.toEqual({ providerId: 'google', outcome: 'revoked' })
     await expect(revokeProviderAccount(
       { providerId: 'github', accessToken: 'revoked' },
       env,
       vi.fn(async () => new Response(null, { status: 404 })),
-    )).resolves.toBeUndefined()
+    )).resolves.toEqual({ providerId: 'github', outcome: 'revoked' })
   })
 
   it('treats an already-revoked Apple grant as success so retries reach remaining grants', async () => {
@@ -76,7 +76,7 @@ describe('provider revocation', () => {
       providerId: 'apple',
       refreshToken: 'already-revoked-web',
       nativeRefreshToken: 'native-refresh',
-    }, env, fetcher)).resolves.toBeUndefined()
+    }, env, fetcher)).resolves.toEqual({ providerId: 'apple', outcome: 'revoked' })
 
     // The web token 400 (invalid_grant) must not short-circuit; the native grant is still revoked.
     expect(fetcher).toHaveBeenCalledTimes(2)
@@ -101,10 +101,11 @@ describe('provider revocation', () => {
     )).rejects.toMatchObject({ providerId: 'apple', status: 400 })
   })
 
-  it('blocks deletion when a linked provider has no revocable token', async () => {
-    await expect(revokeProviderAccount({ providerId: 'apple' }, env)).rejects.toEqual(
-      new ProviderRevocationError('apple', 'apple must be signed in again before account deletion'),
-    )
+  it('requires manual Apple settings cleanup when legacy credentials are unavailable', async () => {
+    await expect(revokeProviderAccount({ providerId: 'apple' }, env)).resolves.toEqual({
+      providerId: 'apple',
+      outcome: 'manual_action_required',
+    })
   })
 
   it('sends the GitHub revocation as JSON', async () => {
@@ -172,7 +173,33 @@ describe('provider revocation', () => {
       'user-1',
       env,
       vi.fn(async () => new Response(null, { status: 204 })),
-    )).resolves.toBe(1)
+    )).resolves.toEqual({
+      revokedProviderCount: 1,
+      manualAppleRevocationRequired: false,
+    })
+    expect(deleted).toBe(true)
+  })
+
+  it('deletes a legacy Apple user locally and reports manual revocation guidance', async () => {
+    const accounts: ProviderAccount[] = [{ providerId: 'apple' }]
+    let deleted = false
+    const db = {
+      prepare(sql: string) {
+        return {
+          bind() { return this },
+          async all() { return { results: accounts } },
+          async run() {
+            if (sql.startsWith('DELETE')) deleted = true
+            return { meta: { changes: 1 } }
+          },
+        }
+      },
+    } as unknown as D1Database
+
+    await expect(revokeProvidersAndDeleteUser(db, 'user-1', env)).resolves.toEqual({
+      revokedProviderCount: 0,
+      manualAppleRevocationRequired: true,
+    })
     expect(deleted).toBe(true)
   })
 })

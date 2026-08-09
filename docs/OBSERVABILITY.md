@@ -35,7 +35,7 @@ Standard 6-level hierarchy, controlled by `LOG_LEVEL` env var:
 |---|---|---|
 | `Trace` | Ultra-verbose operational diagnostics | Safe pipeline state and aggregate maps. Never credentials or user content. |
 | `Debug` | Sub-step diagnostic detail | Bird-id pipeline stages, batch counts, import parsing. Local dev. |
-| `Info` | Significant business events | Request completion (1 per request), audit events. **Production baseline.** |
+| `Info` | Significant business events | Request completion (1 per request), account lifecycle and other semantic events. **Production baseline.** |
 | `Warning` | Client errors, degraded paths | 4xx responses, validation failures. Emitted at `warn` level and above. |
 | `Error` | Server errors, exceptions | 5xx responses, unhandled exceptions. Emitted at `error` level and above. |
 | `Critical` | System-level failures | Reserved for data loss, security breach. Emitted at all levels. |
@@ -70,9 +70,9 @@ Pretty format example:
 ## Environment-specific configuration
 
 ### Production
-`GEOAPIFY_KEY` is required as a secret for geocoding. Logging defaults to `LOG_LEVEL=info`, JSON format. You see request completions (1 line each with durationMs + status + userId), audit events, and all warnings/errors.
+`GEOAPIFY_KEY` is required as a secret for geocoding. Logging defaults to `LOG_LEVEL=info`, JSON format. You see one terminal Request event per request (duration, status, user ID, and actionable result description), selected semantic Application events, and all warnings/errors.
 
-Cloudflare automatic trace capture is disabled in `wrangler.toml`. Outbound fetch spans can retain complete request URLs, including submitted geocoding queries or rounded coordinates. Request-scoped structured logs remain enabled and deliberately record only route names, statuses, durations, safe identifiers, counts, and enums.
+Cloudflare automatic trace capture is disabled in `wrangler.toml`. Outbound fetch spans can retain complete request URLs, including the Geoapify API key, submitted geocoding queries, or rounded coordinates. WingDex still propagates W3C trace IDs through its structured Request and Application events. Automatic invocation logs are also disabled so they do not duplicate the terminal Request event and consume a second logging event for every call.
 
 ### Preview / staging
 Same as production: `LOG_LEVEL=info`, JSON format. Preview deployments use the same log config so you can verify the production log experience before merging.
@@ -104,8 +104,8 @@ Logs must never include:
 - request/response bodies, provider payloads, database/provider exception messages, or stack traces
 - outbound geocoding URLs (which contain the provider key), raw place queries, or coordinates
 
-Geocoding logs only route-level completion status and result counts. WingDex does not cache provider responses or log upstream URLs and payloads.
-Automatic Worker invocation logs are disabled because request URLs can contain place queries or coordinates; structured application logs remain enabled.
+Geocoding logs only route-level completion status, safe provider failure class, and result counts. WingDex does not cache provider responses or log upstream URLs and payloads. Client-to-Worker geocoding uses POST JSON so place queries and coordinates are not present in the incoming URL.
+Automatic Worker invocation logs are disabled to avoid duplicating WingDex's single terminal Request event. Structured Application events are reserved for meaningful lifecycle milestones rather than routine HTTP completion.
 
 Geoapify Free currently allows 3,000 credits per day and 5 requests per second. A submitted place search costs one credit. A GPS suggestion costs one Places credit and, only when no named outdoor place is found, one reverse-geocoding credit. Monitor the Geoapify project dashboard and upgrade before normal daily usage approaches the quota; repeated quota pressure or abuse should trigger an authenticated per-user limit rather than global coordination infrastructure.
 
@@ -118,8 +118,8 @@ Query CF Workers Logs (or log analytics) by `userId` at Info level - it's a top-
 
 | Value | Meaning | Examples |
 |---|---|---|
-| `Audit` | Security/compliance-relevant changes. Info-level Audit events are the production baseline - always visible. | Passkey finalization, data clear |
-| `Application` | Normal application logic. | CRUD, bird ID, import/export, species lookup, health check |
+| `Audit` | Operations that specifically require a separate compliance/security record. | Data clear |
+| `Application` | Application logic and meaningful lifecycle milestones. | Account/provider lifecycle, passkey finalization, CRUD, bird ID, import/export |
 | `Request` | Middleware request lifecycle. | Completion log with durationMs, pre-auth rejections (405/413), unhandled 500s |
 
 ## operationName conventions
@@ -152,7 +152,7 @@ Verbs are specific to what the operation does: `read`, `write`, `delete`, `invok
 | api/data/dex.ts GET | `data/dex/read` | Application | |
 | api/data/dex.ts PATCH | `data/dex/write` | Application | |
 | api/data/clear.ts | `data/clear/delete` | Audit | Destructive |
-| api/auth/finalize-passkey.ts | `auth/finalizePasskey/invoke` | Audit | Security event |
+| api/auth/finalize-passkey.ts | `auth/finalizePasskey/invoke` | Application | Account lifecycle event |
 | api/auth/linked-providers.ts | `auth/linkedProviders/read` | Application | |
 | api/auth/mobile/start.ts | `auth/mobileOAuth/invoke` | Application | |
 | api/auth/mobile/callback.ts | `auth/mobileOAuth/invoke` | Application | |

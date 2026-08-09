@@ -4,22 +4,29 @@ export interface GeocodingResult {
   lon: number
   stateProvince?: string
   countryCode?: string
-  attribution: {
-    label: string
-    url: string
-  }
-  secondaryAttribution?: {
-    label: string
-    url: string
-  }
 }
 
-async function fetchGeocoding<T>(url: URL, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
-  if (!response.ok) {
-    throw new Error(`Geocoding request failed (HTTP ${response.status})`)
+async function fetchGeocoding<T>(path: string, body: object, signal?: AbortSignal): Promise<T> {
+  const timeoutController = new AbortController()
+  const timeout = window.setTimeout(() => timeoutController.abort(), 6_000)
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, timeoutController.signal])
+    : timeoutController.signal
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: combinedSignal,
+    })
+    if (!response.ok) {
+      throw new Error(`Geocoding request failed (HTTP ${response.status})`)
+    }
+    return response.json() as Promise<T>
+  } finally {
+    window.clearTimeout(timeout)
   }
-  return response.json() as Promise<T>
 }
 
 export async function reverseGeocode(
@@ -27,16 +34,19 @@ export async function reverseGeocode(
   longitude: number,
   signal?: AbortSignal,
 ): Promise<GeocodingResult | null> {
-  const url = new URL('/api/geocoding/reverse', window.location.origin)
-  url.searchParams.set('lat', String(latitude))
-  url.searchParams.set('lon', String(longitude))
-  const body = await fetchGeocoding<{ result: GeocodingResult | null }>(url, signal)
+  const body = await fetchGeocoding<{ result: GeocodingResult | null }>(
+    '/api/geocoding/reverse',
+    { lat: latitude, lon: longitude },
+    signal,
+  )
   return body.result
 }
 
 export async function searchPlaces(query: string, signal?: AbortSignal): Promise<GeocodingResult[]> {
-  const url = new URL('/api/geocoding/search', window.location.origin)
-  url.searchParams.set('q', query)
-  const body = await fetchGeocoding<{ results: GeocodingResult[] }>(url, signal)
+  const body = await fetchGeocoding<{ results: GeocodingResult[] }>(
+    '/api/geocoding/search',
+    { query },
+    signal,
+  )
   return body.results
 }

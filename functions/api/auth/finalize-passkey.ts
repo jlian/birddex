@@ -19,7 +19,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     identity: { authMethod: 'session' },
     resourceId: `/users/${session.user.id}`,
   }) : undefined
-  const route = createRouteResponder(enrichedLog, 'auth/finalizePasskey/invoke', 'Audit')
+  const route = createRouteResponder(enrichedLog, 'auth/finalizePasskey/invoke', 'Application')
 
   let body: { name?: string; passkeyId?: string }
   try {

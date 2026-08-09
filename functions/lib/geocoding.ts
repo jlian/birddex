@@ -1,13 +1,3 @@
-export const GEOAPIFY_ATTRIBUTION = {
-  label: 'Powered by Geoapify',
-  url: 'https://www.geoapify.com/',
-} as const
-
-export const OPENSTREETMAP_ATTRIBUTION = {
-  label: '© OpenStreetMap contributors',
-  url: 'https://www.openstreetmap.org/copyright',
-} as const
-
 export type CoordinateKind = 'latitude' | 'longitude'
 
 export interface GeoapifyResult {
@@ -42,8 +32,6 @@ export interface GeocodingResult {
   lon: number
   stateProvince?: string
   countryCode?: string
-  attribution: typeof GEOAPIFY_ATTRIBUTION
-  secondaryAttribution: typeof OPENSTREETMAP_ATTRIBUTION
 }
 
 const DECIMAL_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/
@@ -122,7 +110,5 @@ export function normalizeGeoapifyResult(result: GeoapifyResult): GeocodingResult
     lat,
     lon,
     ...extractRegionCodes(result),
-    attribution: GEOAPIFY_ATTRIBUTION,
-    secondaryAttribution: OPENSTREETMAP_ATTRIBUTION,
   }
 }

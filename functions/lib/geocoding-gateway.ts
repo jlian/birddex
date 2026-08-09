@@ -8,6 +8,7 @@ import {
 } from './geocoding'
 
 const GEOAPIFY_ORIGIN = 'https://api.geoapify.com'
+const GEOAPIFY_DEADLINE_MS = 5_000
 
 type Fetcher = typeof fetch
 
@@ -42,6 +43,7 @@ async function requestGeoapify(
   path: GeoapifyPath,
   params: Record<string, string>,
   fetcher: Fetcher,
+  signal: AbortSignal,
 ): Promise<unknown> {
   if (!apiKey?.trim()) throw new GeocodingConfigurationError()
 
@@ -54,8 +56,9 @@ async function requestGeoapify(
 
   let response: Response
   try {
-    response = await fetcher(url, { headers: { Accept: 'application/json' } })
+    response = await fetcher(url, { headers: { Accept: 'application/json' }, signal })
   } catch {
+    if (signal.aborted) throw new GeocodingUpstreamError(504, undefined, 0)
     throw new GeocodingUpstreamError(502, undefined, 0)
   }
 
@@ -102,25 +105,31 @@ export async function reverseGeocode(
   const longitude = parseCoordinate(rawLongitude, 'longitude')
   const lat = coordinateParam(latitude)
   const lon = coordinateParam(longitude)
-  const places = parsePlacesResponse(await requestGeoapify(apiKey, '/v2/places', {
-    categories: 'leisure.park,natural,national_park',
-    conditions: 'named',
-    filter: `circle:${lon},${lat},1000`,
-    bias: `proximity:${lon},${lat}`,
-    limit: '5',
-  }, fetcher))
-  const nearbyPlace = places.features
-    .map(feature => feature.properties ? normalizeGeoapifyResult(feature.properties) : null)
-    .find(result => result !== null)
-  if (nearbyPlace) return nearbyPlace
+  const controller = new AbortController()
+  const deadline = setTimeout(() => controller.abort(), GEOAPIFY_DEADLINE_MS)
+  try {
+    const places = parsePlacesResponse(await requestGeoapify(apiKey, '/v2/places', {
+      categories: 'leisure.park,natural,national_park',
+      conditions: 'named',
+      filter: `circle:${lon},${lat},1000`,
+      bias: `proximity:${lon},${lat}`,
+      limit: '5',
+    }, fetcher, controller.signal))
+    const nearbyPlace = places.features
+      .map(feature => feature.properties ? normalizeGeoapifyResult(feature.properties) : null)
+      .find(result => result !== null)
+    if (nearbyPlace) return nearbyPlace
 
-  const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/reverse', {
-    lat,
-    lon,
-    limit: '1',
-  }, fetcher))
+    const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/reverse', {
+      lat,
+      lon,
+      limit: '1',
+    }, fetcher, controller.signal))
 
-  return response.results.map(normalizeGeoapifyResult).find(result => result !== null) ?? null
+    return response.results.map(normalizeGeoapifyResult).find(result => result !== null) ?? null
+  } finally {
+    clearTimeout(deadline)
+  }
 }
 
 export async function searchPlaces(
@@ -133,13 +142,19 @@ export async function searchPlaces(
     throw new Error('Invalid search query')
   }
 
-  const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/search', {
-    text: query,
-    limit: '5',
-    bias: 'countrycode:none',
-  }, fetcher))
+  const controller = new AbortController()
+  const deadline = setTimeout(() => controller.abort(), GEOAPIFY_DEADLINE_MS)
+  try {
+    const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/search', {
+      text: query,
+      limit: '5',
+      bias: 'countrycode:none',
+    }, fetcher, controller.signal))
 
-  return response.results
-    .map(normalizeGeoapifyResult)
-    .filter((result): result is GeocodingResult => result !== null)
+    return response.results
+      .map(normalizeGeoapifyResult)
+      .filter((result): result is GeocodingResult => result !== null)
+  } finally {
+    clearTimeout(deadline)
+  }
 }

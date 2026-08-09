@@ -545,7 +545,7 @@ final class AddPhotosViewModel {
 
             let candidates = results.map {
                 IdentifiedCandidate(
-                    species: $0.commonName,
+                    species: "\($0.commonName) (\($0.scientificName))",
                     confidence: $0.confidence,
                     wikiTitle: nil,
                     plumage: nil,

@@ -12,6 +12,7 @@ struct DataManagementView: View {
     @State private var showingDeleteAccountStep2 = false
     @State private var isDeleting = false
     @State private var deleteError: AppError?
+    @State private var showingManualAppleRevocation = false
 
     var body: some View {
         Form {
@@ -99,13 +100,24 @@ struct DataManagementView: View {
         } message: {
             Text("This will permanently delete all your outings, observations, and WingDex entries. This cannot be undone.")
         }
+        .alert("One more Apple step", isPresented: $showingManualAppleRevocation) {
+            Button("OK") { auth.signOut() }
+        } message: {
+            Text("Your WingDex account was deleted. Remove WingDex from Sign in with Apple in your Apple Account settings to revoke the remaining Apple access.")
+        }
     }
 
     private func deleteAccount() async {
         isDeleting = true
         deleteError = nil
         do {
-            try await auth.deleteAccount()
+            let needsManualAppleRevocation = try await auth.deleteAccount()
+            isDeleting = false
+            if needsManualAppleRevocation {
+                showingManualAppleRevocation = true
+            } else {
+                auth.signOut()
+            }
         } catch {
             deleteError = AppError.map(error, fallback: "Could not delete your account. Try again.")
             isDeleting = false

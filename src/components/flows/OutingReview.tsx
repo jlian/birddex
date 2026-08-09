@@ -37,8 +37,6 @@ interface OutingReviewProps {
   ) => Promise<void>
 }
 
-type LocationAttributions = Pick<GeocodingResult, 'attribution' | 'secondaryAttribution'>
-
 export default function OutingReview({
   cluster,
   data,
@@ -56,10 +54,11 @@ export default function OutingReview({
   const preparedOutingRef = useRef<Outing | null>(null)
   const defaultLocationNameRef = useRef(defaultLocationName)
   const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
-  const [locationAttributions, setLocationAttributions] = useState<LocationAttributions | null>(null)
-  const [suggestedLocationAttributions, setSuggestedLocationAttributions] = useState<LocationAttributions | null>(null)
+  const [suggestedStateProvince, setSuggestedStateProvince] = useState<string | undefined>(undefined)
+  const [suggestedCountryCode, setSuggestedCountryCode] = useState<string | undefined>(undefined)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
+  const [locationLookupFailed, setLocationLookupFailed] = useState(false)
 
   // Compute observation-local ISO string for display and manual editing.
   // cluster.startTime is a UTC-correct Date (exifTime is offset-aware),
@@ -83,6 +82,7 @@ export default function OutingReview({
   const [overriddenCoords, setOverriddenCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [isEditingLocation, setIsEditingLocation] = useState(false)
   const [locationSearchQuery, setLocationSearchQuery] = useState('')
+  const [placeSearchFailed, setPlaceSearchFailed] = useState(false)
 
   // Effective coordinates (manual override or cluster GPS)
   const effectiveLat = overriddenCoords?.lat ?? cluster.centerLat
@@ -99,6 +99,7 @@ export default function OutingReview({
 
   const fetchLocationName = useCallback(async (lat: number, lon: number) => {
     setIsLoadingLocation(true)
+    setLocationLookupFailed(false)
     try {
       debug('geocoding', 'Starting reverse geocoding')
       const result = await reverseGeocode(lat, lon)
@@ -106,24 +107,23 @@ export default function OutingReview({
       
       debug('geocoding', 'Location identified')
       setSuggestedLocation(result.label)
-      const attributions = { attribution: result.attribution, secondaryAttribution: result.secondaryAttribution }
-      setSuggestedLocationAttributions(attributions)
       setLocationName(result.label)
-      setLocationAttributions(attributions)
+      setSuggestedStateProvince(result.stateProvince)
+      setSuggestedCountryCode(result.countryCode)
       setInferredStateProvince(result.stateProvince)
       setInferredCountryCode(result.countryCode)
     } catch (error) {
       debug('geocoding', 'Reverse geocoding failed')
-      toast.warning('Could not look up location name, using coordinates instead')
       // Fall back to default location or coordinate string
       const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
       debug('geocoding', 'Using location fallback')
       setSuggestedLocation(fallback)
-      setSuggestedLocationAttributions(null)
       setLocationName(fallback)
-      setLocationAttributions(null)
+      setSuggestedStateProvince(undefined)
+      setSuggestedCountryCode(undefined)
       setInferredStateProvince(undefined)
       setInferredCountryCode(undefined)
+      setLocationLookupFailed(true)
     } finally {
       setIsLoadingLocation(false)
     }
@@ -237,13 +237,14 @@ export default function OutingReview({
     const controller = new AbortController()
     searchAbortRef.current = controller
     setIsSearchingPlace(true)
+    setPlaceSearchFailed(false)
     try {
       const results = await searchPlaces(query, controller.signal)
       if (!controller.signal.aborted) setPlaceResults(results)
     } catch (error) {
       if (controller.signal.aborted) return
       debug('geocoding', 'Place search failed')
-      toast.error('Place search failed')
+      setPlaceSearchFailed(true)
     } finally {
       if (searchAbortRef.current === controller) {
         searchAbortRef.current = null
@@ -256,11 +257,9 @@ export default function OutingReview({
     cancelPlaceSearch()
     setOverriddenCoords({ lat: place.lat, lon: place.lon })
     setLocationName(place.label)
-    const attributions = { attribution: place.attribution, secondaryAttribution: place.secondaryAttribution }
-    setLocationAttributions(attributions)
-    setSuggestedLocationAttributions(attributions)
     setInferredStateProvince(place.stateProvince)
     setInferredCountryCode(place.countryCode)
+    setPlaceSearchFailed(false)
     setPlaceResults([])
     setIsEditingLocation(false)
     setLocationSearchQuery('')
@@ -271,13 +270,13 @@ export default function OutingReview({
     if (!name) return
     cancelPlaceSearch()
     setLocationName(name)
-    setLocationAttributions(null)
     setOverriddenCoords(null)
     setInferredStateProvince(undefined)
     setInferredCountryCode(undefined)
     setIsEditingLocation(false)
     setLocationSearchQuery('')
     setPlaceResults([])
+    setPlaceSearchFailed(false)
   }
 
 
@@ -400,6 +399,7 @@ export default function OutingReview({
                     value={locationSearchQuery}
                     onChange={e => {
                       cancelPlaceSearch()
+                      setPlaceSearchFailed(false)
                       setLocationSearchQuery(e.target.value)
                       setPlaceResults([])
                     }}
@@ -443,6 +443,18 @@ export default function OutingReview({
                     ))}
                   </div>
                 )}
+                {placeSearchFailed && (
+                  <p className="text-xs text-destructive">
+                    Search failed.{' '}
+                    <button
+                      type="button"
+                      className="font-medium underline underline-offset-2"
+                      onClick={() => void searchPlace(locationSearchQuery)}
+                    >
+                      Retry
+                    </button>
+                  </p>
+                )}
                 {suggestedLocation && locationSearchQuery && suggestedLocation !== locationName && (
                   <button
                     type="button"
@@ -450,10 +462,9 @@ export default function OutingReview({
                     onClick={() => {
                       cancelPlaceSearch()
                       setLocationName(suggestedLocation)
-                      setLocationAttributions(suggestedLocationAttributions)
                       setOverriddenCoords(null)
-                      setInferredStateProvince(undefined)
-                      setInferredCountryCode(undefined)
+                      setInferredStateProvince(suggestedStateProvince)
+                      setInferredCountryCode(suggestedCountryCode)
                       setIsEditingLocation(false)
                       setLocationSearchQuery('')
                       setPlaceResults([])
@@ -487,29 +498,30 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
-            {(() => {
-              const visible = placeResults[0]
-                ? { attribution: placeResults[0].attribution, secondaryAttribution: placeResults[0].secondaryAttribution }
-                : locationAttributions
-              if (!visible) return null
-              return (
-                <p className="text-xs text-muted-foreground">
-                  <a href={visible.attribution.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                    {visible.attribution.label}
-                  </a>
-                  {visible.secondaryAttribution && (
-                    <>
-                      {' · '}
-                      <a href={visible.secondaryAttribution.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                        {visible.secondaryAttribution.label}
-                      </a>
-                    </>
-                  )}
-                </p>
-              )
-            })()}
+            {locationLookupFailed && hasGps && (
+              <p className="text-xs text-destructive">
+                Location lookup failed.{' '}
+                <button
+                  type="button"
+                  className="font-medium underline underline-offset-2"
+                  onClick={() => void fetchLocationName(roundedLat!, roundedLon!)}
+                >
+                  Retry
+                </button>
+              </p>
+            )}
           </div>
           )}
+
+          <p className="text-xs text-muted-foreground">
+            <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              Powered by Geoapify
+            </a>
+            {' · '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              © OpenStreetMap contributors
+            </a>
+          </p>
 
           <div className="space-y-2">
             <Label>Photos ({cluster.photos.length})</Label>

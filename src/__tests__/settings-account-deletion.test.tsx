@@ -100,4 +100,42 @@ describe('SettingsPage account deletion', () => {
     expect(data.clearAllData).not.toHaveBeenCalled()
     expect(onSignedOut).not.toHaveBeenCalled()
   })
+
+  it('refreshes the auth session before clearing data after successful deletion', async () => {
+    const data = createDataStore()
+    const onSignedOut = vi.fn()
+    const onProfileUpdated = vi.fn(async () => undefined)
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      success: true,
+      manualAppleRevocationRequired: true,
+    })))
+
+    render(
+      <SettingsPage
+        data={data}
+        user={{
+          id: 'user-1',
+          name: 'Test Birder',
+          image: '',
+          email: 'birder@example.com',
+          isAnonymous: false,
+        }}
+        onSignedOut={onSignedOut}
+        onProfileUpdated={onProfileUpdated}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Data...' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Account & All Data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete my account forever' }))
+
+    await waitFor(() => expect(onSignedOut).toHaveBeenCalledOnce())
+    expect(onProfileUpdated).toHaveBeenCalledOnce()
+    expect(onProfileUpdated.mock.invocationCallOrder[0]).toBeLessThan(
+      (data.clearAllData as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+    )
+    expect(toast.success).toHaveBeenCalledWith(
+      'Account deleted. Remove WingDex from Sign in with Apple in your Apple Account settings.',
+    )
+  })
 })
