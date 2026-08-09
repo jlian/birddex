@@ -171,6 +171,46 @@ jobs:
         working-directory: ios
         run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Production -onlyUsePackageVersionsFromResolvedFile
 
+      # The preflight tests must never touch the production backend. The old step
+      # ran the Production scheme (Production Debug config, API_BASE_URL=https://wingdex.app).
+      # Because that is a debug build, the app's #if DEBUG launch hooks compile in, so
+      # the UI tests' --auto-sign-in and --auto-demo-data created real anonymous accounts
+      # and wrote demo rows into the live database. Switching to the Dev scheme was
+      # rejected: dev and prod APIs drift, so dev does not validate the released code.
+      # Instead, stand up a throwaway local Worker (mirroring ios.yml) and point the app
+      # at it. Release build and signing validation still happens in the Archive step,
+      # which builds the Production/Release configuration.
+      - name: Write .dev.vars for local Worker
+        if: steps.version.outputs.has_release == 'true'
+        run: |
+          umask 077
+          printf 'BETTER_AUTH_SECRET=%s\nGEOAPIFY_KEY=%s\n' \
+            "$BETTER_AUTH_SECRET" "$GEOAPIFY_KEY" > .dev.vars
+        env:
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          GEOAPIFY_KEY: ${{ secrets.GEOAPIFY_KEY }}
+
+      - name: Build web app
+        if: steps.version.outputs.has_release == 'true'
+        run: npm run build
+
+      - name: Apply local D1 migrations
+        if: steps.version.outputs.has_release == 'true'
+        run: npm run db:migrate
+
+      - name: Start local Worker
+        if: steps.version.outputs.has_release == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm run dev &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5000/api/health > /dev/null 2>&1 && break || sleep 1
+          done
+          curl -sf http://localhost:5000/api/health > /dev/null 2>&1 || (echo "Server failed to start within 30s"; exit 1)
+          echo "Server ready on :5000"
+
       - name: Run iOS tests
         if: steps.version.outputs.has_release == 'true'
         working-directory: ios
@@ -178,12 +218,13 @@ jobs:
           set -o pipefail
           xcodebuild \
             -project WingDex.xcodeproj \
-            -scheme Production \
+            -scheme Localhost \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             test \
             CODE_SIGNING_ALLOWED=NO \
+            API_BASE_URL=http://localhost:5000 \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) CI' \
             -onlyUsePackageVersionsFromResolvedFile \
-            -skip-testing:WingDexTests/AuthIntegrationTests \
             | tail -60
 
       - name: Write App Store Connect API key
