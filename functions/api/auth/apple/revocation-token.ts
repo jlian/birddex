@@ -32,13 +32,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   })
   route = createRouteResponder(log, 'auth/appleRevocationToken/write', 'Application')
 
-  let body: { authorizationCode?: unknown }
+  let body: { authorizationCode?: unknown } | null
   try {
     body = await context.request.json()
   } catch {
     return route.fail(400, 'Invalid JSON body', 'Apple credential capture could not parse the request; retry native sign-in')
   }
-  if (typeof body.authorizationCode !== 'string' || body.authorizationCode.length < 8 || body.authorizationCode.length > 4096) {
+  if (typeof body?.authorizationCode !== 'string' || body.authorizationCode.length < 8 || body.authorizationCode.length > 4096) {
     return route.fail(400, 'Invalid Apple authorization code', 'Native sign-in did not provide a valid one-time code; restart Sign in with Apple')
   }
   if (!context.env.APPLE_APP_CLIENT_SECRET) {
