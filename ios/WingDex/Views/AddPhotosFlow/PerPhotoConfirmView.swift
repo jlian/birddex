@@ -181,18 +181,20 @@ struct PerPhotoConfirmView: View {
                         VStack(spacing: 6) {
                             wikiSquareThumbnail(size: photoSize)
                             let credit = currentRefCredit
-                            if let url = credit.url {
-                                Link(destination: url) {
-                                    Text(credit.text)
-                                        .font(.caption)
-                                        .underline()
-                                        .multilineTextAlignment(.center)
+                            Text(credit.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let text = credit.credit {
+                                Group {
+                                    if let url = credit.url {
+                                        Link(text, destination: url).underline()
+                                    } else {
+                                        Text(text)
+                                    }
                                 }
-                            } else {
-                                Text(credit.text)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
+                                .font(.caption2)
+                                .foregroundStyle(Color.mutedText)
+                                .multilineTextAlignment(.center)
                             }
                         }
                         .frame(width: photoSize)
@@ -279,18 +281,15 @@ struct PerPhotoConfirmView: View {
 
     private var allWikiURLs: [URL] { galleryItems.map(\.url) }
 
-    /// Caption for the current gallery image. Most Commons photos are CC BY or
-    /// CC BY-SA, so the creator has to be named alongside the license.
-    private var currentRefCredit: (text: String, url: URL?) {
+    /// Caption for the current gallery image. The plumage label says what the photo
+    /// shows; the credit is what its license requires, so they stay on separate lines.
+    private var currentRefCredit: (label: String, credit: String?, url: URL?) {
         let items = galleryItems
-        guard !items.isEmpty else { return ("Reference", nil) }
+        guard !items.isEmpty else { return ("Reference", nil, nil) }
         let item = items[min(max(galleryIndex, 0), items.count - 1)]
-        var text = item.plumage.map { "Reference (\($0))" } ?? "Reference"
-        if let artist = item.artist, !artist.isEmpty {
-            text += " by \(artist)"
-            if let license = item.license, !license.isEmpty { text += " (\(license))" }
-        }
-        return (text, item.descriptionUrl)
+        let label = item.plumage.map { "Reference (\($0))" } ?? "Reference"
+        let credit = [item.artist, item.license].compactMap { $0 }.joined(separator: " / ")
+        return (label, credit.isEmpty ? nil : credit, item.descriptionUrl)
     }
 
     private func wikiSquareThumbnail(size: CGFloat) -> some View {
