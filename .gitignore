@@ -77,6 +77,18 @@ ml/truth-tiny39.json
 ml/distill/onnx_tiny39/
 ml/parity/*.bin
 ml/parity/*.json
+# ...except the small committed subset. The full set is 90 MB of NABirds-derived
+# fixtures that lives on the training box, but CLIPPreprocessParityTests skipped on
+# every CI run without it, so the preprocessing parity it asserts was never checked.
+# Two photos are enough: every test iterates meta.photos. Regenerate the full set
+# with ml/distill/jobs/dump_preproc_ref.py then ml/parity/jobs/dump_js.ts.
+!ml/parity/meta.json
+!ml/parity/src_000.u8.bin
+!ml/parity/ref_000.f32.bin
+!ml/parity/js_000.f32.bin
+!ml/parity/src_001.u8.bin
+!ml/parity/ref_001.f32.bin
+!ml/parity/js_001.f32.bin
 
 # Core ML scratch: the venv, the converted packages and generated audit output.
 # The scripts themselves are tracked, the artifacts are regenerable.
@@ -86,9 +98,9 @@ ml/coreml/*.log
 ml/coreml/*.json
 ml/coreml/__pycache__/
 
-# 23 MiB decompressed occurrence prior, generated for the Swift parity tests by
-# `UPDATE_GOLDEN=1 npx vitest run birdid-golden`. The .gz under public/priors is
-# the source of truth; the golden JSON beside it IS committed.
+# Stale: BirdIDParityTests now inflates public/priors/occurrence.*.bin.gz directly
+# rather than requiring a hand-generated copy here, so nothing writes this path any
+# more. Kept so an existing 23 MiB local copy does not get committed by accident.
 ios/WingDexTests/Fixtures/occurrence.bin
 
 # Derived from public/ by ios/scripts/sync-birdid-assets.sh. The .mlpackage in
