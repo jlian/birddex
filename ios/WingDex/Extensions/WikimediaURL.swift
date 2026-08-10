@@ -26,3 +26,29 @@ func heroImageUrl(fromThumbnail thumbnailUrl: String?) -> String? {
     }
     return thumbnailUrl.replacingCharacters(in: width, with: "\(heroThumbnailStep)px-")
 }
+
+/// Derive the file page URL from any upload.wikimedia.org image URL.
+///
+/// The file name is the segment before the rendered width for thumbnails
+/// (`.../thumb/a/ab/Foo.jpg/330px-Foo.jpg`) and the last segment for originals
+/// (`.../a/ab/Foo.jpg`). Most Commons photos are CC BY or CC BY-SA, and the file page
+/// is where their credit and license notice live.
+///
+/// A few files are hosted on English Wikipedia rather than Commons, so the host comes
+/// from the URL rather than being assumed.
+func wikimediaFilePageUrl(fromImage imageUrl: String?) -> String? {
+    guard let imageUrl else { return nil }
+    let segments = imageUrl.split(separator: "/").map(String.init)
+    let name = imageUrl.contains("/thumb/") ? segments.dropLast().last : segments.last
+    guard let name, name.contains(".") else { return nil }
+
+    let host: String
+    if imageUrl.contains("/wikipedia/commons/") {
+        host = "https://commons.wikimedia.org"
+    } else if imageUrl.contains("/wikipedia/en/") {
+        host = "https://en.wikipedia.org"
+    } else {
+        return nil
+    }
+    return "\(host)/wiki/File:\(name)"
+}

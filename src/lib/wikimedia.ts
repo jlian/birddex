@@ -142,6 +142,73 @@ export function getHeroImageUrl(thumbnailUrl: string | undefined): string | unde
   return thumbnailUrl.slice(0, slash + 1) + filename.replace(/\d+px-/, `${HERO_THUMBNAIL_STEP}px-`)
 }
 
+/**
+ * Derive the file page URL from any upload.wikimedia.org image URL.
+ *
+ * The file name is the segment before the rendered width for thumbnails
+ * (`.../thumb/a/ab/Foo.jpg/330px-Foo.jpg`) and the last segment for originals
+ * (`.../a/ab/Foo.jpg`). Most Commons photos are CC BY or CC BY-SA, and the file
+ * page is where their credit and license notice live.
+ *
+ * A few files are hosted on English Wikipedia rather than Commons, so the host
+ * comes from the URL rather than being assumed.
+ */
+export function getFilePageUrl(imageUrl: string | undefined): string | undefined {
+  if (!imageUrl) return undefined
+  const segments = imageUrl.split('/').filter(Boolean)
+  const name = imageUrl.includes('/thumb/') ? segments.at(-2) : segments.at(-1)
+  if (!name || !name.includes('.')) return undefined
+  const host = imageUrl.includes('/wikipedia/commons/')
+    ? 'https://commons.wikimedia.org'
+    : imageUrl.includes('/wikipedia/en/')
+      ? 'https://en.wikipedia.org'
+      : undefined
+  return host ? `${host}/wiki/File:${name}` : undefined
+}
+
+export type ImageCredit = { artist?: string; license?: string; pageUrl: string }
+
+const creditCache = new Map<string, ImageCredit>()
+
+/**
+ * Fetch the creator and license for a displayed image, keyed by its file page.
+ * Cheap enough to call per species view: one request, cached for the session.
+ */
+export async function fetchImageCredit(imageUrl: string | undefined): Promise<ImageCredit | undefined> {
+  const pageUrl = getFilePageUrl(imageUrl)
+  if (!pageUrl) return undefined
+  const cached = creditCache.get(pageUrl)
+  if (cached) return cached
+
+  const [origin, file] = pageUrl.split('/wiki/')
+  try {
+    const res = await fetch(
+      // `file` came out of a URL path, so it is already percent-encoded. Encoding it
+      // again turns %28 into %2528 and the API rejects the title.
+      `${origin}/w/api.php?action=query&titles=${file}` +
+        '&prop=imageinfo&iiprop=extmetadata&format=json&origin=*',
+      { headers: { 'Api-User-Agent': WIKIMEDIA_USER_AGENT } },
+    )
+    if (!res.ok) return undefined
+    const data = (await res.json()) as {
+      query?: { pages?: Record<string, { imageinfo?: Array<{ extmetadata?: {
+        Artist?: { value?: string }
+        LicenseShortName?: { value?: string }
+      } }> }> }
+    }
+    const meta = Object.values(data.query?.pages ?? {})[0]?.imageinfo?.[0]?.extmetadata
+    const credit: ImageCredit = {
+      pageUrl,
+      artist: stripHtml(meta?.Artist?.value) || undefined,
+      license: stripHtml(meta?.LicenseShortName?.value) || undefined,
+    }
+    creditCache.set(pageUrl, credit)
+    return credit
+  } catch {
+    return undefined
+  }
+}
+
 /** Extract the common name from a species string like "Northern Cardinal (Cardinalis cardinalis)" */
 function getCommonName(speciesName: string): string {
   return getDisplayName(speciesName)
