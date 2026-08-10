@@ -100,7 +100,7 @@ final class BirdIDParityTests: XCTestCase {
                 return .failure(ParityFixtureError.ambiguousPrior)
             }
             let gz = priorsDir.appendingPathComponent(names[0])
-            return .success([UInt8](try gunzip(Data(contentsOf: gz))))
+            return .success(try gunzip(Data(contentsOf: gz)))
         } catch {
             return .failure(error)
         }
@@ -251,55 +251,64 @@ extension BirdIDParityTests {
     /// stepped over first and the 8 byte CRC/size trailer dropped. The header is 10
     /// bytes plus whatever optional FEXTRA/FNAME/FCOMMENT/FHCRC fields FLG marks as
     /// present, which is why this cannot just skip a fixed offset.
-    static func gunzip(_ data: Data) throws -> Data {
-        let bytes = [UInt8](data)
-        guard bytes.count > 18, bytes[0] == 0x1f, bytes[1] == 0x8b, bytes[2] == 8 else {
-            throw ParityFixtureError.gunzipFailed("not a gzip DEFLATE stream")
-        }
-        let flg = bytes[3]
-        var i = 10
-        if flg & 0x04 != 0 {
-            guard i + 1 < bytes.count else {
-                throw ParityFixtureError.gunzipFailed("truncated FEXTRA")
+    static func gunzip(_ data: Data) throws -> [UInt8] {
+        // One pass over the original Data. An earlier version went Data -> [UInt8]
+        // -> slice -> [UInt8] -> Data and back, copying 23 MiB several times.
+        try data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> [UInt8] in
+            let bytes = buf.bindMemory(to: UInt8.self)
+            guard bytes.count > 18, bytes[0] == 0x1f, bytes[1] == 0x8b, bytes[2] == 8 else {
+                throw ParityFixtureError.gunzipFailed("not a gzip DEFLATE stream")
             }
-            i += 2 + Int(bytes[i]) | Int(bytes[i + 1]) << 8
-        }
-        if flg & 0x08 != 0 {
-            while i < bytes.count, bytes[i] != 0 { i += 1 }
-            i += 1
-        }
-        if flg & 0x10 != 0 {
-            while i < bytes.count, bytes[i] != 0 { i += 1 }
-            i += 1
-        }
-        if flg & 0x02 != 0 { i += 2 }
-        guard i < bytes.count - 8 else {
-            throw ParityFixtureError.gunzipFailed("truncated after header")
-        }
+            let flg = bytes[3]
+            var i = 10
+            if flg & 0x04 != 0 {
+                guard i + 1 < bytes.count else {
+                    throw ParityFixtureError.gunzipFailed("truncated FEXTRA")
+                }
+                // Parenthesised deliberately: + binds tighter than | in Swift, so
+                // `2 + Int(lo) | Int(hi) << 8` reads as `(2 + lo) | (hi << 8)`, a
+                // different number whenever lo carries into the high byte.
+                let xlen = Int(bytes[i]) | (Int(bytes[i + 1]) << 8)
+                i += 2 + xlen
+            }
+            if flg & 0x08 != 0 {
+                while i < bytes.count, bytes[i] != 0 { i += 1 }
+                i += 1
+            }
+            if flg & 0x10 != 0 {
+                while i < bytes.count, bytes[i] != 0 { i += 1 }
+                i += 1
+            }
+            if flg & 0x02 != 0 { i += 2 }
+            guard i < bytes.count - 8 else {
+                throw ParityFixtureError.gunzipFailed("truncated after header")
+            }
 
-        // ISIZE, the trailing little-endian uncompressed length, sizes the buffer
-        // exactly. The blob is ~23 MiB, so guessing would either overallocate badly
-        // or force a retry loop.
-        let n = bytes.count
-        let isize = Int(bytes[n - 4]) | Int(bytes[n - 3]) << 8
-            | Int(bytes[n - 2]) << 16 | Int(bytes[n - 1]) << 24
-        guard isize > 0 else {
-            throw ParityFixtureError.gunzipFailed("zero ISIZE")
-        }
+            // ISIZE, the trailing little-endian uncompressed length, sizes the output
+            // exactly. It is attacker-adjacent only in the sense that a corrupt file
+            // could ask for gigabytes, so it is capped rather than trusted.
+            let n = bytes.count
+            let isize = Int(bytes[n - 4]) | (Int(bytes[n - 3]) << 8)
+                | (Int(bytes[n - 2]) << 16) | (Int(bytes[n - 1]) << 24)
+            let maxISize = 256 << 20
+            guard isize > 0, isize <= maxISize else {
+                throw ParityFixtureError.gunzipFailed(
+                    "ISIZE \(isize) is outside 1...\(maxISize)")
+            }
 
-        let deflate = [UInt8](bytes[i..<(n - 8)])
-        var out = [UInt8](repeating: 0, count: isize)
-        let written = deflate.withUnsafeBufferPointer { src in
-            out.withUnsafeMutableBufferPointer { dst in
+            var out = [UInt8](repeating: 0, count: isize)
+            let deflateStart = bytes.baseAddress! + i
+            let deflateCount = n - 8 - i
+            let written = out.withUnsafeMutableBufferPointer { dst in
                 compression_decode_buffer(dst.baseAddress!, isize,
-                                          src.baseAddress!, deflate.count,
+                                          deflateStart, deflateCount,
                                           nil, COMPRESSION_ZLIB)
             }
+            guard written == isize else {
+                throw ParityFixtureError.gunzipFailed(
+                    "inflated \(written) bytes, ISIZE says \(isize)")
+            }
+            return out
         }
-        guard written == isize else {
-            throw ParityFixtureError.gunzipFailed(
-                "inflated \(written) bytes, ISIZE says \(isize)")
-        }
-        return Data(out)
     }
 }
