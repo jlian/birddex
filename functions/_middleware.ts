@@ -177,9 +177,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // Suppress completion log for /api/health (internal infra polling, not user-triggered)
       if (pathname !== '/api/health') {
         context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, takeOutcomeMetadata(response)))
-      } else if (!response.ok) {
-        // Always log health failures
-        context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, takeOutcomeMetadata(response)))
+      } else {
+        const outcome = takeOutcomeMetadata(response)
+        if (!response.ok) {
+          // Always log health failures
+          context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, outcome))
+        }
       }
       return response
     } catch (err) {

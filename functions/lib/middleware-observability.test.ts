@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { extractEntitySegment, resolveOperation } from '../_middleware'
+import { extractEntitySegment, onRequest, resolveOperation } from '../_middleware'
+import { RESULT_DESCRIPTION_HEADER, RESULT_TYPE_HEADER } from './log'
 
 describe('middleware observability metadata', () => {
   it('uses stable route templates for dynamic outing paths', () => {
@@ -38,5 +39,23 @@ describe('middleware observability metadata', () => {
     expect(extractEntitySegment('/api/data/outings/private-user-content')).toBeNull()
     expect(extractEntitySegment('/api/data/outings/outing_123e4567-e89b-42d3-a456-426614174000'))
       .toBe('outings/outing_123e4567-e89b-42d3-a456-426614174000')
+  })
+
+  it('does not expose outcome metadata on a healthy health response', async () => {
+    const response = await onRequest({
+      request: new Request('https://example.com/api/health'),
+      env: {},
+      data: {},
+      next: async () => new Response(null, {
+        headers: {
+          [RESULT_DESCRIPTION_HEADER]: 'D1 health check succeeded',
+          [RESULT_TYPE_HEADER]: 'Succeeded',
+        },
+      }),
+      waitUntil: () => {},
+    } as unknown as EventContext<Env, string, Record<string, unknown>>)
+
+    expect(response.headers.has(RESULT_DESCRIPTION_HEADER)).toBe(false)
+    expect(response.headers.has(RESULT_TYPE_HEADER)).toBe(false)
   })
 })
