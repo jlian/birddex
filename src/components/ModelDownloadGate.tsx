@@ -24,6 +24,7 @@ import {
   preloadModel,
 } from '@/lib/bird-id-local-adapter'
 import type { AssetProgress } from '@/lib/model-cache'
+import { logClientFailure } from '@/lib/client-log'
 
 const MB = 1_000_000
 
@@ -83,6 +84,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
       // a retry re-fetches only the one that was interrupted plus the rest.
       // There are no range requests, so the interrupted asset restarts.
       if (!mounted.current) return
+      logClientFailure('birdId/model/download', e)
       setError(e instanceof Error ? e.message : String(e))
       setDownloading(false)
     }

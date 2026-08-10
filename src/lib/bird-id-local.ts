@@ -121,8 +121,9 @@ export class BirdIdEngine {
                       " species but taxonomy has " + a.taxonomy.length)
     }
 
-    // gzip is decoded by DecompressionStream, present in all target browsers.
-    const raw = await gunzip(new Uint8Array(occBuf))
+    // Servers disagree about whether a .gz asset is a gzip body or a gzip-encoded
+    // one, so the bytes arrive raw or already decoded depending on the host.
+    const raw = await gunzipIfNeeded(new Uint8Array(occBuf))
     this.occ = parseOccurrence(raw, a.taxonomySha16)
   }
 
@@ -225,9 +226,21 @@ function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
   return out
 }
 
-async function gunzip(buf: Uint8Array): Promise<Uint8Array> {
+/**
+ * Decompress the occurrence blob, unless the transport already did it.
+ *
+ * Cloudflare serves the .gz asset as an opaque body, so the raw gzip arrives and
+ * has to be decoded here. `wrangler dev` instead labels it `Content-Encoding: gzip`
+ * off the file extension, so the browser decodes it in transit and this receives
+ * the 24 MiB payload rather than the 16 MiB file. The gzip magic says which
+ * happened, and it cannot collide: a decoded blob starts with "WDOP".
+ */
+export async function gunzipIfNeeded(buf: Uint8Array): Promise<Uint8Array> {
+  if (buf[0] !== 0x1f || buf[1] !== 0x8b) return buf
   const ds = new DecompressionStream("gzip")
-  const stream = new Blob([buf as BlobPart]).stream().pipeThrough(ds)
-  const out = await new Response(stream).arrayBuffer()
+  const writer = ds.writable.getWriter()
+  void writer.write(buf)
+  void writer.close()
+  const out = await new Response(ds.readable).arrayBuffer()
   return new Uint8Array(out)
 }
