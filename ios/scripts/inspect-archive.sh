@@ -4,6 +4,8 @@ set -euo pipefail
 ARCHIVE_PATH="${1:-build/WingDex.xcarchive}"
 EVIDENCE_DIR="${2:-build/archive-inspection}"
 REQUIRE_SIGNED="${REQUIRE_SIGNED:-0}"
+# Tagged rebuilds run this script against sources that predate the privacy manifest.
+REQUIRE_PRIVACY_MANIFEST="${REQUIRE_PRIVACY_MANIFEST:-1}"
 
 APP_PATH="${ARCHIVE_PATH}/Products/Applications/WingDex.app"
 EXTENSION_PATH="${APP_PATH}/PlugIns/WingDexShareExtension.appex"
@@ -101,7 +103,8 @@ check_entitlements() {
 
 printf 'WingDex archive inspection\n'
 printf 'Archive: %s\n' "${ARCHIVE_PATH}"
-printf 'Require signed: %s\n\n' "${REQUIRE_SIGNED}"
+printf 'Require signed: %s\n' "${REQUIRE_SIGNED}"
+printf 'Require privacy manifest: %s\n\n' "${REQUIRE_PRIVACY_MANIFEST}"
 
 require_dir "${ARCHIVE_PATH}" "Archive exists"
 require_file "${ARCHIVE_PATH}/Info.plist" "Archive metadata plist is present"
@@ -110,7 +113,9 @@ require_dir "${EXTENSION_PATH}" "Share extension is embedded"
 
 require_file "${APP_PATH}/Info.plist" "App Info.plist is present"
 require_file "${EXTENSION_PATH}/Info.plist" "Share extension Info.plist is present"
-require_file "${APP_PATH}/PrivacyInfo.xcprivacy" "Privacy manifest is embedded"
+if [[ "${REQUIRE_PRIVACY_MANIFEST}" == "1" ]]; then
+  require_file "${APP_PATH}/PrivacyInfo.xcprivacy" "Privacy manifest is embedded"
+fi
 if [[ -f "${APP_PATH}/PrivacyInfo.xcprivacy" ]]; then
   if plutil -lint "${APP_PATH}/PrivacyInfo.xcprivacy"; then
     pass "Privacy manifest is valid"
