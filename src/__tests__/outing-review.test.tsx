@@ -90,15 +90,12 @@ describe('OutingReview', () => {
       status: 200,
       json: async () => ({
         result: {
-          label: 'Discovery Park, Seattle, Washington',
+          label: 'Discovery Park, Seattle',
+          context: 'Washington',
           lat: 47.6573,
           lon: -122.4055,
           stateProvince: 'US-WA',
           countryCode: 'US',
-          attribution: {
-            label: 'Location data © OpenStreetMap contributors',
-            url: 'https://www.openstreetmap.org/copyright',
-          },
         },
       }),
     })
@@ -128,7 +125,7 @@ describe('OutingReview', () => {
       />,
     )
 
-    await screen.findByText('Discovery Park, Seattle, Washington')
+    await screen.findByText('Discovery Park, Seattle')
     expect(fetchMock).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
@@ -139,7 +136,7 @@ describe('OutingReview', () => {
         cluster={cluster}
         data={data}
         userId="user-1"
-        defaultLocationName="Discovery Park, Seattle, Washington"
+        defaultLocationName="Discovery Park, Seattle"
         autoLookupGps
         onConfirm={onConfirm}
       />,

@@ -28,6 +28,7 @@ import { onRequestPatch as patchDex } from '../api/data/dex'
 import { onRequestPost as createObservations, onRequestPatch as patchObservations } from '../api/data/observations'
 import { onRequestDelete as deleteOuting } from '../api/data/outings/[id]'
 import { onRequestPost as reverseGeocode } from '../api/geocoding/reverse'
+import { onRequestPost as searchGeocoding } from '../api/geocoding/search'
 import { onRequestPost as confirmEBirdImport } from '../api/import/ebird-csv/confirm'
 
 type CapturedEvent = { operationName: string; fields?: LogFields }
@@ -464,5 +465,24 @@ describe('non-auth durable observability', () => {
     expect(fallbackResponse.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Reverse geocoding fallback network request failed; retry reverse geocoding')
     expect(fallback.events).toHaveLength(1)
     expect(JSON.stringify(fallback.events)).not.toContain('private provider error')
+  })
+
+  it('rejects a null JSON body on the geocoding routes without a 500', async () => {
+    const { log } = createEventLogger()
+    vi.stubGlobal('fetch', vi.fn())
+
+    const reverseResponse = await reverseGeocode(routeContext(
+      jsonRequest(null),
+      {} as D1Database,
+      log,
+    ) as never)
+    expect(reverseResponse.status).toBe(400)
+
+    const searchResponse = await searchGeocoding(routeContext(
+      jsonRequest(null),
+      {} as D1Database,
+      log,
+    ) as never)
+    expect(searchResponse.status).toBe(400)
   })
 })
