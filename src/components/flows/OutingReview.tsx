@@ -439,6 +439,9 @@ export default function OutingReview({
                         onClick={() => selectPlace(place)}
                       >
                         {place.label}
+                        {place.context && (
+                          <span className="block text-muted-foreground">{place.context}</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -514,13 +517,19 @@ export default function OutingReview({
           )}
 
           <p className="text-xs text-muted-foreground">
+            Location data from{' '}
             <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              Powered by Geoapify
+              Geoapify
             </a>
-            {' · '}
+            {', '}
             <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              © OpenStreetMap contributors
+              OpenStreetMap
             </a>
+            {', and '}
+            <a href="https://www.geonames.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              GeoNames
+            </a>
+            .
           </p>
 
           <div className="space-y-2">

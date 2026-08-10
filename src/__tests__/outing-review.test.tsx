@@ -277,12 +277,16 @@ describe('OutingReview', () => {
       />,
     )
 
-    const attribution = await screen.findByRole('link', { name: 'Powered by Geoapify' })
+    const attribution = await screen.findByRole('link', { name: 'Geoapify' })
     expect(attribution).toHaveAttribute('href', 'https://www.geoapify.com/')
-    expect(attribution.closest('p')).toHaveTextContent('Powered by Geoapify · © OpenStreetMap contributors')
-    expect(screen.getByRole('link', { name: '© OpenStreetMap contributors' })).toHaveAttribute(
+    expect(attribution.closest('p')).toHaveTextContent('Location data from Geoapify, OpenStreetMap, and GeoNames.')
+    expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toHaveAttribute(
       'href',
       'https://www.openstreetmap.org/copyright',
+    )
+    expect(screen.getByRole('link', { name: 'GeoNames' })).toHaveAttribute(
+      'href',
+      'https://www.geonames.org/',
     )
 
     fireEvent.click(await screen.findByRole('button', { name: /Discovery Park, Seattle/ }))
@@ -290,8 +294,9 @@ describe('OutingReview', () => {
     fireEvent.change(searchInput, { target: { value: 'My birding spot' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
 
-    expect(screen.getByRole('link', { name: 'Powered by Geoapify' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Geoapify' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'GeoNames' })).toBeInTheDocument()
   })
 
   it('keeps static provider attribution visible when adding to an existing outing', () => {
@@ -320,8 +325,9 @@ describe('OutingReview', () => {
     )
 
     expect(screen.getByRole('switch', { name: 'Add to existing outing?' })).toBeChecked()
-    expect(screen.getByText('Powered by Geoapify')).toBeInTheDocument()
-    expect(screen.getByText('© OpenStreetMap contributors')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Geoapify' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'GeoNames' })).toBeInTheDocument()
   })
 
   it('shows a compact retry action after a place search failure', async () => {
