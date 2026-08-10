@@ -13,6 +13,11 @@ export default {
       'always',
       ['feat', 'fix', 'docs', 'chore', 'perf', 'refactor', 'test', 'ci', 'build', 'revert'],
     ],
+    // CONTRIBUTING.md documents type(scope): description, but 8 of the last 60
+    // commits on main omit the scope. Warn rather than fail so the check can land
+    // without blocking in-flight work; raise to 2 once new commits consistently
+    // carry one.
+    'scope-empty': [1, 'never'],
     // Scopes in this repo are mixed case on purpose: fix(Auth), ci(ios-release).
     'scope-case': [0],
     // Subjects here are sentences, not slugs; only forbid a trailing period.
