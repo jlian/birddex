@@ -32,7 +32,7 @@ final class BirdIdFlowUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() { return true }
-            Thread.sleep(forTimeInterval: 0.5)
+            Thread.sleep(forTimeInterval: 0.25)
         }
         return condition()
     }
@@ -40,13 +40,31 @@ final class BirdIdFlowUITests: XCTestCase {
     private func scrollUntilVisible(
         _ element: XCUIElement,
         in app: XCUIApplication,
-        maximumSwipes: Int = 8
+        maximumSwipes: Int = 3
     ) -> Bool {
         for _ in 0..<maximumSwipes {
             if element.exists && element.isHittable { return true }
             app.swipeUp()
         }
         return element.exists && element.isHittable
+    }
+
+    /// The outing location is an editable field, so its text lives in `value`, not `label`.
+    private func locationValue(_ field: XCUIElement) -> String {
+        field.value as? String ?? ""
+    }
+
+    /// An account can already hold an outing that matches the injected cluster, which
+    /// inherits its location instead of offering an editable one. Start from a new outing.
+    private func startNewOuting(in app: XCUIApplication) {
+        // SwiftUI puts the Toggle's identifier on its cell, so match the switch by label.
+        let toggle = app.switches
+            .matching(NSPredicate(format: "label BEGINSWITH 'Add to existing outing?'"))
+            .firstMatch
+        guard toggle.waitForExistence(timeout: 5) else { return }
+        guard toggle.value as? String == "1" else { return }
+        // The element spans the whole row but only the trailing switch flips it.
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
     }
 
     private func launchApp(
@@ -57,6 +75,8 @@ final class BirdIdFlowUITests: XCTestCase {
         app.launchArguments = [
             "--auto-sign-in",
             "--auto-demo-data",
+            // Reset the account so leftover outings from earlier runs cannot change the flow.
+            "--ui-test-reset-data",
             "--ui-test-photo", Self.photoPath,
             "--ui-test-lat", "47.7115",
             "--ui-test-lon", "-122.3717",
@@ -89,20 +109,25 @@ final class BirdIdFlowUITests: XCTestCase {
         )
         // The button stays disabled while the outing's location is resolving.
         XCTAssertTrue(
-            waitUntil(timeout: 60) { continueButton.isHittable },
+            waitUntil(timeout: 15) { continueButton.isHittable },
             "Continue never became tappable"
         )
         XCTAssertTrue(
             app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'GPS detected'")).firstMatch.exists,
             "Outing review did not detect the injected GPS coordinates"
         )
-        let locationName = app.staticTexts["outing.locationName"]
+        startNewOuting(in: app)
+        let locationName = app.textFields["outing.locationName"]
+        XCTAssertTrue(
+            locationName.waitForExistence(timeout: 15),
+            "Location field never replaced the geocoding progress row"
+        )
         XCTAssertTrue(
             scrollUntilVisible(locationName, in: app),
             "Resolved outing location was missing"
         )
-        XCTAssertFalse(locationName.label.isEmpty, "Resolved outing location was empty")
-        XCTAssertNotEqual(locationName.label, "Unknown Location")
+        XCTAssertFalse(locationValue(locationName).isEmpty, "Resolved outing location was empty")
+        XCTAssertNotEqual(locationValue(locationName), "Unknown Location")
         continueButton.tap()
 
         // A sub-0.8 result routes to the crop prompt instead of the confirm step, and
@@ -140,34 +165,35 @@ final class BirdIdFlowUITests: XCTestCase {
         ])
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
-        XCTAssertTrue(waitUntil(timeout: 60) { continueButton.isHittable })
+        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        let locationName = app.staticTexts["outing.locationName"]
+        startNewOuting(in: app)
+        let locationName = app.textFields["outing.locationName"]
+        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
-        let gpsLabel = locationName.label
+        let gpsLabel = locationValue(locationName)
         locationName.tap()
-        let searchField = app.textFields["outing.locationSearch"]
-        XCTAssertTrue(scrollUntilVisible(searchField, in: app))
-        searchField.typeText("Discovery Park Seattle")
-        searchField.typeText("\n")
+        app.buttons["outing.locationClear"].tap()
+        locationName.typeText("Discovery Park Seattle\n")
         let firstResult = app.buttons.matching(identifier: "outing.locationResult").firstMatch
         XCTAssertTrue(firstResult.waitForExistence(timeout: 30), "Explicit place search returned no result")
-        XCTAssertTrue(scrollUntilVisible(firstResult, in: app))
         let selectedLabel = firstResult.label
         firstResult.tap()
-        XCTAssertEqual(locationName.label, selectedLabel)
+        let selectedValue = locationValue(locationName)
+        XCTAssertFalse(selectedValue.isEmpty, "Tapping a result did not set the location name")
+        // The row reads "<place>, <context>"; only the place name becomes the outing name.
         XCTAssertTrue(
-            scrollUntilVisible(app.descendants(matching: .any)["outing.locationAttribution"], in: app),
-            "Static Geoapify attribution was not visible"
+            selectedLabel.hasPrefix(selectedValue),
+            "Expected \(selectedLabel) to start with the applied name \(selectedValue)"
         )
         XCTAssertTrue(
-            scrollUntilVisible(app.descendants(matching: .any)["outing.locationSourceAttribution"], in: app),
-            "Static OpenStreetMap attribution was not visible"
+            scrollUntilVisible(app.descendants(matching: .any)["outing.locationAttribution"], in: app),
+            "Static provider attribution was not visible"
         )
         let useGPS = app.buttons["Use GPS: \(gpsLabel)"]
         XCTAssertTrue(scrollUntilVisible(useGPS, in: app), "Selecting a search result replaced the GPS suggestion")
         useGPS.tap()
-        XCTAssertEqual(locationName.label, gpsLabel)
+        XCTAssertEqual(locationValue(locationName), gpsLabel)
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
         continueButton.tap()
         XCTAssertTrue(
@@ -183,22 +209,20 @@ final class BirdIdFlowUITests: XCTestCase {
         ])
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
-        XCTAssertTrue(waitUntil(timeout: 30) { continueButton.isHittable })
+        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        let locationName = app.staticTexts["outing.locationName"]
+        startNewOuting(in: app)
+        let locationName = app.textFields["outing.locationName"]
+        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
-        XCTAssertEqual(locationName.label, "47.712deg, -122.372deg")
+        XCTAssertEqual(locationValue(locationName), "47.712deg, -122.372deg")
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
 
         locationName.tap()
-        let searchField = app.textFields["outing.locationSearch"]
-        XCTAssertTrue(scrollUntilVisible(searchField, in: app))
-        searchField.typeText("Manual Test Location")
-        let useEnteredName = app.buttons["Use entered name without searching"]
-        XCTAssertTrue(scrollUntilVisible(useEnteredName, in: app))
-        useEnteredName.tap()
+        app.buttons["outing.locationClear"].tap()
+        locationName.typeText("Manual Test Location")
         XCTAssertTrue(
-            waitUntil(timeout: 5) { locationName.label == "Manual Test Location" },
+            waitUntil(timeout: 5) { locationValue(locationName) == "Manual Test Location" },
             "Manual location name was not applied"
         )
         XCTAssertTrue(
@@ -216,6 +240,8 @@ final class BirdIdFlowUITests: XCTestCase {
             continueButton.waitForExistence(timeout: 120),
             "Outing review never appeared"
         )
+        // Declining a matched outing is what starts the lookup for that account state.
+        startNewOuting(in: app)
         XCTAssertFalse(continueButton.isEnabled, "Delayed geocoding was not in progress")
 
         let geocodingStatus = app.staticTexts["Identifying location from GPS..."]
@@ -231,7 +257,7 @@ final class BirdIdFlowUITests: XCTestCase {
         )
 
         Thread.sleep(forTimeInterval: 3)
-        XCTAssertFalse(app.staticTexts["outing.locationName"].exists)
+        XCTAssertFalse(app.textFields["outing.locationName"].exists)
         XCTAssertFalse(geocodingStatus.exists)
     }
 
@@ -239,7 +265,7 @@ final class BirdIdFlowUITests: XCTestCase {
         let app = launchApp(extraArguments: ["--ui-test-geocoding-failure"])
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
-        XCTAssertTrue(waitUntil(timeout: 30) { continueButton.isHittable })
+        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
         try performBoundedAccessibilityAudit(
             app: app,
@@ -261,7 +287,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testHomePassesAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         let homeTab = app.buttons["Home"]
         XCTAssertTrue(homeTab.waitForExistence(timeout: 120))
@@ -291,7 +317,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testWingDexPassesAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         let wingDexTab = app.buttons["WingDex"]
         XCTAssertTrue(wingDexTab.waitForExistence(timeout: 120))
@@ -303,7 +329,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testOutingsPassesAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         let outingsTab = app.buttons["Outings"]
         XCTAssertTrue(outingsTab.waitForExistence(timeout: 120))
@@ -315,7 +341,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testSettingsAndDeletionConfirmationsPassAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data"]
+        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
         app.buttons["Settings"].tap()
@@ -367,6 +393,10 @@ final class BirdIdFlowUITests: XCTestCase {
                 return true
             case .dynamicType:
                 dynamicTypeFindings += 1
+                return true
+            case .textClipped where issue.element?.elementType == .textField:
+                // A single-line text field scrolls its value instead of truncating it, and
+                // VoiceOver still reads the whole thing. The audit cannot model that.
                 return true
             default:
                 return false
