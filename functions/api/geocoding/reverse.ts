@@ -5,11 +5,11 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/reverse/read', 'Application')
 
   try {
-    const body = await context.request.json() as { lat?: unknown; lon?: unknown }
+    const body = await context.request.json() as { lat?: unknown; lon?: unknown } | null
     const { result, nearby } = await reverseGeocode(
       context.env.GEOAPIFY_KEY,
-      body.lat === undefined ? null : String(body.lat),
-      body.lon === undefined ? null : String(body.lon),
+      body?.lat === undefined ? null : String(body.lat),
+      body?.lon === undefined ? null : String(body.lon),
       fetch,
       () => route.info('Places lookup returned no usable named outdoor place; starting reverse geocoding fallback'),
     )

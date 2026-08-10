@@ -5,8 +5,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/search/read', 'Application')
 
   try {
-    const body = await context.request.json() as { query?: unknown }
-    const query = typeof body.query === 'string' ? body.query : ''
+    const body = await context.request.json() as { query?: unknown } | null
+    const query = typeof body?.query === 'string' ? body.query : ''
     const results = await searchPlaces(context.env.GEOAPIFY_KEY, query, fetch)
     return route.complete(
       Response.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } }),
