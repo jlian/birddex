@@ -206,8 +206,11 @@ struct MainTabView: View {
             async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
             await store.loadAll()
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--auto-demo-data"),
-               store.dex.isEmpty {
+            // loadDemoData clears the account first, so the reset flag gives UI tests the
+            // same starting data no matter what earlier runs left behind.
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--ui-test-reset-data")
+                || (arguments.contains("--auto-demo-data") && store.dex.isEmpty) {
                 try? await store.loadDemoData()
             }
             #endif
@@ -325,6 +328,13 @@ struct AvatarView: View {
     }
 
     var body: some View {
+        avatar
+            // Purely decorative: every call site sits inside a labelled control.
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var avatar: some View {
         if let info = emojiInfo {
             Text(info.emoji)
                 .font(.system(size: size * 0.6))
