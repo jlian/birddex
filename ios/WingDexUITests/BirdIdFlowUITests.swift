@@ -93,12 +93,28 @@ final class BirdIdFlowUITests: XCTestCase {
         return app
     }
 
-    private func localWorkerIsAvailable() async -> Bool {
+    /// Why the local Worker could not be reached, or nil when it is healthy.
+    ///
+    /// Returns the reason rather than a bool so CI can put it in the failure
+    /// message. A bare false told us nothing on 2026-08-10, when this test skipped
+    /// because the simulator had not finished booting and the run stayed green.
+    private func localWorkerUnavailableReason() async -> String? {
         let url = localWorkerURL.appendingPathComponent("api/health")
-        guard let (data, response) = try? await URLSession.shared.data(from: url),
-              let http = response as? HTTPURLResponse
-        else { return false }
-        return (200...299).contains(http.statusCode) && !data.isEmpty
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse else {
+                return "\(url) returned a non-HTTP response"
+            }
+            guard (200...299).contains(http.statusCode) else {
+                return "\(url) returned HTTP \(http.statusCode)"
+            }
+            guard !data.isEmpty else {
+                return "\(url) returned an empty body"
+            }
+            return nil
+        } catch {
+            return "\(url) is unreachable: \(error.localizedDescription)"
+        }
     }
 
     func testKnownPhotoReachesConfirmStepWithTheRightSpecies() {
@@ -162,11 +178,18 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
-        let localWorkerAvailable = await localWorkerIsAvailable()
-        try XCTSkipUnless(
-            localWorkerAvailable,
-            "Requires the current local WingDex Worker and Geoapify access"
-        )
+        if let reason = await localWorkerUnavailableReason() {
+            // Skipping is right on a laptop with no Worker running. It is wrong in
+            // CI, which provisions one on purpose: a skip there means the harness
+            // is broken, and reporting it as success is how the 2026-08-10 release
+            // failure went unnoticed until it reached the release job.
+            #if CI
+            XCTFail("Local Worker is required in CI but was not reachable. \(reason)")
+            return
+            #else
+            throw XCTSkip("Requires the current local WingDex Worker and Geoapify access. \(reason)")
+            #endif
+        }
         let app = launchApp(extraEnvironment: [
             "API_BASE_URL": localWorkerURL.absoluteString,
         ])
