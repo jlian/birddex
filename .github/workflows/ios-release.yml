@@ -271,7 +271,14 @@ jobs:
         working-directory: ios
         env:
           REQUIRE_SIGNED: '1'
-        run: scripts/inspect-archive.sh build/WingDex.xcarchive build/archive-inspection
+        run: |
+          # Tags older than the privacy manifest are rebuilt from their own sources.
+          if [ -f WingDex/Resources/PrivacyInfo.xcprivacy ]; then
+            export REQUIRE_PRIVACY_MANIFEST=1
+          else
+            export REQUIRE_PRIVACY_MANIFEST=0
+          fi
+          scripts/inspect-archive.sh build/WingDex.xcarchive build/archive-inspection
 
       - name: Export IPA
         if: steps.version.outputs.has_release == 'true'
