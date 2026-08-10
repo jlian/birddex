@@ -33,6 +33,7 @@ struct SpeciesDetailView: View {
     @Environment(DataStore.self) private var store
     @State private var wikiExtract: String?
     @State private var fullImageUrl: String?
+    @State private var imageCredit: (artist: String?, license: String?, pageUrl: String)?
     @State private var contextMenuOuting: Outing?
     @State private var imageShareItem: ExportFileItem?
     @State private var imageOperationError: String?
@@ -168,6 +169,7 @@ struct SpeciesDetailView: View {
             Text("The bird image was added to your photo library.")
         }
         .task { await fetchWikipediaData() }
+        .task { await fetchImageCredit() }
     }
 
     // MARK: - Hero
@@ -254,9 +256,18 @@ struct SpeciesDetailView: View {
                     .lineSpacing(3)
 
                 if entry?.wikiTitle != nil {
-                    Text("Source: \(Text("Wikipedia").foregroundStyle(Color.accentColor)). Text and images available under \(Text("CC BY-SA 4.0").foregroundStyle(Color.accentColor)).")
+                    Text("Text from \(Text("Wikipedia").foregroundStyle(Color.accentColor)) under \(Text("CC BY-SA 4.0").foregroundStyle(Color.accentColor)).")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.mutedText)
+                }
+
+                // The hero is an individually licensed Commons photo, so it needs its own credit.
+                if let credit = imageCredit, let url = URL(string: credit.pageUrl) {
+                    Link(destination: url) {
+                        Text("Photo \([credit.artist, credit.license].compactMap { $0 }.joined(separator: " / "))")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.accentColor)
+                    }
                 }
             }
         }
@@ -312,6 +323,39 @@ struct SpeciesDetailView: View {
             // Silently fail - the dex thumbnail is still shown. Not cached, so a later
             // visit retries.
         }
+    }
+
+    /// Fetch the creator and license for the hero photo. The file page URL is derived
+    /// from the image URL, so this is one request and no extra data in taxonomy.json.
+    @MainActor
+    private func fetchImageCredit() async {
+        guard imageCredit == nil,
+              let pageUrl = wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl),
+              let separator = pageUrl.range(of: "/wiki/"),
+              // The title came out of a URL path, so it is already percent-encoded.
+              // Encoding it again turns %28 into %2528 and the API rejects the title.
+              let apiUrl = URL(string: "\(pageUrl[..<separator.lowerBound])/w/api.php?action=query&titles=\(pageUrl[separator.upperBound...])&prop=imageinfo&iiprop=extmetadata&format=json")
+        else { return }
+
+        var request = URLRequest(url: apiUrl)
+        request.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
+        guard let (data, _) = try? await URLSession.shared.data(for: request),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let pages = (json["query"] as? [String: Any])?["pages"] as? [String: Any],
+              let page = pages.values.first as? [String: Any],
+              let info = (page["imageinfo"] as? [[String: Any]])?.first,
+              let meta = info["extmetadata"] as? [String: Any]
+        else { return }
+
+        let read: (String) -> String? = { key in
+            guard let value = (meta[key] as? [String: Any])?["value"] as? String else { return nil }
+            let text = value
+                .replacingOccurrences(of: "<[^>]*>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
+        imageCredit = (artist: read("Artist"), license: read("LicenseShortName"), pageUrl: pageUrl)
     }
 
     /// Off the main actor: extracts run to several KB, and this parse lands on the detail

@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
 import { useBirdSummary } from '@/hooks/use-bird-image'
-import { getHeroImageUrl } from '@/lib/wikimedia'
+import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -426,6 +426,17 @@ function SpeciesDetail({
     setFullResLoaded(false)
   }, [entry.speciesName])
 
+  // The hero is an individually licensed Commons photo, so it needs its own credit.
+  const [imageCredit, setImageCredit] = useState<ImageCredit | undefined>(undefined)
+  useEffect(() => {
+    let active = true
+    setImageCredit(undefined)
+    void fetchImageCredit(baseImageUrl).then(credit => {
+      if (active) setImageCredit(credit)
+    })
+    return () => { active = false }
+  }, [baseImageUrl])
+
   return (
     <div className="max-w-3xl mx-auto pb-8">
       {/* Back button */}
@@ -488,7 +499,16 @@ function SpeciesDetail({
               {summary.extract}
             </p>
             <p className="text-xs text-muted-foreground/60">
-              Source: <a href={summary.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Wikipedia</a>. Text and images available under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">CC BY-SA 4.0</a>.
+              Text from <a href={summary.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Wikipedia</a> under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">CC BY-SA 4.0</a>.
+              {imageCredit && (
+                <>
+                  {' Photo '}
+                  <a href={imageCredit.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">
+                    {[imageCredit.artist, imageCredit.license].filter(Boolean).join(' / ') || 'on Wikimedia Commons'}
+                  </a>
+                  .
+                </>
+              )}
             </p>
           </div>
         )}

@@ -1026,27 +1026,19 @@ function PerPhotoConfirm({
             onImageChange={setRefImage}
           />
           {/* Most Commons photos are CC BY or CC BY-SA, so the creator has to be named. */}
-          <p className="text-xs text-muted-foreground text-center text-balance">
+          <p className="text-xs text-muted-foreground text-center">
             {refImage?.plumage ? `Reference (${refImage.plumage})` : 'Reference'}
-            {refImage?.artist && (
-              <>
-                {' by '}
-                {refImage.descriptionUrl ? (
-                  <a
-                    href={refImage.descriptionUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    {refImage.artist}
-                  </a>
-                ) : (
-                  refImage.artist
-                )}
-                {refImage.license ? ` (${refImage.license})` : ''}
-              </>
-            )}
           </p>
+          {refImage?.artist && (
+            <a
+              href={refImage.descriptionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-muted-foreground/60 text-center underline text-balance"
+            >
+              {[refImage.artist, refImage.license].filter(Boolean).join(' / ')}
+            </a>
+          )}
         </div>
       </div>
 
