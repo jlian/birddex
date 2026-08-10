@@ -229,11 +229,20 @@ final class AuthService: @unchecked Sendable {
         }
 
         try processTokenResponse(data: data, response: response)
+        // The account and session are now live. Capturing the Apple revocation
+        // token is a best-effort step that lets a future account deletion revoke
+        // Apple's grant automatically; the server's deletion flow already falls
+        // back to manual Apple revocation when the token is absent. The Apple
+        // authorization code is single-use and already consumed here, so a
+        // failure cannot be retried in place. Tearing the session down would
+        // report "sign-in failed" while leaving a live server account and Apple
+        // grant the user believes never existed, so treat capture as non-fatal
+        // and keep the successful sign-in.
         do {
             try await captureAppleRevocationToken(authorizationCode: authorizationCode)
         } catch {
-            signOut()
-            throw error
+            let reference = Self.referenceSuffix(for: error)
+            log.warning("Apple revocation token capture failed; sign-in kept\(reference, privacy: .public)")
         }
         log.info("Apple sign-in succeeded")
         } catch {
