@@ -37,8 +37,10 @@ jobs:
           key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
-        # Skipped entirely on a cache hit, since the cache key is the lockfile hash,
-        # so a hit means node_modules already matches package-lock.json.
+        # Skipped on a cache hit. The cache key is the OS plus the lockfile hash, so
+        # a hit means node_modules matches package-lock.json. It does NOT track the
+        # Node version, so bumping node-version can restore modules built against
+        # the previous runtime; change the key if that ever matters.
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
 

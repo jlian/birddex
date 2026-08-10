@@ -41,7 +41,7 @@ Usage
   scripts/contested-lines.py 'src/**/*.tsx'         restrict to a glob
 
 Runs over ~330 files in about 50s on 14 cores, or 20 minutes single-threaded.
-Read-only: it only ever runs `git log`.
+Read-only: it runs `git log` and `git ls-files`, and writes nothing.
 
 Note that this finds contested INFRASTRUCTURE more readily than contested
 logic. New code returns nothing because nobody has disagreed about it yet.
@@ -60,7 +60,9 @@ META = {}
 MIN_REVERTS = int(os.environ.get("HOTSCAN_MIN_REVERTS", "1"))
 ANNOTATE = False
 
-AUTO_PAT = re.compile(r"^(chore\(Release\)|chore: release|chore\(deps|Merge |Revert )", re.I)
+# A human revert is the strongest evidence of disagreement this tool can detect, so
+# it must NOT be filtered here. Bot-authored reverts are still caught by BOT_PAT.
+AUTO_PAT = re.compile(r"^(chore\(Release\)|chore: release|chore\(deps|Merge )", re.I)
 BOT_PAT = re.compile(r"(\[bot\]|dependabot|semantic-release|github-actions)", re.I)
 
 def sh(args):
@@ -202,11 +204,16 @@ def documented(lines, idx, radius=6):
             j -= 1
             steps += 1
             continue
-        if _is_comment(t.strip()):
-            return True
         if indent(t) < base:
+            # Reached the line that opens this block. Accept a comment directly
+            # above it, or as the first thing inside it. An unrelated comment on a
+            # sibling statement partway up does NOT count: it explains its own
+            # line, not this one.
             for k in range(max(0, j - 4), j):
                 if _is_comment(lines[k].strip()):
+                    return True
+            for k in range(j + 1, min(len(lines), j + 3)):
+                if k != idx - 1 and _is_comment(lines[k].strip()):
                     return True
             break
         j -= 1
@@ -358,7 +365,12 @@ def main():
     t0 = time.time()
     rows = []
     done = 0
-    with cf.ProcessPoolExecutor(max_workers=jobs) as pool:
+    # Threads, not processes. The work is dominated by `git log` subprocesses, so
+    # the GIL is not the bottleneck, and threads share the META table instead of
+    # pickling it per worker. Processes also break on spawn-based platforms
+    # (macOS, Windows), where each worker re-imports this module and would re-run
+    # main() recursively.
+    with cf.ThreadPoolExecutor(max_workers=jobs) as pool:
         for res in pool.map(scan_file, files, chunksize=1):
             rows.extend(res)
             done += 1
@@ -393,4 +405,5 @@ def main():
             r["score"], r["kind"], r["path"][-22:], r["line"], r["reverts"], r["edits"],
             "yes" if r["documented"] else "NO", r["src"][:50]))
 
-main()
+if __name__ == "__main__":
+    main()
