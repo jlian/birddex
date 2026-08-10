@@ -27,6 +27,12 @@ final class BirdIdFlowUITests: XCTestCase {
             .path
     }
 
+    /// Stop at the first failure. Later steps wait up to 180s for the model, so letting a
+    /// failed run continue turns one broken assertion into minutes of dead waiting.
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
     /// XCTNSPredicateExpectation is unavailable under strict concurrency here, so poll.
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
