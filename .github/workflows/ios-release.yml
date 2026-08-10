@@ -90,20 +90,21 @@ jobs:
       release_version: ${{ steps.version.outputs.release_version }}
       has_release: ${{ steps.version.outputs.has_release }}
     steps:
-      - name: Resolve source ref
-        id: source
-        env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
-        run: |
-          if [ -n "$RELEASE_VERSION" ]; then
-            echo "ref=refs/tags/ios-v${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          fi
-
+      # Two modes, and the difference matters:
+      #   release_version set -> rebuild a shipped release, so check out that tag's
+      #     app source. Today's main would give current code wearing an old version.
+      #   normal release -> check out the BRANCH TIP, not github.sha. This workflow
+      #     shares the release-<ref> concurrency group with release.yml, so it can
+      #     start only after that workflow already pushed a version-bump commit to
+      #     main. A checkout pinned to the triggering sha is then one commit behind
+      #     the remote and semantic-release refuses to release from a stale branch:
+      #     "The local branch main is behind the remote one". github.ref resolves at
+      #     execution time, so it includes that bump.
+      # Fixed once in 8a72195, then silently reverted by 60189c3 when the tag path
+      # arrived, which broke the 2026-08-10 release. Do not put github.sha back.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ steps.source.outputs.ref }}
+          ref: ${{ inputs.release_version && format('refs/tags/ios-v{0}', inputs.release_version) || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -113,7 +114,7 @@ jobs:
       # -onlyUsePackageVersionsFromResolvedFile requires, so the rebuild would fail
       # before upload. Restore just those files from the dispatching commit so the
       # tagged app builds with current release tooling. The normal release path
-      # already checks out GITHUB_SHA, so it needs nothing here.
+      # already checks out the branch tip, so it needs nothing here.
       - name: Restore release tooling from current commit
         if: inputs.release_version != ''
         env:
@@ -404,9 +405,13 @@ jobs:
     if: needs.check.outputs.should_release == 'true' && needs.preflight.outputs.has_release == 'true' && inputs.dry_run != true
     runs-on: macos-26
     steps:
+      # Same branch-tip requirement as preflight: this job runs semantic-release,
+      # which refuses to publish when the local branch is behind the remote. The
+      # release-<ref> concurrency group means release.yml may already have pushed a
+      # version bump to main before this starts.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.release_version && format('refs/tags/ios-v{0}', inputs.release_version) || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
