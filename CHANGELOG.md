@@ -1,3 +1,60 @@
+# [1.24.0](https://github.com/jlian/wingdex/compare/v1.23.0...v1.24.0) (2026-08-10)
+
+
+### Bug Fixes
+
+* address app review feedback ([6dad5cf](https://github.com/jlian/wingdex/commit/6dad5cf863b36500de2e673e4bfeeedf1dec2010))
+* align geocoding provider contract ([f7380d0](https://github.com/jlian/wingdex/commit/f7380d028c3c6b70b661377f1e5fba820270205f))
+* **api:** harden provider credential ownership ([329f5de](https://github.com/jlian/wingdex/commit/329f5debadf8c14a1313d0d63784a81746c631fc))
+* **auth:** accept only invalid_grant as an idempotent Apple revocation ([9ae9dd9](https://github.com/jlian/wingdex/commit/9ae9dd9cf4bdbe67f189aa7b656c61980108cf52))
+* **auth:** bind Apple revocation grants to subject ([4ac055e](https://github.com/jlian/wingdex/commit/4ac055ed528abe8a76dae4d37d624b5336ba556f))
+* **Auth:** keep Apple sign-in after revocation token capture fails ([ebcc1db](https://github.com/jlian/wingdex/commit/ebcc1db277bd21fc8410ff5a51fb931bd54be37a))
+* **auth:** reject a null JSON body on Apple credential capture ([e7b90af](https://github.com/jlian/wingdex/commit/e7b90afa3c2f89e17c067c3fd7be381ae7e5d02c))
+* **auth:** revoke providers before account deletion ([98fcb07](https://github.com/jlian/wingdex/commit/98fcb071f59dcd02b68feea99659f650e0807149))
+* **auth:** route every account deletion through provider revocation ([b1ab9a4](https://github.com/jlian/wingdex/commit/b1ab9a4a4cd700d6d7cb12be519dbc06382e36ff))
+* **auth:** send the GitHub revocation body as JSON ([de12285](https://github.com/jlian/wingdex/commit/de12285383250b211715acb4655af11de543d3ec))
+* **auth:** treat already-revoked Apple grants as idempotent success ([fed6934](https://github.com/jlian/wingdex/commit/fed693410554813171f5d0d52802fa278b0dc65c))
+* **birdId:** accept the occurrence blob however the host encodes it ([fae9515](https://github.com/jlian/wingdex/commit/fae951588da860e2be1f84301700181d93e56e02))
+* **BirdID:** drop the BirdLife credit from the identification caption ([dc53d7a](https://github.com/jlian/wingdex/commit/dc53d7af7a3fd941efe4b9e2ee5841fe352822a4))
+* **ci:** inspect iOS release archives ([17591a4](https://github.com/jlian/wingdex/commit/17591a41271a44c1f2eb81e9c5c4e7cbd0ef7c5d))
+* **ci:** restore TestFlight artifact path ([d50a45f](https://github.com/jlian/wingdex/commit/d50a45fa43773fecd200858dabf4d34cb7aa411b))
+* **ci:** rotate native Apple client secret ([2570ac8](https://github.com/jlian/wingdex/commit/2570ac816332cd02896eea69424a7aed41d42d6c))
+* **ci:** validate iOS before publishing releases ([60189c3](https://github.com/jlian/wingdex/commit/60189c364789c8cf3c75d92df4699052a28b0326))
+* **geocoding:** defer dropping coordination tables until worker is live ([e22c2d0](https://github.com/jlian/wingdex/commit/e22c2d0765485875db3809b0562b23523665b7ed))
+* **geocoding:** preserve current search provenance ([4dfb72e](https://github.com/jlian/wingdex/commit/4dfb72e2cb1d0692c73f6ea17804d2bdab78439c))
+* **geocoding:** rate limit the Geoapify-backed routes ([40bbc1d](https://github.com/jlian/wingdex/commit/40bbc1d3d5ce1d310f2099b378986f7c6c2c9d10))
+* **geocoding:** reject a null JSON body on the geocoding routes ([efd52de](https://github.com/jlian/wingdex/commit/efd52decc0e9c856657b3776363ecb885d0f8093))
+* **geocoding:** repair the Geoapify places lookup ([dce0dbb](https://github.com/jlian/wingdex/commit/dce0dbb160d6b689b3d92ae88b817b9d29065698))
+* **Health:** hide internal outcome headers ([dabd348](https://github.com/jlian/wingdex/commit/dabd348a7a03b989bf827a09c50585ec1eba97f6))
+* **migrations:** restore the original apple revocation migration filename ([26d3657](https://github.com/jlian/wingdex/commit/26d36571834199a9d09bfb9387487845f2fdce93))
+* **Privacy:** disclose location handling ([3feb81b](https://github.com/jlian/wingdex/commit/3feb81bbe44725c37d3c1be54f315cb0058d0322))
+* **privacy:** disclose proxied geocoding ([1d313d3](https://github.com/jlian/wingdex/commit/1d313d3c6a028430e7ad299acbd99733a31d9923))
+* **privacy:** enforce geocoding retention ([530cb94](https://github.com/jlian/wingdex/commit/530cb94983912f1f1ad9e629ba70c08543722afd))
+* **release:** harden privacy and version detection ([61b0deb](https://github.com/jlian/wingdex/commit/61b0deb93c3e958e2a26d93fc80acd1e7924a45f))
+* **Settings:** shorten the location copy and stop it meeting the toggle ([b3e1a70](https://github.com/jlian/wingdex/commit/b3e1a701aec9cfab826bf26c666f2c71d21cf3ea))
+* **web:** credit every location data source ([6ab937f](https://github.com/jlian/wingdex/commit/6ab937f2d295fff8d9c20ba5d3595ec70b9a7c4e))
+* **web:** harden bird model downloads ([794b9a1](https://github.com/jlian/wingdex/commit/794b9a1fb79f0a37a7a821c48921d979d40fd7b1))
+* **web:** preserve canonical inferred species names ([12c9bec](https://github.com/jlian/wingdex/commit/12c9bec1d27be66fcdfa7383b2a00b728ba283bd))
+* **web:** preserve identity on account deletion ([5f13f1f](https://github.com/jlian/wingdex/commit/5f13f1ffd56e0d25dd91e3dd514ed9ce561cd45c))
+* **web:** submit geocoding through proxy ([f35e124](https://github.com/jlian/wingdex/commit/f35e124cb30c927a322b448813ff9e6bcd7c6a65))
+* **web:** use provider-aware account deletion ([1b064c7](https://github.com/jlian/wingdex/commit/1b064c7429c593a7c430b285d1c8e0545defd89a))
+* **wikimedia:** credit each photo with its own creator and license ([0b23cbe](https://github.com/jlian/wingdex/commit/0b23cbe053b817d006b806500729013c30037c6d))
+* **wikimedia:** identify every Wikimedia request and credit reference photos ([b5313ca](https://github.com/jlian/wingdex/commit/b5313ca1fcac762735517846798b1d23cf366750))
+
+
+### Features
+
+* **api:** log geocoding cache outcomes ([1241c47](https://github.com/jlian/wingdex/commit/1241c474a2be1638ecba5a91c99199f9be3ba40f))
+* **api:** proxy and rate-limit geocoding ([e9d5bed](https://github.com/jlian/wingdex/commit/e9d5bedfec806ac6842d8b8d36517b7573e62a3a))
+* consolidate app observability ([315927e](https://github.com/jlian/wingdex/commit/315927e95905bea49fd8f262c772cec1a308b0d3))
+* expand application observability ([c34dd2b](https://github.com/jlian/wingdex/commit/c34dd2baa9f9f82a00431139e8715f866390ba43))
+* record the AI confidence behind each observation ([565d159](https://github.com/jlian/wingdex/commit/565d1591e8f33eb2349f9d9b213067d6e790f3e0))
+
+
+### Reverts
+
+* **migrations:** keep the geocoding table drop out of this release ([6e7411b](https://github.com/jlian/wingdex/commit/6e7411b865e9ae8d13c47378881efaa75333e04e))
+
 # [1.23.0](https://github.com/jlian/wingdex/compare/v1.22.3...v1.23.0) (2026-08-07)
 
 
