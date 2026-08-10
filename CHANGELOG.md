@@ -1,3 +1,11 @@
+## [1.24.2](https://github.com/jlian/wingdex/compare/v1.24.1...v1.24.2) (2026-08-10)
+
+
+### Bug Fixes
+
+* **Outings:** cancel the autocomplete debounce on unmount ([3a4d7a3](https://github.com/jlian/wingdex/commit/3a4d7a37b4fbb279d4f599ae737061861a888c23))
+* **scripts:** keep human reverts and run workers as threads ([428f4c9](https://github.com/jlian/wingdex/commit/428f4c90990732febf22d30eba640a8250a3a02d))
+
 ## [1.24.1](https://github.com/jlian/wingdex/compare/v1.24.0...v1.24.1) (2026-08-10)
 
 
