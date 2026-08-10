@@ -52,6 +52,45 @@ export function filterConfirmedResults(
   )
 }
 
+export interface SpeciesGroup {
+  count: number
+  status: ObservationStatus
+  photoId: string
+  aiConfidence: number
+}
+
+/**
+ * Collapse confirmed results into one observation per species, summing counts
+ * and averaging the per-photo scores, since an observation covers every photo
+ * of that species. Status and representative photo come from the first result.
+ */
+export function groupResultsBySpecies(
+  confirmed: PhotoResult[],
+): Map<string, SpeciesGroup> {
+  const grouped = new Map<string, PhotoResult[]>()
+  for (const result of confirmed) {
+    const existing = grouped.get(result.species)
+    if (existing) {
+      existing.push(result)
+    } else {
+      grouped.set(result.species, [result])
+    }
+  }
+
+  return new Map(
+    Array.from(grouped, ([species, results]): [string, SpeciesGroup] => [
+      species,
+      {
+        count: results.reduce((total, r) => total + r.count, 0),
+        status: results[0].status,
+        photoId: results[0].photoId,
+        aiConfidence:
+          results.reduce((total, r) => total + r.confidence, 0) / results.length,
+      },
+    ]),
+  )
+}
+
 /**
  * Extract a user-friendly error message, with special handling
  * for rate-limit (429) errors from the AI service.

@@ -689,12 +689,17 @@ final class AddPhotosViewModel {
         let existingSpecies = Set(store.dex.map(\.speciesName))
 
         // Group by species, sum counts
-        var speciesMap: [String: (count: Int, status: ObservationStatus, photoId: String)] = [:]
+        var speciesMap: [String: (count: Int, status: ObservationStatus, photoId: String, confidences: [Double])] = [:]
         for r in confirmed {
             if let existing = speciesMap[r.species] {
-                speciesMap[r.species] = (existing.count + r.count, existing.status, existing.photoId)
+                speciesMap[r.species] = (
+                    existing.count + r.count,
+                    existing.status,
+                    existing.photoId,
+                    existing.confidences + [r.confidence]
+                )
             } else {
-                speciesMap[r.species] = (r.count, r.status, r.photoId)
+                speciesMap[r.species] = (r.count, r.status, r.photoId, [r.confidence])
             }
         }
 
@@ -706,6 +711,8 @@ final class AddPhotosViewModel {
                     count: info.count,
                     certainty: info.status,
                     representativePhotoId: info.photoId,
+                    // An observation covers every photo of the species, so average their scores.
+                    aiConfidence: info.confidences.reduce(0, +) / Double(info.confidences.count),
                     notes: ""
                 )
             }

@@ -3,6 +3,7 @@ import {
   needsCloseConfirmation,
   resolvePhotoResults,
   filterConfirmedResults,
+  groupResultsBySpecies,
   friendlyErrorMessage,
   normalizeLocationName,
   resolveInferenceLocationName,
@@ -58,6 +59,43 @@ describe('filterConfirmedResults', () => {
 
   it('returns empty array for empty input', () => {
     expect(filterConfirmedResults([])).toHaveLength(0)
+  })
+})
+
+// ── groupResultsBySpecies (saveOuting aggregation) ──────────
+
+describe('groupResultsBySpecies', () => {
+  it('averages the confidence of every photo of a species', () => {
+    const grouped = groupResultsBySpecies([
+      { photoId: '1', species: 'Robin', confidence: 0.9, status: 'confirmed', count: 2 },
+      { photoId: '2', species: 'Robin', confidence: 0.5, status: 'possible', count: 3 },
+    ])
+    const robin = grouped.get('Robin')!
+    expect(robin.aiConfidence).toBeCloseTo(0.7)
+    expect(robin.count).toBe(5)
+    // Status and representative photo stay with the first confirmed photo.
+    expect(robin.status).toBe('confirmed')
+    expect(robin.photoId).toBe('1')
+  })
+
+  it('keeps the confidence of a lone photo intact', () => {
+    const grouped = groupResultsBySpecies([
+      { photoId: '1', species: 'Robin', confidence: 0.42, status: 'confirmed', count: 1 },
+    ])
+    expect(grouped.get('Robin')!.aiConfidence).toBe(0.42)
+  })
+
+  it('groups each species separately', () => {
+    const grouped = groupResultsBySpecies([
+      { photoId: '1', species: 'Robin', confidence: 0.8, status: 'confirmed', count: 1 },
+      { photoId: '2', species: 'Blue Jay', confidence: 0.2, status: 'possible', count: 1 },
+    ])
+    expect([...grouped.keys()]).toEqual(['Robin', 'Blue Jay'])
+    expect(grouped.get('Blue Jay')!.aiConfidence).toBe(0.2)
+  })
+
+  it('returns an empty map for empty input', () => {
+    expect(groupResultsBySpecies([]).size).toBe(0)
   })
 })
 
