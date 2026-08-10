@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractRegionCodes,
+  formatGeoapifyContext,
   formatGeoapifyLabel,
   normalizeGeoapifyResult,
   parseCoordinate,
@@ -37,9 +38,13 @@ describe('Geoapify normalization', () => {
     country_code: 'us',
   }
 
-  it('creates a concise label', () => {
-    expect(formatGeoapifyLabel(park)).toBe('Discovery Park, Seattle, Washington')
+  it('labels the place with its locality and keeps the region as context', () => {
+    expect(formatGeoapifyLabel(park)).toBe('Discovery Park, Seattle')
+    expect(formatGeoapifyContext(park)).toBe('Washington')
     expect(formatGeoapifyLabel({ formatted: 'Fallback address' })).toBe('Fallback address')
+    expect(formatGeoapifyLabel({ name: 'Seattle', city: 'Seattle' })).toBe('Seattle')
+    expect(formatGeoapifyContext({ name: 'Discovery Park' })).toBeUndefined()
+    expect(formatGeoapifyContext({ ...park, country: 'United States' })).toBe('Washington, United States')
   })
 
   it('extracts valid region codes', () => {
@@ -56,7 +61,8 @@ describe('Geoapify normalization', () => {
 
   it('returns a provider-independent result', () => {
     expect(normalizeGeoapifyResult(park)).toEqual({
-      label: 'Discovery Park, Seattle, Washington',
+      label: 'Discovery Park, Seattle',
+      context: 'Washington',
       lat: 47.6205,
       lon: -122.3493,
       stateProvince: 'US-WA',
