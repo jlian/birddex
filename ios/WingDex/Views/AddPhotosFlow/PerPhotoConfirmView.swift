@@ -169,7 +169,8 @@ struct PerPhotoConfirmView: View {
                 Spacer(minLength: 0)
 
                 VStack(spacing: 16) {
-                    HStack(spacing: 12) {
+                    // Top-aligned so a wrapped credit line cannot shift the photo it belongs to.
+                    HStack(alignment: .top, spacing: 12) {
                         VStack(spacing: 6) {
                             aiCroppedUserPhoto(size: photoSize)
                             Text("Cropped photo")
