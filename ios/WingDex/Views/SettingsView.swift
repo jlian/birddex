@@ -69,7 +69,7 @@ struct SettingsView: View {
     @State private var isExporting = false
     @State private var exportError: AppError?
     @State private var exportItem: ExportFileItem?
-    @State private var isEditingName = false
+    @FocusState private var isNameFieldFocused: Bool
     @State private var editedName = ""
     @State private var celebration: LiferCelebration?
 
@@ -168,51 +168,27 @@ struct SettingsView: View {
     private var accountSection: some View {
         Section("Account") {
             if !profile.name.isEmpty {
-                HStack {
-                    Text("Welcome, \(profile.name)")
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .layoutPriority(1)
-
-                    Spacer(minLength: 8)
-
-                    Button {
-                        let newName = FunNames.generateBirdName()
-                        let emoji = FunNames.emojiForBirdName(newName)
-                        profile.save(name: newName, image: FunNames.emojiAvatarDataUrl(emoji))
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .accessibilityLabel("Generate a new display name")
-
-                    Button {
-                        editedName = profile.name
-                        isEditingName = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .accessibilityLabel("Edit display name")
+                LabeledContent("Display Name") {
+                    TextField("Display Name", text: $editedName)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .focused($isNameFieldFocused)
+                        .onSubmit { commitEditedName() }
+                        .accessibilityIdentifier("settings.displayName")
                 }
-                .alert("Update Display Name", isPresented: $isEditingName) {
-                    TextField("Display name", text: $editedName)
-                    Button("Cancel", role: .cancel) {}
-                    Button("Save") {
-                        let trimmed = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty, trimmed != profile.name else { return }
-                        profile.save(name: trimmed, image: profile.image)
+
+                Button {
+                    let newName = FunNames.generateBirdName()
+                    let emoji = FunNames.emojiForBirdName(newName)
+                    editedName = newName
+                    profile.save(name: newName, image: FunNames.emojiAvatarDataUrl(emoji))
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shuffle")
+                        Text("Shuffle Name")
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } else {
@@ -220,6 +196,23 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .onChange(of: profile.name, initial: true) { _, name in
+            guard !isNameFieldFocused else { return }
+            editedName = name
+        }
+        .onChange(of: isNameFieldFocused) { wasFocused, isFocused in
+            if wasFocused && !isFocused { commitEditedName() }
+        }
+    }
+
+    private func commitEditedName() {
+        let trimmed = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            editedName = profile.name
+            return
+        }
+        guard trimmed != profile.name else { return }
+        profile.save(name: trimmed, image: profile.image)
     }
 
     // MARK: - Avatar
@@ -228,33 +221,35 @@ struct SettingsView: View {
     private var avatarSection: some View {
         if !profile.name.isEmpty {
             Section("Avatar") {
-                HStack(spacing: 10) {
-                    ForEach(FunNames.emojiOptions, id: \.self) { emoji in
-                        let isSelected = profile.isEmojiSelected(emoji)
-                        Button {
-                            if isSelected {
-                                profile.save(name: profile.name, image: profile.originalSocialImage)
-                            } else {
-                                profile.save(name: profile.name, image: FunNames.emojiAvatarDataUrl(emoji))
+                ScrollView(.horizontal) {
+                    HStack(spacing: 2) {
+                        ForEach(FunNames.emojiOptions, id: \.self) { emoji in
+                            let isSelected = profile.isEmojiSelected(emoji)
+                            Button {
+                                if isSelected {
+                                    profile.save(name: profile.name, image: profile.originalSocialImage)
+                                } else {
+                                    profile.save(name: profile.name, image: FunNames.emojiAvatarDataUrl(emoji))
+                                }
+                            } label: {
+                                Text(verbatim: emoji)
+                                    .font(.title2)
+                                    .frame(width: 44, height: 44)
+                                    .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        isSelected
+                                            ? RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2)
+                                            : nil
+                                    )
                             }
-                        } label: {
-                            Text(verbatim: emoji)
-                                .font(.title2)
-                                .frame(width: 44, height: 44)
-                                .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    isSelected
-                                        ? RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2)
-                                        : nil
-                                )
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Use \(emoji) avatar")
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Use \(emoji) avatar")
-                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
-                .padding(.vertical, 2)
+                .scrollIndicators(.hidden)
                 .animation(.none, value: profile.image)
             }
         }
