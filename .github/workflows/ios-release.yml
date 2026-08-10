@@ -89,6 +89,7 @@ jobs:
     outputs:
       release_version: ${{ steps.version.outputs.release_version }}
       has_release: ${{ steps.version.outputs.has_release }}
+      source_sha: ${{ steps.source_sha.outputs.sha }}
     steps:
       # Two modes, and the difference matters:
       #   release_version set -> rebuild a shipped release, so check out that tag's
@@ -107,6 +108,13 @@ jobs:
           ref: ${{ inputs.release_version && format('refs/tags/ios-v{0}', inputs.release_version) || github.ref }}
           fetch-depth: 0
           persist-credentials: false
+
+      # Pin everything downstream to the exact commit this job built, so publish
+      # cannot silently release a newer one if main advances during the macOS
+      # archive (several minutes).
+      - name: Record the built source commit
+        id: source_sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # Rebuilding an existing release checks out the app source at its tag, but
       # older tags predate CI tooling this job needs. ios-v0.8.0, for example, has
@@ -405,13 +413,16 @@ jobs:
     if: needs.check.outputs.should_release == 'true' && needs.preflight.outputs.has_release == 'true' && inputs.dry_run != true
     runs-on: macos-26
     steps:
-      # Same branch-tip requirement as preflight: this job runs semantic-release,
-      # which refuses to publish when the local branch is behind the remote. The
-      # release-<ref> concurrency group means release.yml may already have pushed a
-      # version bump to main before this starts.
+      # Check out the exact commit preflight built and versioned, NOT the branch tip.
+      # Preflight already resolved the tip to pick up any version bump release.yml
+      # pushed while this run was queued. Re-resolving here would open a second
+      # window: another merge can advance main during the macOS archive, and
+      # semantic-release would then tag commits that are not in the IPA this job
+      # uploads. Pinning keeps the released tag, the version, and the artifact in
+      # agreement.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.release_version && format('refs/tags/ios-v{0}', inputs.release_version) || github.ref }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
           fetch-depth: 0
           persist-credentials: false
 
