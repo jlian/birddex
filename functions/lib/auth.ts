@@ -319,6 +319,14 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
               email: `${user.id}@passkey.wingdex.app`,
               emailVerified: false,
             })
+            // SPIKE: the anonymous session's rows would be stranded under the old
+            // id otherwise, and deleting that user cascades them away, so any
+            // migration has to run here and before that delete. Doing it inside
+            // the plugin's registration transaction means a later failure rolls
+            // the moved rows back along with the user, passkey and session.
+            // Deliberately not wired up yet: resolving the anonymous session id
+            // off the request, since the plugin does not hand it to us on the
+            // verify-registration path. See functions/lib/anonymous-migration.ts.
             return { userId: created.id }
           },
         },
