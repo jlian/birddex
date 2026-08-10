@@ -31,6 +31,7 @@ import {
   needsCloseConfirmation,
   resolvePhotoResults,
   filterConfirmedResults,
+  groupResultsBySpecies,
   normalizeLocationName,
   resolveInferenceLocationName,
 } from '@/lib/add-photos-helpers'
@@ -255,22 +256,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     const confirmed = filterConfirmedResults(allResults)
     const existingSpecies = new Set(data.dex.map(entry => entry.speciesName))
 
-    const speciesMap = new Map<
-      string,
-      { count: number; status: ObservationStatus; photoId: string }
-    >()
-    for (const r of confirmed) {
-      const existing = speciesMap.get(r.species)
-      if (existing) {
-        existing.count += r.count
-      } else {
-        speciesMap.set(r.species, {
-          count: r.count,
-          status: r.status,
-          photoId: r.photoId
-        })
-      }
-    }
+    const speciesMap = groupResultsBySpecies(confirmed)
 
     const observations = Array.from(speciesMap.entries()).map(
       ([species, info]) => ({
@@ -280,6 +266,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
         count: info.count,
         certainty: info.status,
         representativePhotoId: info.photoId,
+        aiConfidence: info.aiConfidence,
         notes: ''
       })
     )
