@@ -102,13 +102,16 @@ function coordinateParam(value: number): string {
   return roundCoordinate(value).toFixed(3)
 }
 
+// A sanctuary or reserve names an outing better than the large park containing it.
+const RESERVE_CATEGORIES = new Set(['leisure.park.nature_reserve', 'natural.protected_area'])
+
 export async function reverseGeocode(
   apiKey: string | undefined,
   rawLatitude: string | null,
   rawLongitude: string | null,
   fetcher: Fetcher = fetch,
   onReverseFallback?: () => void,
-): Promise<GeocodingResult | null> {
+): Promise<{ result: GeocodingResult | null; nearby: GeocodingResult[] }> {
   const latitude = parseCoordinate(rawLatitude, 'latitude')
   const longitude = parseCoordinate(rawLongitude, 'longitude')
   const lat = coordinateParam(latitude)
@@ -117,16 +120,24 @@ export async function reverseGeocode(
   const deadline = setTimeout(() => controller.abort(), GEOAPIFY_DEADLINE_MS)
   try {
     const places = parsePlacesResponse(await requestGeoapify(apiKey, '/v2/places', {
-      categories: 'leisure.park,natural,natural.national_park',
+      // Geoapify does not union a comma-separated list, so extra categories only narrow
+      // the match. `leisure` is the one value that covers parks and nature reserves.
+      categories: 'leisure',
       conditions: 'named',
       filter: `circle:${lon},${lat},1000`,
       bias: `proximity:${lon},${lat}`,
-      limit: '5',
+      limit: '8',
     }, fetcher, controller.signal, 'places lookup'))
-    const nearbyPlace = places.features
-      .map(feature => feature.properties ? normalizeGeoapifyResult(feature.properties) : null)
-      .find(result => result !== null)
-    if (nearbyPlace) return nearbyPlace
+    const candidates = places.features
+      .map(feature => feature.properties)
+      .filter((properties): properties is NonNullable<typeof properties> => Boolean(properties))
+      .map(properties => ({ place: normalizeGeoapifyResult(properties), categories: properties.categories ?? [] }))
+      .filter((candidate): candidate is { place: GeocodingResult; categories: string[] } => candidate.place !== null)
+    const reserveIndex = candidates.findIndex(candidate =>
+      candidate.categories.some(category => RESERVE_CATEGORIES.has(category)))
+    if (reserveIndex > 0) candidates.unshift(...candidates.splice(reserveIndex, 1))
+    const nearby = candidates.map(candidate => candidate.place)
+    if (nearby.length > 0) return { result: nearby[0], nearby }
 
     onReverseFallback?.()
     const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/reverse', {
@@ -135,7 +146,10 @@ export async function reverseGeocode(
       limit: '1',
     }, fetcher, controller.signal, 'reverse fallback'), 'reverse fallback')
 
-    return response.results.map(normalizeGeoapifyResult).find(result => result !== null) ?? null
+    return {
+      result: response.results.map(normalizeGeoapifyResult).find(result => result !== null) ?? null,
+      nearby: [],
+    }
   } finally {
     clearTimeout(deadline)
   }
@@ -159,6 +173,7 @@ export async function searchPlaces(
       limit: '5',
       // Geoapify defaults to countrycode:auto; its current Forward Geocoding docs
       // explicitly prescribe countrycode:none to avoid IP-country prioritization.
+      // proximity: narrows the response to a single result, so it is not usable here.
       bias: 'countrycode:none',
     }, fetcher, controller.signal, 'search'), 'search')
 

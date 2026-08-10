@@ -6,7 +6,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
   try {
     const body = await context.request.json() as { lat?: unknown; lon?: unknown }
-    const result = await reverseGeocode(
+    const { result, nearby } = await reverseGeocode(
       context.env.GEOAPIFY_KEY,
       body.lat === undefined ? null : String(body.lat),
       body.lon === undefined ? null : String(body.lon),
@@ -14,8 +14,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       () => route.info('Places lookup returned no usable named outdoor place; starting reverse geocoding fallback'),
     )
     return route.complete(
-      Response.json({ result }, { headers: { 'Cache-Control': 'private, no-store' } }),
-      `Completed reverse geocoding (${result ? 'result found' : 'no result'})`,
+      Response.json({ result, nearby }, { headers: { 'Cache-Control': 'private, no-store' } }),
+      `Completed reverse geocoding (${result ? 'result found' : 'no result'}, ${nearby.length} nearby)`,
     )
   } catch (error) {
     if (error instanceof GeocodingConfigurationError) {
