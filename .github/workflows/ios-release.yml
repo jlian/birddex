@@ -12,14 +12,6 @@ on:
         description: 'Validate tests, archive, and export without publishing or uploading'
         type: boolean
         default: false
-      release_version:
-        description: 'Existing ios-v version to rebuild/upload (for example, 0.8.0)'
-        type: string
-        required: false
-      build_number:
-        description: 'Unused App Store build number (required with release_version)'
-        type: string
-        required: false
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -44,28 +36,7 @@ jobs:
 
       - name: Check for iOS-relevant changes since last tag
         id: diff
-        env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
-          BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
-          if [ -n "$RELEASE_VERSION" ]; then
-            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "::error::release_version must use semantic version format, for example 0.8.0"
-              exit 1
-            fi
-            if ! echo "$BUILD_NUMBER" | grep -qE '^[1-9][0-9]*$'; then
-              echo "::error::build_number is required with release_version and must be a positive integer"
-              exit 1
-            fi
-            if ! git rev-parse --verify --quiet "refs/tags/ios-v${RELEASE_VERSION}"; then
-              echo "::error::Tag ios-v${RELEASE_VERSION} does not exist"
-              exit 1
-            fi
-            echo "Rebuilding existing ios-v${RELEASE_VERSION}"
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           LAST_TAG=$(git tag --list 'ios-v*' --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then
             echo "No previous ios-v tag found - first release"
@@ -91,21 +62,18 @@ jobs:
       has_release: ${{ steps.version.outputs.has_release }}
       source_sha: ${{ steps.source_sha.outputs.sha }}
     steps:
-      # Two modes, and the difference matters:
-      #   release_version set -> rebuild a shipped release, so check out that tag's
-      #     app source. Today's main would give current code wearing an old version.
-      #   normal release -> check out the BRANCH TIP, not github.sha. This workflow
-      #     shares the release-<ref> concurrency group with release.yml, so it can
-      #     start only after that workflow already pushed a version-bump commit to
-      #     main. A checkout pinned to the triggering sha is then one commit behind
-      #     the remote and semantic-release refuses to release from a stale branch:
-      #     "The local branch main is behind the remote one". github.ref resolves at
-      #     execution time, so it includes that bump.
-      # Fixed once in 8a72195, then silently reverted by 60189c3 when the tag path
-      # arrived, which broke the 2026-08-10 release. Do not put github.sha back.
+      # Check out the BRANCH TIP, not github.sha. This workflow shares the
+      # release-<ref> concurrency group with release.yml, so it can start only
+      # after that workflow already pushed a version-bump commit to main. A
+      # checkout pinned to the triggering sha is then one commit behind the remote
+      # and semantic-release refuses to release from a stale branch: "The local
+      # branch main is behind the remote one". github.ref resolves at execution
+      # time, so it includes that bump.
+      # Fixed once in 8a72195, then reverted by 60189c3 and b8f9dd9, which broke
+      # the 2026-08-10 release. Do not put github.sha back.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.release_version && format('refs/tags/ios-v{0}', inputs.release_version) || github.ref }}
+          ref: ${{ github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -115,22 +83,6 @@ jobs:
       - name: Record the built source commit
         id: source_sha
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      # Rebuilding an existing release checks out the app source at its tag, but
-      # older tags predate CI tooling this job needs. ios-v0.8.0, for example, has
-      # neither scripts/inspect-archive.sh nor the pinned Package.resolved that
-      # -onlyUsePackageVersionsFromResolvedFile requires, so the rebuild would fail
-      # before upload. Restore just those files from the dispatching commit so the
-      # tagged app builds with current release tooling. The normal release path
-      # already checks out the branch tip, so it needs nothing here.
-      - name: Restore release tooling from current commit
-        if: inputs.release_version != ''
-        env:
-          TOOLING_REF: ${{ github.sha }}
-        run: |
-          git checkout "$TOOLING_REF" -- \
-            ios/scripts/inspect-archive.sh \
-            ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
       - uses: actions/setup-node@v6
         with:
@@ -148,14 +100,7 @@ jobs:
         working-directory: ios
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXISTING_VERSION: ${{ inputs.release_version }}
         run: |
-          if [ -n "$EXISTING_VERSION" ]; then
-            echo "release_version=$EXISTING_VERSION" >> "$GITHUB_OUTPUT"
-            echo "has_release=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           OUTPUT=$(npx semantic-release --dry-run 2>&1)
           echo "$OUTPUT"
           NEXT_VERSION=$(echo "$OUTPUT" | awk '
@@ -182,9 +127,7 @@ jobs:
       - name: Apply release version locally
         if: steps.version.outputs.has_release == 'true'
         working-directory: ios
-        env:
-          BUILD_NUMBER: ${{ inputs.build_number }}
-        run: scripts/bump-version.sh set "${{ steps.version.outputs.release_version }}" "${BUILD_NUMBER:-1}" --quiet
+        run: scripts/bump-version.sh set "${{ steps.version.outputs.release_version }}" --quiet
 
       - name: Generate Xcode project
         if: steps.version.outputs.has_release == 'true'
@@ -427,21 +370,17 @@ jobs:
           persist-credentials: false
 
       - uses: actions/setup-node@v6
-        if: inputs.release_version == ''
         with:
           node-version: 24
           cache: npm
 
       - name: Install npm dependencies
-        if: inputs.release_version == ''
         run: npm ci
 
       - name: Install XcodeGen
-        if: inputs.release_version == ''
         run: brew install xcodegen
 
       - name: Publish semantic release
-        if: inputs.release_version == ''
         working-directory: ios
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -471,7 +410,6 @@ jobs:
         run: rm -rf ~/.appstoreconnect
 
       - name: Mark pre-1.0 releases as prerelease
-        if: inputs.release_version == ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -484,8 +422,4 @@ jobs:
       - name: Summary
         run: |
           echo "### iOS Release v${{ needs.preflight.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "${{ inputs.release_version }}" ]; then
-            echo "Rebuilt and uploaded existing release as build ${{ inputs.build_number }}." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Published and uploaded to TestFlight." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "Published and uploaded to TestFlight." >> "$GITHUB_STEP_SUMMARY"
