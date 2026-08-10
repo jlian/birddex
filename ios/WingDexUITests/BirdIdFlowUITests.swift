@@ -74,9 +74,10 @@ final class BirdIdFlowUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "--auto-sign-in",
-            "--auto-demo-data",
-            // Reset the account so leftover outings from earlier runs cannot change the flow.
-            "--ui-test-reset-data",
+            // Empty the account so leftover outings from earlier runs cannot change the
+            // flow. None of these tests read the demo dex, and importing it ahead of the
+            // identification run left the app busy long enough to time out CI's UI queries.
+            "--ui-test-clear-data",
             "--ui-test-photo", Self.photoPath,
             "--ui-test-lat", "47.7115",
             "--ui-test-lon", "-122.3717",

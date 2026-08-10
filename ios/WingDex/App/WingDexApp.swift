@@ -207,9 +207,13 @@ struct MainTabView: View {
             await store.loadAll()
             #if DEBUG
             // loadDemoData clears the account first, so the reset flag gives UI tests the
-            // same starting data no matter what earlier runs left behind.
+            // same starting data no matter what earlier runs left behind. Tests that never
+            // read the demo dex use the clear flag instead, because importing the CSV
+            // delays everything that follows in this task.
             let arguments = ProcessInfo.processInfo.arguments
-            if arguments.contains("--ui-test-reset-data")
+            if arguments.contains("--ui-test-clear-data") {
+                try? await store.clearAll()
+            } else if arguments.contains("--ui-test-reset-data")
                 || (arguments.contains("--auto-demo-data") && store.dex.isEmpty) {
                 try? await store.loadDemoData()
             }
