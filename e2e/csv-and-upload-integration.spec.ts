@@ -300,7 +300,7 @@ test.describe('CSV import + photo upload integration', () => {
     await dialog.getByRole('button', { name: 'Search locations' }).click()
     await expect(dialog.getByText('Discovery Park, Seattle')).toBeVisible()
     expect(searchRequestCount).toBe(1)
-    await expect(dialog.getByRole('link', { name: 'Powered by Geoapify' })).toBeVisible()
+    await expect(dialog.getByRole('link', { name: 'Geoapify' })).toBeVisible()
     await expect(dialog.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible()
   })
 
