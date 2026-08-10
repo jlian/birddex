@@ -37,6 +37,7 @@ Usage
   scripts/contested-lines.py --jobs 14              parallel across files
   scripts/contested-lines.py --out findings.json    machine-readable output
   scripts/contested-lines.py --min-reverts 0        include non-reverted churn
+  scripts/contested-lines.py --annotate             GitHub inline annotations
   scripts/contested-lines.py 'src/**/*.tsx'         restrict to a glob
 
 Runs over ~330 files in about 50s on 14 cores, or 20 minutes single-threaded.
@@ -57,6 +58,7 @@ HUNK = re.compile(r"^@@ -([0-9]+)(?:,([0-9]+))? \+([0-9]+)(?:,([0-9]+))? @@")
 REPO = os.environ.get("HOTSCAN_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 META = {}
 MIN_REVERTS = int(os.environ.get("HOTSCAN_MIN_REVERTS", "1"))
+ANNOTATE = False
 
 AUTO_PAT = re.compile(r"^(chore\(Release\)|chore: release|chore\(deps|Merge |Revert )", re.I)
 BOT_PAT = re.compile(r"(\[bot\]|dependabot|semantic-release|github-actions)", re.I)
@@ -151,14 +153,16 @@ def contested(values):
     return reverts, len(set(chain)), f
 
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{3,}")
-COMMENT_START = ("#", "//", "*", "/*", "///")
+# {/* ... */} is how a comment is written inside JSX, and it is the form used
+# wherever a React prop needs explaining.
+COMMENT_START = ("#", "//", "*", "/*", "///", "{/*", "<!--")
 
 
 def _is_comment(t):
     return t.startswith(COMMENT_START)
 
 
-def documented(lines, idx, radius=3):
+def documented(lines, idx, radius=6):
     """Is the reason for this line written down anywhere a reader would look?
 
     A fixed 3-line window is far too narrow, and produced two false positives on
@@ -173,8 +177,15 @@ def documented(lines, idx, radius=3):
       3. a comment above the DEFINITION of any identifier the line uses, which
          is where a constant like SHOULD_LAZY_LOAD_THUMBNAILS carries its reason
     """
-    # 1. immediate neighbourhood
-    for j in range(max(0, idx - 1 - radius), idx - 1):
+    # radius is deliberately wider than a line or two: a JSX comment sits above the
+    # element, not above the prop it explains, so a 3-line window missed a comment
+    # written five lines up for exactly this line.
+    # 1. immediate neighbourhood, both directions. A comment can sit just below a
+    # line when it explains the clause that follows, which is common in YAML steps
+    # (`- name:` then a comment then the `if:` it describes).
+    for j in range(max(0, idx - 1 - radius), min(len(lines), idx + radius)):
+        if j == idx - 1:
+            continue
         if _is_comment(lines[j].strip()):
             return True
 
@@ -236,10 +247,13 @@ TEST_PAT = re.compile(
     r'expect\(|await page|getByRole|getByPlaceholder|getByText|describe\(|it\(|toBe\('
 )
 
+STRUCT_PAT = re.compile(r'^<[A-Z][A-Za-z0-9]*\s*$|^</|^\)|^\}|^\]')
+
+
 def classify(path, src):
     if '.spec.' in path or '.test.' in path or TEST_PAT.search(src):
         return 'test'
-    if STYLE_PAT.search(src):
+    if STYLE_PAT.search(src) or STRUCT_PAT.search(src.strip()):
         return 'style'
     return 'logic'
 
@@ -319,21 +333,27 @@ def main():
         k = args.index("--out")
         out_path = args[k + 1]
         del args[k:k + 2]
-    global MIN_REVERTS
+    global MIN_REVERTS, ANNOTATE
+    if "--annotate" in args:
+        ANNOTATE = True
+        args.remove("--annotate")
     if "--min-reverts" in args:
         k = args.index("--min-reverts")
         MIN_REVERTS = int(args[k + 1])
         del args[k:k + 2]
     globs = args or ["*.ts", "*.tsx", "*.swift", "*.yml", "*.sh"]
 
-    print("loading commit metadata...", flush=True)
+    if not ANNOTATE:
+        print("loading commit metadata...", flush=True)
     META = load_commit_meta()
     auto = sum(1 for v in META.values() if v[0])
-    print("  %d commits, %d automated (ignored)" % (len(META), auto), flush=True)
+    if not ANNOTATE:
+        print("  %d commits, %d automated (ignored)" % (len(META), auto), flush=True)
 
     files = [f for f in sh(["git", "ls-files"] + globs).splitlines()
              if f and "node_modules" not in f]
-    print("scanning %d files with %d workers" % (len(files), jobs), flush=True)
+    if not ANNOTATE:
+        print("scanning %d files with %d workers" % (len(files), jobs), flush=True)
 
     t0 = time.time()
     rows = []
@@ -342,15 +362,32 @@ def main():
         for res in pool.map(scan_file, files, chunksize=1):
             rows.extend(res)
             done += 1
-            if done % 50 == 0:
+            if done % 50 == 0 and not ANNOTATE:
                 print("  %d/%d, %d findings, %.0fs" % (done, len(files), len(rows), time.time() - t0), flush=True)
     rows.sort(key=lambda r: -r["score"])
-    print("done in %.0fs, %d findings" % (time.time() - t0, len(rows)), flush=True)
+    if not ANNOTATE:
+        print("done in %.0fs, %d findings" % (time.time() - t0, len(rows)), flush=True)
 
     if out_path:
         with open(out_path, "w") as fh:
             json.dump(rows, fh, indent=1)
         print("wrote", out_path)
+    if ANNOTATE:
+        # GitHub renders these inline on the Files changed tab. Notice level, so
+        # the check never fails: this is a hint, not a gate.
+        for r in rows:
+            if r["documented"] or r["kind"] != "logic":
+                continue
+            msg = (
+                "This line has been changed %d times and reverted to an earlier "
+                "value %d time(s), which usually means it encodes a decision. "
+                "No comment nearby, in the enclosing block, or at the definition "
+                "of what it reads. Run: git log -L %d,%d:%s"
+            ) % (r["edits"], r["reverts"], r["line"], r["line"], r["path"])
+            print("::notice file=%s,line=%d,title=Contested line::%s" % (
+                r["path"], r["line"], msg), flush=True)
+        return
+
     for r in rows[:15]:
         print("%-6.1f %-6s %-22s :%-5d rev=%d ed=%d doc=%-3s %s" % (
             r["score"], r["kind"], r["path"][-22:], r["line"], r["reverts"], r["edits"],
