@@ -642,19 +642,19 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
             Settings for AI species identification
           </p>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5 flex-1">
             <label htmlFor="geo-context-setting" className="text-sm font-medium text-foreground cursor-pointer">
               Use Location and Time
             </label>
             <p className="text-xs text-muted-foreground">
-              Uses photo location and month on this device to improve identification. WingDex may
-              forward rounded coordinates to Geoapify to suggest an outing location, and exact
-              coordinates are saved by WingDex with your outing and photo metadata.
+              Improves identification using photo location and month. Rounded coordinates may be
+              sent to Geoapify to suggest outing names.
             </p>
           </div>
           <Switch
             id="geo-context-setting"
+            className="shrink-0"
             checked={useGeoContext}
             onCheckedChange={(checked) => {
               setUseGeoContext(checked)
