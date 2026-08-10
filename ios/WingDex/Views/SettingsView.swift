@@ -211,6 +211,8 @@ struct SettingsView: View {
             editedName = profile.name
             return
         }
+        // The field keeps whatever was typed, so mirror the stored value back into it.
+        editedName = trimmed
         guard trimmed != profile.name else { return }
         profile.save(name: trimmed, image: profile.image)
     }
