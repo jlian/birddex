@@ -294,6 +294,34 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
         rpName: 'WingDex',
         rpID: new URL(passkeyOrigin).hostname,
         origin: passkeyOrigin,
+        // SPIKE (#271): one ceremony, no anonymous account to promote afterwards.
+        // requireSession false lets registration start unauthenticated; resolveUser
+        // returns a NON-PERSISTED stub purely so WebAuthn has a user handle, and
+        // afterVerification is the first point at which a row is written. With
+        // createSession the plugin wraps user + passkey + session in one
+        // runWithTransaction, so a cancelled or failed ceremony leaves nothing behind.
+        registration: {
+          requireSession: false,
+          resolveUser: async ({ name }: { name?: string }) => ({
+            id: crypto.randomUUID(),
+            name: name || 'WingDex birder',
+          }),
+          // rc.4 calls this as afterVerification({ ctx, verification, user,
+          // clientData, context }) and only reads `userId` off the result. Returning
+          // it is what redirects passkey persistence at the real row instead of the
+          // stub, and the plugin rejects a mismatch against an existing session.
+          afterVerification: async ({ user, context }: {
+            user: { id: string; name?: string }
+            context: { internalAdapter: { createUser: (v: Record<string, unknown>) => Promise<{ id: string }> } }
+          }) => {
+            const created = await context.internalAdapter.createUser({
+              name: user.name || 'WingDex birder',
+              email: `${user.id}@passkey.wingdex.app`,
+              emailVerified: false,
+            })
+            return { userId: created.id }
+          },
+        },
       }),
     ],
   })
