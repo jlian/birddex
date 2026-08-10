@@ -37,6 +37,8 @@ jobs:
           key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        # Skipped entirely on a cache hit, since the cache key is the lockfile hash,
+        # so a hit means node_modules already matches package-lock.json.
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
 
