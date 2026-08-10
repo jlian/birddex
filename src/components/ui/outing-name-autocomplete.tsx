@@ -76,6 +76,13 @@ export function OutingNameAutocomplete({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // The debounce timer is cleared on each new keystroke, but nothing cancelled it
+  // on unmount, so a pending search could fire after the component was gone and
+  // call setState on a dead tree. Under jsdom that surfaces as "window is not
+  // defined" once the environment has been torn down, which failed the suite even
+  // though every test passed.
+  useEffect(() => () => clearTimeout(searchTimeoutRef.current), [])
+
   // Scroll highlighted item into view
   useEffect(() => {
     if (highlightIndex >= 0 && listRef.current) {
