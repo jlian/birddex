@@ -190,7 +190,7 @@ struct PerPhotoConfirmView: View {
                     .padding(.horizontal, 16)
 
                     speciesCard
-                    Text("Photos from [Wikimedia Commons](https://commons.wikimedia.org), occurrence data from [iNaturalist](https://www.inaturalist.org), factsheet from [BirdLife International](https://datazone.birdlife.org).")
+                    Text("Photos from [Wikimedia Commons](https://commons.wikimedia.org), occurrence data from [iNaturalist](https://www.inaturalist.org).")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .tint(.secondary)

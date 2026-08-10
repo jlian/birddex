@@ -22,7 +22,7 @@ The account starts empty. The App Store build does not contain a reviewer-only d
 
 Bird-photo identification runs entirely on the device after the model is available. Photo image contents are not uploaded to WingDex.
 
-When **Use Location and Time** is enabled, WingDex uses photo location and month on the device to improve identification. Exact coordinates may be saved with the outing and photo metadata. Rounded coordinates may be sent through WingDex to Geoapify to suggest a location name. The location editor always shows a linked **Location data from Geoapify, OpenStreetMap, and GeoNames** caption.
+When **Use Location and Time** is enabled, WingDex uses photo location and month on the device to improve identification. Exact coordinates may be saved with the outing and photo metadata. Rounded coordinates may be sent through WingDex to Geoapify to suggest a location name. The location editor always shows a linked **Location data by Geoapify, OpenStreetMap, and GeoNames** caption.
 
 ## Account deletion
 
