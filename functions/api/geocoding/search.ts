@@ -1,8 +1,16 @@
-import { GeocodingConfigurationError, GeocodingUpstreamError, searchPlaces } from '../../lib/geocoding-gateway'
+import { GeocodingConfigurationError, GeocodingUpstreamError, rateLimitKey, searchPlaces } from '../../lib/geocoding-gateway'
 import { createRouteResponder } from '../../lib/log'
 
 export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/search/read', 'Application')
+  const user = (context.data as RequestData).user
+
+  const { success } = await context.env.GEOCODING_LIMITER.limit({
+    key: rateLimitKey(user, context.request),
+  })
+  if (!success) {
+    return route.failWithHeaders(429, 'Too many requests', { 'Retry-After': '60' }, 'Geocoding search exceeded the rate limit for this account; retry after the window closes')
+  }
 
   try {
     const body = await context.request.json() as { query?: unknown } | null

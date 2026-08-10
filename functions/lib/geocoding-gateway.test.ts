@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   GeocodingConfigurationError,
   GeocodingUpstreamError,
+  rateLimitKey,
   reverseGeocode,
   searchPlaces,
 } from './geocoding-gateway'
@@ -165,5 +166,32 @@ describe('Geoapify geocoding gateway', () => {
     }))
 
     await expect(searchPlaces('test-key', 'Nowhere', fetcher)).resolves.toEqual([])
+  })
+})
+
+describe('rateLimitKey', () => {
+  const request = (ip?: string) =>
+    new Request('https://wingdex.test/api/geocoding/search', {
+      headers: ip ? { 'cf-connecting-ip': ip } : {},
+    })
+
+  it('gives a registered account its own budget', () => {
+    expect(rateLimitKey({ id: 'user-1', isAnonymous: false }, request('203.0.113.7')))
+      .toBe('user:user-1')
+  })
+
+  it('shares one budget per IP across anonymous sessions', () => {
+    const first = rateLimitKey({ id: 'anon-1', isAnonymous: true }, request('203.0.113.7'))
+    const second = rateLimitKey({ id: 'anon-2', isAnonymous: true }, request('203.0.113.7'))
+    expect(first).toBe(second)
+    expect(first).toBe('ip:203.0.113.7')
+  })
+
+  it('does not fall back to a shared key when the session is missing', () => {
+    expect(rateLimitKey(undefined, request('203.0.113.7'))).toBe('user:unknown')
+  })
+
+  it('still returns a key when the IP header is absent', () => {
+    expect(rateLimitKey({ id: 'anon-1', isAnonymous: true }, request())).toBe('ip:unknown')
   })
 })

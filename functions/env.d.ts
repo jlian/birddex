@@ -17,6 +17,8 @@ interface Env {
   OPENAI_MODEL: string
   OPENAI_MODEL_STRONG?: string
   GEOAPIFY_KEY: string
+  /** Burst limiter for the Geoapify-backed routes. See [[ratelimits]] in wrangler.toml. */
+  GEOCODING_LIMITER: RateLimit
   AI_DAILY_LIMIT_IDENTIFY?: string
   AI_DAILY_LIMIT_SUGGEST?: string
   TRUSTED_ORIGINS?: string
