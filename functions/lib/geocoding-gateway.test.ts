@@ -35,29 +35,40 @@ describe('Geoapify geocoding gateway', () => {
     expect(url.searchParams.get('bias')).toBe('countrycode:none')
     expect(url.searchParams.get('apiKey')).toBe('test-key')
     expect(results).toEqual([expect.objectContaining({
-      label: 'Green Lake Park, Seattle, Washington',
+      label: 'Green Lake Park, Seattle',
+      context: 'Washington',
       stateProvince: 'US-WA',
       countryCode: 'US',
     })])
   })
 
-  it('uses one park-aware request for a nearby named outdoor place', async () => {
+  it('keeps every nearby named place as a candidate and leads with a reserve', async () => {
+    const sanctuary = {
+      ...providerResult,
+      name: 'Montrose Point Bird Sanctuary',
+      categories: ['leisure', 'leisure.park', 'leisure.park.nature_reserve'],
+    }
+    const containingPark = { ...providerResult, name: 'Lincoln Park', categories: ['leisure', 'leisure.park'] }
     const fetcher = vi.fn<Fetcher>(async () => Response.json({
-      features: [{ properties: providerResult }],
+      features: [{ properties: containingPark }, { properties: sanctuary }],
     }))
     const onReverseFallback = vi.fn()
 
-    await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)).resolves.toMatchObject({
-      label: 'Green Lake Park, Seattle, Washington',
-    })
+    const { result, nearby } = await reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)
 
+    expect(result).toMatchObject({ label: 'Montrose Point Bird Sanctuary, Seattle' })
+    expect(nearby.map(place => place.label)).toEqual([
+      'Montrose Point Bird Sanctuary, Seattle',
+      'Lincoln Park, Seattle',
+    ])
     expect(fetcher).toHaveBeenCalledOnce()
     expect(onReverseFallback).not.toHaveBeenCalled()
     const url = new URL(String(fetcher.mock.calls[0][0]))
     expect(url.pathname).toBe('/v2/places')
     expect(url.searchParams.get('filter')).toBe('circle:-122.328,47.680,1000')
     expect(url.searchParams.get('bias')).toBe('proximity:-122.328,47.680')
-    expect(url.searchParams.get('categories')).toBe('leisure.park,natural,natural.national_park')
+    // Geoapify narrows rather than unions when given several categories.
+    expect(url.searchParams.get('categories')).toBe('leisure')
   })
 
   it('falls back to one reverse-geocoding request when no outdoor place is nearby', async () => {
@@ -67,7 +78,8 @@ describe('Geoapify geocoding gateway', () => {
     const onReverseFallback = vi.fn()
 
     await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)).resolves.toMatchObject({
-      label: 'Green Lake Park, Seattle, Washington',
+      result: { label: 'Green Lake Park, Seattle', context: 'Washington' },
+      nearby: [],
     })
 
     expect(fetcher).toHaveBeenCalledTimes(2)
