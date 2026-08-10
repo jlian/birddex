@@ -37,3 +37,16 @@ See the [README](../README.md) for project setup and structure, and [CONTRIBUTIN
 ## Text Encoding
 - Use commas, colons, semicolons, or hyphens (`-`) instead of em-dashes or en-dashes.
 - Stick to ASCII punctuation in commit messages, PR descriptions, issue comments, and code comments.
+
+## Contested Lines
+- When reviewing or changing a line, consider whether its history shows repeated
+  disagreement: `git log -L <line>,<line>:<file>`. A line that keeps flipping BACK
+  to an earlier value encodes a decision somebody keeps rediscovering.
+- Plain churn is not the signal. A line edited many times in one direction is
+  ordinary evolution. Reversion is what indicates an undocumented constraint.
+- If a line has that history and no comment explains it, say so in review. A
+  comment belongs where a reader would look: next to the line, at the top of the
+  enclosing block, or at the definition of the constant it reads.
+- Before claiming something is undocumented, check those three places. A constant
+  can be explained at its declaration a hundred lines away.
+- `scripts/contested-lines.py` reports these across the repo.

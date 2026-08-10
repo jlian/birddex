@@ -289,6 +289,11 @@ struct OutingReviewView: View {
                 placeResultsDropdown
             }
 
+            // Escape hatch back to the arrival GPS name after the user has typed or
+            // picked something else. Both halves matter: an empty suggestion means the
+            // lookup never resolved, and an equal one means this button would do
+            // nothing. The name field doubles as the rename control, so without this
+            // there is no way back to the original suggestion.
             if !suggestedLocation.isEmpty && suggestedLocation != locationName {
                 Button("Use GPS: \(suggestedLocation)") {
                     restoreSuggestedLocation()

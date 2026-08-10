@@ -21,6 +21,8 @@ export const BirdRow = memo(function BirdRow({ speciesName, imageUrl, subtitle, 
     <ListRow
       icon={
         <div className="py-1.5">
+          {/* allowLookup is false whenever the row already has an image, so a long
+              list does not fan out to one Wikipedia request per row. */}
           <WikiBirdThumbnail
             speciesName={speciesName}
             imageUrl={imageUrl}

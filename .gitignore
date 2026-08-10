@@ -141,3 +141,6 @@ public/node_modules
 # untracked, while four obsolete 27-file sets were committed. The repo was
 # tracking the fixtures that did not matter and ignoring the ones that did.
 ml/fixtures*/
+
+# Python bytecode from scripts/
+scripts/__pycache__/
