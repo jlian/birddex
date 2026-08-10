@@ -232,6 +232,43 @@ final class BirdIdFlowUITests: XCTestCase {
         )
     }
 
+    func testFocusedEmptyLocationShowsNearbyPlacesWithoutKeyboard() async throws {
+        if let reason = await localWorkerUnavailableReason() {
+            #if CI
+            XCTFail("Local Worker is required in CI but was not reachable. \(reason)")
+            return
+            #else
+            throw XCTSkip("Requires the current local WingDex Worker and Geoapify access. \(reason)")
+            #endif
+        }
+        let app = launchApp(extraEnvironment: [
+            "API_BASE_URL": localWorkerURL.absoluteString,
+        ])
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
+        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
+
+        startNewOuting(in: app)
+        let locationName = app.textFields["outing.locationName"]
+        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
+        XCTAssertTrue(scrollUntilVisible(locationName, in: app))
+
+        locationName.tap()
+        app.buttons["outing.locationClear"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.buttons["outing.locationSearchSubmit"].tap()
+
+        let firstResult = app.buttons.matching(identifier: "outing.locationResult").firstMatch
+        XCTAssertTrue(firstResult.waitForExistence(timeout: 30), "Nearby place suggestions did not appear")
+        XCTAssertTrue(
+            waitUntil(timeout: 5) { !app.keyboards.firstMatch.exists },
+            "The keyboard remained active behind the nearby places popover"
+        )
+        XCTAssertTrue(firstResult.isHittable, "Nearby place suggestions were not interactive")
+        firstResult.tap()
+        XCTAssertFalse(locationValue(locationName).isEmpty, "Tapping a nearby place did not set the location name")
+    }
+
     func testGeocodingFailureFallsBackToCoordinatesAndAllowsManualEntry() {
         let app = launchApp(extraArguments: [
             "--ui-test-geocoding-failure",
