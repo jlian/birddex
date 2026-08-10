@@ -57,6 +57,7 @@ jobs:
     needs: check
     if: needs.check.outputs.should_release == 'true'
     runs-on: macos-26
+    timeout-minutes: 60
     outputs:
       release_version: ${{ steps.version.outputs.release_version }}
       has_release: ${{ steps.version.outputs.has_release }}
@@ -93,7 +94,7 @@ jobs:
         run: npm ci
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: brew install xcodegen xcbeautify
 
       - name: Determine release version
         id: version
@@ -179,33 +180,54 @@ jobs:
           curl -sf http://localhost:5000/api/health > /dev/null 2>&1 || (echo "Server failed to start within 30s"; exit 1)
           echo "Server ready on :5000"
 
+      - name: Prepare iOS Simulator
+        if: steps.version.outputs.has_release == 'true'
+        run: |
+          set -euo pipefail
+          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | last | .identifier // empty')
+          if [ -z "$RUNTIME_ID" ]; then
+            xcodebuild -downloadPlatform iOS
+            RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | last | .identifier // empty')
+          fi
+          if [ -z "$RUNTIME_ID" ]; then
+            echo "No available iOS Simulator runtime after download"
+            exit 1
+          fi
+
+          DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '
+            [.devicetypes[] | select(.productFamily == "iPhone")]
+            | sort_by(if .name == "iPhone 17 Pro" then 0 else 1 end)
+            | first
+            | .identifier // empty
+          ')
+          if [ -z "$DEVICE_TYPE_ID" ]; then
+            echo "No iPhone Simulator device type is available"
+            exit 1
+          fi
+
+          IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex CI" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+          echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$IOS_SIMULATOR_UDID"
+          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+
       - name: Run iOS tests
         if: steps.version.outputs.has_release == 'true'
+        timeout-minutes: 30
         working-directory: ios
         run: |
           set -o pipefail
-          # Rebuilding an existing release checks out that tag's sources, and
-          # xcodegen generates the schemes from that tag's project.yml. Tags
-          # ios-v0.1.0 through ios-v0.3.0 define no schemes block, so no
-          # Localhost scheme exists to test and xcodebuild would fail here before
-          # archive/upload. Those releases were already tested when they shipped,
-          # and the Archive step still validates the rebuild, so skip the
-          # preflight tests when the tag has no Localhost scheme instead of
-          # failing the rebuild. Newer tags generate the scheme and test normally.
-          if [ ! -f WingDex.xcodeproj/xcshareddata/xcschemes/Localhost.xcscheme ]; then
-            echo "Localhost scheme absent in these sources; skipping preflight tests for this rebuild."
-            exit 0
-          fi
+          mkdir -p build/logs
           xcodebuild \
             -project WingDex.xcodeproj \
             -scheme Localhost \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -resultBundlePath build/TestResults.xcresult \
             test \
             CODE_SIGNING_ALLOWED=NO \
             API_BASE_URL=http://localhost:5000 \
             SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) CI' \
             -onlyUsePackageVersionsFromResolvedFile \
-            | tail -60
+            2>&1 | tee build/logs/test.log | xcbeautify
 
       - name: Write App Store Connect API key
         if: steps.version.outputs.has_release == 'true'
@@ -218,6 +240,7 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          mkdir -p build/logs
           xcodebuild archive \
             -project WingDex.xcodeproj \
             -scheme Production \
@@ -228,27 +251,22 @@ jobs:
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 \
             -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
-            | tail -30
+            2>&1 | tee build/logs/archive.log | xcbeautify
 
       - name: Inspect signed archive
         if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         env:
           REQUIRE_SIGNED: '1'
-        run: |
-          # Tags older than the privacy manifest are rebuilt from their own sources.
-          if [ -f WingDex/Resources/PrivacyInfo.xcprivacy ]; then
-            export REQUIRE_PRIVACY_MANIFEST=1
-          else
-            export REQUIRE_PRIVACY_MANIFEST=0
-          fi
-          scripts/inspect-archive.sh build/WingDex.xcarchive build/archive-inspection
+          REQUIRE_PRIVACY_MANIFEST: '1'
+        run: scripts/inspect-archive.sh build/WingDex.xcarchive build/archive-inspection
 
       - name: Export IPA
         if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         run: |
           set -o pipefail
+          mkdir -p build/logs
           xcodebuild -exportArchive \
             -archivePath build/WingDex.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
@@ -257,7 +275,17 @@ jobs:
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 \
             -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
-            | tail -20
+            2>&1 | tee build/logs/export.log | xcbeautify
+
+      - name: Upload iOS diagnostics
+        if: always() && steps.version.outputs.has_release == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: iOS-release-diagnostics
+          path: |
+            ios/build/TestResults.xcresult
+            ios/build/logs/
+          retention-days: 7
 
       - name: Upload validated IPA artifact
         if: steps.version.outputs.has_release == 'true'
@@ -355,6 +383,7 @@ jobs:
     needs: [check, preflight]
     if: needs.check.outputs.should_release == 'true' && needs.preflight.outputs.has_release == 'true' && inputs.dry_run != true
     runs-on: macos-26
+    timeout-minutes: 45
     steps:
       # Check out the exact commit preflight built and versioned, NOT the branch tip.
       # Preflight already resolved the tip to pick up any version bump release.yml
