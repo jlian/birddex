@@ -5,8 +5,10 @@ export interface GeoapifyResult {
   formatted?: string
   address_line1?: string
   address_line2?: string
+  categories?: string[]
   lat?: number | string
   lon?: number | string
+  country?: string
   country_code?: string
   state_code?: string
   state?: string
@@ -28,6 +30,7 @@ export interface GeoapifyPlacesResponse {
 
 export interface GeocodingResult {
   label: string
+  context?: string
   lat: number
   lon: number
   stateProvince?: string
@@ -78,14 +81,27 @@ export function extractRegionCodes(result: GeoapifyResult): {
   }
 }
 
-export function formatGeoapifyLabel(result: GeoapifyResult): string {
-  const locality = result.city || result.town || result.village || result.suburb || result.district || result.county
-  const concise = [result.name || result.address_line1, locality, result.state]
+function localityOf(result: GeoapifyResult): string | undefined {
+  return result.city || result.town || result.village || result.suburb || result.district || result.county
+}
+
+function uniqueParts(values: Array<string | undefined>): string[] {
+  return values
     .map(value => value?.trim())
-    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
-    .slice(0, 3)
-    .join(', ')
-  return concise || result.formatted?.trim() || ''
+    .filter((value, index, all): value is string => Boolean(value) && all.indexOf(value) === index)
+}
+
+// The place and where it sits, e.g. "Discovery Park, Seattle".
+export function formatGeoapifyLabel(result: GeoapifyResult): string {
+  const parts = uniqueParts([result.name || result.address_line1, localityOf(result)])
+  return parts.join(', ') || result.formatted?.trim() || ''
+}
+
+// The wider region, for telling same-named results apart.
+export function formatGeoapifyContext(result: GeoapifyResult): string | undefined {
+  const label = formatGeoapifyLabel(result)
+  const parts = uniqueParts([result.state, result.country]).filter(value => !label.includes(value))
+  return parts.join(', ') || undefined
 }
 
 function providerCoordinate(value: number | string | undefined, kind: CoordinateKind): number {
@@ -107,6 +123,7 @@ export function normalizeGeoapifyResult(result: GeoapifyResult): GeocodingResult
 
   return {
     label,
+    context: formatGeoapifyContext(result),
     lat,
     lon,
     ...extractRegionCodes(result),

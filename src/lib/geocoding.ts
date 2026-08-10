@@ -3,6 +3,7 @@ import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
 
 export interface GeocodingResult {
   label: string
+  context?: string
   lat: number
   lon: number
   stateProvince?: string
