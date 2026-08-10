@@ -285,7 +285,7 @@ describe('OutingReview', () => {
       'https://www.openstreetmap.org/copyright',
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Discovery Park, Seattle/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Discovery Park, Seattle/ }))
     const searchInput = screen.getByPlaceholderText('Search for a place...')
     fireEvent.change(searchInput, { target: { value: 'My birding spot' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
