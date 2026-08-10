@@ -16,7 +16,7 @@ struct PerPhotoConfirmView: View {
     @State private var selectedSpecies = ""
     @State private var selectedConfidence: Double = 0
     @State private var isLoadingWikiImage = false
-    @State private var galleryItems: [(url: URL, plumage: String?)] = []
+    @State private var galleryItems: [GalleryItem] = []
     @State private var galleryTask: Task<Void, Never>?
     @State private var galleryIndex = 0
     @State private var decodedCroppedImage: UIImage?
@@ -180,9 +180,20 @@ struct PerPhotoConfirmView: View {
 
                         VStack(spacing: 6) {
                             wikiSquareThumbnail(size: photoSize)
-                            Text(currentRefLabel)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            let credit = currentRefCredit
+                            if let url = credit.url {
+                                Link(destination: url) {
+                                    Text(credit.text)
+                                        .font(.caption)
+                                        .underline()
+                                        .multilineTextAlignment(.center)
+                                }
+                            } else {
+                                Text(credit.text)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
                         }
                         .frame(width: photoSize)
                     }
@@ -250,7 +261,7 @@ struct PerPhotoConfirmView: View {
     // MARK: - Wiki Square Thumbnail (portrait-aware, swipeable gallery)
 
     /// Reorder gallery items so plumage-matching images come first.
-    private func sortedByPlumage(_ items: [(url: URL, plumage: String?)]) -> [(url: URL, plumage: String?)] {
+    private func sortedByPlumage(_ items: [GalleryItem]) -> [GalleryItem] {
         guard let detected = selectedPlumage?.lowercased(), !detected.isEmpty else { return items }
         let detectedTags = Set(detected.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
         let matching = items.filter { item in
@@ -268,15 +279,18 @@ struct PerPhotoConfirmView: View {
 
     private var allWikiURLs: [URL] { galleryItems.map(\.url) }
 
-    /// Label for the current gallery image, including plumage if available.
-    private var currentRefLabel: String {
+    /// Caption for the current gallery image. Most Commons photos are CC BY or
+    /// CC BY-SA, so the creator has to be named alongside the license.
+    private var currentRefCredit: (text: String, url: URL?) {
         let items = galleryItems
-        guard !items.isEmpty else { return "Reference" }
-        let idx = min(galleryIndex, items.count - 1)
-        if idx >= 0, let plumage = items[idx].plumage {
-            return "Reference (\(plumage))"
+        guard !items.isEmpty else { return ("Reference", nil) }
+        let item = items[min(max(galleryIndex, 0), items.count - 1)]
+        var text = item.plumage.map { "Reference (\($0))" } ?? "Reference"
+        if let artist = item.artist, !artist.isEmpty {
+            text += " by \(artist)"
+            if let license = item.license, !license.isEmpty { text += " (\(license))" }
         }
-        return "Reference"
+        return (text, item.descriptionUrl)
     }
 
     private func wikiSquareThumbnail(size: CGFloat) -> some View {
@@ -508,13 +522,35 @@ struct PerPhotoConfirmView: View {
         }
         struct ImageInfo: Codable {
             let thumburl: String?
+            let descriptionurl: String?
             let extmetadata: ExtMetadata?
         }
         struct ExtMetadata: Codable {
             let ImageDescription: MetaValue?
             let Assessments: MetaValue?
+            let Artist: MetaValue?
+            let LicenseShortName: MetaValue?
         }
         struct MetaValue: Codable { let value: String? }
+    }
+
+    /// One reference photo plus the credit its license requires.
+    private struct GalleryItem {
+        let url: URL
+        let plumage: String?
+        let artist: String?
+        let license: String?
+        let descriptionUrl: URL?
+    }
+
+    /// Commons returns Artist and license fields as HTML fragments.
+    private static func stripHTML(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let text = value
+            .replacingOccurrences(of: "<[^>]*>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 
     private static let excludeRE = try! NSRegularExpression(
@@ -549,7 +585,7 @@ struct PerPhotoConfirmView: View {
                 return
             }
             var req = URLRequest(url: url)
-            req.setValue("WingDex-iOS/1.0", forHTTPHeaderField: "User-Agent")
+            req.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: req)
             try Task.checkCancellation()
 
@@ -569,8 +605,7 @@ struct PerPhotoConfirmView: View {
             }
             scored.sort { $0.score != $1.score ? $0.score < $1.score : $0.relevance < $1.relevance }
 
-            var urls: [URL] = []
-            var plumages: [String?] = []
+            var items: [GalleryItem] = []
             for entry in scored {
                 let title = entry.page.title ?? ""
                 let titleRange = NSRange(title.startIndex..., in: title)
@@ -581,13 +616,18 @@ struct PerPhotoConfirmView: View {
                 let desc = rawDesc.replacingOccurrences(of: "<[^>]*>", with: "", options: String.CompareOptions.regularExpression)
                 let descRange = NSRange(desc.startIndex..., in: desc)
                 if Self.captionExcludeRE.firstMatch(in: desc, range: descRange) != nil { continue }
-                urls.append(thumbURL)
-                plumages.append(parseGalleryPlumage([desc, title].joined(separator: " ")))
-                if urls.count >= 6 { break }
+                let info = entry.page.imageinfo?.first
+                items.append(GalleryItem(
+                    url: thumbURL,
+                    plumage: parseGalleryPlumage([desc, title].joined(separator: " ")),
+                    artist: Self.stripHTML(info?.extmetadata?.Artist?.value),
+                    license: Self.stripHTML(info?.extmetadata?.LicenseShortName?.value),
+                    descriptionUrl: info?.descriptionurl.flatMap(URL.init(string:))
+                ))
+                if items.count >= 6 { break }
             }
             guard !Task.isCancelled else { return }
-            log.debug("Commons gallery: \(urls.count) URLs after filtering")
-            let items = zip(urls, plumages).map { (url, plumage) in (url: url, plumage: plumage) }
+            log.debug("Commons gallery: \(items.count) URLs after filtering")
             await MainActor.run {
                 galleryItems = sortedByPlumage(items)
                 isLoadingWikiImage = false
