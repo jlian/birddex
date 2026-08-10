@@ -1,3 +1,11 @@
+## [1.24.1](https://github.com/jlian/wingdex/compare/v1.24.0...v1.24.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **ios-release:** check out the branch tip so queued releases are not stale ([5187948](https://github.com/jlian/wingdex/commit/518794851207c735aaf0ed6c7c0524e66ede908d)), closes [#302](https://github.com/jlian/wingdex/issues/302)
+* **ios-release:** publish the exact commit preflight archived ([d007518](https://github.com/jlian/wingdex/commit/d007518dd8a2191dcdbb551f27dd75dd214d318a))
+
 # [1.24.0](https://github.com/jlian/wingdex/compare/v1.23.0...v1.24.0) (2026-08-10)
 
 
