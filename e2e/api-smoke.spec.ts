@@ -1,8 +1,9 @@
 import { test, expect, request } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { testBaseURL } from './test-server'
 
-const API_BASE = 'http://localhost:5000'
+const API_BASE = testBaseURL
 const PREVIEW_BASE = process.env.PREVIEW_BASE_URL || 'https://localhost.wingdex.app'
 
 function buildCookieHeader(setCookieHeaders: string[]) {
