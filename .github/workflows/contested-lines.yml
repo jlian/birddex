@@ -1,0 +1,45 @@
+name: Contested Lines
+
+# Annotates lines whose history shows repeated disagreement: a value that keeps
+# returning to something it already was, with no comment explaining why. Advisory
+# only. Every annotation is a notice, the job always succeeds, and nothing here
+# can block a merge.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contested-lines-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contested-lines:
+    name: Annotate contested lines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history: the analysis reads every commit that touched a line.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Annotate contested lines this PR touches
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Only scan files the PR actually changed, so cost tracks PR size rather
+          # than repo size. Deleted files are excluded because there is nothing
+          # left to annotate.
+          mapfile -t files < <(git diff --name-only --diff-filter=d \
+            "$BASE_SHA" "$HEAD_SHA" -- \
+            '*.ts' '*.tsx' '*.swift' '*.yml' '*.sh')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo 'No source files changed.'
+            exit 0
+          fi
+          echo "Scanning ${#files[@]} changed file(s)."
+          python3 scripts/contested-lines.py --annotate --jobs 4 "${files[@]}"
