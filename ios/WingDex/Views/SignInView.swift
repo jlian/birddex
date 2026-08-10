@@ -37,7 +37,6 @@ struct SignInView: View {
     @Environment(DataStore.self) private var store
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 52
 
@@ -146,13 +145,7 @@ struct SignInView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .foregroundStyle(.white)
-                .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 16 : 28)
-                .padding(.vertical, 12)
-                .background(
-                    Color.black.opacity(0.72)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal, 12)
-                )
+                .padding(.horizontal, 28)
                 .padding(.bottom, 32)
 
                 // Social sign-in buttons
@@ -233,14 +226,11 @@ struct SignInView: View {
 
                 // Passkey section
                 VStack(spacing: 12) {
-                    VStack(spacing: 6) {
-                        Image(systemName: "person.badge.key.fill")
-                            .accessibilityHidden(true)
+                    Label {
                         Text("Continue with a Passkey")
-                            .multilineTextAlignment(.center)
-                            .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
-                            .layoutPriority(1)
+                    } icon: {
+                        Image(systemName: "person.badge.key.fill")
                     }
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white)
@@ -304,6 +294,7 @@ struct SignInView: View {
                     .frame(minHeight: screenH)
                     }
                     .scrollIndicators(.hidden)
+                    .scrollBounceBehavior(.basedOnSize)
         }
         .disabled(isSigningIn)
         .overlay {
