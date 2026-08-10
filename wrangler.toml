@@ -18,6 +18,14 @@ database_name = "wingdex-db"
 database_id = "bb0a4504-8009-4ea3-b462-ce2b9de3d615"
 migrations_dir = "migrations"
 
+# Burst guard for the Geoapify-backed routes, keyed on account id.
+[[ratelimits]]
+name = "GEOCODING_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
 
 
 [vars]
@@ -49,5 +57,14 @@ binding = "DB"
 database_name = "wingdex-db-dev"
 database_id = "7299207b-ddc7-4ecd-bc36-b6838f278c78"
 migrations_dir = "migrations"
+
+# Separate namespace so preview traffic cannot spend the production budget.
+[[env.preview.ratelimits]]
+name = "GEOCODING_LIMITER"
+namespace_id = "1002"
+
+  [env.preview.ratelimits.simple]
+  limit = 20
+  period = 60
 
 

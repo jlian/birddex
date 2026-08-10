@@ -63,7 +63,11 @@ function jsonRequest(body: unknown): Request {
 function routeContext(request: Request, db: D1Database, log: Logger, params: Record<string, string> = {}) {
   return {
     request,
-    env: { DB: db, GEOAPIFY_KEY: 'provider-key' },
+    env: {
+      DB: db,
+      GEOAPIFY_KEY: 'provider-key',
+      GEOCODING_LIMITER: { limit: async () => ({ success: true }) },
+    },
     data: { user: { id: 'user-1' }, log },
     params,
   }
