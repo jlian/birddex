@@ -401,6 +401,7 @@ struct OutingReviewView: View {
     private func showNearbyPlaces() {
         guard !nearbyPlaces.isEmpty else { return }
         clearSearchResults()
+        isLocationFieldFocused = false
         isShowingPlaceResults = true
     }
 
@@ -572,6 +573,7 @@ struct OutingReviewView: View {
         placeSearchFailed = false
         placeResults = []
         searchedQuery = nil
+        isLocationFieldFocused = false
         isShowingPlaceResults = true
         placeSearchTask = Task {
             defer {
