@@ -301,7 +301,9 @@ struct SpeciesDetailView: View {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
+            let (data, _) = try await URLSession.shared.data(for: request)
             guard let summary = await Self.parseSummary(data) else { return }
             WikiSummaryCache.shared.set(summary, for: wikiTitle)
             wikiExtract = summary.extract

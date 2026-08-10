@@ -36,6 +36,7 @@ import {
   resolveInferenceLocationName,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
+import type { GalleryImage } from '@/lib/wikimedia'
 import { useBirdGallery } from '@/hooks/use-bird-image'
 import { computePaddedSquareCropFromPercent } from '@/lib/crop-math'
 import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
@@ -920,7 +921,7 @@ function PerPhotoConfirm({
   
   // Fetch reference gallery images from Wikimedia Commons
   const { images: galleryImages, loading: galleryLoading } = useBirdGallery(selectedSpecies)
-  const [refLabel, setRefLabel] = useState<string>('Reference')
+  const [refImage, setRefImage] = useState<GalleryImage | undefined>(undefined)
 
   // Promote images matching the LLM's detected plumage to the front
   const sortedGallery = useMemo(() => {
@@ -1022,12 +1023,30 @@ function PerPhotoConfirm({
             alt={`${displayName} reference`}
             className="w-full max-w-48 border-2 border-muted"
             loading={galleryLoading}
-            onImageChange={(img) => {
-              const p = img?.plumage
-              setRefLabel(p ? `Reference (${p})` : 'Reference')
-            }}
+            onImageChange={setRefImage}
           />
-          <p className="text-xs text-muted-foreground">{refLabel}</p>
+          {/* Most Commons photos are CC BY or CC BY-SA, so the creator has to be named. */}
+          <p className="text-xs text-muted-foreground text-center text-balance">
+            {refImage?.plumage ? `Reference (${refImage.plumage})` : 'Reference'}
+            {refImage?.artist && (
+              <>
+                {' by '}
+                {refImage.descriptionUrl ? (
+                  <a
+                    href={refImage.descriptionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {refImage.artist}
+                  </a>
+                ) : (
+                  refImage.artist
+                )}
+                {refImage.license ? ` (${refImage.license})` : ''}
+              </>
+            )}
+          </p>
         </div>
       </div>
 

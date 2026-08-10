@@ -6,6 +6,13 @@
 import { getDisplayName } from './utils'
 import { fetchWithLocalAuthRetry } from './local-auth-fetch'
 
+/**
+ * Wikimedia's User-Agent policy wants a client name and a contact route, and
+ * blocks non-descriptive agents. Browsers will not let JS set User-Agent, so
+ * requests carry it as Api-User-Agent instead, which the policy provides for.
+ */
+export const WIKIMEDIA_USER_AGENT = 'WingDex/1.0 (https://wingdex.app)'
+
 export interface WikiSummary {
   title: string
   extract: string
@@ -88,7 +95,7 @@ async function fetchSummary(title: string): Promise<FetchResult> {
     const encoded = encodeURIComponent(title.replace(/ /g, '_'))
     const res = await fetch(
       `https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`,
-      { headers: { 'Api-User-Agent': 'WingDex/1.0 (bird identification app)' } }
+      { headers: { 'Api-User-Agent': WIKIMEDIA_USER_AGENT } }
     )
     if (!res.ok) return res.status === 404 ? { kind: 'miss' } : { kind: 'error' }
     const data = (await res.json()) as RestSummary
@@ -289,6 +296,12 @@ export type GalleryImage = {
   title?: string
   /** Parsed plumage tag from caption/filename (e.g. "male", "female", "juvenile") */
   plumage?: string
+  /** Creator, as named on the file page. Commons returns this as HTML. */
+  artist?: string
+  /** Short license name, e.g. "CC BY-SA 4.0". */
+  license?: string
+  /** Commons file page, which carries the full credit and license notice. */
+  descriptionUrl?: string
 }
 
 /** Patterns in filenames that indicate non-bird-photo imagery. */
@@ -345,13 +358,18 @@ function parsePlumage(text: string): string | undefined {
   return tags.length > 0 ? tags.join(', ') : undefined
 }
 
+/** Commons returns Artist and license fields as HTML fragments. */
+function stripHtml(value?: string): string {
+  return (value ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+}
+
 /** Search Wikimedia Commons for bird photos. Returns images with 500px thumbnails and descriptions. */
 async function fetchCommonsGallery(speciesName: string, limit: number): Promise<GalleryImage[]> {
   try {
     const query = encodeURIComponent(`"${speciesName}"`)
     const res = await fetch(
       `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${query}&gsrnamespace=6&gsrlimit=${limit + 6}&prop=imageinfo&iiprop=extmetadata|url&iiurlwidth=500&format=json&origin=*`,
-      { headers: { 'Api-User-Agent': 'WingDex/1.0 (bird identification app)' } },
+      { headers: { 'Api-User-Agent': WIKIMEDIA_USER_AGENT } },
     )
     if (!res.ok) return []
     const data = (await res.json()) as {
@@ -360,9 +378,12 @@ async function fetchCommonsGallery(speciesName: string, limit: number): Promise<
         index?: number
         imageinfo?: Array<{
           thumburl?: string
+          descriptionurl?: string
           extmetadata?: {
             ImageDescription?: { value?: string }
             Assessments?: { value?: string }
+            Artist?: { value?: string }
+            LicenseShortName?: { value?: string }
           }
         }>
       }> }
@@ -394,7 +415,15 @@ async function fetchCommonsGallery(speciesName: string, limit: number): Promise<
       // Skip non-photo content based on caption
       if (/\beggs?\b|\bnest\b|\bskeleton\b|\bspecimen\b|\btaxiderm/i.test(caption)) continue
       const plumage = parsePlumage([caption, title].join(' '))
-      results.push({ url, caption: caption || undefined, title, plumage })
+      results.push({
+        url,
+        caption: caption || undefined,
+        title,
+        plumage,
+        artist: stripHtml(ii?.extmetadata?.Artist?.value) || undefined,
+        license: stripHtml(ii?.extmetadata?.LicenseShortName?.value) || undefined,
+        descriptionUrl: ii?.descriptionurl,
+      })
       if (results.length >= limit) break
     }
     return results
