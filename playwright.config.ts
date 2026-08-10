@@ -1,9 +1,8 @@
 import { defineConfig } from '@playwright/test';
+import { testBaseURL, testServerPort } from './e2e/test-server';
 
 const isCI = !!process.env.CI;
 const isARM = process.arch === 'arm64';
-const serverPort = Number(process.env.PLAYWRIGHT_PORT || (isCI ? 5000 : 5012));
-const baseURL = `http://localhost:${serverPort}`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -18,7 +17,7 @@ export default defineConfig({
   workers: 1,
   reporter: isCI ? 'line' : 'list',
   use: {
-    baseURL,
+    baseURL: testBaseURL,
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
@@ -26,9 +25,9 @@ export default defineConfig({
   webServer: {
     // --ip 127.0.0.1 works around wrangler hanging in Docker (cloudflare/workers-sdk#6280)
     command: isCI
-      ? `npx wrangler dev --port ${serverPort} --ip 127.0.0.1 --show-interactive-dev-session=false`
-      : `PORT=${serverPort} FORCE_RESTART=true bash scripts/dev-full.sh`,
-    url: baseURL,
+      ? `npx wrangler dev --port ${testServerPort} --ip 127.0.0.1 --show-interactive-dev-session=false`
+      : `PORT=${testServerPort} FORCE_RESTART=true bash scripts/dev-full.sh`,
+    url: testBaseURL,
     reuseExistingServer: false,
     // Local needs MORE than CI, not less. CI runs `wrangler dev` against a
     // prebuilt dist, but the local command is dev-full.sh, which rebuilds
