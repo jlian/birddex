@@ -6,6 +6,7 @@ private let log = Logger(subsystem: Config.bundleID, category: "Geocoding")
 struct GeocodingResult: Codable, Identifiable, Sendable {
     var id: String { "\(latitude),\(longitude),\(label)" }
     let label: String
+    let context: String?
     let latitude: Double
     let longitude: Double
     let stateProvince: String?
@@ -13,6 +14,7 @@ struct GeocodingResult: Codable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case label
+        case context
         case latitude = "lat"
         case longitude = "lon"
         case stateProvince
@@ -30,6 +32,7 @@ enum GeocodingServiceError: Error {
 final class GeocodingService {
     private struct ReverseResponse: Codable {
         let result: GeocodingResult?
+        let nearby: [GeocodingResult]?
     }
 
     private struct SearchResponse: Codable {
@@ -44,12 +47,13 @@ final class GeocodingService {
         self.session = session
     }
 
-    func reverse(latitude: Double, longitude: Double) async throws -> GeocodingResult? {
+    /// The best guess plus the other named places within the search radius, from one request.
+    func reverse(latitude: Double, longitude: Double) async throws -> (result: GeocodingResult?, nearby: [GeocodingResult]) {
         let response: ReverseResponse = try await post(
             path: "api/geocoding/reverse",
             body: ["lat": latitude, "lon": longitude]
         )
-        return response.result
+        return (response.result, response.nearby ?? [])
     }
 
     func search(query: String) async throws -> [GeocodingResult] {

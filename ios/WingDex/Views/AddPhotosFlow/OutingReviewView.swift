@@ -15,7 +15,6 @@ struct OutingReviewView: View {
     @Bindable var viewModel: AddPhotosViewModel
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
-    @ScaledMetric(relativeTo: .caption) private var attributionFontSize: CGFloat = 12
 
     // MARK: - Local State
 
@@ -24,7 +23,6 @@ struct OutingReviewView: View {
     @State private var suggestedLocation = ""
     @State private var suggestedStateProvince: String?
     @State private var suggestedCountryCode: String?
-    @State private var locationLookupFailed = false
 
     /// Extracted ISO 3166-2 state/province code from geocoding.
     @State private var inferredStateProvince: String?
@@ -36,14 +34,17 @@ struct OutingReviewView: View {
     /// Explicit place search through the WingDex geocoding proxy.
     @State private var placeResults: [GeocodingResult] = []
     @State private var isSearchingPlace = false
-    @State private var isEditingLocation = false
-    @State private var locationSearchQuery = ""
     @FocusState private var isLocationFieldFocused: Bool
     @State private var overriddenCoords: CLLocationCoordinate2D?
     @State private var reverseGeocodingTask: Task<Void, Never>?
     @State private var placeSearchTask: Task<Void, Never>?
     @State private var placeSearchGeneration = 0
     @State private var placeSearchFailed = false
+    /// The query behind `placeResults`, so an empty result set can name what was searched.
+    @State private var searchedQuery: String?
+    @State private var isShowingPlaceResults = false
+    /// Other named places around the photo coordinates, kept from the reverse lookup.
+    @State private var nearbyPlaces: [GeocodingResult] = []
 
     /// Whether to add photos to an existing matching outing
     @State private var matchingOuting: Outing?
@@ -94,12 +95,6 @@ struct OutingReviewView: View {
             Section {
                 dateTimeSection
                 gpsStatusSection
-            } footer: {
-                if hasGps {
-                    Text("Coordinates are saved with your outing and photo metadata. Rounded coordinates may be sent to Geoapify to suggest a location name.")
-                        .font(.footnote)
-                        .foregroundStyle(Color.mutedText)
-                }
             }
 
             // Existing outing match toggle
@@ -109,17 +104,18 @@ struct OutingReviewView: View {
 
             // Location name with inline place search
             Section {
-                attributionCaption
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                if !useExistingOuting {
+                if useExistingOuting, let existing = matchingOuting {
+                    LabeledContent("Inherited") {
+                        Text(existing.locationName)
+                    }
+                    .accessibilityIdentifier("outing.inheritedLocationName")
+                } else {
                     locationSection
-                } else if let existing = matchingOuting {
-                    Text(existing.locationName)
-                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text("Location")
+            } footer: {
+                locationFooter
             }
 
             // Photo thumbnails grid
@@ -156,43 +152,26 @@ struct OutingReviewView: View {
             resetClusterState()
             initializeIfNeeded()
         }
+        .onChange(of: locationName) {
+            clearSearchResults()
+        }
+        .onChange(of: useExistingOuting) { _, usesExisting in
+            guard !usesExisting, viewModel.useGeoContext else { return }
+            startReverseGeocodeIfPossible()
+        }
         .onDisappear {
             reverseGeocodingTask?.cancel()
             placeSearchTask?.cancel()
         }
     }
 
-    private var attributionCaption: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 4) {
-                geoapifyAttributionLink(includeSeparator: true)
-                openStreetMapAttributionLink
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                geoapifyAttributionLink(includeSeparator: true)
-                openStreetMapAttributionLink
-            }
-        }
-        .font(.system(size: attributionFontSize))
-        .tint(Color.foregroundText)
-    }
-
-    private func geoapifyAttributionLink(includeSeparator: Bool) -> some View {
-        Link(destination: URL(string: "https://www.geoapify.com/")!) {
-            Text(includeSeparator ? "Powered by Geoapify ·" : "Powered by Geoapify")
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .accessibilityIdentifier("outing.locationAttribution")
-    }
-
-    private var openStreetMapAttributionLink: some View {
-        Link(destination: URL(string: "https://www.openstreetmap.org/copyright")!) {
-            Text("© OpenStreetMap contributors")
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .accessibilityIdentifier("outing.locationSourceAttribution")
+    /// One caption below the location controls: attribution, then what happens to coordinates.
+    private var locationFooter: some View {
+        Text("Location data by [Geoapify](https://www.geoapify.com/), [OpenStreetMap](https://www.openstreetmap.org/copyright), and [GeoNames](https://www.geonames.org/). Coordinates are saved with your outing and rounded for lookups.")
+            .font(.footnote)
+            .foregroundStyle(Color.mutedText)
+            .tint(Color.accentColor)
+            .accessibilityIdentifier("outing.locationAttribution")
     }
 
     // MARK: - Date/Time Section
@@ -246,13 +225,14 @@ struct OutingReviewView: View {
                     Text("Add to existing outing?")
                     Text("\(outing.locationName) - \(DateFormatting.formatDate(outing.startTime))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.mutedText)
                 }
             }
+            .accessibilityIdentifier("outing.useExisting")
         }
     }
 
-    // MARK: - Location Section (unified display + search)
+    // MARK: - Location Section (name field + submitted place search)
 
     @ViewBuilder
     private var locationSection: some View {
@@ -264,133 +244,174 @@ struct OutingReviewView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-        } else if isEditingLocation {
-            // Inline search field replaces the static display
-            TextField("Search for a place...", text: $locationSearchQuery)
-                .textFieldStyle(.plain)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier("outing.locationSearch")
-                .focused($isLocationFieldFocused)
-                .onSubmit {
-                    submitPlaceSearch()
-                }
-                .onAppear {
-                    locationSearchQuery = ""
-                }
-                .task {
-                    try? await Task.sleep(for: .milliseconds(300))
-                    isLocationFieldFocused = true
-                }
-
-            Button {
-                submitPlaceSearch()
-            } label: {
-                if isSearchingPlace {
-                    ProgressView()
-                } else {
-                    Label("Search locations", systemImage: "magnifyingglass")
-                }
-            }
-            .disabled(locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSearchingPlace)
-            .accessibilityIdentifier("outing.locationSearchSubmit")
-
-            ForEach(placeResults) { item in
-                Button {
-                    selectPlace(item)
-                } label: {
-                    Text(item.label)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .tint(.primary)
-                .accessibilityIdentifier("outing.locationResult")
-            }
-
-            if placeSearchFailed {
-                HStack(spacing: 4) {
-                    Text("Search failed.")
-                        .foregroundStyle(.red)
-                    Button("Retry") { submitPlaceSearch() }
-                        .buttonStyle(.plain)
-                        .underline()
-                }
-                .font(.caption)
-            }
-
-            if !locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button("Use entered name without searching") {
-                    useEnteredLocationName()
-                }
-                .font(.subheadline)
-            }
-
-            if !suggestedLocation.isEmpty && (overriddenCoords != nil || suggestedLocation != locationName)
-                && suggestedLocation != locationSearchQuery {
-                Button("Use GPS: \(suggestedLocation)") {
-                    restoreSuggestedLocation()
-                    dismissLocationSearch()
-                }
-                .font(.subheadline)
-            }
         } else {
-            // Static display with pencil to edit
-            HStack {
-                Text(locationName.isEmpty ? "Tap to set location" : locationName)
-                    .font(.body)
-                    .foregroundStyle(locationName.isEmpty ? Color.secondary : Color.primary)
+            // The field is the outing name. Typing renames the outing; submitting
+            // looks the name up so a matching place can also supply coordinates.
+            HStack(spacing: 0) {
+                TextField("Location name", text: $locationName)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .focused($isLocationFieldFocused)
+                    .onSubmit(submitPlaceSearch)
                     .accessibilityIdentifier("outing.locationName")
-                Spacer()
-                Button {
-                    isEditingLocation = true
-                } label: {
-                    Image(systemName: "pencil.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(Color.foregroundText)
-                        .frame(width: 44, height: 44)
+
+                if isLocationFieldFocused && !locationName.isEmpty {
+                    Button {
+                        locationName = ""
+                        isLocationFieldFocused = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Clear location name")
+                    .accessibilityIdentifier("outing.locationClear")
                 }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-                .accessibilityLabel("Edit location")
+
+                Button(action: submitPlaceSearchOrShowNearby) {
+                    Image(systemName: "magnifyingglass")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .disabled(isSearchingPlace || (trimmedLocationName.isEmpty && nearbyPlaces.isEmpty))
+                .accessibilityLabel(trimmedLocationName.isEmpty ? "Show places near your photos" : "Search for this place")
+                .accessibilityIdentifier("outing.locationSearchSubmit")
             }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                isEditingLocation = true
+            .popover(
+                isPresented: $isShowingPlaceResults,
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .top
+            ) {
+                placeResultsDropdown
             }
 
-            if !suggestedLocation.isEmpty && (overriddenCoords != nil || suggestedLocation != locationName) {
+            if !suggestedLocation.isEmpty && suggestedLocation != locationName {
                 Button("Use GPS: \(suggestedLocation)") {
                     restoreSuggestedLocation()
                 }
                 .font(.subheadline)
             }
         }
+    }
 
-        if locationLookupFailed, let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon {
-            HStack(spacing: 4) {
-                Text("Location lookup failed.")
-                    .foregroundStyle(.red)
-                Button("Retry") {
-                    let clusterID = cluster.id
-                    reverseGeocodingTask?.cancel()
-                    reverseGeocodingTask = Task {
-                        await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
+    // MARK: - Place Search Results
+
+    /// Candidates on show: submitted search results, or the places around the photos.
+    private var dropdownPlaces: [GeocodingResult] {
+        searchedQuery == nil && placeResults.isEmpty ? nearbyPlaces : placeResults
+    }
+
+    private var isShowingNearby: Bool {
+        searchedQuery == nil && placeResults.isEmpty && !nearbyPlaces.isEmpty
+    }
+
+    /// Anchored under the name field so results overlay the form instead of moving it.
+    private var placeResultsDropdown: some View {
+        Group {
+            if isSearchingPlace {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if placeSearchFailed {
+                VStack(spacing: 12) {
+                    Text("Couldn't search for places.")
+                        .foregroundStyle(Color.mutedText)
+                    Button("Try Again", action: submitPlaceSearch)
+                        .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if dropdownPlaces.isEmpty {
+                Text("No places found for \"\(searchedQuery ?? trimmedLocationName)\".")
+                    .foregroundStyle(Color.mutedText)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // A plain List here would be repainted by the app's UICollectionViewListCell override.
+                ScrollView {
+                    VStack(spacing: 0) {
+                        if isShowingNearby {
+                            Text("Near your photos")
+                                .font(.footnote)
+                                .foregroundStyle(Color.mutedText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 10)
+                                .padding(.bottom, 4)
+                        }
+                        ForEach(dropdownPlaces) { item in
+                            Button {
+                                selectPlace(item)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.label)
+                                        .foregroundStyle(Color.foregroundText)
+                                    if let context = item.context {
+                                        Text(context)
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.mutedText)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("outing.locationResult")
+
+                            if item.id != dropdownPlaces.last?.id {
+                                Divider().padding(.leading, 16)
+                            }
+                        }
                     }
                 }
-                .buttonStyle(.plain)
-                .underline()
             }
-            .font(.caption)
         }
+        .frame(width: 340, height: dropdownHeight)
+        .background(Color.cardBg)
+        .presentationCompactAdaptation(.popover)
+    }
+
+    private var dropdownHeight: CGFloat {
+        guard !isSearchingPlace, !placeSearchFailed, !dropdownPlaces.isEmpty else { return 140 }
+        return min(CGFloat(dropdownPlaces.count) * 68 + (isShowingNearby ? 28 : 0), 300)
+    }
+
+    /// The magnifier searches what you typed, or offers the places around your photos.
+    private func submitPlaceSearchOrShowNearby() {
+        if trimmedLocationName.isEmpty {
+            showNearbyPlaces()
+        } else {
+            submitPlaceSearch()
+        }
+    }
+
+    private func showNearbyPlaces() {
+        guard !nearbyPlaces.isEmpty else { return }
+        clearSearchResults()
+        isShowingPlaceResults = true
+    }
+
+    private var trimmedLocationName: String {
+        locationName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func dismissLocationSearch() {
         placeSearchTask?.cancel()
         isSearchingPlace = false
-        isEditingLocation = false
-        locationSearchQuery = ""
+        isLocationFieldFocused = false
+        isShowingPlaceResults = false
+        clearSearchResults()
+    }
+
+    private func clearSearchResults() {
         placeResults = []
+        placeSearchFailed = false
+        searchedQuery = nil
     }
 
     // MARK: - Photo Grid (horizontal scroll with context menus)
@@ -424,16 +445,16 @@ struct OutingReviewView: View {
         suggestedLocation = ""
         suggestedStateProvince = nil
         suggestedCountryCode = nil
-        locationLookupFailed = false
         inferredStateProvince = nil
         inferredCountryCode = nil
         overriddenStartTime = nil
         overriddenCoords = nil
-        isEditingLocation = false
-        locationSearchQuery = ""
         placeResults = []
+        searchedQuery = nil
         isSearchingPlace = false
         placeSearchFailed = false
+        isShowingPlaceResults = false
+        nearbyPlaces = []
         matchingOuting = nil
         useExistingOuting = false
         isLoadingLocation = false
@@ -455,12 +476,19 @@ struct OutingReviewView: View {
             useExistingOuting = matchingOuting != nil
         }
 
-        if viewModel.useGeoContext, matchingOuting == nil,
-           let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon {
-            let clusterID = cluster.id
-            reverseGeocodingTask = Task {
-                await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
-            }
+        if viewModel.useGeoContext, matchingOuting == nil {
+            startReverseGeocodeIfPossible()
+        }
+    }
+
+    /// Also runs when the user declines the matched outing, since they then need a suggestion.
+    private func startReverseGeocodeIfPossible() {
+        guard reverseGeocodingTask == nil,
+              let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon
+        else { return }
+        let clusterID = cluster.id
+        reverseGeocodingTask = Task {
+            await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
         }
     }
 
@@ -468,7 +496,6 @@ struct OutingReviewView: View {
         let roundedLat = (latitude * 1000).rounded() / 1000
         let roundedLon = (longitude * 1000).rounded() / 1000
         isLoadingLocation = true
-        locationLookupFailed = false
         defer {
             if cluster?.id == clusterID {
                 isLoadingLocation = false
@@ -490,10 +517,11 @@ struct OutingReviewView: View {
         #endif
 
         do {
-            let result = try await GeocodingService(auth: auth).reverse(latitude: roundedLat, longitude: roundedLon)
+            let lookup = try await GeocodingService(auth: auth).reverse(latitude: roundedLat, longitude: roundedLon)
             try Task.checkCancellation()
             guard cluster?.id == clusterID else { return }
-            if let result {
+            nearbyPlaces = lookup.nearby
+            if let result = lookup.result {
                 locationName = result.label
                 suggestedLocation = result.label
                 suggestedStateProvince = result.stateProvince
@@ -506,10 +534,11 @@ struct OutingReviewView: View {
         } catch is CancellationError {
             return
         } catch {
+            // The name field is editable and pre-filled with a usable fallback, so a
+            // failed suggestion never blocks the user or needs its own error row.
             log.error("Reverse geocoding failed")
             guard cluster?.id == clusterID else { return }
             applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
-            locationLookupFailed = true
         }
     }
 
@@ -526,7 +555,7 @@ struct OutingReviewView: View {
     }
 
     private func submitPlaceSearch() {
-        let query = locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = trimmedLocationName
         guard !query.isEmpty, let clusterID = cluster?.id else { return }
         placeSearchTask?.cancel()
         placeSearchGeneration += 1
@@ -534,6 +563,8 @@ struct OutingReviewView: View {
         isSearchingPlace = true
         placeSearchFailed = false
         placeResults = []
+        searchedQuery = nil
+        isShowingPlaceResults = true
         placeSearchTask = Task {
             defer {
                 // Only the current search may clear the loading state. A cancelled
@@ -548,8 +579,9 @@ struct OutingReviewView: View {
                 try Task.checkCancellation()
                 guard placeSearchGeneration == generation,
                       cluster?.id == clusterID,
-                      locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query else { return }
+                      trimmedLocationName == query else { return }
                 placeResults = results
+                searchedQuery = query
             } catch is CancellationError {
                 return
             } catch {
@@ -576,15 +608,6 @@ struct OutingReviewView: View {
         inferredStateProvince = suggestedStateProvince
         inferredCountryCode = suggestedCountryCode
         overriddenCoords = nil
-    }
-
-    private func useEnteredLocationName() {
-        let name = locationSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        locationName = name
-        overriddenCoords = nil
-        inferredCountryCode = nil
-        inferredStateProvince = nil
         dismissLocationSearch()
     }
 
@@ -600,7 +623,7 @@ struct OutingReviewView: View {
         // Create new outing
         let formatter = ISO8601DateFormatter()
 
-        let finalLocationName = locationName.isEmpty ? "Unknown Location" : locationName
+        let finalLocationName = trimmedLocationName.isEmpty ? "Unknown Location" : trimmedLocationName
         let outing = preparedOuting ?? Outing(
             id: "outing_\(UUID().uuidString)",
             userId: "",

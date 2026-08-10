@@ -5,7 +5,8 @@ final class GeocodingServiceTests: XCTestCase {
     func testDecodesNormalizedGeocodingResult() throws {
         let data = Data(#"""
         {
-          "label": "Discovery Park, Seattle, Washington",
+          "label": "Discovery Park",
+          "context": "Seattle, Washington",
           "lat": 47.6573,
           "lon": -122.4055,
           "stateProvince": "US-WA",
@@ -15,7 +16,8 @@ final class GeocodingServiceTests: XCTestCase {
 
         let result = try JSONDecoder().decode(GeocodingResult.self, from: data)
 
-        XCTAssertEqual(result.label, "Discovery Park, Seattle, Washington")
+        XCTAssertEqual(result.label, "Discovery Park")
+        XCTAssertEqual(result.context, "Seattle, Washington")
         XCTAssertEqual(result.latitude, 47.6573)
         XCTAssertEqual(result.longitude, -122.4055)
         XCTAssertEqual(result.stateProvince, "US-WA")
@@ -25,6 +27,7 @@ final class GeocodingServiceTests: XCTestCase {
     func testResultIdentityIncludesCoordinatesAndLabel() throws {
         let result = GeocodingResult(
             label: "Green Lake",
+            context: "Seattle, Washington",
             latitude: 47.68,
             longitude: -122.33,
             stateProvince: "US-WA",
