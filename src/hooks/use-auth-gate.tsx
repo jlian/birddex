@@ -28,34 +28,22 @@ interface AuthGateOptions {
 
 /**
  * Hook that gates actions behind authentication.
- * Returns `requireAuth(callback)` -- if user is anonymous, opens auth modal.
+ * Returns `openSignIn()` to open the auth modal. Nothing gates on having an
+ * account: identification runs on-device, so signing up is about making data
+ * durable rather than unlocking a feature.
  * If user is already authenticated, runs the callback immediately.
  * Also returns `authGateModal` element to render once in the tree.
  */
 export function useAuthGate({ isAnonymous, onUpgraded, demoDataEnabled, onSetDemoDataEnabled }: AuthGateOptions) {
   const [open, setOpen] = useState(false)
-  const pendingCallback = useRef<(() => void) | null>(null)
-
-  const requireAuth = useCallback((callback: () => void) => {
-    if (!isAnonymous) {
-      callback()
-      return
-    }
-    pendingCallback.current = callback
-    setOpen(true)
-  }, [isAnonymous])
 
   const openSignIn = useCallback(() => {
-    pendingCallback.current = null
     setOpen(true)
   }, [])
 
   const handleUpgraded = useCallback(async () => {
     setOpen(false)
     await onUpgraded()
-    const callback = pendingCallback.current
-    pendingCallback.current = null
-    callback?.()
   }, [onUpgraded])
 
   const modal = (
@@ -68,7 +56,7 @@ export function useAuthGate({ isAnonymous, onUpgraded, demoDataEnabled, onSetDem
     />
   )
 
-  return { requireAuth, openSignIn, authGateModal: modal }
+  return { openSignIn, authGateModal: modal }
 }
 
 // -- Modal ------------------------------------------------

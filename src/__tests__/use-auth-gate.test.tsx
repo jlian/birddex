@@ -66,14 +66,19 @@ vi.mock('@/components/ui/switch', () => ({
 
 function Harness({ onUpgraded, isAnonymous = true }: { onUpgraded: () => void | Promise<void>; isAnonymous?: boolean }) {
   const [actionRan, setActionRan] = useState(false)
-  const { requireAuth, authGateModal } = useAuthGate({
+  // requireAuth is gone: nothing gates on having an account any more. The modal
+  // is opened directly now, and onUpgraded is what callers hang work off.
+  const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous,
-    onUpgraded,
+    onUpgraded: async () => {
+      setActionRan(true)
+      await onUpgraded()
+    },
   })
 
   return (
     <>
-      <button onClick={() => requireAuth(() => setActionRan(true))}>Open gated action</button>
+      <button onClick={openSignIn}>Open gated action</button>
       {authGateModal}
       {actionRan && <div>action-ran</div>}
     </>
@@ -154,16 +159,16 @@ describe('useAuthGate', () => {
     expect(mockAddPasskey).not.toHaveBeenCalled()
   })
 
-  it('runs callback immediately when user is not anonymous', async () => {
+  it('still opens the modal for a signed-in user, since it is now a sign-in entry point', async () => {
+    // There is no gate to bypass any more. openSignIn is what the header button
+    // and Settings use, so it opens regardless of who is asking.
     const onUpgraded = vi.fn()
     render(<Harness onUpgraded={onUpgraded} isAnonymous={false} />)
 
     await userEvent.click(screen.getByText('Open gated action'))
 
-    // Callback runs immediately without opening modal
-    expect(screen.getByText('action-ran')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /start your wingdex/i })).toBeInTheDocument()
     expect(onUpgraded).not.toHaveBeenCalled()
-    expect(screen.queryByRole('heading', { name: /start your wingdex/i })).not.toBeInTheDocument()
   })
 
   it('does not call onUpgraded when passkey creation is cancelled', async () => {
