@@ -73,6 +73,24 @@ final class BirdIdFlowUITests: XCTestCase {
         field.value as? String ?? ""
     }
 
+    private func waitForDataSetup(in app: XCUIApplication) {
+        let elements = app.descendants(matching: .any)
+        let complete = elements["ui-test.dataSetupComplete"]
+        let failed = elements["ui-test.dataSetupFailed"]
+        XCTAssertTrue(
+            waitUntil(timeout: 120) { complete.exists || failed.exists },
+            "UI test data setup did not finish"
+        )
+        XCTAssertFalse(failed.exists, "UI test data setup failed")
+    }
+
+    private func waitForDemoData(in app: XCUIApplication) {
+        waitForDataSetup(in: app)
+        let elements = app.descendants(matching: .any)
+        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 120))
+        XCTAssertTrue(elements["Eared Dove"].exists)
+    }
+
     /// An account can already hold an outing that matches the injected cluster, which
     /// inherits its location instead of offering an editable one. Start from a new outing.
     private func startNewOuting(in app: XCUIApplication) {
@@ -360,9 +378,7 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertTrue(homeTab.waitForExistence(timeout: 120))
         homeTab.tap()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
-        let elements = app.descendants(matching: .any)
-        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
-        XCTAssertTrue(elements["Eared Dove"].exists)
+        waitForDemoData(in: app)
 
         var photoContrastFindings = 0
         var contrastDetails: [String] = []
@@ -388,10 +404,25 @@ final class BirdIdFlowUITests: XCTestCase {
         app.launch()
         let wingDexTab = app.buttons["WingDex"]
         XCTAssertTrue(wingDexTab.waitForExistence(timeout: 120))
+        waitForDemoData(in: app)
         wingDexTab.tap()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        XCTAssertTrue(app.descendants(matching: .any)["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
 
         try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+    }
+
+    func testEmptyWingDexPassesAccessibilityAudit() throws {
+        let app = application()
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
+        app.launch()
+        let wingDexTab = app.buttons["WingDex"]
+        XCTAssertTrue(wingDexTab.waitForExistence(timeout: 120))
+        waitForDataSetup(in: app)
+        wingDexTab.tap()
+        XCTAssertTrue(app.staticTexts["No Species Yet"].waitForExistence(timeout: 120))
+
+        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 0)
     }
 
     func testOutingsPassesAccessibilityAudit() throws {
@@ -400,6 +431,7 @@ final class BirdIdFlowUITests: XCTestCase {
         app.launch()
         let outingsTab = app.buttons["Outings"]
         XCTAssertTrue(outingsTab.waitForExistence(timeout: 120))
+        waitForDemoData(in: app)
         outingsTab.tap()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
 
@@ -411,6 +443,7 @@ final class BirdIdFlowUITests: XCTestCase {
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        waitForDemoData(in: app)
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
         try performBoundedAccessibilityAudit(
@@ -482,26 +515,19 @@ final class BirdIdFlowUITests: XCTestCase {
         expectedPhotoContrastFindings: Int
     ) throws {
         var photoContrastFindings = 0
-        var systemDynamicTypeFindings = 0
-        var systemClippingFindings = 0
         try app.performAccessibilityAudit { issue in
-            // The iOS 26 audit flags the native search field and Sort menu while scaling them correctly.
             switch issue.auditType {
             case .contrast:
                 photoContrastFindings += 1
                 return true
-            case .dynamicType:
-                systemDynamicTypeFindings += 1
+            case .dynamicType where issue.element?.label == "Sort":
                 return true
-            case .textClipped:
-                systemClippingFindings += 1
+            case .textClipped where ["Search species", "Search outings", "Sort"].contains(issue.element?.label):
                 return true
             default:
                 return false
             }
         }
         XCTAssertLessThanOrEqual(photoContrastFindings, expectedPhotoContrastFindings)
-        XCTAssertLessThanOrEqual(systemDynamicTypeFindings, 1)
-        XCTAssertLessThanOrEqual(systemClippingFindings, 2)
     }
 }

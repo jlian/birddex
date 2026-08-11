@@ -141,6 +141,9 @@ struct MainTabView: View {
     @State private var addPhotosVM = AddPhotosViewModel()
     @State private var showingWizard = false
     @State private var initialDataLoaded = false
+    #if DEBUG
+    @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
+    #endif
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -178,6 +181,9 @@ struct MainTabView: View {
                 Label("Add", systemImage: "camera.fill")
             }
         }
+        #if DEBUG
+        .accessibilityIdentifier(uiTestDataSetupIdentifier)
+        #endif
         .onChange(of: addPhotosVM.currentStep) {
             if addPhotosVM.currentStep != .selectPhotos {
                 showingWizard = true
@@ -211,11 +217,16 @@ struct MainTabView: View {
             // read the demo dex use the clear flag instead, because importing the CSV
             // delays everything that follows in this task.
             let arguments = ProcessInfo.processInfo.arguments
-            if arguments.contains("--ui-test-clear-data") {
-                try? await store.clearAll()
-            } else if arguments.contains("--ui-test-reset-data")
-                || (arguments.contains("--auto-demo-data") && store.dex.isEmpty) {
-                try? await store.loadDemoData()
+            do {
+                if arguments.contains("--ui-test-clear-data") {
+                    try await store.clearAll()
+                } else if arguments.contains("--ui-test-reset-data")
+                    || (arguments.contains("--auto-demo-data") && store.dex.isEmpty) {
+                    try await store.loadDemoData()
+                }
+                uiTestDataSetupIdentifier = "ui-test.dataSetupComplete"
+            } catch {
+                uiTestDataSetupIdentifier = "ui-test.dataSetupFailed"
             }
             #endif
             await completeInitialLoadIfReady()

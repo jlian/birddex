@@ -189,12 +189,16 @@ struct WingDexView: View {
                 }
                 VStack(spacing: 8) {
                     Text("No Species Yet")
-                        .font(.system(size: 22, weight: .semibold, design: .serif))
+                        .font(.title2)
+                        .fontDesign(.serif)
+                        .fontWeight(.semibold)
                         .foregroundStyle(Color.foregroundText)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Species will appear here as you identify birds.")
-                        .font(.system(size: 15))
+                        .font(.body)
                         .foregroundStyle(Color.mutedText)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
             }
