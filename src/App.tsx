@@ -337,7 +337,10 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
   const [showAddPhotos, setShowAddPhotos] = useState(false)
   const data = useWingDexData(user.id, { hasSession })
 
-  const { requireAuth, openSignIn, authGateModal } = useAuthGate({
+  // `requireAuth` is intentionally not used any more: nothing in the app gates on
+  // having an account. It stays on the hook for a future gate (account deletion,
+  // sharing) rather than being deleted and re-added.
+  const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous: user.isAnonymous,
     onUpgraded: async () => {
       await refetchSession()
@@ -374,23 +377,25 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
   }, [])
 
   const handleAddPhotos = useCallback(() => {
-    requireAuth(() => {
-      // The Add Photos flow uploads and persists under a real user id, so the
-      // anonymous user has to exist before the flow opens.
-      //
-      // Open the dialog first rather than after the round trip. The sign-in is
-      // usually instant, but on a cold worker it is slow enough to feel like a
-      // dead click, and the first step is photo selection, which needs no
-      // identity. If it fails, close again and surface the error.
-      setShowAddPhotos(true)
-      void ensureAnonymousSession().then((ok) => {
-        if (!ok) {
-          setShowAddPhotos(false)
-          toast.error('Could not start a session. Please try again.')
-        }
-      })
+    // No sign-up gate. Identification runs on-device, so an anonymous visitor
+    // costs nothing to serve, and gating the core feature behind an account was
+    // asking for commitment before showing any value. Signing up is now about
+    // keeping the results: an anonymous account lives in one browser and is lost
+    // when cookies are cleared, while a passkey makes it durable and portable.
+    //
+    // The flow still uploads and persists under a real user id, so the anonymous
+    // account has to exist. Open the dialog first and create it in the
+    // background: the first step is photo selection, which needs no identity,
+    // and on a cold worker the round trip is slow enough to feel like a dead
+    // click. If it fails, close again and surface the error.
+    setShowAddPhotos(true)
+    void ensureAnonymousSession().then((ok) => {
+      if (!ok) {
+        setShowAddPhotos(false)
+        toast.error('Could not start a session. Please try again.')
+      }
     })
-  }, [requireAuth, ensureAnonymousSession])
+  }, [ensureAnonymousSession])
 
   const handleSelectOuting = useCallback((id: string) => {
     navigate('outings', id)
@@ -439,12 +444,6 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
       meta.setAttribute('content', resolvedTheme === 'dark' ? '#262e29' : '#e5ddd0')
     }
   }, [resolvedTheme])
-
-  useEffect(() => {
-    if (user.isAnonymous && tab === 'settings') {
-      navigate('home')
-    }
-  }, [user.isAnonymous, tab, navigate])
 
   useEffect(() => {
     let idleCallbackId: number | null = null
