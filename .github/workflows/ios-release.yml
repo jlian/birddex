@@ -281,9 +281,8 @@ jobs:
           overwrite: true
           retention-days: 7
 
-      # Runners start with an empty keychain, so -allowProvisioningUpdates mints a fresh
-      # development certificate every run. Left alone they pile up until the account cap
-      # is hit. Their private keys die with the runner, so revoking them is always safe.
+      # Match server certificates to this runner's local signing identities so
+      # overlapping dry runs cannot revoke each other's credentials.
       - name: Revoke CI-created signing certificates
         if: always()
         continue-on-error: true
@@ -328,16 +327,34 @@ jobs:
 
             // Xcode names every certificate it creates through the API "Created via API".
             const REVOCABLE = new Set(['DEVELOPMENT', 'IOS_DEVELOPMENT', 'MAC_APP_DEVELOPMENT']);
-            const { data } = await asc('/v1/certificates?limit=200');
-            const stale = data.filter(
-              (c) => c.attributes.displayName === 'Created via API' && REVOCABLE.has(c.attributes.certificateType),
+            const identities = await exec.getExecOutput(
+              'security',
+              ['find-identity', '-v', '-p', 'codesigning'],
+              { ignoreReturnCode: true, silent: true },
             );
+            const localFingerprints = new Set(
+              Array.from(identities.stdout.matchAll(/\b([0-9A-F]{40})\b/g), (match) => match[1]),
+            );
+            const { data } = await asc('/v1/certificates?limit=200');
+            const owned = data.filter((certificate) => {
+              const attributes = certificate.attributes;
+              if (attributes.displayName !== 'Created via API' || !REVOCABLE.has(attributes.certificateType)) {
+                return false;
+              }
+              if (typeof attributes.certificateContent !== 'string') return false;
+              const fingerprint = crypto
+                .createHash('sha1')
+                .update(Buffer.from(attributes.certificateContent, 'base64'))
+                .digest('hex')
+                .toUpperCase();
+              return localFingerprints.has(fingerprint);
+            });
 
-            core.info(`${data.length} certificate(s) on the account, ${stale.length} CI-created`);
+            core.info(`${data.length} certificate(s) on the account, ${owned.length} owned by this runner`);
 
             // Best effort per certificate: one failure must not strand the rest.
             let failed = 0;
-            for (const cert of stale) {
+            for (const cert of owned) {
               try {
                 await asc(`/v1/certificates/${cert.id}`, 'DELETE');
                 core.info(`Revoked ${cert.attributes.certificateType} ${cert.id} (expiry ${cert.attributes.expirationDate})`);
@@ -347,7 +364,7 @@ jobs:
               }
             }
             if (failed) {
-              core.setFailed(`${failed} of ${stale.length} certificate(s) could not be revoked`);
+              core.setFailed(`${failed} of ${owned.length} certificate(s) could not be revoked`);
             }
 
       - name: Clean up API key
@@ -579,7 +596,7 @@ jobs:
             if (apps.data.length !== 1) throw new Error('Could not resolve app.wingdex in App Store Connect');
             const appID = apps.data[0].id;
 
-            async function buildExists() {
+            async function buildProcessingState() {
               const versions = await asc('/v1/preReleaseVersions', {
                 'filter[app]': appID,
                 'filter[version]': process.env.MARKETING_VERSION,
@@ -587,7 +604,7 @@ jobs:
                 'fields[preReleaseVersions]': 'version,platform',
                 limit: '2',
               });
-              if (versions.data.length === 0) return false;
+              if (versions.data.length === 0) return null;
               if (versions.data.length !== 1) {
                 throw new Error(`Expected one iOS prerelease version for ${process.env.MARKETING_VERSION}`);
               }
@@ -598,11 +615,23 @@ jobs:
                 'fields[builds]': 'version,processingState,uploadedDate',
                 limit: '2',
               });
-              return builds.data.length > 0;
+              if (builds.data.length === 0) return null;
+              if (builds.data.length !== 1) {
+                throw new Error(`Expected one build ${process.env.BUILD_NUMBER} for ${process.env.MARKETING_VERSION}`);
+              }
+              const state = builds.data[0].attributes.processingState;
+              if (!['PROCESSING', 'VALID', 'FAILED', 'INVALID'].includes(state)) {
+                throw new Error(`Unknown App Store Connect build processing state: ${state}`);
+              }
+              return state;
             }
 
-            if (await buildExists()) {
-              core.info(`TestFlight already has ${process.env.MARKETING_VERSION} (${process.env.BUILD_NUMBER})`);
+            const existingState = await buildProcessingState();
+            if (existingState === 'FAILED' || existingState === 'INVALID') {
+              throw new Error(`TestFlight rejected ${process.env.MARKETING_VERSION} (${process.env.BUILD_NUMBER}): ${existingState}`);
+            }
+            if (existingState === 'PROCESSING' || existingState === 'VALID') {
+              core.info(`TestFlight already has ${process.env.MARKETING_VERSION} (${process.env.BUILD_NUMBER}) in state ${existingState}`);
               return;
             }
 
@@ -618,8 +647,13 @@ jobs:
             for (let attempt = 1; attempt <= 8; attempt += 1) {
               await new Promise((resolve) => setTimeout(resolve, 15_000));
               try {
-                if (await buildExists()) {
-                  core.info('The upload reached App Store Connect despite the altool failure');
+                const state = await buildProcessingState();
+                if (state === 'FAILED' || state === 'INVALID') {
+                  core.setFailed(`TestFlight rejected the uploaded build: ${state}`);
+                  return;
+                }
+                if (state === 'PROCESSING' || state === 'VALID') {
+                  core.info(`The upload reached App Store Connect in state ${state} despite the altool failure`);
                   return;
                 }
               } catch (error) {
