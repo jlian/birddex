@@ -87,19 +87,17 @@ jobs:
           xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
       - name: Install XcodeGen
-        run: brew install xcodegen xcbeautify
-
-      - name: Generate GitInfo.swift
-        working-directory: ios
-        run: scripts/gen-git-info.sh
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          command -v xcodegen > /dev/null || brew install xcodegen
+          command -v xcbeautify > /dev/null || brew install xcbeautify
+          xcodegen --version
+          xcbeautify --version
 
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate
-
-      - name: Resolve SPM dependencies
-        working-directory: ios
-        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Dev
 
       - name: Build for Simulator
         working-directory: ios
@@ -110,6 +108,7 @@ jobs:
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/logs/build.log | xcbeautify
@@ -217,6 +216,7 @@ jobs:
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -onlyUsePackageVersionsFromResolvedFile \
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
             -only-testing:WingDexUITests \

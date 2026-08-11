@@ -198,15 +198,17 @@ jobs:
           persist-credentials: false
 
       - name: Install XcodeGen
-        run: brew install xcodegen xcbeautify
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          command -v xcodegen > /dev/null || brew install xcodegen
+          command -v xcbeautify > /dev/null || brew install xcbeautify
+          xcodegen --version
+          xcbeautify --version
 
       - name: Apply release version locally
         working-directory: ios
         run: scripts/bump-version.sh set "${{ needs.check.outputs.release_version }}" --quiet
-
-      - name: Resolve SPM dependencies
-        working-directory: ios
-        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Production -onlyUsePackageVersionsFromResolvedFile
 
       - name: Write App Store Connect API key
         run: |
