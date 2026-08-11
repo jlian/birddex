@@ -92,11 +92,42 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     columnNames.has('effortDistanceMiles') &&
     columnNames.has('effortAreaAcres')
   const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
+  // Older databases predate migration 0008, so the column is probed rather than
+  // assumed, matching how the other optional eBird columns are handled here.
+  const supportsSubmissionId = columnNames.has('submissionId')
 
   const insertStatements: D1PreparedStatement[] = []
 
   for (const outing of outings) {
-    if (supportsRegionColumns && supportsChecklistColumns) {
+    if (supportsRegionColumns && supportsChecklistColumns && supportsSubmissionId) {
+      insertStatements.push(
+        context.env.DB
+          .prepare(
+            `INSERT INTO outing (id, userId, startTime, endTime, locationName, defaultLocationName, lat, lon, stateProvince, countryCode, protocol, numberObservers, allObsReported, effortDistanceMiles, effortAreaAcres, notes, createdAt, submissionId)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)`
+          )
+          .bind(
+            outing.id,
+            userId,
+            outing.startTime,
+            outing.endTime,
+            outing.locationName,
+            outing.defaultLocationName ?? null,
+            outing.lat ?? null,
+            outing.lon ?? null,
+            outing.stateProvince ?? null,
+            outing.countryCode ?? null,
+            outing.protocol ?? null,
+            outing.numberObservers ?? null,
+            outing.allObsReported == null ? null : outing.allObsReported ? 1 : 0,
+            outing.effortDistanceMiles ?? null,
+            outing.effortAreaAcres ?? null,
+            outing.notes,
+            outing.createdAt,
+            outing.submissionId ?? null
+          )
+      )
+    } else if (supportsRegionColumns && supportsChecklistColumns) {
       insertStatements.push(
         context.env.DB
           .prepare(

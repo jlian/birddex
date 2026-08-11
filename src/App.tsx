@@ -49,6 +49,25 @@ function getFallbackUser(): UserInfo {
   }
 }
 
+/** Placeholder id used for a visitor that has no session yet. */
+const GUEST_USER_ID = 'guest'
+
+/**
+ * Identity used before any session exists. It lets AppContent mount so a
+ * visitor can browse immediately, while no anonymous user has been created
+ * on the server yet. It is `isAnonymous` so every existing auth gate keeps
+ * treating it as "not signed in".
+ */
+function getGuestUser(): UserInfo {
+  return {
+    name: 'guest',
+    image: '',
+    email: '',
+    id: isDevRuntime() ? getStableDevUserId() : GUEST_USER_ID,
+    isAnonymous: true,
+  }
+}
+
 // ─── URL Hash Router ──────────────────────────────────────
 
 function parseHash(): { tab: string; subId?: string } {
@@ -118,6 +137,7 @@ function App() {
   const isSessionPending = sessionState.isPending
   const refetchSession = sessionState.refetch
   const anonBootstrapStarted = useRef(false)
+  const anonBootstrapPromise = useRef<Promise<boolean> | null>(null)
   const hadSessionRef = useRef(false)
   const wasRealUserRef = useRef(false)
   const explicitSignOutRef = useRef(false)
@@ -155,6 +175,7 @@ function App() {
     if (session && session.user) {
       hadSessionRef.current = true
       anonBootstrapStarted.current = false
+      anonBootstrapPromise.current = null
       const isAnon = Boolean((session.user as { isAnonymous?: boolean }).isAnonymous)
       wasRealUserRef.current = !isAnon
 
@@ -180,82 +201,81 @@ function App() {
       wasRealUserRef.current = false
       explicitSignOutRef.current = false
       anonBootstrapStarted.current = false
+      anonBootstrapPromise.current = null
+    }
+
+    // No session. Passkey registration is sessionless-capable now
+    // (`requireSession: false`), so nothing here needs an anonymous user yet.
+    // Mount as a guest and defer the anonymous sign-in to the first action
+    // that actually needs a server-side identity (see ensureAnonymousSession).
+    if (isSessionPending) {
+      setUser(null)
+      return
     }
 
     if (isDevRuntime()) {
-      if (anonBootstrapFailed) {
-        setUser(getFallbackUser())
-        return
-      }
-
-      if (!isSessionPending && !anonBootstrapStarted.current) {
-        anonBootstrapStarted.current = true
-        void authClient.signIn.anonymous().then((result) => {
-          if (result.error) {
-            setAnonBootstrapFailed(true)
-            return
-          }
-          // Set user directly from sign-in response so AppContent mounts
-          // immediately and fires /api/data/all in parallel with the
-          // auto-refetch get-session instead of waiting for it.
-          const u = result.data?.user
-          if (u) {
-            setUser({
-              id: u.id,
-              name: u.name || u.email || 'user',
-              image: u.image || '',
-              email: u.email || '',
-              isAnonymous: Boolean((u as { isAnonymous?: boolean }).isAnonymous),
-            })
-          }
-        }).catch(() => {
-          setAnonBootstrapFailed(true)
-          anonBootstrapStarted.current = false
-        })
-      }
-
-      if (!anonBootstrapStarted.current) setUser(null)
+      // Dev keeps its own fallback identity when the auth backend is dead.
+      setUser(anonBootstrapFailed ? getFallbackUser() : getGuestUser())
       return
     }
 
-    // Hosted: auto-bootstrap anonymous session (demo-first)
-    if (anonBootstrapFailed) {
-      // Auth backend unreachable, stop retrying to avoid tight loop.
-      // User must reload to reattempt.
-      return
-    }
-
-    if (!isSessionPending && !anonBootstrapStarted.current) {
-      anonBootstrapStarted.current = true
-      void authClient.signIn.anonymous().then((result) => {
-        if (result.error) {
-          setAnonBootstrapFailed(true)
-          return
-        }
-        // Set user directly from sign-in response so AppContent mounts
-        // immediately and fires /api/data/all in parallel with the
-        // auto-refetch get-session instead of waiting for it.
-        const u = result.data?.user
-        if (u) {
-          setUser({
-            id: u.id,
-            name: u.name || u.email || 'user',
-            image: u.image || '',
-            email: u.email || '',
-            isAnonymous: Boolean((u as { isAnonymous?: boolean }).isAnonymous),
-          })
-        }
-      }).catch(() => {
-        setAnonBootstrapFailed(true)
-      })
-    }
-
-    if (!anonBootstrapStarted.current) setUser(null)
+    setUser(getGuestUser())
   }, [
     session,
     isSessionPending,
     anonBootstrapFailed,
   ])
+
+  /**
+   * Create the anonymous user on demand, at the first point a server-side
+   * identity is actually required. Idempotent: concurrent callers await the
+   * same in-flight promise, so only one anonymous user is ever minted.
+   * Resolves true when a session exists (or already existed), false on
+   * failure. On failure it sets `anonBootstrapFailed` and does not retry in a
+   * loop, matching the previous on-load behavior.
+   */
+  const ensureAnonymousSession = useCallback(async (): Promise<boolean> => {
+    if (session?.user) return true
+    if (anonBootstrapPromise.current) return anonBootstrapPromise.current
+    if (anonBootstrapStarted.current) return false
+    if (anonBootstrapFailed) {
+      // Auth backend unreachable, stop retrying to avoid a tight loop.
+      // User must reload to reattempt.
+      return false
+    }
+
+    anonBootstrapStarted.current = true
+    const inFlight = authClient.signIn.anonymous().then((result) => {
+      if (result.error) {
+        setAnonBootstrapFailed(true)
+        return false
+      }
+      // Set user directly from sign-in response so AppContent keeps rendering
+      // with the real id immediately and fires /api/data/all in parallel with
+      // the auto-refetch get-session instead of waiting for it.
+      const u = result.data?.user
+      if (u) {
+        setUser({
+          id: u.id,
+          name: u.name || u.email || 'user',
+          image: u.image || '',
+          email: u.email || '',
+          isAnonymous: Boolean((u as { isAnonymous?: boolean }).isAnonymous),
+        })
+      }
+      return true
+    }).catch(() => {
+      setAnonBootstrapFailed(true)
+      anonBootstrapStarted.current = false
+      if (isDevRuntime()) setUser(getFallbackUser())
+      return false
+    }).finally(() => {
+      anonBootstrapPromise.current = null
+    })
+
+    anonBootstrapPromise.current = inFlight
+    return inFlight
+  }, [session, anonBootstrapFailed])
 
   useEffect(() => {
     if (!user || user.isAnonymous) return
@@ -306,7 +326,7 @@ function App() {
     return <BootShell />
   }
 
-  return <AppContent user={user} refetchSession={refetchSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
+  return <AppContent user={user} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
 }
 
 function BootShell() {
@@ -318,7 +338,7 @@ function BootShell() {
   )
 }
 
-function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo; refetchSession: () => Promise<unknown>; onBeforeSignOut: () => void }) {
+function AppContent({ user, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {
   const { tab, subId, navigate, handleTabChange } = useHashRouter()
   const [showAddPhotos, setShowAddPhotos] = useState(false)
   const data = useWingDexData(user.id)
@@ -333,6 +353,8 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
     onSetDemoDataEnabled: async (enabled) => {
       if (!user.isAnonymous) return
       if (enabled) {
+        // Demo import writes server-side rows, so it needs a real identity.
+        if (!await ensureAnonymousSession()) return
         await loadDemoData(data)
         return
       }
@@ -355,8 +377,14 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
   }, [])
 
   const handleAddPhotos = useCallback(() => {
-    requireAuth(() => setShowAddPhotos(true))
-  }, [requireAuth])
+    requireAuth(() => {
+      // The Add Photos flow uploads and persists under a real user id, so the
+      // anonymous user has to exist before the flow opens.
+      void ensureAnonymousSession().then((ok) => {
+        if (ok) setShowAddPhotos(true)
+      })
+    })
+  }, [requireAuth, ensureAnonymousSession])
 
   const handleSelectOuting = useCallback((id: string) => {
     navigate('outings', id)

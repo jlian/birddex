@@ -47,6 +47,8 @@ export type ImportPreview = {
 
 export type OutingForImport = {
   id: string
+  /** eBird submission id for the checklist this outing came from, when known. */
+  submissionId?: string
   userId: string
   startTime: string
   endTime: string
@@ -426,6 +428,11 @@ export function groupPreviewsIntoOutings(
 
     outings.push({
       id: outingId,
+      // Provenance for the imported checklist. Kept so a later import of the same
+      // export can skip checklists already stored, and so demo checklists (which
+      // carry a reserved non-eBird prefix) can be identified and removed without
+      // touching real records.
+      submissionId: first.submissionId,
       userId,
       startTime,
       endTime,
