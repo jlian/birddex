@@ -204,7 +204,7 @@ struct OutingReviewView: View {
                         Text("GPS detected")
                         if let lat = cluster?.centerLat, let lon = cluster?.centerLon {
                             Text("(\(lat, specifier: "%.4f"), \(lon, specifier: "%.4f"))")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.foregroundText)
                         }
                     }
                 } icon: {
