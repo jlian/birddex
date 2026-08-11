@@ -121,6 +121,7 @@ struct HomeView: View {
                 Text("Got bird pics?")
                     .font(.system(.largeTitle, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("Upload your photos, ID the birds, and build your WingDex.")
                     .font(.body)
@@ -135,6 +136,7 @@ struct HomeView: View {
                 Label {
                     Text("Upload & Identify")
                         .font(.body.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "camera.fill")
                         .font(.body)

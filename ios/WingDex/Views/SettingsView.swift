@@ -75,6 +75,14 @@ struct SettingsView: View {
 
     private var profile: ProfileEditor { editor! }
 
+    private var showsAvatarOptions: Bool {
+        #if DEBUG
+        !ProcessInfo.processInfo.arguments.contains("--ui-test-hide-avatar-options")
+        #else
+        true
+        #endif
+    }
+
     var body: some View {
         NavigationStack {
             if editor != nil {
@@ -196,6 +204,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .headerProminence(.increased)
         .onChange(of: profile.name, initial: true) { _, name in
             guard !isNameFieldFocused else { return }
             editedName = name
@@ -221,7 +230,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var avatarSection: some View {
-        if !profile.name.isEmpty {
+        if !profile.name.isEmpty && showsAvatarOptions {
             Section("Avatar") {
                 ScrollView(.horizontal) {
                     HStack(spacing: 2) {
@@ -254,6 +263,7 @@ struct SettingsView: View {
                 .scrollIndicators(.hidden)
                 .animation(.none, value: profile.image)
             }
+            .headerProminence(.increased)
         }
     }
 
@@ -289,6 +299,7 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
         }
+        .headerProminence(.increased)
     }
 
     // MARK: - Security
@@ -300,6 +311,7 @@ struct SettingsView: View {
                 PasskeyManagementView()
             }
         }
+        .headerProminence(.increased)
     }
 
     // MARK: - Bird Identification
@@ -315,11 +327,16 @@ struct SettingsView: View {
             }
         } header: {
             Text("Bird Identification")
+                .font(.headline)
+                .foregroundStyle(Color.foregroundText)
         } footer: {
             Text("Improves identification using photo location and month. Rounded coordinates may be sent to Geoapify to suggest outing names.")
                 .font(.footnote)
                 .foregroundStyle(Color.mutedText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.birdIdFooter")
         }
+            .headerProminence(.increased)
     }
 
     // MARK: - Legal
@@ -334,6 +351,7 @@ struct SettingsView: View {
                 Label("Terms of Use", systemImage: "doc.text")
             }
         }
+        .headerProminence(.increased)
     }
 
     // MARK: - Data Management
@@ -348,6 +366,7 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
         }
+        .headerProminence(.increased)
     }
 
     // MARK: - Development (DEBUG only)
@@ -373,6 +392,7 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
         }
+        .headerProminence(.increased)
         .alert(
             "Load Demo Data?",
             isPresented: $showingDemoConfirmation

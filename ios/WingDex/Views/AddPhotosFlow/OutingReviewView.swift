@@ -114,6 +114,8 @@ struct OutingReviewView: View {
                 }
             } header: {
                 Text("Location")
+                    .font(.headline)
+                    .foregroundStyle(Color.foregroundText)
             } footer: {
                 locationFooter
             }
@@ -125,6 +127,8 @@ struct OutingReviewView: View {
                 Text("Photos (\(cluster?.photos.count ?? 0))")
                     .font(.headline)
                     .foregroundStyle(Color.foregroundText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("outing.photosHeader")
             }
         }
         .formStyle(.grouped)
