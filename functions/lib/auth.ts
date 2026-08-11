@@ -301,36 +301,65 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
         // createSession the plugin wraps user + passkey + session in one
         // runWithTransaction, so a cancelled or failed ceremony leaves nothing behind.
         registration: {
+          // Demo-first, one ceremony. requireSession false lets registration
+          // start without a session, but WingDex normally has one: the app
+          // bootstraps an anonymous user on load so a visitor can use the app
+          // before signing up.
+          //
+          // That is deliberate rather than tolerated. resolveRegistrationUser
+          // returns the SESSION user whenever one exists, so the passkey
+          // attaches to the anonymous user that already owns the demo and real
+          // data, and the id never changes. No new user, so no row migration
+          // and no cascading delete of the old one.
           requireSession: false,
+
+          // Only reached for a genuinely sessionless signup (cookies cleared,
+          // or a client that never bootstrapped). The stub is not persisted;
+          // afterVerification creates the durable row.
           resolveUser: async ({ name }: { name?: string }) => ({
             id: crypto.randomUUID(),
             name: name || 'WingDex birder',
           }),
+
           // rc.4 calls this as afterVerification({ ctx, verification, user,
-          // clientData, context }) and only reads `userId` off the result.
-          //
-          // Note `context` here is NOT the auth context: it is the opaque
-          // caller-supplied string from ?context=, round-tripped through the
-          // stored challenge. The adapter lives on ctx.context, and reaching for
-          // the wrong one fails at request time rather than at compile time,
-          // because these options are a plain bag with no inference.
+          // clientData, context }). Note `context` is NOT the auth context: it
+          // is the opaque caller-supplied string from ?context=, round-tripped
+          // through the stored challenge. The adapter lives on ctx.context.
           afterVerification: async ({ ctx, user }: {
-            ctx: { context: { internalAdapter: { createUser: (v: Record<string, unknown>) => Promise<{ id: string }> } } }
+            ctx: {
+              context: {
+                session?: { user?: { id?: string } } | null
+                internalAdapter: {
+                  createUser: (v: Record<string, unknown>) => Promise<{ id: string }>
+                  updateUser: (id: string, v: Record<string, unknown>) => Promise<unknown>
+                }
+              }
+            }
             user: { id: string; name?: string }
           }) => {
+            const name = user.name || 'WingDex birder'
+            const sessionUserId = ctx.context.session?.user?.id
+
+            // Upgrade in place. The plugin already resolved `user` to the
+            // session user, so this is the anonymous account being made
+            // durable: name it and clear the anonymous flag, keeping the id and
+            // therefore every row that points at it. Runs inside the plugin's
+            // registration transaction, so a failed ceremony rolls the flag
+            // back along with the passkey and session.
+            if (sessionUserId && sessionUserId === user.id) {
+              await ctx.context.internalAdapter.updateUser(sessionUserId, {
+                name,
+                isAnonymous: false,
+              })
+              return { userId: sessionUserId }
+            }
+
+            // No session: nothing to upgrade, so create the durable user here.
             const created = await ctx.context.internalAdapter.createUser({
-              name: user.name || 'WingDex birder',
+              name,
               email: `${user.id}@passkey.wingdex.app`,
               emailVerified: false,
             })
-            // SPIKE: the anonymous session's rows would be stranded under the old
-            // id otherwise, and deleting that user cascades them away, so any
-            // migration has to run here and before that delete. Doing it inside
-            // the plugin's registration transaction means a later failure rolls
-            // the moved rows back along with the user, passkey and session.
-            // Deliberately not wired up yet: resolving the anonymous session id
-            // off the request, since the plugin does not hand it to us on the
-            // verify-registration path. See functions/lib/anonymous-migration.ts.
             return { userId: created.id }
           },
         },

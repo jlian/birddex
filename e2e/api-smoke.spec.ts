@@ -415,7 +415,13 @@ test.describe('API smoke (request context)', () => {
         name: 'test',
       },
     })
-    expect(verifyRaw.status()).toBe(401)
+    // Was 401: verify-registration used to sit behind freshSessionMiddleware, so an
+    // unsigned token was rejected before the body was ever examined. Registration is
+    // now sessionless by design (#271), the middleware is gone, and the request gets
+    // as far as decoding the deliberately fake WebAuthn payload. 401 here would now
+    // mean the sessionless path had regressed.
+    expect(verifyRaw.status()).not.toBe(401)
+    expect(verifyRaw.status()).toBeGreaterThanOrEqual(400)
 
     // verify-registration with Bearer + signed token cookie = 400 (auth passes, fake data rejected)
     const verifySigned = await freshApi.post('/api/auth/passkey/verify-registration', {
