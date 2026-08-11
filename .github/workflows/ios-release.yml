@@ -198,12 +198,8 @@ jobs:
           persist-credentials: false
 
       - name: Install XcodeGen
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
-          command -v xcodegen > /dev/null || brew install xcodegen
-          command -v xcbeautify > /dev/null || brew install xcbeautify
-          xcodegen --version
+          ios/scripts/install-xcodegen.sh
           xcbeautify --version
 
       - name: Apply release version locally
