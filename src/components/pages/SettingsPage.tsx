@@ -487,8 +487,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         </div>
       </Card>
 
-      {/* Import & Export stays available to anonymous users: they can create
-          real sightings now, so hiding export would trap their own data. */}
+      {!user.isAnonymous && (
       <Card className="p-4 space-y-4">
         <div className="space-y-2">
           <h3 className="font-semibold text-foreground">Import &amp; Export</h3>
@@ -625,6 +624,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
           )}
         </div>
       </Card>
+      )}
 
       {/* Old Account card removed -- now rendered above Appearance */}
 

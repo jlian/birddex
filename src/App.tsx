@@ -337,9 +337,6 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
   const [showAddPhotos, setShowAddPhotos] = useState(false)
   const data = useWingDexData(user.id, { hasSession })
 
-  // `requireAuth` is intentionally not used any more: nothing in the app gates on
-  // having an account. It stays on the hook for a future gate (account deletion,
-  // sharing) rather than being deleted and re-added.
   const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous: user.isAnonymous,
     onUpgraded: async () => {
@@ -444,6 +441,14 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
       meta.setAttribute('content', resolvedTheme === 'dark' ? '#262e29' : '#e5ddd0')
     }
   }, [resolvedTheme])
+
+  // Settings stays behind sign-up. Identification is free, but keeping and
+  // moving data (import, export, passkeys, profile) is what an account is for.
+  useEffect(() => {
+    if (user.isAnonymous && tab === 'settings') {
+      navigate('home')
+    }
+  }, [user.isAnonymous, tab, navigate])
 
   useEffect(() => {
     let idleCallbackId: number | null = null
