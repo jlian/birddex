@@ -10,12 +10,22 @@ final class BirdIdFlowUITests: XCTestCase {
     private static let photo = "Great_blue_heron_roosting_at_Carkeek_Park.jpg"
     private static let expectedSpecies = "Great Blue Heron"
 
-    private var localWorkerURL: URL {
-        #if CI
-        URL(string: "http://localhost:5000")!
-        #else
-        URL(string: "https://localhost.wingdex.app")!
-        #endif
+    private var configuredAPIBaseURLValue: String? {
+        ProcessInfo.processInfo.environment["API_BASE_URL"]
+    }
+
+    private var configuredAPIBaseURL: URL? {
+        guard let value = configuredAPIBaseURLValue,
+              let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil
+        else { return nil }
+        return url
+    }
+
+    private var apiBaseURL: URL {
+        configuredAPIBaseURL ?? URL(string: "https://localhost.wingdex.app")!
     }
 
     private static var photoPath: String {
@@ -31,6 +41,9 @@ final class BirdIdFlowUITests: XCTestCase {
     /// failed run continue turns one broken assertion into minutes of dead waiting.
     override func setUp() {
         continueAfterFailure = false
+        if configuredAPIBaseURLValue != nil {
+            XCTAssertNotNil(configuredAPIBaseURL, "API_BASE_URL must be an absolute HTTP(S) URL")
+        }
     }
 
     /// XCTNSPredicateExpectation is unavailable under strict concurrency here, so poll.
@@ -73,11 +86,14 @@ final class BirdIdFlowUITests: XCTestCase {
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
     }
 
-    private func launchApp(
-        extraArguments: [String] = [],
-        extraEnvironment: [String: String] = [:]
-    ) -> XCUIApplication {
+    private func application() -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchEnvironment["API_BASE_URL"] = apiBaseURL.absoluteString
+        return app
+    }
+
+    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
+        let app = application()
         app.launchArguments = [
             "--auto-sign-in",
             // Empty the account so leftover outings from earlier runs cannot change the
@@ -88,18 +104,12 @@ final class BirdIdFlowUITests: XCTestCase {
             "--ui-test-lat", "47.7115",
             "--ui-test-lon", "-122.3717",
         ] + extraArguments
-        app.launchEnvironment.merge(extraEnvironment) { _, newValue in newValue }
         app.launch()
         return app
     }
 
-    /// Why the local Worker could not be reached, or nil when it is healthy.
-    ///
-    /// Returns the reason rather than a bool so CI can put it in the failure
-    /// message. A bare false told us nothing on 2026-08-10, when this test skipped
-    /// because the simulator had not finished booting and the run stayed green.
-    private func localWorkerUnavailableReason() async -> String? {
-        let url = localWorkerURL.appendingPathComponent("api/health")
+    private func backendUnavailableReason() async -> String? {
+        let url = apiBaseURL.appendingPathComponent("api/health")
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let http = response as? HTTPURLResponse else {
@@ -178,21 +188,14 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
-        if let reason = await localWorkerUnavailableReason() {
-            // Skipping is right on a laptop with no Worker running. It is wrong in
-            // CI, which provisions one on purpose: a skip there means the harness
-            // is broken, and reporting it as success is how the 2026-08-10 release
-            // failure went unnoticed until it reached the release job.
-            #if CI
-            XCTFail("Local Worker is required in CI but was not reachable. \(reason)")
-            return
-            #else
-            throw XCTSkip("Requires the current local WingDex Worker and Geoapify access. \(reason)")
-            #endif
+        if let reason = await backendUnavailableReason() {
+            guard configuredAPIBaseURLValue == nil else {
+                XCTFail("Selected CI backend is not healthy. \(reason)")
+                return
+            }
+            throw XCTSkip("Requires a healthy WingDex backend with Geoapify access. \(reason)")
         }
-        let app = launchApp(extraEnvironment: [
-            "API_BASE_URL": localWorkerURL.absoluteString,
-        ])
+        let app = launchApp()
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
@@ -233,17 +236,14 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testFocusedEmptyLocationShowsNearbyPlacesWithoutKeyboard() async throws {
-        if let reason = await localWorkerUnavailableReason() {
-            #if CI
-            XCTFail("Local Worker is required in CI but was not reachable. \(reason)")
-            return
-            #else
-            throw XCTSkip("Requires the current local WingDex Worker and Geoapify access. \(reason)")
-            #endif
+        if let reason = await backendUnavailableReason() {
+            guard configuredAPIBaseURLValue == nil else {
+                XCTFail("Selected CI backend is not healthy. \(reason)")
+                return
+            }
+            throw XCTSkip("Requires a healthy WingDex backend with Geoapify access. \(reason)")
         }
-        let app = launchApp(extraEnvironment: [
-            "API_BASE_URL": localWorkerURL.absoluteString,
-        ])
+        let app = launchApp()
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
@@ -344,7 +344,7 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testSignInPassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--ui-test-sign-out"]
         app.launch()
         XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
@@ -353,7 +353,7 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testHomePassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         let homeTab = app.buttons["Home"]
@@ -383,7 +383,7 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testWingDexPassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         let wingDexTab = app.buttons["WingDex"]
@@ -395,7 +395,7 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testOutingsPassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         let outingsTab = app.buttons["Outings"]
@@ -407,7 +407,7 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testSettingsAndDeletionConfirmationsPassAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))

@@ -8,90 +8,64 @@ on:
       - 'openapi.yaml'
       - 'functions/**'
       - 'migrations/**'
+      - '.github/workflows/ios.yml'
+      - '.github/workflows/ios-release.yml'
+  push:
+    branches: [dev]
+    paths:
+      - 'ios/**'
+      - 'openapi.yaml'
+      - 'functions/**'
+      - 'migrations/**'
+      - '.github/workflows/ios.yml'
+      - '.github/workflows/ios-release.yml'
 
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: read
 
 jobs:
   build-and-test:
     name: Build & Test (iOS Simulator)
     runs-on: macos-26
     timeout-minutes: 45
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v6
 
-      # -- Node + Wrangler server (for auth integration tests) --
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-macos-${{ hashFiles('package-lock.json') }}
-
-      - name: Install npm dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: npm ci
-
-      - name: Build web app
-        run: npm run build
-
-      - name: Write .dev.vars for local dev server
-        run: |
-          umask 077
-          printf 'BETTER_AUTH_SECRET=%s\nGEOAPIFY_KEY=%s\n' \
-            "$BETTER_AUTH_SECRET" "$GEOAPIFY_KEY" > .dev.vars
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          GEOAPIFY_KEY: ${{ secrets.GEOAPIFY_KEY }}
-
-      - name: Apply local D1 migrations
-        run: npm run db:migrate
-
-      - name: Start dev server
-        run: |
-          npm run dev &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:5000/api/health > /dev/null 2>&1 && break || sleep 1
-          done
-          curl -sf http://localhost:5000/api/health > /dev/null 2>&1 || (echo "Server failed to start within 30s"; exit 1)
-          echo "Server ready on :5000"
-
-      # -- Xcode build + test --
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate GitInfo.swift
-        working-directory: ios
-        run: scripts/gen-git-info.sh
-
-      - name: Generate Xcode project
-        working-directory: ios
-        run: xcodegen generate
-
-      - name: Resolve SPM dependencies
-        working-directory: ios
-        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Dev
-
-      - name: Prepare iOS Simulator
+      - name: Start iOS Simulator
         run: |
           set -euo pipefail
-          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | last | .identifier // empty')
+          echo "Available simulators before CI device creation:"
+          xcrun simctl list devices available
+
+          SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r --arg version "$SDK_VERSION" '
+            [.runtimes[] | select(
+              .isAvailable == true
+              and .version == $version
+              and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
+            )]
+            | first
+            | .identifier // empty
+          ')
           if [ -z "$RUNTIME_ID" ]; then
             xcodebuild -downloadPlatform iOS
-            RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | last | .identifier // empty')
+            RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r --arg version "$SDK_VERSION" '
+              [.runtimes[] | select(
+                .isAvailable == true
+                and .version == $version
+                and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
+              )]
+              | first
+              | .identifier // empty
+            ')
           fi
           if [ -z "$RUNTIME_ID" ]; then
-            echo "No available iOS Simulator runtime after download"
+            echo "No iOS $SDK_VERSION Simulator runtime is available"
             exit 1
           fi
 
@@ -109,19 +83,120 @@ jobs:
           IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex CI" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
           echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
           xcrun simctl boot "$IOS_SIMULATOR_UDID"
-          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+
+      - name: Install XcodeGen
+        run: brew install xcodegen xcbeautify
+
+      - name: Generate GitInfo.swift
+        working-directory: ios
+        run: scripts/gen-git-info.sh
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve SPM dependencies
+        working-directory: ios
+        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Dev
 
       - name: Build for Simulator
         working-directory: ios
         run: |
           set -o pipefail
+          mkdir -p build/logs
           xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) CI'
+            2>&1 | tee build/logs/build.log | xcbeautify
+
+      - name: Select API backend
+        env:
+          DEV_URL: https://dev.wingdex.app
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          PREVIEW_ENVIRONMENT: preview (#${{ github.event.pull_request.number }})
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          probe_backend() {
+            local response
+            response=$(curl -fsS --max-time 15 "$1/api/health" 2>/dev/null) || return 1
+            jq -e '.status == "ok" and .db == "ok"' <<< "$response" > /dev/null
+          }
+
+          wait_for_backend() {
+            local url="$1"
+            local attempts="$2"
+            for ((attempt = 1; attempt <= attempts; attempt++)); do
+              if probe_backend "$url"; then
+                return 0
+              fi
+              if ((attempt < attempts)); then
+                sleep 5
+              fi
+            done
+            return 1
+          }
+
+          wait_for_preview() {
+            local attempts="$1"
+            local deployment_id
+            local preview_url
+            for ((attempt = 1; attempt <= attempts; attempt++)); do
+              if ! deployment_id=$(gh api --method GET "repos/$GITHUB_REPOSITORY/deployments" \
+                -f sha="$PREVIEW_SHA" \
+                -f environment="$PREVIEW_ENVIRONMENT" \
+                -f per_page=1 \
+                --jq '.[0].id // empty' 2>/dev/null); then
+                return 1
+              fi
+              if [ -n "$deployment_id" ]; then
+                if ! preview_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                  --jq 'if .[0].state == "success" then (.[0].environment_url // "") else "" end' 2>/dev/null); then
+                  return 1
+                fi
+                if [ -n "$preview_url" ] && probe_backend "$preview_url"; then
+                  API_BASE_URL="$preview_url"
+                  return 0
+                fi
+              fi
+              if ((attempt < attempts)); then
+                sleep 5
+              fi
+            done
+            return 1
+          }
+
+          API_BASE_URL="$DEV_URL"
+          BACKEND_SOURCE="dev"
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REF" != "dev" ] && [ "$HEAD_REF" != "main" ]; then
+            if wait_for_preview 12; then
+              BACKEND_SOURCE="PR preview"
+            else
+              BACKEND_SOURCE="dev fallback"
+              echo "::warning::PR preview did not become healthy; falling back to dev"
+            fi
+          fi
+
+          if ! wait_for_backend "$API_BASE_URL" 6; then
+            echo "::error::Selected iOS test backend is not healthy: $API_BASE_URL"
+            exit 1
+          fi
+
+          echo "API_BASE_URL=$API_BASE_URL" >> "$GITHUB_ENV"
+          {
+            echo "### iOS test backend"
+            echo "- URL: \`$API_BASE_URL\`"
+            echo "- Selection: $BACKEND_SOURCE"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for iOS Simulator
+        run: xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
       - name: Run tests
         working-directory: ios
@@ -130,14 +205,15 @@ jobs:
           # xcodebuild does not create missing parents for -resultBundlePath, and
           # ios/build does not exist in a clean checkout.
           mkdir -p build
-          xcodebuild test-without-building \
+          TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
             -only-testing:WingDexUITests \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/logs/test.log | xcbeautify
 
       - name: Upload iOS test diagnostics
         if: always()
