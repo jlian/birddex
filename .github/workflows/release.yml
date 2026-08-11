@@ -138,14 +138,21 @@ jobs:
       - name: Repair partial publication
         if: steps.changes.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main' && (steps.source.outputs.release_state == 'commit' || steps.source.outputs.release_state == 'tag')
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_STATE: ${{ steps.source.outputs.release_state }}
         run: |
           VERSION=$(jq -r .version package.json)
           TAG="v$VERSION"
           if [ "$RELEASE_STATE" = "commit" ]; then
-            git tag "$TAG" HEAD
-            git push origin "$TAG"
+            TAG_SHA=$(git rev-parse HEAD)
+            if ! gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$TAG_SHA" > /dev/null 2>&1; then
+              EXISTING_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+              if [ "$EXISTING_SHA" != "$TAG_SHA" ]; then
+                echo "::error::$TAG already points to $EXISTING_SHA instead of $TAG_SHA"
+                exit 1
+              fi
+            fi
           fi
           gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
 

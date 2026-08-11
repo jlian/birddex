@@ -451,14 +451,21 @@ jobs:
       - name: Repair partial publication
         if: steps.publication.outputs.state == 'commit' || steps.publication.outputs.state == 'tag'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_STATE: ${{ steps.publication.outputs.state }}
           RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
         run: |
           TAG="ios-v${RELEASE_VERSION}"
           if [ "$RELEASE_STATE" = "commit" ]; then
-            git tag "$TAG" HEAD
-            git push origin "$TAG"
+            TAG_SHA=$(git rev-parse HEAD)
+            if ! gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$TAG_SHA" > /dev/null 2>&1; then
+              EXISTING_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+              if [ "$EXISTING_SHA" != "$TAG_SHA" ]; then
+                echo "::error::$TAG already points to $EXISTING_SHA instead of $TAG_SHA"
+                exit 1
+              fi
+            fi
           fi
           gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
 
@@ -573,11 +580,21 @@ jobs:
             const appID = apps.data[0].id;
 
             async function buildExists() {
+              const versions = await asc('/v1/preReleaseVersions', {
+                'filter[app]': appID,
+                'filter[version]': process.env.MARKETING_VERSION,
+                'filter[platform]': 'IOS',
+                'fields[preReleaseVersions]': 'version,platform',
+                limit: '2',
+              });
+              if (versions.data.length === 0) return false;
+              if (versions.data.length !== 1) {
+                throw new Error(`Expected one iOS prerelease version for ${process.env.MARKETING_VERSION}`);
+              }
               const builds = await asc('/v1/builds', {
                 'filter[app]': appID,
                 'filter[version]': process.env.BUILD_NUMBER,
-                'filter[preReleaseVersion.version]': process.env.MARKETING_VERSION,
-                'filter[preReleaseVersion.platform]': 'IOS',
+                'filter[preReleaseVersion]': versions.data[0].id,
                 'fields[builds]': 'version,processingState,uploadedDate',
                 limit: '2',
               });
