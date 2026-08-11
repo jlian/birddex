@@ -1,20 +1,10 @@
 @testable import WingDex
 import XCTest
 
-/// Integration tests that run against the actual API server.
-/// Requires the dev server to be running (localhost.wingdex.app or localhost:5000).
-///
-/// These tests use anonymous sign-in (no OAuth required) to verify
-/// the Bearer token auth flow works end-to-end from Swift code.
+/// Exercises anonymous bearer authentication against the selected API backend.
 final class AuthIntegrationTests: XCTestCase {
 
-    private let baseURL: URL = {
-        #if CI
-        URL(string: "http://localhost:5000")!
-        #else
-        Config.apiBaseURL
-        #endif
-    }()
+    private let baseURL = Config.apiBaseURL
     private let timeout: TimeInterval = 10
 
     // MARK: - Anonymous Sign-In + Bearer Auth
@@ -84,7 +74,7 @@ final class AuthIntegrationTests: XCTestCase {
         let token = try await signInAnonymously()
 
         // Create outing
-        let outingId = "integration-test-\(Int(Date.now.timeIntervalSince1970))"
+        let outingId = "integration-test-\(UUID().uuidString)"
         let createURL = baseURL.appendingPathComponent("api/data/outings")
         var createReq = URLRequest(url: createURL)
         createReq.httpMethod = "POST"

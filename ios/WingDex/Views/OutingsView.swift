@@ -168,15 +168,20 @@ struct OutingsView: View {
                     Image(systemName: "binoculars.fill")
                         .font(.system(size: 32))
                         .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
                 }
                 VStack(spacing: 8) {
                     Text("No Outings Yet")
-                        .font(.system(size: 22, weight: .semibold, design: .serif))
+                        .font(.title2)
+                        .fontDesign(.serif)
+                        .fontWeight(.semibold)
                         .foregroundStyle(Color.foregroundText)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Upload photos to create your first outing.")
-                        .font(.system(size: 15))
+                        .font(.body)
                         .foregroundStyle(Color.mutedText)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
             }

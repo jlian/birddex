@@ -3,11 +3,6 @@ name: Release
 on:
   push:
     branches: [main, dev]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.vscode/**'
-      - 'ios/**'
   workflow_dispatch:
 
 concurrency:
@@ -15,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: write
   contents: write
   issues: write
   pull-requests: write
@@ -30,32 +26,166 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve release source
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TRIGGER_SHA=$(git rev-parse HEAD)
+          git fetch origin "refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME" --tags
+          REMOTE_SHA=$(git rev-parse "refs/remotes/origin/$GITHUB_REF_NAME")
+          STATE=source
+          IS_CURRENT=true
+
+          if [ "$REMOTE_SHA" != "$TRIGGER_SHA" ]; then
+            STATE=stale
+            IS_CURRENT=false
+            if [ "$GITHUB_REF_NAME" = "main" ]; then
+              read -r -a PARENTS <<< "$(git show -s --format=%P "$REMOTE_SHA")"
+              VERSION=$(git show "$REMOTE_SHA:package.json" | jq -r .version)
+              AUTHOR_EMAIL=$(git show -s --format=%ae "$REMOTE_SHA")
+              SUBJECT=$(git show -s --format=%s "$REMOTE_SHA")
+              UNEXPECTED=$(git diff --name-only "$TRIGGER_SHA" "$REMOTE_SHA" \
+                | grep -Ev '^(CHANGELOG\.md|package\.json|package-lock\.json)$' || true)
+              if [ "${#PARENTS[@]}" -eq 1 ] \
+                && [ "${PARENTS[0]}" = "$TRIGGER_SHA" ] \
+                && [ "$AUTHOR_EMAIL" = "semantic-release-bot@martynus.net" ] \
+                && [ "$SUBJECT" = "chore(Release): $VERSION" ] \
+                && [ -z "$UNEXPECTED" ]; then
+                TAG="v$VERSION"
+                IS_CURRENT=true
+                if git rev-parse "refs/tags/$TAG" > /dev/null 2>&1; then
+                  if [ "$(git rev-parse "${TAG}^{commit}")" != "$REMOTE_SHA" ]; then
+                    echo "::error::$TAG does not point to release commit $REMOTE_SHA"
+                    exit 1
+                  fi
+                  if gh release view "$TAG" > /dev/null 2>&1; then
+                    STATE=complete
+                  else
+                    STATE=tag
+                  fi
+                else
+                  STATE=commit
+                fi
+              fi
+            fi
+          fi
+
+          if [ "$IS_CURRENT" = "true" ]; then
+            git checkout -B "$GITHUB_REF_NAME" "$REMOTE_SHA"
+            git branch --set-upstream-to="origin/$GITHUB_REF_NAME" "$GITHUB_REF_NAME"
+          fi
+          {
+            echo "is_current=$IS_CURRENT"
+            echo "release_state=$STATE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Reject superseded source
+        if: steps.source.outputs.is_current != 'true'
+        run: |
+          echo "::error::This release source was superseded; the newest queued run will carry its changes forward"
+          exit 1
+
+      - name: Check for deployable changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA=$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs" \
+            -f branch="$GITHUB_REF_NAME" \
+            -f status=success \
+            -f per_page=1 \
+            --jq '.workflow_runs[0].head_sha // empty')
+          if [ -z "$BASE_SHA" ] || ! git merge-base --is-ancestor "$BASE_SHA" HEAD; then
+            echo "No successful Release ancestor found; deploying the full current source"
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          FIRST_AFTER_BASE=$(git rev-list --ancestry-path --reverse "$BASE_SHA..HEAD" | head -1)
+          if [ -n "$FIRST_AFTER_BASE" ]; then
+            read -r -a PARENTS <<< "$(git show -s --format=%P "$FIRST_AFTER_BASE")"
+            AUTHOR_EMAIL=$(git show -s --format=%ae "$FIRST_AFTER_BASE")
+            SUBJECT=$(git show -s --format=%s "$FIRST_AFTER_BASE")
+            UNEXPECTED=$(git diff --name-only "$BASE_SHA" "$FIRST_AFTER_BASE" \
+              | grep -Ev '^(CHANGELOG\.md|package\.json|package-lock\.json)$' || true)
+            if [ "${#PARENTS[@]}" -eq 1 ] \
+              && [ "${PARENTS[0]}" = "$BASE_SHA" ] \
+              && [ "$AUTHOR_EMAIL" = "semantic-release-bot@martynus.net" ] \
+              && [[ "$SUBJECT" == chore\(Release\):* ]] \
+              && [ -z "$UNEXPECTED" ]; then
+              BASE_SHA="$FIRST_AFTER_BASE"
+            fi
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE_SHA"..HEAD | awk '
+            !(/\.md$/ || /^docs\// || /^\.vscode\// || /^ios\//) { print }
+          ')
+          if [ -n "$CHANGED" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v6
+        if: steps.changes.outputs.should_deploy == 'true'
         with:
           node-version: 24
           cache: npm
 
       - name: Install dependencies
+        if: steps.changes.outputs.should_deploy == 'true'
         run: npm ci
 
       - name: Pre-release typecheck
-        if: github.ref == 'refs/heads/main'
+        if: steps.changes.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main'
         run: npm run typecheck
 
       - name: Run semantic-release
-        if: github.ref == 'refs/heads/main'
+        if: steps.changes.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main' && steps.source.outputs.release_state == 'source'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
 
+      - name: Repair partial publication
+        if: steps.changes.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main' && (steps.source.outputs.release_state == 'commit' || steps.source.outputs.release_state == 'tag')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_STATE: ${{ steps.source.outputs.release_state }}
+        run: |
+          VERSION=$(jq -r .version package.json)
+          TAG="v$VERSION"
+          if [ "$RELEASE_STATE" = "commit" ]; then
+            TAG_SHA=$(git rev-parse HEAD)
+            if ! gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$TAG_SHA" > /dev/null 2>&1; then
+              EXISTING_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+              if [ "$EXISTING_SHA" != "$TAG_SHA" ]; then
+                echo "::error::$TAG already points to $EXISTING_SHA instead of $TAG_SHA"
+                exit 1
+              fi
+            fi
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+
       - name: Build deploy artifact
+        if: steps.changes.outputs.should_deploy == 'true'
         run: npm run build
 
       - name: Apply D1 migrations
+        if: steps.changes.outputs.should_deploy == 'true'
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             npx wrangler d1 migrations apply wingdex-db --remote
@@ -67,6 +197,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to Cloudflare Workers
+        if: steps.changes.outputs.should_deploy == 'true'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -74,7 +205,7 @@ jobs:
           command: deploy ${{ github.ref != 'refs/heads/main' && '--env preview' || '' }}
 
       - name: Purge production edge cache
-        if: github.ref == 'refs/heads/main'
+        if: steps.changes.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main'
         run: |
           if [ -z "${CLOUDFLARE_ZONE_ID:-}" ]; then
             echo "Missing CLOUDFLARE_ZONE_ID GitHub secret"
@@ -91,6 +222,7 @@ jobs:
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
 
       - name: Verify deployed version
+        if: steps.changes.outputs.should_deploy == 'true'
         run: |
           set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
@@ -145,3 +277,9 @@ jobs:
               echo "Warning: could not verify ${DOMAIN} after ${MAX_ATTEMPTS} attempts; continuing for non-main branch"
             fi
           done
+
+      - name: Continue iOS release
+        if: steps.source.outputs.is_current == 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ios-release.yml --ref main -f source_sha="$(git rev-parse HEAD)"

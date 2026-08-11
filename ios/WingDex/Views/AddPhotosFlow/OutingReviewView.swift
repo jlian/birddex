@@ -114,6 +114,8 @@ struct OutingReviewView: View {
                 }
             } header: {
                 Text("Location")
+                    .font(.headline)
+                    .foregroundStyle(Color.foregroundText)
             } footer: {
                 locationFooter
             }
@@ -125,6 +127,8 @@ struct OutingReviewView: View {
                 Text("Photos (\(cluster?.photos.count ?? 0))")
                     .font(.headline)
                     .foregroundStyle(Color.foregroundText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("outing.photosHeader")
             }
         }
         .formStyle(.grouped)
@@ -200,7 +204,7 @@ struct OutingReviewView: View {
                         Text("GPS detected")
                         if let lat = cluster?.centerLat, let lon = cluster?.centerLon {
                             Text("(\(lat, specifier: "%.4f"), \(lon, specifier: "%.4f"))")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.foregroundText)
                         }
                     }
                 } icon: {

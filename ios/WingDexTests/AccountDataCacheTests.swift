@@ -74,6 +74,41 @@ final class AccountDataCacheTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleArtifactURL.path))
     }
 
+    func testValidDiskStoreSurvivesReopen() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appending(path: "WingDexCache.store")
+
+        do {
+            let cache = try AccountDataCache(storeURL: storeURL)
+            try cache.replace(accountID: "account-a", response: fixtureResponse(accountID: "account-a"))
+        }
+
+        let reopened = try AccountDataCache(storeURL: storeURL)
+        XCTAssertEqual(
+            try XCTUnwrap(reopened.load(accountID: "account-a")).response.outings.first?.userId,
+            "account-a"
+        )
+    }
+
+    func testDirectoryAtStorePathIsRecreated() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let storeURL = directory.appending(path: "WingDexCache.store", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: storeURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let cache = try AccountDataCache(storeURL: storeURL)
+        try cache.replace(accountID: "account-a", response: fixtureResponse(accountID: "account-a"))
+
+        XCTAssertEqual(
+            try XCTUnwrap(cache.load(accountID: "account-a")).response.outings.first?.userId,
+            "account-a"
+        )
+    }
+
     func testDurablePurgeDenialPreventsHydrationAndRetriesDeletion() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)

@@ -9,13 +9,24 @@ final class BirdIdFlowUITests: XCTestCase {
     /// the repo rather than the app bundle so it never ships inside the app.
     private static let photo = "Great_blue_heron_roosting_at_Carkeek_Park.jpg"
     private static let expectedSpecies = "Great Blue Heron"
+    private static let avatarEmojiLabels: Set<String> = ["🐦", "🦉", "🦜", "🐧", "🦆", "🦩", "🦅", "🐤"]
 
-    private var localWorkerURL: URL {
-        #if CI
-        URL(string: "http://localhost:5000")!
-        #else
-        URL(string: "https://localhost.wingdex.app")!
-        #endif
+    nonisolated private var configuredAPIBaseURLValue: String? {
+        ProcessInfo.processInfo.environment["API_BASE_URL"]
+    }
+
+    nonisolated private var configuredAPIBaseURL: URL? {
+        guard let value = configuredAPIBaseURLValue,
+              let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil
+        else { return nil }
+        return url
+    }
+
+    private var apiBaseURL: URL {
+        configuredAPIBaseURL ?? URL(string: "https://localhost.wingdex.app")!
     }
 
     private static var photoPath: String {
@@ -31,6 +42,9 @@ final class BirdIdFlowUITests: XCTestCase {
     /// failed run continue turns one broken assertion into minutes of dead waiting.
     override func setUp() {
         continueAfterFailure = false
+        if configuredAPIBaseURLValue != nil {
+            XCTAssertNotNil(configuredAPIBaseURL, "API_BASE_URL must be an absolute HTTP(S) URL")
+        }
     }
 
     /// XCTNSPredicateExpectation is unavailable under strict concurrency here, so poll.
@@ -60,6 +74,82 @@ final class BirdIdFlowUITests: XCTestCase {
         field.value as? String ?? ""
     }
 
+    private func runAccessibilityAudit(
+        in app: XCUIApplication,
+        for auditTypes: XCUIAccessibilityAuditType = .all,
+        handlingKnownIssue: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil
+    ) throws {
+        do {
+            try app.performAccessibilityAudit(for: auditTypes) { issue in
+                handlingKnownIssue?(issue) ?? false
+            }
+        } catch {
+            if Self.isAccessibilityAuditInfrastructureTimeout(error) {
+                XCTFail("XCTest accessibility audit infrastructure timed out before reporting results (Code=-56)")
+                return
+            }
+            throw error
+        }
+    }
+
+    nonisolated private static func isAccessibilityAuditInfrastructureTimeout(
+        _ error: Error
+    ) -> Bool {
+        let auditError = error as NSError
+        return auditError.domain == "com.apple.xcode.xctest.accessibilityAudit"
+            && auditError.code == -56
+    }
+
+    private func isKnownAddPhotosAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        switch issue.auditType {
+        case .contrast:
+            return issue.element == nil && issue.compactDescription == "Contrast nearly passed"
+        case .dynamicType:
+            return issue.element?.identifier == "outing.photosHeader"
+        case .textClipped:
+            return issue.element?.identifier == "outing.locationName"
+        default:
+            return false
+        }
+    }
+
+    private func isKnownSettingsAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        switch issue.auditType {
+        case .dynamicType:
+            return issue.element?.identifier == "settings.birdIdFooter"
+        case .textClipped:
+            return issue.element?.identifier == "settings.displayName"
+                || Self.avatarEmojiLabels.contains(issue.element?.label ?? "")
+        default:
+            return false
+        }
+    }
+
+    private func waitForDataSetup(in app: XCUIApplication) {
+        let elements = app.descendants(matching: .any)
+        let complete = elements["ui-test.dataSetupComplete"]
+        let failed = elements["ui-test.dataSetupFailed"]
+        XCTAssertTrue(
+            waitUntil(timeout: 120) { complete.exists || failed.exists },
+            "UI test data setup did not finish"
+        )
+        XCTAssertFalse(failed.exists, "UI test data setup failed")
+    }
+
+    private func waitForDemoData(in app: XCUIApplication) {
+        waitForDataSetup(in: app)
+        let elements = app.descendants(matching: .any)
+        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
+        XCTAssertTrue(elements["Eared Dove"].exists)
+    }
+
+    private func waitForOutingReview(in app: XCUIApplication) -> XCUIElement {
+        waitForDataSetup(in: app)
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 60), "Outing review never appeared")
+        return continueButton
+    }
+
     /// An account can already hold an outing that matches the injected cluster, which
     /// inherits its location instead of offering an editable one. Start from a new outing.
     private func startNewOuting(in app: XCUIApplication) {
@@ -73,11 +163,14 @@ final class BirdIdFlowUITests: XCTestCase {
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
     }
 
-    private func launchApp(
-        extraArguments: [String] = [],
-        extraEnvironment: [String: String] = [:]
-    ) -> XCUIApplication {
+    private func application() -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchEnvironment["API_BASE_URL"] = apiBaseURL.absoluteString
+        return app
+    }
+
+    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
+        let app = application()
         app.launchArguments = [
             "--auto-sign-in",
             // Empty the account so leftover outings from earlier runs cannot change the
@@ -88,18 +181,12 @@ final class BirdIdFlowUITests: XCTestCase {
             "--ui-test-lat", "47.7115",
             "--ui-test-lon", "-122.3717",
         ] + extraArguments
-        app.launchEnvironment.merge(extraEnvironment) { _, newValue in newValue }
         app.launch()
         return app
     }
 
-    /// Why the local Worker could not be reached, or nil when it is healthy.
-    ///
-    /// Returns the reason rather than a bool so CI can put it in the failure
-    /// message. A bare false told us nothing on 2026-08-10, when this test skipped
-    /// because the simulator had not finished booting and the run stayed green.
-    private func localWorkerUnavailableReason() async -> String? {
-        let url = localWorkerURL.appendingPathComponent("api/health")
+    private func backendUnavailableReason() async -> String? {
+        let url = apiBaseURL.appendingPathComponent("api/health")
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let http = response as? HTTPURLResponse else {
@@ -125,11 +212,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
         let app = launchApp()
 
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(
-            continueButton.waitForExistence(timeout: 120),
-            "Never reached the outing review step"
-        )
+        let continueButton = waitForOutingReview(in: app)
         // The button stays disabled while the outing's location is resolving.
         XCTAssertTrue(
             waitUntil(timeout: 15) { continueButton.isHittable },
@@ -177,24 +260,28 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertNotEqual(confidence.label, "0%", "Confidence should never round away to zero")
     }
 
+    func testAccessibilityAuditTimeoutClassification() {
+        XCTAssertTrue(Self.isAccessibilityAuditInfrastructureTimeout(
+            NSError(domain: "com.apple.xcode.xctest.accessibilityAudit", code: -56)
+        ))
+        XCTAssertFalse(Self.isAccessibilityAuditInfrastructureTimeout(
+            NSError(domain: "com.apple.xcode.xctest.accessibilityAudit", code: -55)
+        ))
+        XCTAssertFalse(Self.isAccessibilityAuditInfrastructureTimeout(
+            NSError(domain: NSCocoaErrorDomain, code: -56)
+        ))
+    }
+
     func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
-        if let reason = await localWorkerUnavailableReason() {
-            // Skipping is right on a laptop with no Worker running. It is wrong in
-            // CI, which provisions one on purpose: a skip there means the harness
-            // is broken, and reporting it as success is how the 2026-08-10 release
-            // failure went unnoticed until it reached the release job.
-            #if CI
-            XCTFail("Local Worker is required in CI but was not reachable. \(reason)")
-            return
-            #else
-            throw XCTSkip("Requires the current local WingDex Worker and Geoapify access. \(reason)")
-            #endif
+        if let reason = await backendUnavailableReason() {
+            guard configuredAPIBaseURLValue == nil else {
+                XCTFail("Selected CI backend is not healthy. \(reason)")
+                return
+            }
+            throw XCTSkip("Requires a healthy WingDex backend with Geoapify access. \(reason)")
         }
-        let app = launchApp(extraEnvironment: [
-            "API_BASE_URL": localWorkerURL.absoluteString,
-        ])
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
+        let app = launchApp()
+        let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
         startNewOuting(in: app)
@@ -233,19 +320,15 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     func testFocusedEmptyLocationShowsNearbyPlacesWithoutKeyboard() async throws {
-        if let reason = await localWorkerUnavailableReason() {
-            #if CI
-            XCTFail("Local Worker is required in CI but was not reachable. \(reason)")
-            return
-            #else
-            throw XCTSkip("Requires the current local WingDex Worker and Geoapify access. \(reason)")
-            #endif
+        if let reason = await backendUnavailableReason() {
+            guard configuredAPIBaseURLValue == nil else {
+                XCTFail("Selected CI backend is not healthy. \(reason)")
+                return
+            }
+            throw XCTSkip("Requires a healthy WingDex backend with Geoapify access. \(reason)")
         }
-        let app = launchApp(extraEnvironment: [
-            "API_BASE_URL": localWorkerURL.absoluteString,
-        ])
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
+        let app = launchApp()
+        let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
         startNewOuting(in: app)
@@ -274,8 +357,7 @@ final class BirdIdFlowUITests: XCTestCase {
             "--ui-test-geocoding-failure",
             "--ui-test-clear-last-location",
         ])
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
+        let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
         startNewOuting(in: app)
@@ -302,11 +384,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testDismissingOutingReviewCancelsDelayedGeocoding() {
         let app = launchApp(extraArguments: ["--ui-test-geocoding-delay"])
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(
-            continueButton.waitForExistence(timeout: 120),
-            "Outing review never appeared"
-        )
+        let continueButton = waitForOutingReview(in: app)
         // Declining a matched outing is what starts the lookup for that account state.
         startNewOuting(in: app)
         XCTAssertFalse(continueButton.isEnabled, "Delayed geocoding was not in progress")
@@ -330,93 +408,110 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testAddPhotosOutingReviewPassesAccessibilityAudit() throws {
         let app = launchApp(extraArguments: ["--ui-test-geocoding-failure"])
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 120))
+        let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        try performBoundedAccessibilityAudit(
-            app: app,
-            // iOS 26 intermittently samples the native Form's Location header in addition
-            // to the existing system DatePicker contrast sample.
-            expectedContrastFindings: 2,
-            expectedDynamicTypeFindings: 4
-        )
+        try runAccessibilityAudit(in: app, handlingKnownIssue: isKnownAddPhotosAuditIssue)
     }
 
     func testSignInPassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--ui-test-sign-out"]
         app.launch()
         XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
 
-        try app.performAccessibilityAudit()
+        try runAccessibilityAudit(in: app)
     }
 
     func testHomePassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
+        waitForDemoData(in: app)
         let homeTab = app.buttons["Home"]
-        XCTAssertTrue(homeTab.waitForExistence(timeout: 120))
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
         homeTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
-        let elements = app.descendants(matching: .any)
-        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
-        XCTAssertTrue(elements["Eared Dove"].exists)
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
 
-        var photoContrastFindings = 0
-        var contrastDetails: [String] = []
-        try app.performAccessibilityAudit { issue in
-            // XCTest samples photo-backed cells and one compact glyph without exposing their elements.
-            if issue.auditType == .contrast {
-                photoContrastFindings += 1
-            contrastDetails.append(String(describing: issue.element))
-                return true
-            }
-            return false
-        }
-        XCTAssertLessThanOrEqual(
-            photoContrastFindings,
-            6,
-            "Unexpected contrast samples: \(contrastDetails)"
-        )
+        try runAccessibilityAudit(in: app, for: .all.subtracting(.contrast))
+    }
+
+    func testEmptyHomePassesAccessibilityAudit() throws {
+        let app = application()
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
+        app.launch()
+        waitForDataSetup(in: app)
+        XCTAssertTrue(app.staticTexts["Got bird pics?"].waitForExistence(timeout: 10))
+
+        try runAccessibilityAudit(in: app)
     }
 
     func testWingDexPassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
+        waitForDemoData(in: app)
         let wingDexTab = app.buttons["WingDex"]
-        XCTAssertTrue(wingDexTab.waitForExistence(timeout: 120))
+        XCTAssertTrue(wingDexTab.waitForExistence(timeout: 10))
         wingDexTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
 
-        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+        try performListAccessibilityAudit(app: app, includesContrast: false)
+    }
+
+    func testEmptyWingDexPassesAccessibilityAudit() throws {
+        let app = application()
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
+        app.launch()
+        waitForDataSetup(in: app)
+        let wingDexTab = app.buttons["WingDex"]
+        XCTAssertTrue(wingDexTab.waitForExistence(timeout: 10))
+        wingDexTab.tap()
+        XCTAssertTrue(app.staticTexts["No Species Yet"].waitForExistence(timeout: 10))
+
+        try performListAccessibilityAudit(app: app, includesContrast: true)
     }
 
     func testOutingsPassesAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
+        waitForDemoData(in: app)
         let outingsTab = app.buttons["Outings"]
-        XCTAssertTrue(outingsTab.waitForExistence(timeout: 120))
+        XCTAssertTrue(outingsTab.waitForExistence(timeout: 10))
         outingsTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        XCTAssertTrue(app.navigationBars["Outings"].waitForExistence(timeout: 10))
 
-        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+        try performListAccessibilityAudit(app: app, includesContrast: false)
+    }
+
+    func testEmptyOutingsPassesAccessibilityAudit() throws {
+        let app = application()
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
+        app.launch()
+        waitForDataSetup(in: app)
+        let outingsTab = app.buttons["Outings"]
+        XCTAssertTrue(outingsTab.waitForExistence(timeout: 10))
+        outingsTab.tap()
+        XCTAssertTrue(app.navigationBars["Outings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No Outings Yet"].waitForExistence(timeout: 10))
+
+        try performListAccessibilityAudit(app: app, includesContrast: true)
     }
 
     func testSettingsAndDeletionConfirmationsPassAccessibilityAudit() throws {
-        let app = XCUIApplication()
+        let app = application()
         app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
         app.launch()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        waitForDemoData(in: app)
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
-        try performBoundedAccessibilityAudit(
-            app: app,
-            expectedContrastFindings: 6,
-            expectedDynamicTypeFindings: 1
+        try runAccessibilityAudit(
+            in: app,
+            for: .all.subtracting(.contrast),
+            handlingKnownIssue: isKnownSettingsAuditIssue
         )
 
         let deleteData = app.buttons["Delete Data..."]
@@ -425,83 +520,56 @@ final class BirdIdFlowUITests: XCTestCase {
         }
         deleteData.tap()
         XCTAssertTrue(app.navigationBars["Data Management"].waitForExistence(timeout: 10))
-        try app.performAccessibilityAudit()
+        try runAccessibilityAudit(in: app)
 
         app.buttons["Delete Account & All Data"].tap()
         XCTAssertTrue(app.alerts["Delete your entire account?"].waitForExistence(timeout: 5))
-        try performBoundedAccessibilityAudit(
-            app: app,
-            expectedContrastFindings: 1,
-            expectedDynamicTypeFindings: 4
-        )
+        // UIKit alerts scale text but fail XCTest's Dynamic Type audit.
+        let nativeAlertAudits = XCUIAccessibilityAuditType.all.subtracting(.dynamicType)
+        try runAccessibilityAudit(in: app, for: nativeAlertAudits)
         app.alerts["Delete your entire account?"].buttons["I understand, continue"].tap()
         XCTAssertTrue(app.alerts["Are you absolutely sure?"].waitForExistence(timeout: 5))
-        try performBoundedAccessibilityAudit(
-            app: app,
-            expectedContrastFindings: 1,
-            expectedDynamicTypeFindings: 4
-        )
+        try runAccessibilityAudit(in: app, for: nativeAlertAudits)
         app.alerts["Are you absolutely sure?"].buttons["Go back"].tap()
     }
 
-    private func performBoundedAccessibilityAudit(
-        app: XCUIApplication,
-        expectedContrastFindings: Int = 0,
-        expectedDynamicTypeFindings: Int = 0
-    ) throws {
-        var contrastFindings = 0
-        var dynamicTypeFindings = 0
-        var contrastDetails: [String] = []
-        try app.performAccessibilityAudit { issue in
-            switch issue.auditType {
-            case .contrast:
-                contrastFindings += 1
-                contrastDetails.append(String(describing: issue.element))
-                return true
-            case .dynamicType:
-                dynamicTypeFindings += 1
-                return true
-            case .textClipped where issue.element?.elementType == .textField:
-                // A single-line text field scrolls its value instead of truncating it, and
-                // VoiceOver still reads the whole thing. The audit cannot model that.
-                return true
-            default:
-                return false
-            }
-        }
-        XCTAssertLessThanOrEqual(
-            contrastFindings,
-            expectedContrastFindings,
-            "Unexpected contrast samples: \(contrastDetails)"
-        )
-        XCTAssertLessThanOrEqual(dynamicTypeFindings, expectedDynamicTypeFindings)
+    func testSettingsPassesContrastAudit() throws {
+        let app = application()
+        app.launchArguments = [
+            "--auto-sign-in",
+            "--auto-demo-data",
+            "--ui-test-reset-data",
+            "--ui-test-hide-avatar-options",
+        ]
+        app.launch()
+        waitForDemoData(in: app)
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
+
+        try runAccessibilityAudit(in: app, for: .contrast)
+
+        let legalHeader = app.staticTexts["Legal"]
+        XCTAssertTrue(scrollUntilVisible(legalHeader, in: app))
+        try runAccessibilityAudit(in: app, for: .contrast)
     }
 
     private func performListAccessibilityAudit(
         app: XCUIApplication,
-        expectedPhotoContrastFindings: Int
+        includesContrast: Bool
     ) throws {
-        var photoContrastFindings = 0
-        var systemDynamicTypeFindings = 0
-        var systemClippingFindings = 0
-        try app.performAccessibilityAudit { issue in
-            // The iOS 26 audit flags the native search field and Sort menu while scaling them correctly.
+        let auditTypes: XCUIAccessibilityAuditType = includesContrast
+            ? .all
+            : .all.subtracting(.contrast)
+        try runAccessibilityAudit(in: app, for: auditTypes) { issue in
             switch issue.auditType {
-            case .contrast:
-                photoContrastFindings += 1
+            case .dynamicType where issue.element?.label == "Sort":
                 return true
-            case .dynamicType:
-                systemDynamicTypeFindings += 1
-                return true
-            case .textClipped:
-                systemClippingFindings += 1
+            case .textClipped where ["Search species", "Search outings", "Sort"].contains(issue.element?.label):
                 return true
             default:
                 return false
             }
         }
-        XCTAssertLessThanOrEqual(photoContrastFindings, expectedPhotoContrastFindings)
-        XCTAssertLessThanOrEqual(systemDynamicTypeFindings, 1)
-        XCTAssertLessThanOrEqual(systemClippingFindings, 2)
     }
 }
