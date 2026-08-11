@@ -93,7 +93,12 @@ describe('useAuthGate', () => {
   })
 
   it('opens the combined auth modal and signs up with the passkey action', async () => {
-    mockAddPasskey.mockResolvedValue({ data: { id: 'pk-test-1' }, error: null })
+    // One ceremony (#271): verify-registration returns the session and user it
+    // just created, and sets the cookie server-side. No finalize call follows.
+    mockAddPasskey.mockResolvedValue({
+      data: { id: 'pk-test-1', session: { id: 'sess-1' }, user: { id: 'user-1' } },
+      error: null,
+    })
 
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
     vi.stubGlobal('fetch', fetchMock)
@@ -114,14 +119,13 @@ describe('useAuthGate', () => {
     })
 
     expect(mockAddPasskey).toHaveBeenCalledTimes(1)
+    // The point of the change: signup is one call, so nothing should hit the
+    // old promotion endpoint any more.
     const finalizeCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/finalize-passkey')
-    expect(finalizeCall).toBeTruthy()
-    const finalizeInit = finalizeCall?.[1] as RequestInit
-    expect(typeof finalizeInit.body).toBe('string')
-    expect(JSON.parse(String(finalizeInit.body))).toMatchObject({
-      name: 'test-bird',
-      passkeyId: 'pk-test-1',
-    })
+    expect(finalizeCall).toBeUndefined()
+    expect(mockAddPasskey).toHaveBeenCalledWith(
+      expect.objectContaining({ createSession: true }),
+    )
   })
 
   it('uses the passkey log-in action from the combined auth modal', async () => {

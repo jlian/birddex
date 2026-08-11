@@ -106,14 +106,17 @@ function AuthGateModal({
     setErrorMessage(null)
     setIsLoading(true)
 
-    // Create account: the current session is already anonymous, so just
-    // register a passkey on it and finalize.
+    // One ceremony (#271). Registration now starts unauthenticated and the
+    // server creates the user, the passkey and the session together, so there
+    // is no anonymous account to mint first and promote afterwards. The server
+    // sets the session cookie on the same response.
     const birdName = generateBirdName()
     const passkeyName = buildPasskeyName(getDeviceLabelFromNavigator(), birdName)
 
     const passkeyResult = await authClient.passkey.addPasskey({
       name: passkeyName,
       authenticatorAttachment: 'platform',
+      createSession: true,
     })
     if (passkeyResult.error) {
       setIsLoading(false)
@@ -127,26 +130,13 @@ function AuthGateModal({
       return
     }
 
-    const passkeyId = (
-      typeof (passkeyResult.data as { id?: unknown } | undefined)?.id === 'string'
-        ? (passkeyResult.data as { id: string }).id.trim()
-        : ''
-    )
-
-    // Finalize -- flip anonymous -> real user
-    const finalizeRes = await fetchWithLocalAuthRetry('/api/auth/finalize-passkey', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: birdName,
-        ...(passkeyId ? { passkeyId } : {}),
-      }),
-    })
-    try {
-      await assertWingDexApiResponse(finalizeRes, 'Account setup failed')
-    } catch (error) {
-      logClientFailure('auth/passkey/finalize', error)
+    // A cancelled or failed ceremony never reaches here: the server rolls back
+    // user, passkey and session together, so there is no half-made account to
+    // clean up. Guard anyway, since a missing session would otherwise surface
+    // much later as a confusing signed-out state.
+    const created = passkeyResult.data as { session?: unknown; user?: unknown } | undefined
+    if (!created?.session || !created?.user) {
+      logClientFailure('auth/passkey/register', new Error('verify-registration returned no session'))
       setIsLoading(false)
       setErrorMessage('Account setup failed. Please try again.')
       return
