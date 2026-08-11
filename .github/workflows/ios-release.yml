@@ -1,24 +1,19 @@
 name: iOS Release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ios/**'
-      - 'openapi.yaml'
-  workflow_run:
-    workflows: [Release]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: 'Exact deployed commit to archive'
+        type: string
+        required: false
       dry_run:
         description: 'Validate archive and export without publishing or uploading'
         type: boolean
         default: false
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: ${{ inputs.dry_run && format('ios-release-dry-run-{0}', github.run_id) || 'ios-release-main' }}
   cancel-in-progress: false
 
 permissions:
@@ -36,25 +31,64 @@ jobs:
       release_version: ${{ steps.version.outputs.release_version }}
       should_release: ${{ steps.diff.outputs.has_changes }}
       source_sha: ${{ steps.source_sha.outputs.sha }}
+      check_sha: ${{ steps.source_sha.outputs.check_sha }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.source_sha || github.sha }}
           fetch-depth: 0
 
-      - name: Record release source commit
+      - name: Resolve release source commit
         id: source_sha
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=$(git rev-parse HEAD)
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "is_current=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch origin refs/heads/main:refs/remotes/origin/main
+            REMOTE_SHA=$(git rev-parse refs/remotes/origin/main)
+            if [ "$SOURCE_SHA" != "$REMOTE_SHA" ]; then
+              echo "Source $SOURCE_SHA was superseded by $REMOTE_SHA; a newer Release run will dispatch it"
+              echo "is_current=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_current=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          CHECK_SHA=$(git log -1 --format=%H "$SOURCE_SHA" -- \
+            ios openapi.yaml functions migrations \
+            .github/workflows/ios.yml .github/workflows/ios-release.yml \
+            .github/workflows/release.yml)
+          if [ -z "$CHECK_SHA" ]; then
+            CHECK_SHA="$SOURCE_SHA"
+          fi
+
+          {
+            echo "sha=$SOURCE_SHA"
+            echo "check_sha=$CHECK_SHA"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check for iOS-relevant changes since last tag
         id: diff
+        env:
+          SOURCE_IS_CURRENT: ${{ steps.source_sha.outputs.is_current }}
         run: |
+          if [ "$SOURCE_IS_CURRENT" != "true" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           LAST_TAG=$(git tag --list 'ios-v*' --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then
             echo "No previous ios-v tag found - first release"
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
-            CHANGED=$(git diff --name-only "$LAST_TAG"..HEAD -- ios/ openapi.yaml ios/.releaserc.json .github/workflows/ios-release.yml)
+            CHANGED=$(git diff --name-only "$LAST_TAG"..HEAD -- \
+              ios/ openapi.yaml ios/.releaserc.json \
+              .github/workflows/ios.yml .github/workflows/ios-release.yml \
+              .github/workflows/release.yml)
             if [ -n "$CHANGED" ]; then
               echo "iOS-relevant changes found since $LAST_TAG"
               echo "has_changes=true" >> "$GITHUB_OUTPUT"
@@ -107,6 +141,7 @@ jobs:
         if: steps.version.outputs.has_release == 'true' && inputs.dry_run != true
         env:
           CHECK_NAME: Build & Test (iOS Simulator)
+          CHECK_SHA: ${{ steps.source_sha.outputs.check_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_SHA: ${{ steps.source_sha.outputs.sha }}
         run: |
@@ -118,12 +153,13 @@ jobs:
                 '[.check_runs[] | select(.name == $name)] | (.[0].conclusion // "")'
           }
 
-          TESTED_SHA="$SOURCE_SHA"
-          CONCLUSION=$(conclusion_for "$SOURCE_SHA")
-          PR=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA/pulls" --jq '.[0].number // empty')
+          CONCLUSION=$(conclusion_for "$CHECK_SHA")
+          PR=$(gh api "repos/$GITHUB_REPOSITORY/commits/$CHECK_SHA/pulls" --jq '.[0].number // empty')
+
+          TESTED_SHA="$CHECK_SHA"
 
           if [ "$CONCLUSION" != "success" ] && [ -n "$PR" ]; then
-            TESTED_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA/pulls" --jq '.[0].head.sha // empty')
+            TESTED_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$CHECK_SHA/pulls" --jq '.[0].head.sha // empty')
             CONCLUSION=$(conclusion_for "$TESTED_SHA")
           fi
 
@@ -138,14 +174,17 @@ jobs:
           # without rebasing onto other iOS changes releases a combination nothing ran.
           if [ "$TESTED_SHA" != "$SOURCE_SHA" ] && [ -n "$PR" ]; then
             git fetch --no-tags --quiet origin "refs/pull/$PR/head"
-            if ! git diff --quiet FETCH_HEAD "$SOURCE_SHA" -- ios openapi.yaml functions migrations; then
+            if ! git diff --quiet FETCH_HEAD "$SOURCE_SHA" -- \
+              ios openapi.yaml functions migrations \
+              .github/workflows/ios.yml .github/workflows/ios-release.yml \
+              .github/workflows/release.yml; then
               echo "::warning::iOS paths changed between tested commit $TESTED_SHA and $SOURCE_SHA; this combination was never tested together"
               echo "- :warning: iOS paths drifted since \`$TESTED_SHA\`" >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
 
   preflight:
-    name: Archive, Export & Publish
+    name: Archive & Export
     needs: check
     if: needs.check.outputs.should_release == 'true' && needs.check.outputs.has_release == 'true'
     runs-on: macos-26
@@ -217,7 +256,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: iOS-release-diagnostics
+          name: iOS-release-diagnostics-attempt-${{ github.run_attempt }}
           path: ios/build/logs/
           retention-days: 7
 
@@ -230,6 +269,18 @@ jobs:
             ios/build/archive-inspection/
             ios/build/WingDex.xcarchive/dSYMs/
           if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+      - name: Upload generated release files
+        uses: actions/upload-artifact@v6
+        with:
+          name: WingDex-release-files-${{ needs.check.outputs.release_version }}
+          path: |
+            ios/project.yml
+            ios/WingDex.xcodeproj/project.pbxproj
+          if-no-files-found: error
+          overwrite: true
           retention-days: 7
 
       # Runners start with an empty keychain, so -allowProvisioningUpdates mints a fresh
@@ -301,44 +352,119 @@ jobs:
               core.setFailed(`${failed} of ${stale.length} certificate(s) could not be revoked`);
             }
 
+      - name: Clean up API key
+        if: always()
+        run: rm -rf ~/.appstoreconnect
+
       - name: Validation summary
         run: |
           echo "### Validated iOS v${{ needs.check.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Signed archive inspection, dSYM matching, and App Store export succeeded before publication." >> "$GITHUB_STEP_SUMMARY"
 
+  publish:
+    name: Publish release
+    needs: [check, preflight]
+    if: needs.check.outputs.should_release == 'true' && needs.check.outputs.has_release == 'true' && inputs.dry_run != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
       - uses: actions/setup-node@v6
-        if: inputs.dry_run != true
         with:
           node-version: 24
           cache: npm
 
       - name: Install npm dependencies
-        if: inputs.dry_run != true
         run: npm ci
 
-      - name: Verify release source is still current
-        if: inputs.dry_run != true
+      - name: Check publication state
+        id: publication
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
           SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
         run: |
-          git fetch origin refs/heads/main:refs/remotes/origin/main
+          set -euo pipefail
+          TAG="ios-v${RELEASE_VERSION}"
+          git fetch origin refs/heads/main:refs/remotes/origin/main --tags
           REMOTE_SHA=$(git rev-parse refs/remotes/origin/main)
-          if [ "$REMOTE_SHA" != "$SOURCE_SHA" ]; then
-            echo "::error::main advanced from $SOURCE_SHA to $REMOTE_SHA while the archive was built"
+          if git rev-parse "refs/tags/$TAG" > /dev/null 2>&1; then
+            RELEASE_SHA=$(git rev-parse "${TAG}^{commit}")
+            if [ "$(git rev-parse "${RELEASE_SHA}^")" != "$SOURCE_SHA" ] \
+              || ! git merge-base --is-ancestor "$RELEASE_SHA" "$REMOTE_SHA"; then
+              echo "::error::$TAG is not a release child of $SOURCE_SHA on main"
+              exit 1
+            fi
+            git checkout --detach "$RELEASE_SHA"
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              STATE=complete
+            else
+              STATE=tag
+            fi
+          elif [ "$REMOTE_SHA" = "$SOURCE_SHA" ]; then
+            STATE=source
+          elif git merge-base --is-ancestor "$SOURCE_SHA" "$REMOTE_SHA"; then
+            RELEASE_SHA=$(git rev-list --ancestry-path --reverse "$SOURCE_SHA..$REMOTE_SHA" | head -1)
+            read -r -a PARENTS <<< "$(git show -s --format=%P "$RELEASE_SHA")"
+            AUTHOR_EMAIL=$(git show -s --format=%ae "$RELEASE_SHA")
+            SUBJECT=$(git show -s --format=%s "$RELEASE_SHA")
+            UNEXPECTED=$(git diff --name-only "$SOURCE_SHA" "$RELEASE_SHA" \
+              | grep -Ev '^(ios/project\.yml|ios/WingDex\.xcodeproj/project\.pbxproj)$' || true)
+            if [ "${#PARENTS[@]}" -ne 1 ] \
+              || [ "${PARENTS[0]}" != "$SOURCE_SHA" ] \
+              || [ "$AUTHOR_EMAIL" != "semantic-release-bot@martynus.net" ] \
+              || [ "$SUBJECT" != "chore(ios-release): $RELEASE_VERSION" ] \
+              || [ -n "$UNEXPECTED" ]; then
+              echo "::error::No recoverable release commit follows $SOURCE_SHA"
+              exit 1
+            fi
+            git checkout --detach "$RELEASE_SHA"
+            STATE=commit
+          else
+            echo "::error::$SOURCE_SHA is not an ancestor of current main $REMOTE_SHA"
             exit 1
           fi
-          git checkout -B main "$SOURCE_SHA"
-          git branch --set-upstream-to=origin/main main
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+          if [ "$STATE" = "source" ]; then
+            git checkout -B main "$SOURCE_SHA"
+            git branch --set-upstream-to=origin/main main
+          fi
+
+      - name: Download generated release files
+        if: steps.publication.outputs.state == 'source'
+        uses: actions/download-artifact@v7
+        with:
+          name: WingDex-release-files-${{ needs.check.outputs.release_version }}
+          path: ios
 
       - name: Publish semantic release
-        if: inputs.dry_run != true
+        if: steps.publication.outputs.state == 'source'
         working-directory: ios
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
 
+      - name: Repair partial publication
+        if: steps.publication.outputs.state == 'commit' || steps.publication.outputs.state == 'tag'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_STATE: ${{ steps.publication.outputs.state }}
+          RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
+        run: |
+          TAG="ios-v${RELEASE_VERSION}"
+          if [ "$RELEASE_STATE" = "commit" ]; then
+            git tag "$TAG" HEAD
+            git push origin "$TAG"
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+
       - name: Verify published release
-        if: inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
@@ -349,14 +475,14 @@ jobs:
           TAG_SHA=$(git rev-parse "${TAG}^{commit}")
           TAG_PARENT_SHA=$(git rev-parse "${TAG_SHA}^")
           REMOTE_SHA=$(git rev-parse refs/remotes/origin/main)
-          if [ "$TAG_PARENT_SHA" != "$SOURCE_SHA" ] || [ "$TAG_SHA" != "$REMOTE_SHA" ]; then
-            echo "::error::$TAG does not identify a release commit directly after the archived source"
+          if [ "$TAG_PARENT_SHA" != "$SOURCE_SHA" ] \
+            || ! git merge-base --is-ancestor "$TAG_SHA" "$REMOTE_SHA"; then
+            echo "::error::$TAG is not a release child of the archived source on main"
             exit 1
           fi
           gh release view "$TAG" > /dev/null
 
       - name: Mark pre-1.0 releases as prerelease
-        if: inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -366,21 +492,132 @@ jobs:
             gh release edit "ios-v${VERSION}" --prerelease
           fi
 
-      - name: Upload to TestFlight
-        if: inputs.dry_run != true
+  upload:
+    name: Upload to TestFlight
+    needs: [check, preflight, publish]
+    if: needs.check.outputs.should_release == 'true' && needs.check.outputs.has_release == 'true' && inputs.dry_run != true
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Download validated IPA artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: WingDex-${{ needs.check.outputs.release_version }}
+          path: build
+
+      - name: Write App Store Connect API key
         run: |
-          xcrun altool --upload-app \
-            --type ios \
-            --file ios/build/export/WingDex.ipa \
-            --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
-            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+
+      - name: Read IPA version
+        id: ipa
+        run: |
+          TMP=$(mktemp -d)
+          unzip -q build/export/WingDex.ipa 'Payload/WingDex.app/Info.plist' -d "$TMP"
+          PLIST="$TMP/Payload/WingDex.app/Info.plist"
+          echo "version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" >> "$GITHUB_OUTPUT"
+          echo "build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" >> "$GITHUB_OUTPUT"
+          rm -rf "$TMP"
+
+      - name: Upload to TestFlight
+        uses: actions/github-script@v9
+        env:
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          BUILD_NUMBER: ${{ steps.ipa.outputs.build }}
+          MARKETING_VERSION: ${{ steps.ipa.outputs.version }}
+        with:
+          script: |
+            const crypto = require('crypto');
+
+            const privateKey = Buffer.from(process.env.ASC_PRIVATE_KEY, 'base64').toString('utf8');
+            const b64 = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+            function authorizationToken() {
+              const now = Math.floor(Date.now() / 1000);
+              const signingInput = [
+                b64({ alg: 'ES256', kid: process.env.ASC_KEY_ID, typ: 'JWT' }),
+                b64({ iss: process.env.ASC_ISSUER_ID, iat: now, exp: now + 600, aud: 'appstoreconnect-v1' }),
+              ].join('.');
+              const signature = crypto.sign('sha256', Buffer.from(signingInput), {
+                key: crypto.createPrivateKey(privateKey),
+                dsaEncoding: 'ieee-p1363',
+              });
+              return `${signingInput}.${signature.toString('base64url')}`;
+            }
+
+            async function asc(path, params) {
+              const url = new URL(`https://api.appstoreconnect.apple.com${path}`);
+              for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+              for (let attempt = 1; attempt <= 3; attempt += 1) {
+                const response = await fetch(url, {
+                  headers: { Authorization: `Bearer ${authorizationToken()}` },
+                });
+                if (response.ok) return response.json();
+                const body = await response.text();
+                if (attempt < 3 && (response.status === 429 || response.status >= 500)) {
+                  await new Promise((resolve) => setTimeout(resolve, 5_000));
+                  continue;
+                }
+                throw new Error(`GET ${url.pathname} -> ${response.status} ${body}`);
+              }
+              throw new Error(`GET ${url.pathname} exhausted retries`);
+            }
+
+            const apps = await asc('/v1/apps', {
+              'filter[bundleId]': 'app.wingdex',
+              'fields[apps]': 'bundleId',
+              limit: '1',
+            });
+            if (apps.data.length !== 1) throw new Error('Could not resolve app.wingdex in App Store Connect');
+            const appID = apps.data[0].id;
+
+            async function buildExists() {
+              const builds = await asc('/v1/builds', {
+                'filter[app]': appID,
+                'filter[version]': process.env.BUILD_NUMBER,
+                'filter[preReleaseVersion.version]': process.env.MARKETING_VERSION,
+                'filter[preReleaseVersion.platform]': 'IOS',
+                'fields[builds]': 'version,processingState,uploadedDate',
+                limit: '2',
+              });
+              return builds.data.length > 0;
+            }
+
+            if (await buildExists()) {
+              core.info(`TestFlight already has ${process.env.MARKETING_VERSION} (${process.env.BUILD_NUMBER})`);
+              return;
+            }
+
+            const exitCode = await exec.exec('xcrun', [
+              'altool', '--upload-app',
+              '--type', 'ios',
+              '--file', 'build/export/WingDex.ipa',
+              '--apiKey', process.env.ASC_KEY_ID,
+              '--apiIssuer', process.env.ASC_ISSUER_ID,
+            ], { ignoreReturnCode: true });
+            if (exitCode === 0) return;
+
+            for (let attempt = 1; attempt <= 8; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, 15_000));
+              try {
+                if (await buildExists()) {
+                  core.info('The upload reached App Store Connect despite the altool failure');
+                  return;
+                }
+              } catch (error) {
+                core.warning(`Could not check upload state on attempt ${attempt}: ${error.message}`);
+              }
+            }
+            core.setFailed(`altool exited ${exitCode} and the build did not appear in App Store Connect`);
 
       - name: Clean up API key
         if: always()
         run: rm -rf ~/.appstoreconnect
 
       - name: Summary
-        if: inputs.dry_run != true
         run: |
           echo "### iOS Release v${{ needs.check.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Published and uploaded to TestFlight." >> "$GITHUB_STEP_SUMMARY"
