@@ -110,24 +110,26 @@ describe('App auth guard (hosted runtime)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows boot shell when no session exists yet (anon bootstrap in progress)', async () => {
+  it('renders the app immediately for a visitor with no session', async () => {
+    // No splash screen: registration no longer needs a session up front, so a
+    // visitor browses as a guest and the anonymous account is created only when
+    // something actually needs one.
     const { default: App } = await import('@/App')
-    const { container } = render(<App />)
+    render(<App />)
 
-    // BootShell: blank background while anonymous session bootstraps
-    expect(container.querySelector('.bg-background')).toBeInTheDocument()
-    expect(screen.queryByText('HomePage')).not.toBeInTheDocument()
+    expect(await screen.findByText('HomePage')).toBeInTheDocument()
   })
 
-  it('shows boot shell while hosted session is pending', async () => {
+  it('renders the app while the hosted session check is still in flight', async () => {
+    // A returning user is treated as a guest for the few hundred milliseconds
+    // the check takes, then upgraded in place. Showing the app beats holding a
+    // splash screen for every visitor to cover that window.
     mockUseSession.mockReturnValue({ data: null, isPending: true, refetch: vi.fn() })
 
     const { default: App } = await import('@/App')
-    const { container } = render(<App />)
+    render(<App />)
 
-    // Boot shell renders as a blank background div
-    expect(container.querySelector('.bg-background')).toBeInTheDocument()
-    expect(screen.queryByText('HomePage')).not.toBeInTheDocument()
+    expect(await screen.findByText('HomePage')).toBeInTheDocument()
   })
 
   it('renders app content when hosted session is present', async () => {

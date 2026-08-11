@@ -142,7 +142,9 @@ function App() {
   const wasRealUserRef = useRef(false)
   const explicitSignOutRef = useRef(false)
   const [anonBootstrapFailed, setAnonBootstrapFailed] = useState(false)
-  const [user, setUser] = useState<UserInfo | null>(null)
+  // Starts as a guest rather than null: with no BootShell, the app renders
+  // immediately and a real session upgrades this in place when it resolves.
+  const [user, setUser] = useState<UserInfo>(() => getGuestUser())
 
   const fetchLinkedProviders = useCallback(async (): Promise<string[]> => {
     try {
@@ -195,7 +197,9 @@ function App() {
     if (hadSessionRef.current) {
       if (wasRealUserRef.current && !explicitSignOutRef.current) {
         toast.info('Your session has expired. Please sign in again.')
-        setUser(null)
+        // Fall back to the guest view rather than an empty screen: the toast
+        // explains what happened, and the app stays usable while they sign in.
+        setUser(getGuestUser())
       }
       hadSessionRef.current = false
       wasRealUserRef.current = false
@@ -208,10 +212,11 @@ function App() {
     // (`requireSession: false`), so nothing here needs an anonymous user yet.
     // Mount as a guest and defer the anonymous sign-in to the first action
     // that actually needs a server-side identity (see ensureAnonymousSession).
-    if (isSessionPending) {
-      setUser(null)
-      return
-    }
+    //
+    // This applies while the session check is still in flight too. A returning
+    // user is resolved as a guest for those few hundred milliseconds and then
+    // upgraded in place when the check returns, which shows the app immediately
+    // instead of holding a splash screen for every visitor.
 
     if (isDevRuntime()) {
       // Dev keeps its own fallback identity when the auth backend is dead.
@@ -322,26 +327,15 @@ function App() {
     void finalizeSocialToast()
   }, [user, fetchLinkedProviders])
 
-  if (!user) {
-    return <BootShell />
-  }
-
-  return <AppContent user={user} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
+  // A guest is a placeholder identity with no server row, so data fetching waits
+  // until a real session exists.
+  return <AppContent user={user} hasSession={Boolean(session?.user)} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
 }
 
-function BootShell() {
-  return (
-    <div className="min-h-dvh bg-background flex items-center justify-center">
-      <BirdLogo size={40} className="text-primary animate-pulse" duotone />
-      <p className="sr-only" aria-live="polite">Verifying your session.</p>
-    </div>
-  )
-}
-
-function AppContent({ user, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {
+function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; hasSession: boolean; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {
   const { tab, subId, navigate, handleTabChange } = useHashRouter()
   const [showAddPhotos, setShowAddPhotos] = useState(false)
-  const data = useWingDexData(user.id)
+  const data = useWingDexData(user.id, { hasSession })
 
   const { requireAuth, openSignIn, authGateModal } = useAuthGate({
     isAnonymous: user.isAnonymous,
@@ -383,8 +377,17 @@ function AppContent({ user, refetchSession, ensureAnonymousSession, onBeforeSign
     requireAuth(() => {
       // The Add Photos flow uploads and persists under a real user id, so the
       // anonymous user has to exist before the flow opens.
+      //
+      // Open the dialog first rather than after the round trip. The sign-in is
+      // usually instant, but on a cold worker it is slow enough to feel like a
+      // dead click, and the first step is photo selection, which needs no
+      // identity. If it fails, close again and surface the error.
+      setShowAddPhotos(true)
       void ensureAnonymousSession().then((ok) => {
-        if (ok) setShowAddPhotos(true)
+        if (!ok) {
+          setShowAddPhotos(false)
+          toast.error('Could not start a session. Please try again.')
+        }
       })
     })
   }, [requireAuth, ensureAnonymousSession])

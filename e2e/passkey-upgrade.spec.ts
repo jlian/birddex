@@ -24,8 +24,22 @@ test.describe('passkey signup', () => {
     // promote: false so the anonymous session can be observed before signup.
     await loadApp(page, { promote: false })
 
+    // The bootstrap is deferred now, so a fresh visitor has no session at all.
+    // Create one the way the demo toggle does, since the point of this test is
+    // the UPGRADE path: an existing anonymous account becoming a real one.
+    await page.evaluate(async () => {
+      await fetch('/api/auth/sign-in/anonymous', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+    })
+    await page.reload()
+    await expect(page.locator('header')).toBeVisible({ timeout: 5_000 })
+
     const before = await readSession(page)
-    expect(before, 'expected an anonymous session on load').not.toBeNull()
+    expect(before, 'expected an anonymous session after bootstrap').not.toBeNull()
     expect(before?.isAnonymous).toBe(true)
 
     await promoteAnonymousUser(page)
