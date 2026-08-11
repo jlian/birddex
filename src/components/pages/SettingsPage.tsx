@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Download, Upload, Info, Database, CaretDown, Sun, Moon, Desktop, Trash, GlobeHemisphereWest, Key, SignOut, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
 import { authClient } from '@/lib/auth-client'
-import { fetchWithLocalAuthRetry, isLocalRuntime } from '@/lib/local-auth-fetch'
+import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
 import { assertWingDexApiResponse, getWingDexApiErrorMessage } from '@/lib/api-error'
 import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fun-names'
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike, toStandardPasskeyLabel } from '@/lib/passkey-label'
@@ -185,13 +185,7 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         body: makePreviewFormData(),
       })
 
-      let previewResponse = await postPreview()
-      if (previewResponse.status === 401 && isLocalRuntime()) {
-        const signInResult = await authClient.signIn.anonymous()
-        if (!signInResult.error) {
-          previewResponse = await postPreview()
-        }
-      }
+      const previewResponse = await postPreview()
 
       await assertWingDexApiResponse(previewResponse, 'Preview failed')
 

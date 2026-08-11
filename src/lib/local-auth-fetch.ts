@@ -1,4 +1,3 @@
-import { authClient } from '@/lib/auth-client'
 import { generateTraceparent } from '@/lib/trace'
 
 export function isLocalRuntime(): boolean {
@@ -16,17 +15,20 @@ function withTraceparent(init?: RequestInit): RequestInit {
   return { ...init, headers }
 }
 
+/**
+ * Fetch with a traceparent header.
+ *
+ * This used to sign in anonymously and retry whenever a request 401d on
+ * localhost. That hid the signed-out state during local development: an
+ * account appeared implicitly on the first failed request, so local behavior
+ * never matched hosted, and guest-mode bugs could not be reproduced locally.
+ *
+ * Callers that need an account now create one deliberately (see
+ * ensureAnonymousSession in App.tsx), which is the same thing hosted does.
+ *
+ * The name is kept because it is used in a dozen call sites and still marks
+ * the requests that carry tracing; only the implicit sign-in is gone.
+ */
 export async function fetchWithLocalAuthRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const tracedInit = withTraceparent(init)
-  const firstResponse = await fetch(input, tracedInit)
-  if (firstResponse.status !== 401 || !isLocalRuntime()) {
-    return firstResponse
-  }
-
-  const signInResult = await authClient.signIn.anonymous()
-  if (signInResult.error) {
-    return firstResponse
-  }
-
-  return fetch(input, tracedInit)
+  return await fetch(input, withTraceparent(init))
 }
