@@ -643,6 +643,24 @@ export function useWingDexData(userId: string) {
     }
   }
 
+  /**
+   * Remove only the WingDex sample checklists, server-side, leaving anything the
+   * user created themselves intact.
+   *
+   * Deliberately not `clearAllData`: that issues an unscoped
+   * `DELETE FROM outing WHERE userId = ?`, which would take a user's own
+   * sightings along with the demo once anonymous visitors can create real
+   * records. Local state is refreshed from the server rather than cleared
+   * optimistically, since only the server knows which rows were demo.
+   */
+  const clearDemoData = async () => {
+    if (storageMode !== 'api') {
+      clearAllData()
+      return
+    }
+    await apiJson<{ cleared: boolean; rowsAffected: number }>('/api/data/clear?scope=demo', { method: 'DELETE' })
+  }
+
   const store = useMemo(() => ({
     isLoading,
     photos: payload.photos,
@@ -662,6 +680,7 @@ export function useWingDexData(userId: string) {
     getDexEntry,
     importDexEntries,
     clearAllData,
+    clearDemoData,
     refresh,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation fns close over refs, not state; intentionally omitted
   }), [isLoading, payload, refresh])

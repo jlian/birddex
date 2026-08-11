@@ -358,7 +358,10 @@ function AppContent({ user, refetchSession, ensureAnonymousSession, onBeforeSign
         await loadDemoData(data)
         return
       }
-      data.clearAllData()
+      // Remove only the sample checklists. An unscoped clear would delete the
+      // user's own sightings too, which matters as soon as an anonymous visitor
+      // can create real records.
+      await data.clearDemoData()
       await data.refresh()
     },
   })
