@@ -155,12 +155,12 @@ jobs:
                 -f environment="$PREVIEW_ENVIRONMENT" \
                 -f per_page=1 \
                 --jq '.[0].id // empty' 2>/dev/null); then
-                return 1
+                deployment_id=""
               fi
               if [ -n "$deployment_id" ]; then
                 if ! preview_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
                   --jq 'if .[0].state == "success" then (.[0].environment_url // "") else "" end' 2>/dev/null); then
-                  return 1
+                  preview_url=""
                 fi
                 if [ -n "$preview_url" ] && probe_backend "$preview_url"; then
                   API_BASE_URL="$preview_url"
@@ -177,18 +177,24 @@ jobs:
           API_BASE_URL="$DEV_URL"
           BACKEND_SOURCE="dev"
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REF" != "dev" ] && [ "$HEAD_REF" != "main" ]; then
-            if wait_for_preview 12; then
-              BACKEND_SOURCE="PR preview"
-            else
-              BACKEND_SOURCE="dev fallback"
-              echo "::warning::PR preview did not become healthy; falling back to dev"
+            echo "Waiting for $PREVIEW_ENVIRONMENT at commit $PREVIEW_SHA"
+            if ! wait_for_preview 60; then
+              echo "::error::The exact PR preview did not become healthy: $PREVIEW_ENVIRONMENT at $PREVIEW_SHA"
+              exit 1
             fi
+            BACKEND_SOURCE="PR preview"
+          else
+            echo "This event does not create a PR preview; using the dev backend"
           fi
 
           if ! wait_for_backend "$API_BASE_URL" 6; then
             echo "::error::Selected iOS test backend is not healthy: $API_BASE_URL"
             exit 1
           fi
+
+          echo "Selected iOS test backend: $BACKEND_SOURCE"
+          echo "Backend URL: $API_BASE_URL"
+          echo "Health check: ok"
 
           echo "API_BASE_URL=$API_BASE_URL" >> "$GITHUB_ENV"
           {
