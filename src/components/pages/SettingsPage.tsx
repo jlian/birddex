@@ -687,8 +687,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
               <AlertDialogHeader>
                 <AlertDialogTitle>Load demo data?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will replace all your current outings, observations,
-                  and WingDex entries with demo data. This action cannot be undone.
+                  This adds sample outings, observations and WingDex entries so you
+                  can explore the app. Anything you have recorded yourself is kept,
+                  and you can remove the samples later without touching it.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -696,7 +697,12 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
                 <AlertDialogAction
                   onClick={async () => {
                     try {
-                      data.clearAllData()
+                      // Deliberately no clear first. Demo checklists carry a reserved
+                      // submission-id prefix, so they can be removed later without
+                      // touching real records, and re-importing them is a no-op
+                      // rather than a duplicate. Wiping the account to make room for
+                      // samples would destroy work an anonymous visitor had already
+                      // done.
 
                       const formData = new FormData()
                       formData.append('file', new Blob([demoCsv], { type: 'text/csv' }), 'demo.csv')
