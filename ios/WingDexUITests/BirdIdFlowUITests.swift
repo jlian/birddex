@@ -11,11 +11,11 @@ final class BirdIdFlowUITests: XCTestCase {
     private static let expectedSpecies = "Great Blue Heron"
     private static let avatarEmojiLabels: Set<String> = ["🐦", "🦉", "🦜", "🐧", "🦆", "🦩", "🦅", "🐤"]
 
-    private var configuredAPIBaseURLValue: String? {
+    nonisolated private var configuredAPIBaseURLValue: String? {
         ProcessInfo.processInfo.environment["API_BASE_URL"]
     }
 
-    private var configuredAPIBaseURL: URL? {
+    nonisolated private var configuredAPIBaseURL: URL? {
         guard let value = configuredAPIBaseURLValue,
               let url = URL(string: value),
               let scheme = url.scheme?.lowercased(),
