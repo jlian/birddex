@@ -1,5 +1,5 @@
 import { computeDex, enrichDexEntries } from '../../../lib/dex-query'
-import { groupPreviewsIntoOutings, type ImportPreview } from '../../../lib/ebird'
+import { groupPreviewsIntoOutings, type ImportPreview, type OutingForImport } from '../../../lib/ebird'
 import { getOutingColumnNames, hasObservationColumn } from '../../../lib/schema'
 import { createRouteResponder } from '../../../lib/log'
 
@@ -49,6 +49,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const selectedPreviewCount = body.previewIds.length
   let validPreviewCount = 0
   let persistedOutingCount = 0
+  let skippedOutingCount = 0
   let persistedObservationCount = 0
   let importBatchCommitted = false
   let stage = 'decode selected previews'
@@ -80,8 +81,6 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   const priorSpecies = new Set(priorDex.map(row => row.speciesName))
 
   const { outings, observations } = groupPreviewsIntoOutings(selectedPreviews, userId)
-  persistedOutingCount = outings.length
-  persistedObservationCount = observations.length
   stage = 'inspect the import database schema'
   const columnNames = await getOutingColumnNames(context.env.DB)
   const supportsRegionColumns = columnNames.has('stateProvince') && columnNames.has('countryCode')
@@ -96,9 +95,60 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   // assumed, matching how the other optional eBird columns are handled here.
   const supportsSubmissionId = columnNames.has('submissionId')
 
+  // Checklist-level idempotency. Re-importing an export that overlaps one
+  // already imported would otherwise create a second copy of every outing:
+  // the existing species-level conflict check answers a different question
+  // (is this species already in the dex) and never suppresses a duplicate
+  // outing. Skipping by submission id makes a repeat import a no-op for the
+  // checklists already stored, while still importing genuinely new ones.
+  //
+  // Only applies to outings that HAVE a submission id. Rows without one fall
+  // back to date+location grouping and cannot be identified reliably, so they
+  // are always imported rather than guessed at.
+  stage = 'skip checklists already imported'
+  let skippedOutings: OutingForImport[] = []
+  let importedOutings = outings
+  if (supportsSubmissionId) {
+    const candidateIds = outings
+      .map(outing => outing.submissionId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+    if (candidateIds.length > 0) {
+      const existingIds = new Set<string>()
+      // Chunked to stay well inside SQLite's bound-parameter limit on a large
+      // export, which can carry hundreds of checklists.
+      const CHUNK = 100
+      for (let i = 0; i < candidateIds.length; i += CHUNK) {
+        const chunk = candidateIds.slice(i, i + CHUNK)
+        const placeholders = chunk.map(() => '?').join(', ')
+        const found = await context.env.DB
+          .prepare(`SELECT submissionId FROM outing WHERE userId = ? AND submissionId IN (${placeholders})`)
+          .bind(userId, ...chunk)
+          .all<{ submissionId: string }>()
+        for (const row of found.results ?? []) {
+          if (row.submissionId) existingIds.add(row.submissionId)
+        }
+      }
+
+      if (existingIds.size > 0) {
+        skippedOutings = outings.filter(o => o.submissionId && existingIds.has(o.submissionId))
+        importedOutings = outings.filter(o => !o.submissionId || !existingIds.has(o.submissionId))
+      }
+    }
+  }
+
+  // Observations follow their outing, so dropping a skipped outing must drop
+  // its observations too or they would reference a row that is never inserted.
+  const keptOutingIds = new Set(importedOutings.map(outing => outing.id))
+  const importedObservations = observations.filter(o => keptOutingIds.has(o.outingId))
+
+  persistedOutingCount = importedOutings.length
+  persistedObservationCount = importedObservations.length
+  skippedOutingCount = skippedOutings.length
+
   const insertStatements: D1PreparedStatement[] = []
 
-  for (const outing of outings) {
+  for (const outing of importedOutings) {
     if (supportsRegionColumns && supportsChecklistColumns && supportsSubmissionId) {
       insertStatements.push(
         context.env.DB
@@ -199,7 +249,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     }
   }
 
-  for (const observation of observations) {
+  for (const observation of importedObservations) {
     if (supportsSpeciesCommentsColumn) {
       insertStatements.push(
         context.env.DB
@@ -251,12 +301,16 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
   return route.complete(Response.json({
     imported: {
-      outings: outings.length,
-      observations: observations.length,
+      outings: persistedOutingCount,
+      observations: persistedObservationCount,
       newSpecies,
     },
+    // Checklists already present for this user, skipped rather than duplicated.
+    // Reported so the client can tell "nothing new to import" apart from a
+    // failed import, which otherwise look identical from a zero count.
+    skipped: { outings: skippedOutingCount },
     dexUpdates: enrichDexEntries(dexUpdates),
-  }), `Confirmed eBird import from ${countLabel(selectedPreviewCount, 'selected preview')} and ${countLabel(validPreviewCount, 'valid preview')}, persisting ${countLabel(outings.length, 'outing')} and ${countLabel(observations.length, 'observation')} with ${newSpecies} new species`)
+  }), `Confirmed eBird import from ${countLabel(selectedPreviewCount, 'selected preview')} and ${countLabel(validPreviewCount, 'valid preview')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')} with ${newSpecies} new species, skipping ${countLabel(skippedOutingCount, 'checklist')} already imported`)
   } catch {
     if (importBatchCommitted) {
       return route.fail(500, 'Internal server error', `Committed eBird import batch with ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}; post-commit dex recomputation failed`)

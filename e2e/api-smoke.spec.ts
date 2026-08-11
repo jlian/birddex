@@ -285,6 +285,34 @@ test.describe('API smoke (request context)', () => {
     expect(conflictTypes.size).toBe(1)
     expect(conflictTypes.has('duplicate')).toBe(true)
 
+    // The preview flags species-level duplicates, but confirming it used to
+    // insert a second copy of every checklist anyway. Re-confirm and assert the
+    // import is a genuine no-op: nothing persisted, every checklist skipped by
+    // submission id, and the library unchanged.
+    const beforeAll = await api.get('/api/data/all', { headers: { cookie: authCookie } })
+    expect(beforeAll.status()).toBe(200)
+    const outingCountAfterFirstImport = (await beforeAll.json()).outings.length
+    expect(outingCountAfterFirstImport).toBeGreaterThan(0)
+
+    const secondPreviewIds = secondPreviewJson.previews
+      .map((entry: { previewId?: string }) => entry.previewId)
+      .filter((id: string | undefined): id is string => !!id)
+
+    const secondConfirm = await api.post('/api/import/ebird-csv/confirm', {
+      headers: { cookie: authCookie },
+      data: { previewIds: secondPreviewIds },
+    })
+    expect(secondConfirm.status()).toBe(200)
+    const secondConfirmJson = await secondConfirm.json()
+
+    expect(secondConfirmJson.imported.outings).toBe(0)
+    expect(secondConfirmJson.imported.observations).toBe(0)
+    expect(secondConfirmJson.skipped.outings).toBeGreaterThan(0)
+
+    const afterAll = await api.get('/api/data/all', { headers: { cookie: authCookie } })
+    expect(afterAll.status()).toBe(200)
+    expect((await afterAll.json()).outings.length).toBe(outingCountAfterFirstImport)
+
     await api.dispose()
   })
 
