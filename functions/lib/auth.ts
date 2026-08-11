@@ -307,14 +307,18 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
             name: name || 'WingDex birder',
           }),
           // rc.4 calls this as afterVerification({ ctx, verification, user,
-          // clientData, context }) and only reads `userId` off the result. Returning
-          // it is what redirects passkey persistence at the real row instead of the
-          // stub, and the plugin rejects a mismatch against an existing session.
-          afterVerification: async ({ user, context }: {
+          // clientData, context }) and only reads `userId` off the result.
+          //
+          // Note `context` here is NOT the auth context: it is the opaque
+          // caller-supplied string from ?context=, round-tripped through the
+          // stored challenge. The adapter lives on ctx.context, and reaching for
+          // the wrong one fails at request time rather than at compile time,
+          // because these options are a plain bag with no inference.
+          afterVerification: async ({ ctx, user }: {
+            ctx: { context: { internalAdapter: { createUser: (v: Record<string, unknown>) => Promise<{ id: string }> } } }
             user: { id: string; name?: string }
-            context: { internalAdapter: { createUser: (v: Record<string, unknown>) => Promise<{ id: string }> } }
           }) => {
-            const created = await context.internalAdapter.createUser({
+            const created = await ctx.context.internalAdapter.createUser({
               name: user.name || 'WingDex birder',
               email: `${user.id}@passkey.wingdex.app`,
               emailVerified: false,
