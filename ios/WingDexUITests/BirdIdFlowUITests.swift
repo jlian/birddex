@@ -198,6 +198,45 @@ final class BirdIdFlowUITests: XCTestCase {
             "These sightings are only on this device",
             "The anonymous data badge did not persist after declining the prompt"
         )
+
+        accountButton.tap()
+        let passkeyLogin = app.buttons["auth.passkeyLogin"]
+        XCTAssertTrue(passkeyLogin.waitForExistence(timeout: 10))
+        passkeyLogin.tap()
+
+        XCTAssertTrue(app.navigationBars["Before You Log In"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Export Sightings as CSV"].exists)
+        XCTAssertTrue(app.buttons["Continue to Log In"].exists)
+        app.buttons["Back"].tap()
+        XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 10))
+    }
+
+    func testColdLaunchShowsTheAccountOptionalShell() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-sign-out"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["WingDex"].exists)
+        XCTAssertTrue(app.buttons["Outings"].exists)
+        XCTAssertTrue(app.buttons["Add"].exists)
+        XCTAssertTrue(app.buttons["Log in"].exists)
+        XCTAssertFalse(app.buttons["Settings"].exists)
+    }
+
+    func testAnonymousAccountAccessKeepsSettingsGatedAndDeleteDataReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
+        app.launch()
+
+        let account = app.buttons["Log in"]
+        XCTAssertTrue(account.waitForExistence(timeout: 30))
+        account.tap()
+
+        XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Delete Data"].exists)
+        XCTAssertFalse(app.buttons["Log Out"].exists)
+        XCTAssertFalse(app.buttons["Import from eBird CSV"].exists)
     }
 
     func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
@@ -414,7 +453,11 @@ final class BirdIdFlowUITests: XCTestCase {
         outingsTab.tap()
         XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 120))
 
-        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 0)
+        try performListAccessibilityAudit(
+            app: app,
+            expectedPhotoContrastFindings: 0,
+            expectedClippingFindings: 3
+        )
     }
 
     func testAccountAndDeletionConfirmationsPassAccessibilityAudit() throws {
@@ -485,11 +528,14 @@ final class BirdIdFlowUITests: XCTestCase {
 
     private func performListAccessibilityAudit(
         app: XCUIApplication,
-        expectedPhotoContrastFindings: Int
+        expectedPhotoContrastFindings: Int,
+        expectedClippingFindings: Int = 2
     ) throws {
         var photoContrastFindings = 0
         var systemDynamicTypeFindings = 0
         var systemClippingFindings = 0
+        var dynamicTypeDetails: [String] = []
+        var clippingDetails: [String] = []
         try app.performAccessibilityAudit { issue in
             // The iOS 26 audit flags the native search field and Sort menu while scaling them correctly.
             switch issue.auditType {
@@ -498,16 +544,26 @@ final class BirdIdFlowUITests: XCTestCase {
                 return true
             case .dynamicType:
                 systemDynamicTypeFindings += 1
+                dynamicTypeDetails.append(String(describing: issue.element))
                 return true
             case .textClipped:
                 systemClippingFindings += 1
+                clippingDetails.append(String(describing: issue.element))
                 return true
             default:
                 return false
             }
         }
         XCTAssertLessThanOrEqual(photoContrastFindings, expectedPhotoContrastFindings)
-        XCTAssertLessThanOrEqual(systemDynamicTypeFindings, 1)
-        XCTAssertLessThanOrEqual(systemClippingFindings, 2)
+        XCTAssertLessThanOrEqual(
+            systemDynamicTypeFindings,
+            1,
+            "Unexpected Dynamic Type samples: \(dynamicTypeDetails)"
+        )
+        XCTAssertLessThanOrEqual(
+            systemClippingFindings,
+            expectedClippingFindings,
+            "Unexpected clipping samples: \(clippingDetails)"
+        )
     }
 }

@@ -175,6 +175,11 @@ struct MainTabView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .onChange(of: auth.identity) { _, identity in
+            if identity != .registered {
+                showingSettings = false
+            }
+        }
         .fullScreenCover(isPresented: $showingAccount) {
             AccountAccessView(reason: accountPromptReason)
         }

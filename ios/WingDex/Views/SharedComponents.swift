@@ -359,7 +359,7 @@ struct BirdRow: View {
                 Text(getDisplayName(speciesName))
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let sci = getScientificName(speciesName) {
                     Text(sci)
@@ -470,10 +470,26 @@ struct OutingRow: View {
                     .lineLimit(2)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .contentShape(Rectangle())
         .padding(.vertical, 2)
         .frame(minHeight: 56)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        let location = outing.locationName.isEmpty ? "Outing" : outing.locationName
+        let date = DateFormatting.formatDate(outing.startTime, style: .medium)
+        if let observation {
+            return "\(location), \(date), \(getDisplayName(observation.speciesName)), \(observation.certainty.rawValue)"
+        }
+        let speciesCount = store.confirmedObservations(outing.id)
+            .map(\.speciesName)
+            .reduce(into: Set<String>()) { $0.insert($1) }
+            .count
+        return "\(location), \(date), \(speciesCount) species"
     }
 
     @ViewBuilder
