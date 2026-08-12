@@ -1,23 +1,23 @@
 name: iOS Release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ios/**'
-      - 'openapi.yaml'
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: 'Exact deployed commit to archive'
+        type: string
+        required: false
       dry_run:
-        description: 'Validate tests, archive, and export without publishing or uploading'
+        description: 'Validate archive and export without publishing or uploading'
         type: boolean
         default: false
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: ${{ inputs.dry_run && format('ios-release-dry-run-{0}', github.run_id) || 'ios-release-main' }}
   cancel-in-progress: false
 
 permissions:
+  checks: read
   contents: write
   issues: write
   pull-requests: write
@@ -27,22 +27,68 @@ jobs:
     name: Check for iOS changes
     runs-on: ubuntu-latest
     outputs:
+      has_release: ${{ steps.version.outputs.has_release }}
+      release_version: ${{ steps.version.outputs.release_version }}
       should_release: ${{ steps.diff.outputs.has_changes }}
+      source_sha: ${{ steps.source_sha.outputs.sha }}
+      check_sha: ${{ steps.source_sha.outputs.check_sha }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.source_sha || github.sha }}
           fetch-depth: 0
+
+      - name: Resolve release source commit
+        id: source_sha
+        env:
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=$(git rev-parse HEAD)
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "is_current=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch origin refs/heads/main:refs/remotes/origin/main
+            REMOTE_SHA=$(git rev-parse refs/remotes/origin/main)
+            if [ "$SOURCE_SHA" != "$REMOTE_SHA" ]; then
+              echo "Source $SOURCE_SHA was superseded by $REMOTE_SHA; a newer Release run will dispatch it"
+              echo "is_current=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_current=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          CHECK_SHA=$(git log -1 --format=%H "$SOURCE_SHA" -- \
+            ios openapi.yaml functions migrations \
+            .github/workflows/ios.yml .github/workflows/ios-release.yml \
+            .github/workflows/release.yml)
+          if [ -z "$CHECK_SHA" ]; then
+            CHECK_SHA="$SOURCE_SHA"
+          fi
+
+          {
+            echo "sha=$SOURCE_SHA"
+            echo "check_sha=$CHECK_SHA"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check for iOS-relevant changes since last tag
         id: diff
+        env:
+          SOURCE_IS_CURRENT: ${{ steps.source_sha.outputs.is_current }}
         run: |
+          if [ "$SOURCE_IS_CURRENT" != "true" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           LAST_TAG=$(git tag --list 'ios-v*' --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then
             echo "No previous ios-v tag found - first release"
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
-            CHANGED=$(git diff --name-only "$LAST_TAG"..HEAD -- ios/ openapi.yaml ios/.releaserc.json .github/workflows/ios-release.yml)
+            CHANGED=$(git diff --name-only "$LAST_TAG"..HEAD -- \
+              ios/ openapi.yaml ios/.releaserc.json \
+              .github/workflows/ios.yml .github/workflows/ios-release.yml \
+              .github/workflows/release.yml)
             if [ -n "$CHANGED" ]; then
               echo "iOS-relevant changes found since $LAST_TAG"
               echo "has_changes=true" >> "$GITHUB_OUTPUT"
@@ -52,51 +98,18 @@ jobs:
             fi
           fi
 
-  preflight:
-    name: Test, Archive & Export
-    needs: check
-    if: needs.check.outputs.should_release == 'true'
-    runs-on: macos-26
-    timeout-minutes: 60
-    outputs:
-      release_version: ${{ steps.version.outputs.release_version }}
-      has_release: ${{ steps.version.outputs.has_release }}
-      source_sha: ${{ steps.source_sha.outputs.sha }}
-    steps:
-      # Check out the BRANCH TIP, not github.sha. This workflow shares the
-      # release-<ref> concurrency group with release.yml, so it can start only
-      # after that workflow already pushed a version-bump commit to main. A
-      # checkout pinned to the triggering sha is then one commit behind the remote
-      # and semantic-release refuses to release from a stale branch: "The local
-      # branch main is behind the remote one". github.ref resolves at execution
-      # time, so it includes that bump.
-      # Fixed once in 8a72195, then reverted by 60189c3 and b8f9dd9, which broke
-      # the 2026-08-10 release. Do not put github.sha back.
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      # Pin everything downstream to the exact commit this job built, so publish
-      # cannot silently release a newer one if main advances during the macOS
-      # archive (several minutes).
-      - name: Record the built source commit
-        id: source_sha
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
       - uses: actions/setup-node@v6
+        if: steps.diff.outputs.has_changes == 'true'
         with:
           node-version: 24
           cache: npm
 
       - name: Install npm dependencies
+        if: steps.diff.outputs.has_changes == 'true'
         run: npm ci
 
-      - name: Install XcodeGen
-        run: brew install xcodegen xcbeautify
-
       - name: Determine release version
+        if: steps.diff.outputs.has_changes == 'true'
         id: version
         working-directory: ios
         env:
@@ -121,122 +134,84 @@ jobs:
             exit 1
           fi
 
-      - name: Stop when no release is due
-        if: steps.version.outputs.has_release != 'true'
-        run: echo "No iOS release is due."
-
-      - name: Apply release version locally
-        if: steps.version.outputs.has_release == 'true'
-        working-directory: ios
-        run: scripts/bump-version.sh set "${{ steps.version.outputs.release_version }}" --quiet
-
-      - name: Generate Xcode project
-        if: steps.version.outputs.has_release == 'true'
-        working-directory: ios
-        run: xcodegen generate
-
-      - name: Resolve SPM dependencies
-        if: steps.version.outputs.has_release == 'true'
-        working-directory: ios
-        run: xcodebuild -resolvePackageDependencies -project WingDex.xcodeproj -scheme Production -onlyUsePackageVersionsFromResolvedFile
-
-      # The preflight tests must never touch the production backend. The old step
-      # ran the Production scheme (Production Debug config, API_BASE_URL=https://wingdex.app).
-      # Because that is a debug build, the app's #if DEBUG launch hooks compile in, so
-      # the UI tests' --auto-sign-in and --auto-demo-data created real anonymous accounts
-      # and wrote demo rows into the live database. Switching to the Dev scheme was
-      # rejected: dev and prod APIs drift, so dev does not validate the released code.
-      # Instead, stand up a throwaway local Worker (mirroring ios.yml) and point the app
-      # at it. Release build and signing validation still happens in the Archive step,
-      # which builds the Production/Release configuration.
-      - name: Write .dev.vars for local Worker
-        if: steps.version.outputs.has_release == 'true'
-        run: |
-          umask 077
-          printf 'BETTER_AUTH_SECRET=%s\nGEOAPIFY_KEY=%s\n' \
-            "$BETTER_AUTH_SECRET" "$GEOAPIFY_KEY" > .dev.vars
+      # This workflow runs no tests, so the release is gated on the iOS suite having
+      # already passed. Squash and rebase merges give main a new sha, so the check is
+      # looked up on the originating pull request head when the release sha has none.
+      - name: Verify iOS tests passed for this source
+        if: steps.version.outputs.has_release == 'true' && inputs.dry_run != true
         env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          GEOAPIFY_KEY: ${{ secrets.GEOAPIFY_KEY }}
-
-      - name: Build web app
-        if: steps.version.outputs.has_release == 'true'
-        run: npm run build
-
-      - name: Apply local D1 migrations
-        if: steps.version.outputs.has_release == 'true'
-        run: npm run db:migrate
-
-      - name: Start local Worker
-        if: steps.version.outputs.has_release == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npm run dev &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:5000/api/health > /dev/null 2>&1 && break || sleep 1
-          done
-          curl -sf http://localhost:5000/api/health > /dev/null 2>&1 || (echo "Server failed to start within 30s"; exit 1)
-          echo "Server ready on :5000"
-
-      - name: Prepare iOS Simulator
-        if: steps.version.outputs.has_release == 'true'
+          CHECK_NAME: Build & Test (iOS Simulator)
+          CHECK_SHA: ${{ steps.source_sha.outputs.check_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ steps.source_sha.outputs.sha }}
         run: |
           set -euo pipefail
-          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | last | .identifier // empty')
-          if [ -z "$RUNTIME_ID" ]; then
-            xcodebuild -downloadPlatform iOS
-            RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | last | .identifier // empty')
+
+          conclusion_for() {
+            gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?per_page=100" \
+              | jq -r --arg name "$CHECK_NAME" \
+                '[.check_runs[] | select(.name == $name)] | (.[0].conclusion // "")'
+          }
+
+          CONCLUSION=$(conclusion_for "$CHECK_SHA")
+          PR=$(gh api "repos/$GITHUB_REPOSITORY/commits/$CHECK_SHA/pulls" --jq '.[0].number // empty')
+
+          TESTED_SHA="$CHECK_SHA"
+
+          if [ "$CONCLUSION" != "success" ] && [ -n "$PR" ]; then
+            TESTED_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$CHECK_SHA/pulls" --jq '.[0].head.sha // empty')
+            CONCLUSION=$(conclusion_for "$TESTED_SHA")
           fi
-          if [ -z "$RUNTIME_ID" ]; then
-            echo "No available iOS Simulator runtime after download"
+
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::error::No successful '$CHECK_NAME' for $SOURCE_SHA or its pull request head. Run the iOS checks before releasing."
             exit 1
           fi
 
-          DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '
-            [.devicetypes[] | select(.productFamily == "iPhone")]
-            | sort_by(if .name == "iPhone 17 Pro" then 0 else 1 end)
-            | first
-            | .identifier // empty
-          ')
-          if [ -z "$DEVICE_TYPE_ID" ]; then
-            echo "No iPhone Simulator device type is available"
-            exit 1
+          echo "- Verified \`$CHECK_NAME\` passed for \`$TESTED_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+
+          # A green check on the PR head only covers the tree that was tested. Merging
+          # without rebasing onto other iOS changes releases a combination nothing ran.
+          if [ "$TESTED_SHA" != "$SOURCE_SHA" ] && [ -n "$PR" ]; then
+            git fetch --no-tags --quiet origin "refs/pull/$PR/head"
+            if ! git diff --quiet FETCH_HEAD "$SOURCE_SHA" -- \
+              ios openapi.yaml functions migrations \
+              .github/workflows/ios.yml .github/workflows/ios-release.yml \
+              .github/workflows/release.yml; then
+              echo "::warning::iOS paths changed between tested commit $TESTED_SHA and $SOURCE_SHA; this combination was never tested together"
+              echo "- :warning: iOS paths drifted since \`$TESTED_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
 
-          IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex CI" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
-          echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
-          xcrun simctl boot "$IOS_SIMULATOR_UDID"
-          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+  preflight:
+    name: Archive & Export
+    needs: check
+    if: needs.check.outputs.should_release == 'true' && needs.check.outputs.has_release == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      # Build the exact branch tip used to calculate the release version.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Run iOS tests
-        if: steps.version.outputs.has_release == 'true'
-        timeout-minutes: 30
-        working-directory: ios
+      - name: Install XcodeGen
         run: |
-          set -o pipefail
-          mkdir -p build/logs
-          xcodebuild \
-            -project WingDex.xcodeproj \
-            -scheme Localhost \
-            -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
-            -resultBundlePath build/TestResults.xcresult \
-            test \
-            CODE_SIGNING_ALLOWED=NO \
-            API_BASE_URL=http://localhost:5000 \
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) CI' \
-            -onlyUsePackageVersionsFromResolvedFile \
-            2>&1 | tee build/logs/test.log | xcbeautify
+          ios/scripts/install-xcodegen.sh
+          xcbeautify --version
+
+      - name: Apply release version locally
+        working-directory: ios
+        run: scripts/bump-version.sh set "${{ needs.check.outputs.release_version }}" --quiet
 
       - name: Write App Store Connect API key
-        if: steps.version.outputs.has_release == 'true'
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
           echo "${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
 
       - name: Archive for App Store
-        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         run: |
           set -o pipefail
@@ -254,7 +229,6 @@ jobs:
             2>&1 | tee build/logs/archive.log | xcbeautify
 
       - name: Inspect signed archive
-        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         env:
           REQUIRE_SIGNED: '1'
@@ -262,7 +236,6 @@ jobs:
         run: scripts/inspect-archive.sh build/WingDex.xcarchive build/archive-inspection
 
       - name: Export IPA
-        if: steps.version.outputs.has_release == 'true'
         working-directory: ios
         run: |
           set -o pipefail
@@ -278,32 +251,40 @@ jobs:
             2>&1 | tee build/logs/export.log | xcbeautify
 
       - name: Upload iOS diagnostics
-        if: always() && steps.version.outputs.has_release == 'true'
+        if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: iOS-release-diagnostics
-          path: |
-            ios/build/TestResults.xcresult
-            ios/build/logs/
+          name: iOS-release-diagnostics-attempt-${{ github.run_attempt }}
+          path: ios/build/logs/
           retention-days: 7
 
       - name: Upload validated IPA artifact
-        if: steps.version.outputs.has_release == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: WingDex-${{ steps.version.outputs.release_version }}
+          name: WingDex-${{ needs.check.outputs.release_version }}
           path: |
             ios/build/export/WingDex.ipa
             ios/build/archive-inspection/
             ios/build/WingDex.xcarchive/dSYMs/
           if-no-files-found: error
+          overwrite: true
           retention-days: 7
 
-      # Runners start with an empty keychain, so -allowProvisioningUpdates mints a fresh
-      # development certificate every run. Left alone they pile up until the account cap
-      # is hit. Their private keys die with the runner, so revoking them is always safe.
+      - name: Upload generated release files
+        uses: actions/upload-artifact@v6
+        with:
+          name: WingDex-release-files-${{ needs.check.outputs.release_version }}
+          path: |
+            ios/project.yml
+            ios/WingDex.xcodeproj/project.pbxproj
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+      # Match server certificates to this runner's local signing identities so
+      # overlapping dry runs cannot revoke each other's credentials.
       - name: Revoke CI-created signing certificates
-        if: always() && steps.version.outputs.has_release == 'true'
+        if: always()
         continue-on-error: true
         uses: actions/github-script@v9
         env:
@@ -346,16 +327,34 @@ jobs:
 
             // Xcode names every certificate it creates through the API "Created via API".
             const REVOCABLE = new Set(['DEVELOPMENT', 'IOS_DEVELOPMENT', 'MAC_APP_DEVELOPMENT']);
-            const { data } = await asc('/v1/certificates?limit=200');
-            const stale = data.filter(
-              (c) => c.attributes.displayName === 'Created via API' && REVOCABLE.has(c.attributes.certificateType),
+            const identities = await exec.getExecOutput(
+              'security',
+              ['find-identity', '-v', '-p', 'codesigning'],
+              { ignoreReturnCode: true, silent: true },
             );
+            const localFingerprints = new Set(
+              Array.from(identities.stdout.matchAll(/\b([0-9A-F]{40})\b/g), (match) => match[1]),
+            );
+            const { data } = await asc('/v1/certificates?limit=200');
+            const owned = data.filter((certificate) => {
+              const attributes = certificate.attributes;
+              if (attributes.displayName !== 'Created via API' || !REVOCABLE.has(attributes.certificateType)) {
+                return false;
+              }
+              if (typeof attributes.certificateContent !== 'string') return false;
+              const fingerprint = crypto
+                .createHash('sha1')
+                .update(Buffer.from(attributes.certificateContent, 'base64'))
+                .digest('hex')
+                .toUpperCase();
+              return localFingerprints.has(fingerprint);
+            });
 
-            core.info(`${data.length} certificate(s) on the account, ${stale.length} CI-created`);
+            core.info(`${data.length} certificate(s) on the account, ${owned.length} owned by this runner`);
 
             // Best effort per certificate: one failure must not strand the rest.
             let failed = 0;
-            for (const cert of stale) {
+            for (const cert of owned) {
               try {
                 await asc(`/v1/certificates/${cert.id}`, 'DELETE');
                 core.info(`Revoked ${cert.attributes.certificateType} ${cert.id} (expiry ${cert.attributes.expirationDate})`);
@@ -365,7 +364,7 @@ jobs:
               }
             }
             if (failed) {
-              core.setFailed(`${failed} of ${stale.length} certificate(s) could not be revoked`);
+              core.setFailed(`${failed} of ${owned.length} certificate(s) could not be revoked`);
             }
 
       - name: Clean up API key
@@ -373,28 +372,20 @@ jobs:
         run: rm -rf ~/.appstoreconnect
 
       - name: Validation summary
-        if: steps.version.outputs.has_release == 'true'
         run: |
-          echo "### Validated iOS v${{ steps.version.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tests, signed archive inspection, dSYM matching, and App Store export succeeded before publication." >> "$GITHUB_STEP_SUMMARY"
+          echo "### Validated iOS v${{ needs.check.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Signed archive inspection, dSYM matching, and App Store export succeeded before publication." >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    name: Publish & Upload to TestFlight
+    name: Publish release
     needs: [check, preflight]
-    if: needs.check.outputs.should_release == 'true' && needs.preflight.outputs.has_release == 'true' && inputs.dry_run != true
-    runs-on: macos-26
-    timeout-minutes: 45
+    if: needs.check.outputs.should_release == 'true' && needs.check.outputs.has_release == 'true' && inputs.dry_run != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      # Check out the exact commit preflight built and versioned, NOT the branch tip.
-      # Preflight already resolved the tip to pick up any version bump release.yml
-      # pushed while this run was queued. Re-resolving here would open a second
-      # window: another merge can advance main during the macOS archive, and
-      # semantic-release would then tag commits that are not in the IPA this job
-      # uploads. Pinning keeps the released tag, the version, and the artifact in
-      # agreement.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.preflight.outputs.source_sha }}
+          ref: ${{ needs.check.outputs.source_sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -406,19 +397,134 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Check publication state
+        id: publication
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
+          SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          TAG="ios-v${RELEASE_VERSION}"
+          git fetch origin refs/heads/main:refs/remotes/origin/main --tags
+          REMOTE_SHA=$(git rev-parse refs/remotes/origin/main)
+          if git rev-parse "refs/tags/$TAG" > /dev/null 2>&1; then
+            RELEASE_SHA=$(git rev-parse "${TAG}^{commit}")
+            if [ "$(git rev-parse "${RELEASE_SHA}^")" != "$SOURCE_SHA" ] \
+              || ! git merge-base --is-ancestor "$RELEASE_SHA" "$REMOTE_SHA"; then
+              echo "::error::$TAG is not a release child of $SOURCE_SHA on main"
+              exit 1
+            fi
+            git checkout --detach "$RELEASE_SHA"
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              STATE=complete
+            else
+              STATE=tag
+            fi
+          elif [ "$REMOTE_SHA" = "$SOURCE_SHA" ]; then
+            STATE=source
+          elif git merge-base --is-ancestor "$SOURCE_SHA" "$REMOTE_SHA"; then
+            RELEASE_SHA=$(git rev-list --ancestry-path --reverse "$SOURCE_SHA..$REMOTE_SHA" | head -1)
+            read -r -a PARENTS <<< "$(git show -s --format=%P "$RELEASE_SHA")"
+            AUTHOR_EMAIL=$(git show -s --format=%ae "$RELEASE_SHA")
+            SUBJECT=$(git show -s --format=%s "$RELEASE_SHA")
+            UNEXPECTED=$(git diff --name-only "$SOURCE_SHA" "$RELEASE_SHA" \
+              | grep -Ev '^(ios/project\.yml|ios/WingDex\.xcodeproj/project\.pbxproj)$' || true)
+            if [ "${#PARENTS[@]}" -ne 1 ] \
+              || [ "${PARENTS[0]}" != "$SOURCE_SHA" ] \
+              || [ "$AUTHOR_EMAIL" != "semantic-release-bot@martynus.net" ] \
+              || [ "$SUBJECT" != "chore(ios-release): $RELEASE_VERSION" ] \
+              || [ -n "$UNEXPECTED" ]; then
+              echo "::error::No recoverable release commit follows $SOURCE_SHA"
+              exit 1
+            fi
+            git checkout --detach "$RELEASE_SHA"
+            STATE=commit
+          else
+            echo "::error::$SOURCE_SHA is not an ancestor of current main $REMOTE_SHA"
+            exit 1
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+          if [ "$STATE" = "source" ]; then
+            git checkout -B main "$SOURCE_SHA"
+            git branch --set-upstream-to=origin/main main
+          fi
+
+      - name: Download generated release files
+        if: steps.publication.outputs.state == 'source'
+        uses: actions/download-artifact@v7
+        with:
+          name: WingDex-release-files-${{ needs.check.outputs.release_version }}
+          path: ios
 
       - name: Publish semantic release
+        if: steps.publication.outputs.state == 'source'
         working-directory: ios
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
 
+      - name: Repair partial publication
+        if: steps.publication.outputs.state == 'commit' || steps.publication.outputs.state == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_STATE: ${{ steps.publication.outputs.state }}
+          RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
+        run: |
+          TAG="ios-v${RELEASE_VERSION}"
+          if [ "$RELEASE_STATE" = "commit" ]; then
+            TAG_SHA=$(git rev-parse HEAD)
+            if ! gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$TAG_SHA" > /dev/null 2>&1; then
+              EXISTING_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+              if [ "$EXISTING_SHA" != "$TAG_SHA" ]; then
+                echo "::error::$TAG already points to $EXISTING_SHA instead of $TAG_SHA"
+                exit 1
+              fi
+            fi
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+
+      - name: Verify published release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.check.outputs.release_version }}
+          SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
+        run: |
+          TAG="ios-v${RELEASE_VERSION}"
+          git fetch origin refs/heads/main:refs/remotes/origin/main --tags
+          TAG_SHA=$(git rev-parse "${TAG}^{commit}")
+          TAG_PARENT_SHA=$(git rev-parse "${TAG_SHA}^")
+          REMOTE_SHA=$(git rev-parse refs/remotes/origin/main)
+          if [ "$TAG_PARENT_SHA" != "$SOURCE_SHA" ] \
+            || ! git merge-base --is-ancestor "$TAG_SHA" "$REMOTE_SHA"; then
+            echo "::error::$TAG is not a release child of the archived source on main"
+            exit 1
+          fi
+          gh release view "$TAG" > /dev/null
+
+      - name: Mark pre-1.0 releases as prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.check.outputs.release_version }}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          if [ "$MAJOR" = "0" ]; then
+            gh release edit "ios-v${VERSION}" --prerelease
+          fi
+
+  upload:
+    name: Upload to TestFlight
+    needs: [check, preflight, publish]
+    if: needs.check.outputs.should_release == 'true' && needs.check.outputs.has_release == 'true' && inputs.dry_run != true
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
       - name: Download validated IPA artifact
         uses: actions/download-artifact@v7
         with:
-          name: WingDex-${{ needs.preflight.outputs.release_version }}
+          name: WingDex-${{ needs.check.outputs.release_version }}
           path: build
 
       - name: Write App Store Connect API key
@@ -426,29 +532,141 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           echo "${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
 
-      - name: Upload to TestFlight
+      - name: Read IPA version
+        id: ipa
         run: |
-          xcrun altool --upload-app \
-            --type ios \
-            --file build/export/WingDex.ipa \
-            --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
-            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+          TMP=$(mktemp -d)
+          unzip -q build/export/WingDex.ipa 'Payload/WingDex.app/Info.plist' -d "$TMP"
+          PLIST="$TMP/Payload/WingDex.app/Info.plist"
+          echo "version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" >> "$GITHUB_OUTPUT"
+          echo "build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" >> "$GITHUB_OUTPUT"
+          rm -rf "$TMP"
+
+      - name: Upload to TestFlight
+        uses: actions/github-script@v9
+        env:
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          BUILD_NUMBER: ${{ steps.ipa.outputs.build }}
+          MARKETING_VERSION: ${{ steps.ipa.outputs.version }}
+        with:
+          script: |
+            const crypto = require('crypto');
+
+            const privateKey = Buffer.from(process.env.ASC_PRIVATE_KEY, 'base64').toString('utf8');
+            const b64 = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+            function authorizationToken() {
+              const now = Math.floor(Date.now() / 1000);
+              const signingInput = [
+                b64({ alg: 'ES256', kid: process.env.ASC_KEY_ID, typ: 'JWT' }),
+                b64({ iss: process.env.ASC_ISSUER_ID, iat: now, exp: now + 600, aud: 'appstoreconnect-v1' }),
+              ].join('.');
+              const signature = crypto.sign('sha256', Buffer.from(signingInput), {
+                key: crypto.createPrivateKey(privateKey),
+                dsaEncoding: 'ieee-p1363',
+              });
+              return `${signingInput}.${signature.toString('base64url')}`;
+            }
+
+            async function asc(path, params) {
+              const url = new URL(`https://api.appstoreconnect.apple.com${path}`);
+              for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+              for (let attempt = 1; attempt <= 3; attempt += 1) {
+                const response = await fetch(url, {
+                  headers: { Authorization: `Bearer ${authorizationToken()}` },
+                });
+                if (response.ok) return response.json();
+                const body = await response.text();
+                if (attempt < 3 && (response.status === 429 || response.status >= 500)) {
+                  await new Promise((resolve) => setTimeout(resolve, 5_000));
+                  continue;
+                }
+                throw new Error(`GET ${url.pathname} -> ${response.status} ${body}`);
+              }
+              throw new Error(`GET ${url.pathname} exhausted retries`);
+            }
+
+            const apps = await asc('/v1/apps', {
+              'filter[bundleId]': 'app.wingdex',
+              'fields[apps]': 'bundleId',
+              limit: '1',
+            });
+            if (apps.data.length !== 1) throw new Error('Could not resolve app.wingdex in App Store Connect');
+            const appID = apps.data[0].id;
+
+            async function buildProcessingState() {
+              const versions = await asc('/v1/preReleaseVersions', {
+                'filter[app]': appID,
+                'filter[version]': process.env.MARKETING_VERSION,
+                'filter[platform]': 'IOS',
+                'fields[preReleaseVersions]': 'version,platform',
+                limit: '2',
+              });
+              if (versions.data.length === 0) return null;
+              if (versions.data.length !== 1) {
+                throw new Error(`Expected one iOS prerelease version for ${process.env.MARKETING_VERSION}`);
+              }
+              const builds = await asc('/v1/builds', {
+                'filter[app]': appID,
+                'filter[version]': process.env.BUILD_NUMBER,
+                'filter[preReleaseVersion]': versions.data[0].id,
+                'fields[builds]': 'version,processingState,uploadedDate',
+                limit: '2',
+              });
+              if (builds.data.length === 0) return null;
+              if (builds.data.length !== 1) {
+                throw new Error(`Expected one build ${process.env.BUILD_NUMBER} for ${process.env.MARKETING_VERSION}`);
+              }
+              const state = builds.data[0].attributes.processingState;
+              if (!['PROCESSING', 'VALID', 'FAILED', 'INVALID'].includes(state)) {
+                throw new Error(`Unknown App Store Connect build processing state: ${state}`);
+              }
+              return state;
+            }
+
+            const existingState = await buildProcessingState();
+            if (existingState === 'FAILED' || existingState === 'INVALID') {
+              throw new Error(`TestFlight rejected ${process.env.MARKETING_VERSION} (${process.env.BUILD_NUMBER}): ${existingState}`);
+            }
+            if (existingState === 'PROCESSING' || existingState === 'VALID') {
+              core.info(`TestFlight already has ${process.env.MARKETING_VERSION} (${process.env.BUILD_NUMBER}) in state ${existingState}`);
+              return;
+            }
+
+            const exitCode = await exec.exec('xcrun', [
+              'altool', '--upload-app',
+              '--type', 'ios',
+              '--file', 'build/export/WingDex.ipa',
+              '--apiKey', process.env.ASC_KEY_ID,
+              '--apiIssuer', process.env.ASC_ISSUER_ID,
+            ], { ignoreReturnCode: true });
+            if (exitCode === 0) return;
+
+            for (let attempt = 1; attempt <= 8; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, 15_000));
+              try {
+                const state = await buildProcessingState();
+                if (state === 'FAILED' || state === 'INVALID') {
+                  core.setFailed(`TestFlight rejected the uploaded build: ${state}`);
+                  return;
+                }
+                if (state === 'PROCESSING' || state === 'VALID') {
+                  core.info(`The upload reached App Store Connect in state ${state} despite the altool failure`);
+                  return;
+                }
+              } catch (error) {
+                core.warning(`Could not check upload state on attempt ${attempt}: ${error.message}`);
+              }
+            }
+            core.setFailed(`altool exited ${exitCode} and the build did not appear in App Store Connect`);
 
       - name: Clean up API key
         if: always()
         run: rm -rf ~/.appstoreconnect
 
-      - name: Mark pre-1.0 releases as prerelease
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          MAJOR=$(echo "$VERSION" | cut -d. -f1)
-          if [ "$MAJOR" = "0" ]; then
-            gh release edit "ios-v${VERSION}" --prerelease
-          fi
-
       - name: Summary
         run: |
-          echo "### iOS Release v${{ needs.preflight.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### iOS Release v${{ needs.check.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Published and uploaded to TestFlight." >> "$GITHUB_STEP_SUMMARY"

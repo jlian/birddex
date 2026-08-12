@@ -125,6 +125,7 @@ struct HomeView: View {
                 Text("Got bird pics?")
                     .font(.system(.largeTitle, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("Upload your photos, ID the birds, and build your WingDex.")
                     .font(.body)
@@ -136,19 +137,13 @@ struct HomeView: View {
             Button {
                 showAddPhotos()
             } label: {
-                Group {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        VStack(spacing: 6) {
-                            Image(systemName: "camera.fill")
-                            Text("Upload & Identify")
-                                .multilineTextAlignment(.center)
-                        }
-                    } else {
-                        HStack(spacing: 8) {
-                            Image(systemName: "camera.fill")
-                            Text("Upload & Identify")
-                        }
-                    }
+                Label {
+                    Text("Upload & Identify")
+                        .font(.body.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "camera.fill")
+                        .font(.body)
                 }
                 .font(.body.weight(.medium))
                 .frame(maxWidth: .infinity, minHeight: 44)

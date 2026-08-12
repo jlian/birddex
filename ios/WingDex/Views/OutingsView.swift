@@ -176,9 +176,11 @@ struct OutingsView: View {
                 }
                 VStack(spacing: 8) {
                     Text("No Outings Yet")
-                        .font(.title2.weight(.semibold))
+                        .font(.title2)
                         .fontDesign(.serif)
+                        .fontWeight(.semibold)
                         .foregroundStyle(Color.foregroundText)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Upload photos to create your first outing.")
                         .font(.body)
                         .foregroundStyle(Color.mutedText)

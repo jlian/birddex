@@ -17,6 +17,7 @@ protocol AccountDataCaching: AnyObject {
 @MainActor
 final class AccountDataCache: AccountDataCaching {
     static let purgeDenylistKey = "account-data-cache-purge-denylist"
+    private static let sqliteHeader = Data("SQLite format 3\0".utf8)
 
     private let container: ModelContainer
     private let storeDirectory: URL?
@@ -42,6 +43,7 @@ final class AccountDataCache: AccountDataCaching {
 
         let url = try storeURL ?? Self.defaultStoreURL()
         storeDirectory = url.deletingLastPathComponent()
+        try Self.removeStoreDirectoryIfClearlyInvalid(at: url)
         let configuration = ModelConfiguration(
             "WingDexCache",
             schema: schema,
@@ -199,6 +201,29 @@ final class AccountDataCache: AccountDataCaching {
         if fileManager.fileExists(atPath: directory.path) {
             try fileManager.removeItem(at: directory)
         }
+    }
+
+    private static func removeStoreDirectoryIfClearlyInvalid(at storeURL: URL) throws {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: storeURL.path, isDirectory: &isDirectory) else { return }
+        if isDirectory.boolValue {
+            try removeStoreDirectory(at: storeURL.deletingLastPathComponent())
+            try prepareStoreDirectory(storeURL.deletingLastPathComponent())
+            return
+        }
+        guard
+              let handle = try? FileHandle(forReadingFrom: storeURL)
+        else { return }
+        defer { try? handle.close() }
+        let header: Data
+        do {
+            header = try handle.read(upToCount: sqliteHeader.count) ?? Data()
+        } catch {
+            return
+        }
+        guard header != sqliteHeader else { return }
+        try removeStoreDirectory(at: storeURL.deletingLastPathComponent())
+        try prepareStoreDirectory(storeURL.deletingLastPathComponent())
     }
 }
 

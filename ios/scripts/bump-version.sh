@@ -77,16 +77,32 @@ sed_inplace() {
 sed_inplace "s/MARKETING_VERSION: \".*\"/MARKETING_VERSION: \"${new_version}\"/" "$FILE"
 sed_inplace "s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: ${new_build}/" "$FILE"
 
-# Regenerate .xcodeproj so pbxproj stays in sync with project.yml
+generated_project_matches() {
+  local project_file="WingDex.xcodeproj/project.pbxproj"
+  awk -v version="${new_version};" -v build="${new_build};" '
+    $1 == "MARKETING_VERSION" && $2 == "=" {
+      versions += 1
+      if ($3 != version) invalid = 1
+    }
+    $1 == "CURRENT_PROJECT_VERSION" && $2 == "=" {
+      builds += 1
+      if ($3 != build) invalid = 1
+    }
+    END { exit !(versions > 0 && builds > 0 && invalid == 0) }
+  ' "$project_file" 2>/dev/null
+}
+
 if command -v xcodegen &> /dev/null; then
   [[ "$QUIET" == false ]] && echo "Running xcodegen..."
   xcodegen generate
 else
-  if [[ "${CI:-}" == "true" ]]; then
+  if [[ "${CI:-}" == "true" ]] && ! generated_project_matches; then
     echo "Error: xcodegen is required in CI to keep the generated project in sync" >&2
     exit 1
   fi
-  [[ "$QUIET" == false ]] && echo "Warning: xcodegen not found - run it manually to sync the .xcodeproj"
+  if [[ "${CI:-}" != "true" ]]; then
+    [[ "$QUIET" == false ]] && echo "Warning: xcodegen not found - run it manually to sync the .xcodeproj"
+  fi
 fi
 
 if [[ "$QUIET" == true ]]; then

@@ -107,6 +107,9 @@ struct MainTabView: View {
     @State private var showingWizard = false
     @State private var initialDataLoaded = false
     @AppStorage("wingdex.signupPrompted") private var signupPrompted = false
+    #if DEBUG
+    @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
+    #endif
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -144,6 +147,9 @@ struct MainTabView: View {
                 Label("Add", systemImage: "camera.fill")
             }
         }
+        #if DEBUG
+        .accessibilityIdentifier(uiTestDataSetupIdentifier)
+        #endif
         .onChange(of: addPhotosVM.currentStep) {
             if addPhotosVM.currentStep != .selectPhotos {
                 showingWizard = true
@@ -193,8 +199,13 @@ struct MainTabView: View {
             async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
-            if arguments.contains("--ui-test-clear-data") {
-                try? await store.clearAll()
+            do {
+                if arguments.contains("--ui-test-clear-data") {
+                    try await store.clearAll()
+                }
+                uiTestDataSetupIdentifier = "ui-test.dataSetupComplete"
+            } catch {
+                uiTestDataSetupIdentifier = "ui-test.dataSetupFailed"
             }
             #endif
             await completeInitialLoadIfReady()
