@@ -9,7 +9,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Download, Upload, Info, Database, CaretDown, Sun, Moon, Desktop, Trash, GlobeHemisphereWest, Key, SignOut, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
+import { Download, Upload, Info, CaretDown, Sun, Moon, Desktop, Trash, GlobeHemisphereWest, Key, SignOut, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
 import { authClient } from '@/lib/auth-client'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
 import { assertWingDexApiResponse, getWingDexApiErrorMessage } from '@/lib/api-error'
@@ -18,7 +18,6 @@ import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLik
 import { toast } from 'sonner'
 import { logClientFailure } from '@/lib/client-log'
 import { generateTraceparent } from '@/lib/trace'
-import demoCsv from '@/assets/ebird-import.csv?raw'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 
 function errCode(err: { code?: string; message?: string }): string | undefined {
