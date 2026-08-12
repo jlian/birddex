@@ -41,6 +41,8 @@ export interface Observation {
   aiConfidence?: number
   speciesComments?: string
   notes: string
+  /** eBird checklist id when imported, absent for records created in-app. */
+  submissionId?: string
 }
 
 export interface DexEntry {

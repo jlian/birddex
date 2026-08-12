@@ -32,7 +32,6 @@ const ROUTE_MAP: Array<{ prefix: string; route: string; method?: string; op: str
   { prefix: '/api/auth/mobile/start', route: '/api/auth/mobile/start', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/mobile/callback', route: '/api/auth/mobile/callback', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/', route: '/api/auth/:path', op: 'auth/sessions/invoke', category: 'Application' },
-  { prefix: '/api/import/ebird-csv/confirm', route: '/api/import/ebird-csv/confirm', op: 'import/ebirdCsvConfirm/write', category: 'Application' },
   { prefix: '/api/import/ebird-csv', route: '/api/import/ebird-csv', op: 'import/ebirdCsv/import', category: 'Application' },
   { prefix: '/api/export/outing/', route: '/api/export/outing/:id', op: 'export/outingCsv/export', category: 'Application' },
   { prefix: '/api/export/dex', route: '/api/export/dex', op: 'export/dex/export', category: 'Application' },

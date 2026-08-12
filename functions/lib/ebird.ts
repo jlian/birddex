@@ -47,8 +47,6 @@ export type ImportPreview = {
 
 export type OutingForImport = {
   id: string
-  /** eBird submission id for the checklist this outing came from, when known. */
-  submissionId?: string
   userId: string
   startTime: string
   endTime: string
@@ -74,6 +72,12 @@ export type ObservationForImport = {
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   notes: string
+  /**
+   * eBird submission id of the checklist this row came from. One eBird row is
+   * exactly one (checklist, species) pair, so this is lossless here; an outing
+   * can merge several checklists and could only record one of them.
+   */
+  submissionId?: string
 }
 
 import {
@@ -428,11 +432,6 @@ export function groupPreviewsIntoOutings(
 
     outings.push({
       id: outingId,
-      // Provenance for the imported checklist. Kept so a later import of the same
-      // export can skip checklists already stored, and so demo checklists (which
-      // carry a reserved non-eBird prefix) can be identified and removed without
-      // touching real records.
-      submissionId: first.submissionId,
       userId,
       startTime,
       endTime,
@@ -451,27 +450,37 @@ export function groupPreviewsIntoOutings(
       createdAt: new Date().toISOString(),
     })
 
-    const speciesMap = new Map<string, { count: number; notes: string }>()
+    const speciesMap = new Map<string, { speciesName: string; submissionId?: string; count: number; notes: string }>()
     for (const preview of group) {
-      const existing = speciesMap.get(preview.speciesName)
+      // Keyed by checklist as well as species. Merging across checklists would
+      // keep only one submission id, which is the lossiness that made a
+      // re-import unable to recognise what it had already stored.
+      const key = `${preview.submissionId ?? ''}||${preview.speciesName}`
+      const existing = speciesMap.get(key)
       if (existing) {
         existing.count += preview.count
         if (preview.observationNotes && !existing.notes.includes(preview.observationNotes)) {
           existing.notes = existing.notes ? `${existing.notes}; ${preview.observationNotes}` : preview.observationNotes
         }
       } else {
-        speciesMap.set(preview.speciesName, { count: preview.count, notes: preview.observationNotes || '' })
+        speciesMap.set(key, {
+          speciesName: preview.speciesName,
+          submissionId: preview.submissionId,
+          count: preview.count,
+          notes: preview.observationNotes || '',
+        })
       }
     }
 
-    for (const [speciesName, info] of speciesMap) {
+    for (const info of speciesMap.values()) {
       observations.push({
         id: `obs_import_${crypto.randomUUID()}`,
         outingId,
-        speciesName,
+        speciesName: info.speciesName,
         count: info.count,
         certainty: 'confirmed',
         notes: info.notes,
+        submissionId: info.submissionId,
       })
     }
   }

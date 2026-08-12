@@ -148,7 +148,7 @@ These events exist only when the named durable/interruptible boundary is crossed
 | operationName | category | Emission rule |
 |---|---|---|
 | `data/clear/delete` | Audit | Outcome after the batch deletes outings, cascaded observations/photos, and dex metadata |
-| `import/ebirdCsvConfirm/write` | Application | Commit marker after a non-empty import batch, before dex recomputation |
+| `import/ebirdCsv/import` | Application | Commit marker after a non-empty import batch, before dex recomputation |
 | `data/outings/delete` | Application | Delete marker after one outing and its cascades commit, before dex recomputation |
 | `geocoding/reverse/read` | Application | Start marker only when Places yields no usable outdoor place and reverse-geocoding fallback begins |
 | `data/observations/write` | Application | For POST batches larger than one: commit/verification marker before dex recomputation, including post-commit verification failure |
@@ -181,7 +181,6 @@ Every terminal route event has category `Request`. Middleware resolves the follo
 | POST | `/api/auth/mobile/callback` | `auth/mobileOAuth/invoke` |
 | varied | `/api/auth/:path` | `auth/sessions/invoke` |
 | POST | `/api/import/ebird-csv` | `import/ebirdCsv/import` |
-| POST | `/api/import/ebird-csv/confirm` | `import/ebirdCsvConfirm/write` |
 | GET | `/api/export/outing/:id` | `export/outingCsv/export` |
 | GET | `/api/export/dex` | `export/dex/export` |
 | GET | `/api/export/sightings` | `export/sightings/export` |

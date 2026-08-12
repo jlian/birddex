@@ -139,22 +139,12 @@ export async function seedViaCSVImport(page: Page) {
   // This is significantly faster since it skips all the UI round-trips.
   const csvBuffer = readFileSync(path.resolve('e2e/fixtures/ebird-import.csv'))
 
-  const preview = await page.request.post('/api/import/ebird-csv', {
+  const imported = await page.request.post('/api/import/ebird-csv', {
     multipart: {
       file: { name: 'ebird-import.csv', mimeType: 'text/csv', buffer: csvBuffer },
     },
   })
-  expect(preview.ok(), `CSV preview failed: ${preview.status()}`).toBe(true)
-
-  const { previews } = await preview.json()
-  const previewIds = previews
-    .map((e: { previewId?: string }) => e.previewId)
-    .filter(Boolean)
-
-  const confirm = await page.request.post('/api/import/ebird-csv/confirm', {
-    data: { previewIds },
-  })
-  expect(confirm.ok(), `CSV confirm failed: ${confirm.status()}`).toBe(true)
+  expect(imported.ok(), `CSV import failed: ${imported.status()}`).toBe(true)
 
   // Reload so the UI picks up the seeded data
   await page.reload()

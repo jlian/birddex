@@ -111,11 +111,8 @@ test.describe('CSV import + photo upload integration', () => {
 
     // Profile timezone defaults to America/Los_Angeles (Pacific), no need to change it
 
-    const previewResponsePromise = page.waitForResponse(
+    const importResponsePromise = page.waitForResponse(
       response => response.url().includes('/api/import/ebird-csv') && response.request().method() === 'POST'
-    )
-    const confirmResponsePromise = page.waitForResponse(
-      response => response.url().includes('/api/import/ebird-csv/confirm') && response.request().method() === 'POST'
     )
 
     await page.getByRole('button', { name: 'Import from eBird CSV' }).click()
@@ -126,11 +123,8 @@ test.describe('CSV import + photo upload integration', () => {
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(path.resolve('e2e/fixtures/ebird-import.csv'))
 
-    const previewResponse = await previewResponsePromise
-    expect(previewResponse.status()).toBe(200)
-
-    const confirmResponse = await confirmResponsePromise
-    expect(confirmResponse.status()).toBe(200)
+    const importResponse = await importResponsePromise
+    expect(importResponse.status()).toBe(200)
 
     await expect(page.getByText(/Failed to import eBird data/i)).not.toBeVisible()
 
@@ -167,11 +161,8 @@ test.describe('CSV import + photo upload integration', () => {
     await loadApp(page)
     await goToSettings(page)
 
-    const previewResponsePromise = page.waitForResponse(
+    const importResponsePromise = page.waitForResponse(
       response => response.url().includes('/api/import/ebird-csv') && response.request().method() === 'POST'
-    )
-    const confirmResponsePromise = page.waitForResponse(
-      response => response.url().includes('/api/import/ebird-csv/confirm') && response.request().method() === 'POST'
     )
 
     await page.getByRole('button', { name: 'Import from eBird CSV' }).click()
@@ -182,11 +173,8 @@ test.describe('CSV import + photo upload integration', () => {
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(path.resolve('e2e/fixtures/ebird-import-variant.csv'))
 
-    const previewResponse = await previewResponsePromise
-    expect(previewResponse.status()).toBe(200)
-
-    const confirmResponse = await confirmResponsePromise
-    expect(confirmResponse.status()).toBe(200)
+    const importResponse = await importResponsePromise
+    expect(importResponse.status()).toBe(200)
 
     await expect(page.getByText(/Failed to import eBird data/i)).not.toBeVisible()
 
@@ -315,20 +303,12 @@ test.describe('CSV import + photo upload integration', () => {
     await loadApp(page)
 
     const csvBuffer = readFileSync(path.resolve('e2e/fixtures/ebird-import.csv'))
-    const preview = await page.request.post('/api/import/ebird-csv', {
+    const imported = await page.request.post('/api/import/ebird-csv', {
       multipart: {
         file: { name: 'ebird-import.csv', mimeType: 'text/csv', buffer: csvBuffer },
       },
     })
-    expect(preview.ok()).toBe(true)
-    const { previews } = await preview.json()
-    const previewIds = previews
-      .map((e: { previewId?: string }) => e.previewId)
-      .filter(Boolean)
-    const confirm = await page.request.post('/api/import/ebird-csv/confirm', {
-      data: { previewIds },
-    })
-    expect(confirm.ok()).toBe(true)
+    expect(imported.ok()).toBe(true)
 
     // Reload so the UI picks up the seeded data
     await page.reload()

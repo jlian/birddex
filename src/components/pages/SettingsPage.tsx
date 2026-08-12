@@ -179,51 +179,32 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         return formData
       }
 
-      const postPreview = () => fetchWithLocalAuthRetry('/api/import/ebird-csv', {
+      const importResponse = await fetchWithLocalAuthRetry('/api/import/ebird-csv', {
         method: 'POST',
         credentials: 'include',
         body: makePreviewFormData(),
       })
 
-      const previewResponse = await postPreview()
+      await assertWingDexApiResponse(importResponse, 'Import failed')
 
-      await assertWingDexApiResponse(previewResponse, 'Preview failed')
-
-      const previewPayload = await previewResponse.json() as {
-        previews: Array<{ previewId: string; speciesName: string; conflict?: 'new' | 'duplicate' | 'update_dates' }>
-      }
-
-      const selectedPreviewIds = previewPayload.previews
-        .filter(preview => preview.conflict !== 'duplicate')
-        .map(preview => preview.previewId)
-
-      if (selectedPreviewIds.length === 0) {
-        toast.error('No valid data found in CSV')
-        return
-      }
-
-      const confirmResponse = await fetchWithLocalAuthRetry('/api/import/ebird-csv/confirm', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ previewIds: selectedPreviewIds }),
-      })
-
-      await assertWingDexApiResponse(confirmResponse, 'Confirmation failed')
-
-      const confirmPayload = await confirmResponse.json() as {
+      const importPayload = await importResponse.json() as {
         imported: { outings: number; newSpecies: number }
+        skipped?: { rows: number }
       }
 
-      if (confirmPayload.imported.newSpecies > 0) {
+      if (importPayload.imported.newSpecies > 0) {
         setShowConfetti(true)
         setTimeout(() => setShowConfetti(false), 3500)
       }
 
-      toast.success(
-        `Imported eBird data across ${confirmPayload.imported.outings} outings` +
-        (confirmPayload.imported.newSpecies > 0 ? ` (${confirmPayload.imported.newSpecies} new!)` : '')
-      )
+      if (importPayload.imported.outings === 0 && (importPayload.skipped?.rows ?? 0) > 0) {
+        toast.success('Already imported: nothing new in that file')
+      } else {
+        toast.success(
+          `Imported eBird data across ${importPayload.imported.outings} outings` +
+          (importPayload.imported.newSpecies > 0 ? ` (${importPayload.imported.newSpecies} new!)` : '')
+        )
+      }
 
       await data.refresh()
     } catch (error) {
@@ -667,78 +648,6 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
           </p>
         </div>
         <div className="space-y-3">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Database size={20} className="mr-2" />
-                Load Demo Data
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Load demo data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This adds sample outings, observations and WingDex entries so you
-                  can explore the app. Anything you have recorded yourself is kept,
-                  and you can remove the samples later without touching it.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={async () => {
-                    try {
-                      // Deliberately no clear first. Demo checklists carry a reserved
-                      // submission-id prefix, so they can be removed later without
-                      // touching real records, and re-importing them is a no-op
-                      // rather than a duplicate. Wiping the account to make room for
-                      // samples would destroy work an anonymous visitor had already
-                      // done.
-
-                      const formData = new FormData()
-                      formData.append('file', new Blob([demoCsv], { type: 'text/csv' }), 'demo.csv')
-
-                      const previewRes = await fetchWithLocalAuthRetry('/api/import/ebird-csv', {
-                        method: 'POST',
-                        credentials: 'include',
-                        body: formData,
-                      })
-                      await assertWingDexApiResponse(previewRes, 'Preview failed')
-
-                      const { previews } = await previewRes.json() as {
-                        previews: Array<{ previewId: string }>
-                      }
-
-                      const confirmRes = await fetchWithLocalAuthRetry('/api/import/ebird-csv/confirm', {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ previewIds: previews.map(p => p.previewId) }),
-                      })
-                      await assertWingDexApiResponse(confirmRes, 'Confirmation failed')
-
-                      const { imported } = await confirmRes.json() as {
-                        imported: { outings: number; newSpecies: number }
-                      }
-
-                      await data.refresh()
-                      toast.success(`Demo data loaded: ${imported.outings} outings, ${imported.newSpecies} species`)
-                    } catch (error) {
-                      const detail = getWingDexApiErrorMessage(error, 'Please try again.')
-                      toast.error(`Failed to load demo data: ${detail}`)
-                      logClientFailure('demo/data/import', error)
-                    }
-                  }}
-                >
-                  Load Demo Data
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
           <AlertDialog open={deleteStep !== null} onOpenChange={open => { if (!open) setDeleteStep(null) }}>
             <AlertDialogTrigger asChild>
               <Button
