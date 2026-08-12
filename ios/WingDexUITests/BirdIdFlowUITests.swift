@@ -336,7 +336,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testColdLaunchShowsAccountOptionalShellAndGates() {
         let app = application()
-        app.launchArguments = ["--ui-test-sign-out"]
+        app.launchArguments = ["--ui-test-sign-out", "--ui-test-clear-pending-share"]
         app.launch()
 
         XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
@@ -500,7 +500,7 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testSignInPassesAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--ui-test-sign-out"]
+        app.launchArguments = ["--ui-test-sign-out", "--ui-test-clear-pending-share"]
         app.launch()
         XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 30))
         app.buttons["Log in"].tap()

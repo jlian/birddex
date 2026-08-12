@@ -233,10 +233,12 @@ final class AuthIntegrationTests: XCTestCase {
         let exportURL = baseURL.appendingPathComponent("api/export/outing/\(outingId)")
         var exportRequest = URLRequest(url: exportURL)
         exportRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (exportData, exportResponse) = try await URLSession.shared.data(for: exportRequest)
-        XCTAssertEqual(try XCTUnwrap(exportResponse as? HTTPURLResponse).statusCode, 200)
-        let csv = try XCTUnwrap(String(data: exportData, encoding: .utf8))
-        XCTAssertTrue(csv.contains(common), "CSV should contain the confirmed species")
+        let (_, exportResponse) = try await URLSession.shared.data(for: exportRequest)
+        XCTAssertEqual(
+            try XCTUnwrap(exportResponse as? HTTPURLResponse).statusCode,
+            403,
+            "Anonymous outing export should remain registered-only"
+        )
 
         var rejectRequest = URLRequest(url: observationsURL)
         rejectRequest.httpMethod = "PATCH"

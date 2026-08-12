@@ -90,6 +90,10 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-clear-pending-share"),
+               let pendingShare = try? IncomingShareStore.pendingShare() {
+                try? IncomingShareStore.completePendingShare(id: pendingShare.id)
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
                 await auth.signOut()
             }
@@ -128,9 +132,11 @@ struct MainTabView: View {
     @State private var initialDataLoaded = false
     #if DEBUG
     private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
+    private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-clear-pending-share")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
     #else
     private let uiTestForcesSettings = false
+    private let uiTestIgnoresPendingShare = false
     #endif
 
     var body: some View {
@@ -237,7 +243,14 @@ struct MainTabView: View {
                 if let shareFlag = arguments.firstIndex(of: "--ui-test-share-photo"),
                    arguments.index(after: shareFlag) < arguments.endIndex {
                     let path = arguments[arguments.index(after: shareFlag)]
-                    try await IncomingShareStore.stage(fileURLs: [URL(fileURLWithPath: path)])
+                    guard let image = UIImage(contentsOfFile: path),
+                          let imageData = image.jpegData(compressionQuality: 0.9)
+                    else { throw IncomingShareError.stagingFailed }
+                    let stagedSource = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("ui-test-share-\(UUID().uuidString).jpg")
+                    try imageData.write(to: stagedSource, options: .atomic)
+                    defer { try? FileManager.default.removeItem(at: stagedSource) }
+                    try await IncomingShareStore.stage(fileURLs: [stagedSource])
                     navigation.handleIncomingShare()
                 }
                 if arguments.contains("--ui-test-clear-data") {
@@ -307,7 +320,11 @@ struct MainTabView: View {
             addPhotosVM.configure(auth: auth, dataStore: store)
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, initialDataLoaded, IncomingShareStore.hasPendingShare else { return }
+            guard !uiTestIgnoresPendingShare,
+                  phase == .active,
+                  initialDataLoaded,
+                  IncomingShareStore.hasPendingShare
+            else { return }
             navigation.route(to: .addPhotos())
             Task { await importIncomingShareIfAvailable() }
         }
@@ -316,7 +333,7 @@ struct MainTabView: View {
             addPhotosVM.cancelSession()
         }
         .task(id: navigation.incomingShareRequestID) {
-            guard initialDataLoaded else { return }
+            guard !uiTestIgnoresPendingShare, initialDataLoaded else { return }
             await importIncomingShareIfAvailable()
         }
         .environment(\.showAddPhotos) { navigation.route(to: .addPhotos()) }
@@ -333,7 +350,10 @@ struct MainTabView: View {
     }
 
     private func importIncomingShareIfAvailable() async {
-        guard initialDataLoaded, IncomingShareStore.hasPendingShare else { return }
+        guard !uiTestIgnoresPendingShare,
+              initialDataLoaded,
+              IncomingShareStore.hasPendingShare
+        else { return }
         addPhotosVM.configure(
             auth: auth,
             dataStore: store
@@ -349,7 +369,7 @@ struct MainTabView: View {
             guard store.hasLoadedAll else { return }
             initialDataLoaded = true
         }
-        if IncomingShareStore.hasPendingShare {
+        if !uiTestIgnoresPendingShare, IncomingShareStore.hasPendingShare {
             navigation.route(to: .addPhotos())
             await importIncomingShareIfAvailable()
         }
