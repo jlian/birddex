@@ -84,10 +84,7 @@ export async function loadApp(page: Page, { promote = true } = {}) {
  * Promote the anonymous session to a real user so auth-gated features
  * (Settings, imports, uploads) are accessible.
  *
- * In CI (Wrangler), the app auto-creates an anonymous session.
- * This calls finalize-passkey to flip isAnonymous → false, then reloads.
- * In local dev without Wrangler the fallback user is already non-anonymous,
- * so this is a silent no-op.
+ * Registration upgrades the anonymous session in place, then reloads.
  */
 export async function promoteAnonymousUser(page: Page) {
   const hasLoginButton = (await page.getByRole('button', { name: 'Log in' }).count()) > 0

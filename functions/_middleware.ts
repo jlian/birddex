@@ -28,7 +28,6 @@ const ROUTE_MAP: Array<{ prefix: string; route: string; method?: string; op: str
   { prefix: '/api/data/dex', route: '/api/data/dex', method: 'PATCH', op: 'data/dex/write', category: 'Application' },
   { prefix: '/api/data/clear', route: '/api/data/clear', method: 'DELETE', op: 'data/clear/delete', category: 'Audit' },
   { prefix: '/api/data/all', route: '/api/data/all', method: 'GET', op: 'data/all/read', category: 'Application' },
-  { prefix: '/api/auth/finalize-passkey', route: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Application' },
   { prefix: '/api/auth/linked-providers', route: '/api/auth/linked-providers', op: 'auth/linkedProviders/read', category: 'Application' },
   { prefix: '/api/auth/apple/revocation-token', route: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Application' },
   { prefix: '/api/auth/delete-account', route: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Application' },

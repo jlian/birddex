@@ -173,7 +173,6 @@ Every terminal route event has category `Request`. Middleware resolves the follo
 | PATCH | `/api/data/dex` | `data/dex/write` |
 | DELETE | `/api/data/clear` | `data/clear/delete` |
 | GET | `/api/data/all` | `data/all/read` |
-| POST | `/api/auth/finalize-passkey` | `auth/finalizePasskey/invoke` |
 | GET | `/api/auth/linked-providers` | `auth/linkedProviders/read` |
 | POST | `/api/auth/apple/revocation-token` | `auth/appleRevocationToken/write` |
 | POST | `/api/auth/delete-account` | `auth/account/delete` |

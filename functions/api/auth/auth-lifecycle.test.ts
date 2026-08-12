@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { logDurableAuthRouteOutcome } from './[[path]]'
 import { logNativeAppleRevocationCredentialStorage } from './apple/revocation-token'
-import { logPasskeyAccountUpgrade } from './finalize-passkey'
+import { logPasskeyAccountUpgrade } from '../../lib/auth-observability'
 import type { LogFields, Logger } from '../../lib/log'
 
 type LoggedEvent = { level: string; operationName: string; fields?: LogFields }

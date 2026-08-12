@@ -124,10 +124,6 @@ describe('useAuthGate', () => {
     })
 
     expect(mockAddPasskey).toHaveBeenCalledTimes(1)
-    // The point of the change: signup is one call, so nothing should hit the
-    // old promotion endpoint any more.
-    const finalizeCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/finalize-passkey')
-    expect(finalizeCall).toBeUndefined()
     expect(mockAddPasskey).toHaveBeenCalledWith(
       expect.objectContaining({ createSession: true }),
     )

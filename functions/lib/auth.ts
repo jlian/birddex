@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { anonymous, bearer } from 'better-auth/plugins'
+import { logPasskeyAccountUpgrade } from './auth-observability'
 import { passkey } from '@better-auth/passkey'
 import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
@@ -371,6 +372,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
                 image: emojiAvatarDataUrl(emojiForBirdName(name)),
                 isAnonymous: false,
               })
+              logPasskeyAccountUpgrade(options.log)
               return { userId: sessionUserId }
             }
 

@@ -47,38 +47,6 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/auth/finalize-passkey:
-    post:
-      operationId: finalizePasskey
-      summary: Finalize passkey registration
-      description: Promotes an anonymous user to a full account after passkey registration.
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  description: Display name for the user
-                passkeyId:
-                  type: string
-                  description: ID of the passkey to associate
-      responses:
-        "200":
-          description: Passkey finalized
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [success]
-                properties:
-                  success:
-                    type: boolean
-                    const: true
-        "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: Passkey not owned by caller
