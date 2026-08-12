@@ -78,7 +78,7 @@ function Harness({ onUpgraded, isAnonymous = true }: { onUpgraded: () => void | 
 
   return (
     <>
-      <button onClick={openSignIn}>Open gated action</button>
+      <button onClick={() => openSignIn()}>Open gated action</button>
       {authGateModal}
       {actionRan && <div>action-ran</div>}
     </>

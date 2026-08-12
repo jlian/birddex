@@ -10,9 +10,8 @@ import { useWingDexData } from '@/hooks/use-wingdex-data'
 import { getStableDevUserId } from '@/lib/dev-user'
 import { authClient } from '@/lib/auth-client'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
-import { getEmojiAvatarColor } from '@/lib/fun-names'
+import { getEmojiAvatarColor, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fun-names'
 import { useAuthGate } from '@/hooks/use-auth-gate'
-import { loadDemoData } from '@/lib/demo-data'
 import type { OutingSortField, SortDir as OutingSortDir } from '@/components/pages/OutingsPage'
 import type { SortField as WingDexSortField, SortDir as WingDexSortDir } from '@/components/pages/WingDexPage'
 
@@ -51,6 +50,16 @@ function getFallbackUser(): UserInfo {
 
 /** Placeholder id used for a visitor that has no session yet. */
 const GUEST_USER_ID = 'guest'
+
+const SIGNUP_PROMPT_KEY = 'wingdex.signupPrompted'
+
+/**
+ * The server names every anonymous account with a bird name and stores no
+ * image, so the avatar is derived from that name rather than stored twice.
+ */
+function avatarForBirdName(name: string): string {
+  return emojiAvatarDataUrl(emojiForBirdName(name))
+}
 
 /**
  * Identity used before any session exists. It lets AppContent mount so a
@@ -182,10 +191,11 @@ function App() {
       wasRealUserRef.current = !isAnon
 
       setAnonBootstrapFailed(false)
+      const name = session.user.name || session.user.email || 'user'
       setUser({
         id: session.user.id,
-        name: session.user.name || session.user.email || 'user',
-        image: session.user.image || '',
+        name,
+        image: isAnon ? avatarForBirdName(name) : (session.user.image || ''),
         email: session.user.email || '',
         isAnonymous: isAnon,
       })
@@ -260,12 +270,14 @@ function App() {
       // the auto-refetch get-session instead of waiting for it.
       const u = result.data?.user
       if (u) {
+        const isAnon = Boolean((u as { isAnonymous?: boolean }).isAnonymous)
+        const name = u.name || u.email || 'user'
         setUser({
           id: u.id,
-          name: u.name || u.email || 'user',
-          image: u.image || '',
+          name,
+          image: isAnon ? avatarForBirdName(name) : (u.image || ''),
           email: u.email || '',
-          isAnonymous: Boolean((u as { isAnonymous?: boolean }).isAnonymous),
+          isAnonymous: isAnon,
         })
       }
       return true
@@ -337,28 +349,19 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
   const [showAddPhotos, setShowAddPhotos] = useState(false)
   const data = useWingDexData(user.id, { hasSession })
 
+  // Everything an anonymous account holds is the user's own now, and it lives
+  // only in this browser.
+  const hasUnsavedSightings = user.isAnonymous && (data.outings.length > 0 || data.observations.length > 0)
+
   const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous: user.isAnonymous,
+    hasUnsavedSightings,
     onUpgraded: async () => {
       await refetchSession()
       navigate('home')
     },
-    demoDataEnabled: user.isAnonymous && (data.dex.length > 0 || data.outings.length > 0),
-    onSetDemoDataEnabled: async (enabled) => {
-      if (!user.isAnonymous) return
-      if (enabled) {
-        // Demo import writes server-side rows, so it needs a real identity.
-        if (!await ensureAnonymousSession()) return
-        await loadDemoData(data)
-        return
-      }
-      // Remove only the sample checklists. An unscoped clear would delete the
-      // user's own sightings too, which matters as soon as an anonymous visitor
-      // can create real records.
-      await data.clearDemoData()
-      await data.refresh()
-    },
   })
+
   const [wingDexSearchQuery, setWingDexSearchQuery] = useState('')
   const [wingDexSortField, setWingDexSortField] = useState<WingDexSortField>('date')
   const [wingDexSortDir, setWingDexSortDir] = useState<WingDexSortDir>('desc')
@@ -393,6 +396,31 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
       }
     })
   }, [ensureAnonymousSession])
+
+  // Prompt to sign up exactly once, at the first save rather than the first
+  // identification: saving is the moment there is something to lose. If they
+  // decline, the avatar badge carries the message from then on.
+  const promptSignupOnCloseRef = useRef(false)
+
+  const handleOutingSaved = useCallback(() => {
+    if (!user.isAnonymous) return
+    try {
+      if (window.localStorage.getItem(SIGNUP_PROMPT_KEY)) return
+      window.localStorage.setItem(SIGNUP_PROMPT_KEY, '1')
+    } catch {
+      // Without storage there is no way to remember a decline, and a prompt
+      // that cannot promise "once" is worse than no prompt.
+      return
+    }
+    promptSignupOnCloseRef.current = true
+  }, [user.isAnonymous])
+
+  const handleCloseAddPhotos = useCallback(() => {
+    setShowAddPhotos(false)
+    if (!promptSignupOnCloseRef.current) return
+    promptSignupOnCloseRef.current = false
+    openSignIn('first-save')
+  }, [openSignIn])
 
   const handleSelectOuting = useCallback((id: string) => {
     navigate('outings', id)
@@ -520,11 +548,11 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
                 ))}
               </TabsList>
 
-              {/* Right side: sign-in (anonymous) or avatar (authenticated) */}
+              {/* Right side: generic icon until an account exists, then the bird avatar */}
               <div className="flex items-center gap-3">
-                {user.isAnonymous ? (
+                {!hasSession ? (
                   <button
-                    onClick={openSignIn}
+                    onClick={() => openSignIn()}
                     className="inline-flex items-center justify-center rounded-md text-primary cursor-pointer press-feel-light h-8 w-8"
                     aria-label="Log in"
                     title="Log in"
@@ -533,18 +561,27 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate('settings')}
-                    className="cursor-pointer press-feel"
-                    aria-label="Settings"
+                    onClick={user.isAnonymous ? () => openSignIn() : () => navigate('settings')}
+                    className="relative cursor-pointer press-feel"
+                    aria-label={user.isAnonymous ? 'Log in' : 'Settings'}
+                    title={user.isAnonymous ? 'Log in' : undefined}
                   >
                     <Avatar className={`h-8 w-8 ${avatarColorClass || 'bg-muted'}`}>
                       <AvatarImage
                         src={user.image}
-                        alt={user.name}
+                        alt={user.isAnonymous ? '' : user.name}
                         className={isEmojiAvatar ? 'scale-[0.65] object-contain' : 'object-cover'}
                       />
                       <AvatarFallback className="bg-muted text-muted-foreground text-xs">{user.name[0].toUpperCase()}</AvatarFallback>
                     </Avatar>
+                    {hasUnsavedSightings && (
+                      <span
+                        role="status"
+                        aria-label="These sightings are only on this device"
+                        title="These sightings are only on this device"
+                        className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-yellow-400 ring-2 ring-background"
+                      />
+                    )}
                   </button>
                 )}
               </div>
@@ -646,7 +683,8 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
         <Suspense fallback={null}>
           <AddPhotosFlow
             data={data}
-            onClose={() => setShowAddPhotos(false)}
+            onClose={handleCloseAddPhotos}
+            onOutingSaved={handleOutingSaved}
             userId={user.id}
           />
         </Suspense>

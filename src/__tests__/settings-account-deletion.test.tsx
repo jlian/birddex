@@ -53,7 +53,6 @@ function createDataStore(): WingDexDataStore {
     getDexEntry: vi.fn(),
     importDexEntries: vi.fn(),
     clearAllData: vi.fn(),
-    clearDemoData: vi.fn(),
     refresh: vi.fn(async () => undefined),
   }
 }

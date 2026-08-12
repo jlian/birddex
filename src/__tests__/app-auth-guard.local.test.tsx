@@ -39,6 +39,8 @@ vi.mock('@/components/ui/tabs', () => ({
 vi.mock('@/lib/fun-names', () => ({
   generateBirdName: () => 'test-bird-name',
   getEmojiAvatarColor: () => '',
+  emojiForBirdName: () => '🐦',
+  emojiAvatarDataUrl: () => 'data:image/svg+xml;utf8,bird',
 }))
 
 vi.mock('@/components/ui/avatar', () => ({
