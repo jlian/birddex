@@ -64,12 +64,13 @@ vi.mock('@/components/ui/switch', () => ({
   ),
 }))
 
-function Harness({ onUpgraded, isAnonymous = true }: { onUpgraded: () => void | Promise<void>; isAnonymous?: boolean }) {
+function Harness({ onUpgraded, isAnonymous = true, hasUnsavedSightings = false }: { onUpgraded: () => void | Promise<void>; isAnonymous?: boolean; hasUnsavedSightings?: boolean }) {
   const [actionRan, setActionRan] = useState(false)
   // requireAuth is gone: nothing gates on having an account any more. The modal
   // is opened directly now, and onUpgraded is what callers hang work off.
   const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous,
+    hasUnsavedSightings,
     onUpgraded: async () => {
       setActionRan(true)
       await onUpgraded()
@@ -153,6 +154,15 @@ describe('useAuthGate', () => {
     })
 
     expect(mockAddPasskey).not.toHaveBeenCalled()
+  })
+
+  it('uses Keep your sightings copy whenever anonymous data exists', async () => {
+    render(<Harness onUpgraded={vi.fn()} hasUnsavedSightings />)
+
+    await userEvent.click(screen.getByText('Open gated action'))
+
+    expect(screen.getByRole('heading', { name: 'Keep your sightings' })).toBeInTheDocument()
+    expect(screen.getByText(/only in this browser/i)).toBeInTheDocument()
   })
 
   it('still opens the modal for a signed-in user, since it is now a sign-in entry point', async () => {

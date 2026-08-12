@@ -160,6 +160,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
   })
 
   const payloadRef = useRef(payload)
+  const refreshGeneration = useRef(0)
   useEffect(() => {
     payloadRef.current = payload
   }, [payload])
@@ -179,6 +180,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
   }, [userId])
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current
     // A guest has no session yet, so this request can only 401. Skipping it keeps
     // the console clean and avoids a pointless round trip; the effect below re-runs
     // once an account exists, because `hasSession` and `userId` both change then.
@@ -191,6 +193,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     }
     try {
       const next = await apiJson<WingDexPayload>('/api/data/all')
+      if (refreshGeneration.current !== generation) return
       setStorageMode('api')
       setPayload({
         outings: next.outings || [],
@@ -199,6 +202,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
         dex: next.dex || [],
       })
     } catch {
+      if (refreshGeneration.current !== generation) return
       if (isLocalRuntime()) {
         setStorageMode('local')
         setPayload(readLocalData(userId))
@@ -218,6 +222,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
 
     return () => {
       cancelled = true
+      refreshGeneration.current += 1
     }
   }, [refresh])
 

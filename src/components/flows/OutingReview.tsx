@@ -29,6 +29,7 @@ interface OutingReviewProps {
   defaultLocationName?: string
   /** Automatically look up location name from GPS when available */
   autoLookupGps?: boolean
+  ensureSessionReady?: () => Promise<boolean>
   onConfirm: (
     outingId: string,
     locationName: string,
@@ -43,6 +44,7 @@ export default function OutingReview({
   userId,
   defaultLocationName = '',
   autoLookupGps = false,
+  ensureSessionReady = async () => true,
   onConfirm
 }: OutingReviewProps) {
   const hasGps = cluster.centerLat !== undefined && cluster.centerLon !== undefined
@@ -146,6 +148,7 @@ export default function OutingReview({
     if (isConfirming) return
     setIsConfirming(true)
     try {
+      if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
       if (useExistingOuting && matchingOuting) {
         // Merge into existing outing, expand its time window if needed.
         // cluster.startTime is a proper UTC instant (exifTime is offset-aware),

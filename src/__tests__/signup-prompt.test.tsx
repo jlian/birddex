@@ -133,6 +133,7 @@ describe('signup prompt at first outing save', () => {
     fireEvent.click(await screen.findByText('fire-saved'))
 
     expect(mockOpenSignIn).not.toHaveBeenCalled()
+    expect(window.localStorage.length).toBe(0)
   })
 
   it('does not prompt again on a later save', async () => {
@@ -148,6 +149,25 @@ describe('signup prompt at first outing save', () => {
     await openFlowSaveAndClose()
 
     expect(mockOpenSignIn).toHaveBeenCalledTimes(1)
+  })
+
+  it('prompts once for a different anonymous identity', async () => {
+    const { default: App } = await import('@/App')
+    const first = render(<App />)
+
+    await openFlowSaveAndClose()
+    await waitFor(() => expect(mockOpenSignIn).toHaveBeenCalledTimes(1))
+    first.unmount()
+
+    mockUseSession.mockReturnValue({
+      data: { user: { id: 'anon-2', name: 'other-anon', image: '', email: '', isAnonymous: true } },
+      isPending: false,
+      refetch: vi.fn(),
+    })
+    render(<App />)
+    await openFlowSaveAndClose()
+
+    await waitFor(() => expect(mockOpenSignIn).toHaveBeenCalledTimes(2))
   })
 
   it('does not prompt a signed-in user', async () => {

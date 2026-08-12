@@ -53,6 +53,10 @@ const GUEST_USER_ID = 'guest'
 
 const SIGNUP_PROMPT_KEY = 'wingdex.signupPrompted'
 
+function signupPromptKey(userId: string): string {
+  return `${SIGNUP_PROMPT_KEY}.${userId}`
+}
+
 /**
  * The server names every anonymous account with a bird name and stores no
  * image, so the avatar is derived from that name rather than stored twice.
@@ -358,7 +362,9 @@ function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureA
 
   // Everything an anonymous account holds is the user's own now, and it lives
   // only in this browser.
-  const hasUnsavedSightings = user.isAnonymous && (data.outings.length > 0 || data.observations.length > 0)
+  const hasUnsavedSightings = user.isAnonymous
+    && hasSession
+    && (data.isLoading || data.outings.length > 0 || data.observations.length > 0)
 
   const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous: user.isAnonymous,
@@ -407,26 +413,31 @@ function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureA
   // Prompt to sign up exactly once, at the first save rather than the first
   // identification: saving is the moment there is something to lose. If they
   // decline, the avatar badge carries the message from then on.
-  const promptSignupOnCloseRef = useRef(false)
+  const promptSignupOnCloseRef = useRef<string | null>(null)
 
   const handleOutingSaved = useCallback(() => {
-    if (!user.isAnonymous) return
+    if (!user.isAnonymous || !hasSession) return
     try {
-      if (window.localStorage.getItem(SIGNUP_PROMPT_KEY)) return
-      window.localStorage.setItem(SIGNUP_PROMPT_KEY, '1')
+      if (window.localStorage.getItem(signupPromptKey(user.id))) return
     } catch {
       // Without storage there is no way to remember a decline, and a prompt
       // that cannot promise "once" is worse than no prompt.
       return
     }
-    promptSignupOnCloseRef.current = true
-  }, [user.isAnonymous])
+    promptSignupOnCloseRef.current = user.id
+  }, [hasSession, user.id, user.isAnonymous])
 
   const handleCloseAddPhotos = useCallback(() => {
     setShowAddPhotos(false)
-    if (!promptSignupOnCloseRef.current) return
-    promptSignupOnCloseRef.current = false
-    openSignIn('first-save')
+    const promptedUserId = promptSignupOnCloseRef.current
+    if (!promptedUserId) return
+    promptSignupOnCloseRef.current = null
+    try {
+      window.localStorage.setItem(signupPromptKey(promptedUserId), '1')
+    } catch {
+      return
+    }
+    openSignIn()
   }, [openSignIn])
 
   const handleSelectOuting = useCallback((id: string) => {
@@ -697,6 +708,7 @@ function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureA
             data={data}
             onClose={handleCloseAddPhotos}
             onOutingSaved={handleOutingSaved}
+            ensureSessionReady={ensureAnonymousSession}
             userId={user.id}
           />
         </Suspense>

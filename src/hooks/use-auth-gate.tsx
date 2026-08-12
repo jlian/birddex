@@ -18,9 +18,6 @@ function errCode(err: { code?: string; message?: string }): string | undefined {
   return 'code' in err ? err.code : undefined
 }
 
-/** Why the gate opened, which decides whether it explains itself. */
-export type AuthGateReason = 'default' | 'first-save'
-
 interface AuthGateOptions {
   isAnonymous: boolean
   /** Anonymous sightings that signing in to another account would leave behind. */
@@ -38,10 +35,8 @@ interface AuthGateOptions {
  */
 export function useAuthGate({ isAnonymous, hasUnsavedSightings, onUpgraded }: AuthGateOptions) {
   const [open, setOpen] = useState(false)
-  const [reason, setReason] = useState<AuthGateReason>('default')
 
-  const openSignIn = useCallback((nextReason: AuthGateReason = 'default') => {
-    setReason(nextReason)
+  const openSignIn = useCallback(() => {
     setOpen(true)
   }, [])
 
@@ -54,7 +49,6 @@ export function useAuthGate({ isAnonymous, hasUnsavedSightings, onUpgraded }: Au
     <AuthGateModal
       open={open}
       onOpenChange={setOpen}
-      reason={reason}
       hasUnsavedSightings={hasUnsavedSightings}
       onUpgraded={handleUpgraded}
     />
@@ -70,7 +64,6 @@ type SignInIntent = { kind: 'passkey' } | { kind: 'social'; provider: 'github' |
 interface AuthGateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  reason?: AuthGateReason
   hasUnsavedSightings?: boolean
   onUpgraded: () => void
 }
@@ -78,7 +71,6 @@ interface AuthGateModalProps {
 function AuthGateModal({
   open,
   onOpenChange,
-  reason = 'default',
   hasUnsavedSightings,
   onUpgraded,
 }: AuthGateModalProps) {
@@ -250,12 +242,12 @@ function AuthGateModal({
       >
         <DialogHeader>
           <DialogTitle>
-            {reason === 'first-save' ? 'Keep your sightings' : 'Start your WingDex'}
+            {hasUnsavedSightings ? 'Keep your sightings' : 'Start your WingDex'}
           </DialogTitle>
-          {reason === 'first-save' && (
+          {hasUnsavedSightings && (
             <p className="text-sm text-muted-foreground">
-              Your first outing is saved, but only in this browser. It goes away if you
-              clear your cookies or switch devices. An account keeps it, and unlocks
+              Your sightings are saved, but only in this browser. They go away if you
+              clear your cookies or switch devices. An account keeps them, and unlocks
               import and export. It takes one tap and no email.
             </p>
           )}
