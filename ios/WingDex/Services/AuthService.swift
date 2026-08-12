@@ -13,6 +13,12 @@ enum SessionIdentity: String, Sendable {
     case registered
 }
 
+enum SessionValidationResult: Sendable {
+    case valid
+    case rejected
+    case offline
+}
+
 enum PasskeyRegistrationContext: Equatable, Sendable {
     case sessionless
     case upgrade(userID: String, signedToken: String)
@@ -47,7 +53,7 @@ final class AuthService: @unchecked Sendable {
     /// Needed by passkey plugin endpoints which use internal cookie validation.
     private(set) var signedSessionToken: String?
     private var sessionExpiry: Date?
-    private var sessionValidationTask: Task<Void, Never>?
+    private var sessionValidationTask: Task<SessionValidationResult, Never>?
     private var sessionValidationID: UUID?
     private var lastSuccessfulSessionValidation: Date?
     private var anonymousSessionTask: Task<Void, Error>?
@@ -95,31 +101,31 @@ final class AuthService: @unchecked Sendable {
     /// Signs out when Better Auth rejects the session so the UI goes straight to
     /// sign-in instead of flashing authenticated content. Network errors are
     /// ignored - the user may be offline with a valid cached session.
-    func validateSession(force: Bool = true, now: Date = .now) async {
+    func validateSession(force: Bool = true, now: Date = .now) async -> SessionValidationResult {
         guard force || Self.shouldValidateSession(
             lastSuccessfulValidation: lastSuccessfulSessionValidation,
             now: now
-        ) else { return }
+        ) else { return .valid }
         if let sessionValidationTask {
-            await sessionValidationTask.value
-            return
+            return await sessionValidationTask.value
         }
-        guard let token = sessionToken else { return }
+        guard let token = sessionToken else { return .rejected }
         let validationID = UUID()
         sessionValidationID = validationID
-        let task = Task { [weak self] in
-            guard let self else { return }
-            await self.performSessionValidation(token: token, now: now)
+        let task = Task<SessionValidationResult, Never> { [weak self] in
+            guard let self else { return .rejected }
+            return await self.performSessionValidation(token: token, now: now)
         }
         sessionValidationTask = task
-        await task.value
+        let result = await task.value
         if sessionValidationID == validationID {
             sessionValidationTask = nil
             sessionValidationID = nil
         }
+        return result
     }
 
-    private func performSessionValidation(token: String, now: Date) async {
+    private func performSessionValidation(token: String, now: Date) async -> SessionValidationResult {
         let url = Config.apiBaseURL.appendingPathComponent("api/auth/get-session")
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -136,13 +142,17 @@ final class AuthService: @unchecked Sendable {
                     rejectedToken: token,
                     traceID: AuthenticatedRequest.traceID(from: http)
                 )
+                return .rejected
             } else if let http = response as? HTTPURLResponse,
                     (200...299).contains(http.statusCode),
                     isCurrentSession(token: token) {
                 if applySessionMetadata(data: data, response: http, token: token) {
                     lastSuccessfulSessionValidation = now
+                    return .valid
                 } else {
                     log.error("Session validation returned incomplete session metadata")
+                    invalidateSession(rejectedToken: token)
+                    return .rejected
                 }
             } else if let http = response as? HTTPURLResponse {
                 let reference = AuthenticatedRequest.referenceSuffix(
@@ -153,6 +163,7 @@ final class AuthService: @unchecked Sendable {
         } catch {
             // Network error - don't sign out, user may be offline
         }
+        return .offline
     }
 
     nonisolated static func shouldValidateSession(

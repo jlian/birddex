@@ -1,5 +1,23 @@
 import SwiftUI
 
+enum SignupPromptStore {
+    private static let prefix = "wingdex.signupPrompted."
+
+    static func hasPrompted(userID: String, defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: prefix + userID)
+    }
+
+    static func markPrompted(userID: String, defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: prefix + userID)
+    }
+
+    static func reset(defaults: UserDefaults = .standard) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+}
+
 // MARK: - App Entry Point
 
 @main
@@ -84,9 +102,12 @@ struct ContentView: View {
                 store.clearCachedAccount(accountID: discardedAccountID)
             }
             if auth.hasSession, let accountID = auth.userId {
-                store.activate(accountID: accountID)
-                await auth.validateSession()
-                await store.loadAll()
+                let validation = await auth.validateSession()
+                if validation != .rejected,
+                   auth.userId == accountID {
+                    store.activate(accountID: accountID)
+                    await store.loadAll()
+                }
             }
         }
     }
@@ -102,11 +123,10 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
     @State private var showingAccount = false
-    @State private var accountPromptReason: AccountPromptReason = .default
     @State private var addPhotosVM = AddPhotosViewModel()
     @State private var showingWizard = false
     @State private var initialDataLoaded = false
-    @AppStorage("wingdex.signupPrompted") private var signupPrompted = false
+    private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
     #if DEBUG
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
     #endif
@@ -158,7 +178,7 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $showingWizard, onDismiss: {
             let shouldPrompt = auth.identity == .anonymous
                 && addPhotosVM.savedOutingCount > 0
-                && !signupPrompted
+                && auth.userId.map { !SignupPromptStore.hasPrompted(userID: $0) } == true
             addPhotosVM.cancelSession()
             addPhotosVM = AddPhotosViewModel()
             addPhotosVM.configure(
@@ -169,8 +189,7 @@ struct MainTabView: View {
                 Task { await importIncomingShareIfAvailable() }
             }
             if shouldPrompt {
-                signupPrompted = true
-                accountPromptReason = .firstSave
+                if let userID = auth.userId { SignupPromptStore.markPrompted(userID: userID) }
                 showingAccount = true
             }
         }) {
@@ -182,26 +201,84 @@ struct MainTabView: View {
             SettingsView()
         }
         .onChange(of: auth.identity) { _, identity in
-            if identity != .registered {
+            if identity != .registered && !uiTestForcesSettings {
                 showingSettings = false
             }
         }
         .fullScreenCover(isPresented: $showingAccount) {
-            AccountAccessView(reason: accountPromptReason)
+            AccountAccessView()
         }
         .task {
             navigation.setMainInterfaceReady(true)
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--ui-test-reset-signup-prompt") {
-                signupPrompted = false
+                SignupPromptStore.reset()
             }
             #endif
             async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             do {
+                let needsAccount = arguments.contains("--ui-test-clear-data")
+                    || arguments.contains("--ui-test-seed-csv")
+                    || arguments.contains("--ui-test-open-settings")
+                if needsAccount {
+                    try await auth.ensureAnonymousSession()
+                    guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
+                    if store.activeAccountID != accountID {
+                        store.activate(accountID: accountID)
+                    }
+                    if !store.hasLoadedAll { await store.loadAll() }
+                    guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
+                }
+                if let shareFlag = arguments.firstIndex(of: "--ui-test-share-photo"),
+                   arguments.index(after: shareFlag) < arguments.endIndex {
+                    let path = arguments[arguments.index(after: shareFlag)]
+                    try await IncomingShareStore.stage(fileURLs: [URL(fileURLWithPath: path)])
+                    navigation.handleIncomingShare()
+                }
                 if arguments.contains("--ui-test-clear-data") {
                     try await store.clearAll()
+                }
+                if let seedFlag = arguments.firstIndex(of: "--ui-test-seed-csv"),
+                   arguments.index(after: seedFlag) < arguments.endIndex {
+                    try await auth.ensureAnonymousSession()
+                    guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
+                    if store.activeAccountID != accountID { store.activate(accountID: accountID) }
+                    let service = DataService(auth: auth, expectedAccountID: accountID)
+                    let outingID = "ui-test-seeded-outing-\(accountID)"
+                    _ = try await service.createOuting(Outing(
+                        id: outingID,
+                        userId: accountID,
+                        startTime: "2026-02-12T06:58:00-03:00",
+                        endTime: "2026-02-12T07:58:00-03:00",
+                        locationName: "Parque Ibirapuera, Sao Paulo",
+                        notes: "UI test seed",
+                        createdAt: "2026-02-12T06:58:00-03:00"
+                    ))
+                    _ = try await service.createObservations([
+                        BirdObservation(
+                            id: "ui-test-chalk-browed-\(accountID)",
+                            outingId: outingID,
+                            speciesName: "Chalk-browed Mockingbird (Mimus saturninus)",
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        ),
+                        BirdObservation(
+                            id: "ui-test-eared-dove-\(accountID)",
+                            outingId: outingID,
+                            speciesName: "Eared Dove (Zenaida auriculata)",
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        ),
+                    ])
+                    await store.loadAll()
+                    guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
+                }
+                if arguments.contains("--ui-test-open-settings") {
+                    showingSettings = true
                 }
                 uiTestDataSetupIdentifier = "ui-test.dataSetupComplete"
             } catch {
@@ -243,7 +320,6 @@ struct MainTabView: View {
             if auth.isRegisteredAccount {
                 showingSettings = true
             } else {
-                accountPromptReason = .default
                 showingAccount = true
             }
         }
@@ -309,32 +385,16 @@ struct MainTabView: View {
     #endif
 }
 
-private enum AccountPromptReason {
-    case `default`
-    case firstSave
-}
-
 private struct AccountAccessView: View {
     @Environment(AuthService.self) private var auth
     @Environment(\.dismiss) private var dismiss
-    let reason: AccountPromptReason
 
     var body: some View {
         NavigationStack {
-            SignInView(showsKeepSightingsMessage: reason == .firstSave)
+            SignInView()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close", systemImage: "xmark") { dismiss() }
-                    }
-                    if auth.identity == .anonymous {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            NavigationLink {
-                                DataManagementView()
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .accessibilityLabel("Delete Data")
-                        }
                     }
                 }
         }

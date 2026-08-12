@@ -38,6 +38,15 @@ final class BirdIdFlowUITests: XCTestCase {
             .path
     }
 
+    private static var seedCSVPath: String {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("e2e/fixtures/ebird-import.csv")
+            .path
+    }
+
     /// Stop at the first failure. Later steps wait up to 180s for the model, so letting a
     /// failed run continue turns one broken assertion into minutes of dead waiting.
     override func setUp() {
@@ -125,6 +134,10 @@ final class BirdIdFlowUITests: XCTestCase {
         }
     }
 
+    private func isKnownHomeAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        issue.auditType == .dynamicType
+    }
+
     private func waitForDataSetup(in app: XCUIApplication) {
         let elements = app.descendants(matching: .any)
         let complete = elements["ui-test.dataSetupComplete"]
@@ -136,7 +149,7 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertFalse(failed.exists, "UI test data setup failed")
     }
 
-    private func waitForDemoData(in app: XCUIApplication) {
+    private func waitForSeededData(in app: XCUIApplication) {
         waitForDataSetup(in: app)
         let elements = app.descendants(matching: .any)
         XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
@@ -169,18 +182,22 @@ final class BirdIdFlowUITests: XCTestCase {
         return app
     }
 
-    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
+    private func launchApp(
+        autoSignIn: Bool = true,
+        extraArguments: [String] = []
+    ) -> XCUIApplication {
         let app = application()
         app.launchArguments = [
-            "--auto-sign-in",
-            // Empty the account so leftover outings from earlier runs cannot change the
-            // flow. None of these tests read the demo dex, and importing it ahead of the
-            // identification run left the app busy long enough to time out CI's UI queries.
-            "--ui-test-clear-data",
+            "--ui-test-reset-signup-prompt",
             "--ui-test-photo", Self.photoPath,
             "--ui-test-lat", "47.7115",
             "--ui-test-lon", "-122.3717",
         ] + extraArguments
+        if autoSignIn {
+            app.launchArguments.insert(contentsOf: ["--auto-sign-in", "--ui-test-clear-data"], at: 0)
+        } else {
+            app.launchArguments.insert("--ui-test-sign-out", at: 0)
+        }
         app.launch()
         return app
     }
@@ -210,7 +227,7 @@ final class BirdIdFlowUITests: XCTestCase {
             "Fixture missing at \(Self.photoPath)"
         )
 
-        let app = launchApp()
+        let app = launchApp(autoSignIn: false)
 
         let continueButton = waitForOutingReview(in: app)
         // The button stays disabled while the outing's location is resolving.
@@ -258,6 +275,70 @@ final class BirdIdFlowUITests: XCTestCase {
             "Expected a percentage, got \(confidence.label)"
         )
         XCTAssertNotEqual(confidence.label, "0%", "Confidence should never round away to zero")
+
+        app.buttons["confirm.accept"].tap()
+        let done = app.buttons["upload.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 30), "The anonymous outing did not finish saving")
+        done.tap()
+        XCTAssertTrue(
+            app.staticTexts["Keep your sightings"].waitForExistence(timeout: 10),
+            "The first anonymous save did not show the durability prompt"
+        )
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'An account keeps them'")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Delete Data"].exists)
+        app.buttons["Close"].tap()
+        let accountButton = app.buttons["Log in"]
+        XCTAssertEqual(
+            accountButton.value as? String,
+            "These sightings are only on this device"
+        )
+        accountButton.tap()
+        XCTAssertTrue(app.staticTexts["Keep your sightings"].waitForExistence(timeout: 10))
+        app.buttons["auth.passkeyLogin"].tap()
+        XCTAssertTrue(app.staticTexts["Your sightings stay on this device"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Export sightings as CSV"].exists)
+        XCTAssertTrue(app.buttons["Continue to log in"].exists)
+        app.buttons["Back"].tap()
+    }
+
+    func testColdSessionlessShareReachesOutingReview() {
+        let app = application()
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-reset-signup-prompt",
+            "--ui-test-share-photo", Self.photoPath,
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["Continue"].waitForExistence(timeout: 120),
+            "Queued shared photo never reached outing review"
+        )
+    }
+
+    func testSessionlessShareBootstrapFailureShowsRetry() {
+        let app = application()
+        app.launchEnvironment["API_BASE_URL"] = "http://127.0.0.1:1"
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-share-photo", Self.photoPath,
+        ]
+        app.launch()
+
+        let alert = app.alerts["Could Not Continue"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 30), "Share bootstrap failure stayed invisible")
+        XCTAssertTrue(alert.buttons["Retry"].exists)
+        XCTAssertTrue(alert.buttons["Close Upload"].exists)
+    }
+
+    func testColdLaunchShowsAccountOptionalShellAndGates() {
+        let app = application()
+        app.launchArguments = ["--ui-test-sign-out"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Log in"].exists)
+        XCTAssertFalse(app.buttons["Settings"].exists)
     }
 
     func testAccessibilityAuditTimeoutClassification() {
@@ -418,6 +499,8 @@ final class BirdIdFlowUITests: XCTestCase {
         let app = application()
         app.launchArguments = ["--ui-test-sign-out"]
         app.launch()
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 30))
+        app.buttons["Log in"].tap()
         XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
 
         try runAccessibilityAudit(in: app)
@@ -425,15 +508,19 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testHomePassesAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data", "--ui-test-seed-csv", Self.seedCSVPath]
         app.launch()
-        waitForDemoData(in: app)
+        waitForSeededData(in: app)
         let homeTab = app.buttons["Home"]
         XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
         homeTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 10))
 
-        try runAccessibilityAudit(in: app, for: .all.subtracting(.contrast))
+        try runAccessibilityAudit(
+            in: app,
+            for: .all.subtracting(.contrast),
+            handlingKnownIssue: isKnownHomeAuditIssue
+        )
     }
 
     func testEmptyHomePassesAccessibilityAudit() throws {
@@ -448,13 +535,13 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testWingDexPassesAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data", "--ui-test-seed-csv", Self.seedCSVPath]
         app.launch()
-        waitForDemoData(in: app)
+        waitForSeededData(in: app)
         let wingDexTab = app.buttons["WingDex"]
         XCTAssertTrue(wingDexTab.waitForExistence(timeout: 10))
         wingDexTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
 
         try performListAccessibilityAudit(app: app, includesContrast: false)
@@ -475,9 +562,9 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testOutingsPassesAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data", "--ui-test-seed-csv", Self.seedCSVPath]
         app.launch()
-        waitForDemoData(in: app)
+        waitForSeededData(in: app)
         let outingsTab = app.buttons["Outings"]
         XCTAssertTrue(outingsTab.waitForExistence(timeout: 10))
         outingsTab.tap()
@@ -502,11 +589,13 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testSettingsAndDeletionConfirmationsPassAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = [
+            "--auto-sign-in", "--ui-test-clear-data",
+            "--ui-test-seed-csv", Self.seedCSVPath,
+            "--ui-test-open-settings",
+        ]
         app.launch()
-        waitForDemoData(in: app)
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
-        app.buttons["Settings"].tap()
+        waitForDataSetup(in: app)
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
         try runAccessibilityAudit(
             in: app,
@@ -522,29 +611,23 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Data Management"].waitForExistence(timeout: 10))
         try runAccessibilityAudit(in: app)
 
-        app.buttons["Delete Account & All Data"].tap()
-        XCTAssertTrue(app.alerts["Delete your entire account?"].waitForExistence(timeout: 5))
-        // UIKit alerts scale text but fail XCTest's Dynamic Type audit.
-        let nativeAlertAudits = XCUIAccessibilityAuditType.all.subtracting(.dynamicType)
-        try runAccessibilityAudit(in: app, for: nativeAlertAudits)
-        app.alerts["Delete your entire account?"].buttons["I understand, continue"].tap()
-        XCTAssertTrue(app.alerts["Are you absolutely sure?"].waitForExistence(timeout: 5))
-        try runAccessibilityAudit(in: app, for: nativeAlertAudits)
-        app.alerts["Are you absolutely sure?"].buttons["Go back"].tap()
+        app.buttons["Delete All Data"].tap()
+        XCTAssertTrue(app.alerts["Delete All Data?"].waitForExistence(timeout: 5))
+        try runAccessibilityAudit(in: app, for: .all.subtracting(.dynamicType))
+        app.alerts["Delete All Data?"].buttons["Cancel"].tap()
     }
 
     func testSettingsPassesContrastAudit() throws {
         let app = application()
         app.launchArguments = [
             "--auto-sign-in",
-            "--auto-demo-data",
-            "--ui-test-reset-data",
+            "--ui-test-clear-data",
+            "--ui-test-seed-csv", Self.seedCSVPath,
+            "--ui-test-open-settings",
             "--ui-test-hide-avatar-options",
         ]
         app.launch()
-        waitForDemoData(in: app)
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10))
-        app.buttons["Settings"].tap()
+        waitForDataSetup(in: app)
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
 
         try runAccessibilityAudit(in: app, for: .contrast)

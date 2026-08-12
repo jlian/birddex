@@ -151,6 +151,7 @@ struct HomeView: View {
             }
             .buttonStyle(.glassProminent)
             .buttonSizing(.flexible)
+            .tint(Color(red: 0.0, green: 0.28, blue: 0.14))
             .padding(.horizontal, 32)
 
             Spacer()

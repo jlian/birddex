@@ -33,7 +33,6 @@ private let signInDarkenDark: Double = 0.7
 
 /// Full-screen sign-in view.
 struct SignInView: View {
-    var showsKeepSightingsMessage = false
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
 
@@ -136,11 +135,11 @@ struct SignInView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 32)
 
-                if showsKeepSightingsMessage {
+                if hasAnonymousData {
                     VStack(spacing: 6) {
                         Text("Keep your sightings")
                             .font(.title2.weight(.semibold))
-                        Text("Create a passkey to keep this device's sightings available and make them portable.")
+                        Text("Your sightings are saved only on this device. They can disappear if the app's data is removed or you switch devices. An account keeps them and unlocks import and export. It takes one tap and no email.")
                             .font(.subheadline)
                             .multilineTextAlignment(.center)
                     }
@@ -256,10 +255,10 @@ struct SignInView: View {
                                 .font(.body.weight(.medium))
                                 .frame(minHeight: glassLabelHeight)
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.glassProminent)
                         .buttonSizing(.flexible)
-                        .colorScheme(colorScheme == .dark ? .light : .dark)
-                        .background(Color.black.opacity(0.72), in: Capsule())
+                        .foregroundStyle(.white)
+                        .tint(Color.black.opacity(0.82))
                     }
                 }
                 .padding(16)
@@ -410,37 +409,55 @@ private struct SignInDataWarning: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    Text("Your current sightings belong to this private device session. They will not be merged into the account you log in to.")
-                } header: {
-                    Text("Keep your sightings")
+            VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Your sightings stay on this device")
+                        .font(.headline)
+                    Text("They belong to this device, not to the account you are about to log in to, so they will not show up there. Export them first if you want a copy.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("Signing up instead keeps them: it turns this device's sightings into an account.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.yellow.opacity(0.45)))
 
-                Section {
-                    Button {
-                        Task { await exportSightings() }
-                    } label: {
-                        Label("Export Sightings as CSV", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(isExporting)
-
-                    Button("Continue to Log In") {
-                        dismiss()
-                        onContinue()
-                    }
-
-                    Button("Back", role: .cancel) { dismiss() }
+                Button {
+                    Task { await exportSightings() }
+                } label: {
+                    Label(isExporting ? "Exporting..." : "Export sightings as CSV", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
+                .buttonStyle(.glass)
+                .buttonSizing(.flexible)
+                .disabled(isExporting)
+
+                Button("Continue to log in") {
+                    dismiss()
+                    onContinue()
+                }
+                .buttonStyle(.glassProminent)
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
+
+                Button("Back", role: .cancel) { dismiss() }
+                    .buttonStyle(.glass)
+                    .buttonSizing(.flexible)
+                    .frame(maxWidth: .infinity)
 
                 if let exportError {
-                    Section {
-                        Text(exportError.message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
+                    Text(exportError.message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
+
+                Spacer()
             }
+            .padding(20)
+            .background(Color.pageBg.ignoresSafeArea())
             .navigationTitle("Before You Log In")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $exportItem) { item in

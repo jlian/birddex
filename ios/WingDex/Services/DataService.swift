@@ -181,6 +181,14 @@ final class DataService: DataStoreService, Sendable {
         struct SkippedCounts: Codable, Sendable {
             let rows: Int
         }
+
+        var userMessage: String {
+            if imported.outings == 0, skipped.rows > 0 {
+                return "Already imported: nothing new in that file"
+            }
+            return "Imported eBird data across \(imported.outings) outings"
+                + (imported.newSpecies > 0 ? " (\(imported.newSpecies) new!)" : "")
+        }
     }
 
     func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> ImportResponse {

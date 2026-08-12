@@ -7,8 +7,8 @@ private let log = Logger(subsystem: Config.bundleID, category: "EBirdImport")
 /// eBird CSV import flow with timezone picker and export help.
 struct EBirdImportView: View {
     let auth: AuthService
-    /// Called after a successful import with the new-species count and their display names.
-    var onImported: ((Int, [String]) -> Void)? = nil
+    /// Called after a successful import with the complete summary and new display names.
+    var onImported: ((DataService.ImportResponse, [String]) -> Void)? = nil
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
@@ -206,7 +206,7 @@ struct EBirdImportView: View {
                     .map { getDisplayName($0) }
 
                 log.info("Imported eBird data across \(imported.imported.outings) outings; skipped \(imported.skipped.rows) rows")
-                onImported?(imported.imported.newSpecies, newSpeciesNames)
+                onImported?(imported, newSpeciesNames)
                 dismiss()
             } catch is CancellationError {
                 isImporting = false

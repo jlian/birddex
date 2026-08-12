@@ -69,6 +69,7 @@ struct SettingsView: View {
     @FocusState private var isNameFieldFocused: Bool
     @State private var editedName = ""
     @State private var celebration: LiferCelebration?
+    @State private var importNotice: TransientNotice?
 
     private var profile: ProfileEditor { editor! }
 
@@ -150,17 +151,20 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showingEBirdImport) {
-            EBirdImportView(auth: auth) { newSpeciesCount, newSpeciesNames in
-                guard newSpeciesCount > 0 else { return }
-                celebration = LiferCelebration(
-                    newSpeciesCount: newSpeciesCount,
-                    speciesNames: newSpeciesNames
-                )
+            EBirdImportView(auth: auth) { response, newSpeciesNames in
+                importNotice = TransientNotice(message: response.userMessage)
+                if response.imported.newSpecies > 0 {
+                    celebration = LiferCelebration(
+                        newSpeciesCount: response.imported.newSpecies,
+                        speciesNames: newSpeciesNames
+                    )
+                }
             }
         }
         .sheet(item: $exportItem) { item in
             ActivityView(item: item)
         }
+        .transientNotice($importNotice)
     }
 
     // MARK: - Account

@@ -367,13 +367,14 @@ struct BirdRow: View {
                         .italic()
                         .foregroundStyle(Color.mutedText)
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let count, count > 1 {
@@ -439,7 +440,7 @@ struct OutingRow: View {
                 Text(outing.locationName.isEmpty ? "Outing" : outing.locationName)
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let observation {
                     HStack(spacing: 4) {
@@ -458,6 +459,7 @@ struct OutingRow: View {
                     Text("\(DateFormatting.formatDate(outing.startTime, style: .medium)) \u{00B7} \(speciesNames.count) species")
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if observation == nil, !speciesNames.isEmpty {
@@ -467,7 +469,7 @@ struct OutingRow: View {
                     )
                     .font(.caption)
                     .foregroundStyle(Color.mutedText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)

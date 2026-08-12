@@ -13,6 +13,15 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(response.imported.observations, 3)
         XCTAssertEqual(response.imported.newSpecies, 1)
         XCTAssertEqual(response.skipped.rows, 4)
+        XCTAssertEqual(response.userMessage, "Imported eBird data across 2 outings (1 new!)")
+    }
+
+    func testDuplicateOnlyImportResponseUsesUsefulCopy() throws {
+        let data = Data(#"{"imported":{"outings":0,"observations":0,"newSpecies":0},"skipped":{"rows":9},"dexUpdates":[]}"#.utf8)
+
+        let response = try JSONDecoder().decode(DataService.ImportResponse.self, from: data)
+
+        XCTAssertEqual(response.userMessage, "Already imported: nothing new in that file")
     }
 
     func testDerivedDataRebuildsWhenRawCollectionsChange() {

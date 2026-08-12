@@ -214,16 +214,18 @@ final class AddPhotosViewModel {
         guard !selectedItems.isEmpty || !cameraPhotos.isEmpty || !incomingSharedPhotos.isEmpty else { return }
         guard !isProcessing else { return }
         isProcessing = true
+        error = nil
+        currentStep = .extracting
+        processingMessage = "Preparing your private WingDex..."
         let sessionID: UUID
         do {
             sessionID = try await prepareCurrentSession()
         } catch {
             self.error = AppError.map(error, fallback: "Could not start a private WingDex session. Try again.")
+            errorRecovery = .sessionPreparation
             isProcessing = false
             return
         }
-        error = nil
-        currentStep = .extracting
         totalCount = selectedItems.count + cameraPhotos.count + incomingSharedPhotos.count
         processedCount = 0
         extractionProgress = 0
@@ -808,6 +810,8 @@ final class AddPhotosViewModel {
         error = nil
         errorRecovery = nil
         switch recovery {
+        case .sessionPreparation:
+            Task { await processSelectedPhotos() }
         case .photoMetadata:
             Task {
                 do {
@@ -850,6 +854,9 @@ final class AddPhotosViewModel {
         }
         if !dataStore.hasLoadedAll {
             await dataStore.loadAll()
+        }
+        guard dataStore.hasLoadedAll else {
+            throw dataStore.error ?? AuthError.notAuthenticated
         }
         configure(auth: authService, dataStore: dataStore)
         return try requireCurrentSession()
@@ -905,6 +912,7 @@ final class AddPhotosViewModel {
 }
 
 private enum ErrorRecovery {
+    case sessionPreparation
     case photoMetadata
     case speciesIdentification(photoIndex: Int, croppedImageData: Data?)
     case saveCluster

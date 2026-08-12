@@ -194,6 +194,17 @@ final class AuthCallbackParsingTests: XCTestCase {
 // MARK: - Session Validation Tests
 
 final class SessionValidationTests: XCTestCase {
+    func testSignupPromptStateIsScopedPerAnonymousUser() throws {
+        let suiteName = "SignupPromptStoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertFalse(SignupPromptStore.hasPrompted(userID: "anon-a", defaults: defaults))
+        SignupPromptStore.markPrompted(userID: "anon-a", defaults: defaults)
+        XCTAssertTrue(SignupPromptStore.hasPrompted(userID: "anon-a", defaults: defaults))
+        XCTAssertFalse(SignupPromptStore.hasPrompted(userID: "anon-b", defaults: defaults))
+    }
+
     func testAnonymousUpgradeRequiresItsSignedSessionToken() throws {
         XCTAssertThrowsError(try AuthService.passkeyRegistrationContext(
             identity: .anonymous,
