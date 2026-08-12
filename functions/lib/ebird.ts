@@ -93,6 +93,7 @@ type ObservationForExport = {
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   notes?: string | null
+  submissionId?: string | null
 }
 
 type DexEntryForExport = {
@@ -538,7 +539,7 @@ export function exportOutingToEBirdCSV(
       const { genus, species } = splitScientificName(scientificName)
 
       return [
-        `WINGDEX-OUTING-${outing.id}`,
+        observation.submissionId?.trim() || `WINGDEX-OUTING-${outing.id}`,
         commonName,
         genus,
         species,

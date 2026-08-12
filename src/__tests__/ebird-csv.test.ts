@@ -180,6 +180,24 @@ describe('eBird CSV utilities', () => {
     )
   })
 
+  it('preserves original eBird submission provenance when exporting', () => {
+    const csv = exportOutingToEBirdCSV({
+      id: 'outing_1',
+      startTime: '2024-05-01T12:00:00.000Z',
+      endTime: '2024-05-01T13:00:00.000Z',
+      locationName: 'Lake',
+      notes: '',
+    }, [{
+      speciesName: 'Mallard (Anas platyrhynchos)',
+      count: 1,
+      certainty: 'confirmed',
+      notes: '',
+      submissionId: 'S123456',
+    }], false)
+
+    expect(parseCSVLineForTest(csv)[0]).toBe('S123456')
+  })
+
   it('groups previews into outings by same day and location', () => {
     const previews = [
       { speciesName: 'A', date: '2024-05-01T10:00:00.000Z', location: 'Park', count: 1 },
