@@ -104,7 +104,9 @@ describe('non-auth durable observability', () => {
     const order: string[] = []
     const { events, log } = createEventLogger(order)
     const db = {
-      prepare: vi.fn(() => boundStatement()),
+      prepare: vi.fn(() => boundStatement({
+        all: vi.fn(async () => ({ results: [] })),
+      })),
       batch: vi.fn(async () => {
         order.push('batch')
         return []
@@ -124,7 +126,7 @@ describe('non-auth durable observability', () => {
       fields: expect.objectContaining({
         category: 'Audit',
         resultType: 'Succeeded',
-        resultDescription: 'Cleared all outings, cascaded observations and photos, and dex metadata for the authenticated account',
+        resultDescription: 'Cleared all outings, cascaded observations and photos, dex metadata, and import receipts for the authenticated account',
       }),
     })])
   })
@@ -196,7 +198,9 @@ describe('non-auth durable observability', () => {
         throw new Error('dex failed')
       })
     const db = {
-      prepare: vi.fn(() => boundStatement()),
+      prepare: vi.fn(() => boundStatement({
+        all: vi.fn(async () => ({ results: [] })),
+      })),
       batch: vi.fn(async () => {
         order.push('batch')
         return []
@@ -216,8 +220,13 @@ describe('non-auth durable observability', () => {
       'Committed eBird import batch from 2 parsed rows, persisting 1 outing and 1 observation',
     )
     expect(response.headers.get(RESULT_DESCRIPTION_HEADER)).toContain('Committed eBird import batch')
-    expect(JSON.stringify(events)).not.toContain('private location')
-    expect(JSON.stringify(events)).not.toContain('private species')
+    const serializedOutcome = JSON.stringify({
+      events,
+      description: response.headers.get(RESULT_DESCRIPTION_HEADER),
+    })
+    expect(serializedOutcome).not.toContain('private location')
+    expect(serializedOutcome).not.toContain('private species')
+    expect(serializedOutcome).not.toContain('dex failed')
   })
 
   it('records a verified observation batch before dex recomputation fails', async () => {

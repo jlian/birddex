@@ -85,3 +85,91 @@ test('an export with more checklists than D1 allows per query still imports', as
   expect(imported.outings, 'every checklist must land').toBe(CHECKLISTS)
   expect(await outingCount(page)).toBe(CHECKLISTS)
 })
+
+test('an exact retry of an ID-less legacy export is a no-op', async ({ page }) => {
+  const csv = [
+    'Common Name,Genus,Species,Number,Species Comments,Location Name,Latitude,Longitude,Date,Start Time,State/Province,Country Code,Protocol,Number of Observers,Duration,All observations reported?,Effort Distance Miles,Effort area acres,Submission Comments',
+    'Great Blue Heron,Ardea,herodias,1,,Legacy Marsh,47.6,-122.4,03/10/2026,08:15,US-WA,US,Incidental,1,60,N,,,Legacy WingDex export',
+  ].join('\n')
+  const source = {
+    name: 'legacy-wingdex.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv),
+  }
+
+  await loadApp(page)
+
+  const first = await importViaSettings(page, source)
+  expect(first.outings).toBe(1)
+  const afterFirst = await outingCount(page)
+
+  await page.reload()
+  await expect(page.locator('header')).toBeVisible({ timeout: 5_000 })
+  const second = await importViaSettings(page, source)
+
+  expect(second.outings).toBe(0)
+  expect(await outingCount(page)).toBe(afterFirst)
+})
+
+test('concurrent exact imports commit only one copy', async ({ page }) => {
+  const csv = [
+    'Common Name,Genus,Species,Number,Species Comments,Location Name,Latitude,Longitude,Date,Start Time,State/Province,Country Code,Protocol,Number of Observers,Duration,All observations reported?,Effort Distance Miles,Effort area acres,Submission Comments',
+    'Mallard,Anas,platyrhynchos,2,,Concurrent Marsh,47.6,-122.4,03/11/2026,08:15,US-WA,US,Incidental,1,60,N,,,Concurrent retry',
+  ].join('\n')
+  await loadApp(page)
+
+  const multipart = {
+    file: { name: 'concurrent.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) },
+  }
+  const [first, second] = await Promise.all([
+    page.request.post('/api/import/ebird-csv', { multipart }),
+    page.request.post('/api/import/ebird-csv', { multipart }),
+  ])
+
+  expect(first.status()).toBe(200)
+  expect(second.status()).toBe(200)
+  const results = [await first.json(), await second.json()] as Array<{ imported: { outings: number } }>
+  expect(results.map(result => result.imported.outings).sort()).toEqual([0, 1])
+  expect(await outingCount(page)).toBe(1)
+})
+
+test('a WingDex export uses its outing ID and does not re-import into the same account', async ({ page }) => {
+  await loadApp(page)
+  const outingId = `outing_${crypto.randomUUID()}`
+  const outing = await page.request.post('/api/data/outings', {
+    data: {
+      id: outingId,
+      startTime: '2026-03-12T08:00:00-07:00',
+      endTime: '2026-03-12T09:00:00-07:00',
+      locationName: 'Roundtrip Marsh',
+      notes: '',
+      createdAt: '2026-03-12T08:00:00-07:00',
+    },
+  })
+  expect(outing.status()).toBe(200)
+  const observation = await page.request.post('/api/data/observations', {
+    data: [{
+      id: `obs_${crypto.randomUUID()}`,
+      outingId,
+      speciesName: 'Mallard (Anas platyrhynchos)',
+      count: 1,
+      certainty: 'confirmed',
+      notes: '',
+    }],
+  })
+  expect(observation.status()).toBe(200)
+
+  const exported = await page.request.get('/api/export/sightings')
+  expect(exported.status()).toBe(200)
+  const csv = await exported.body()
+  expect(csv.toString()).toContain(`WINGDEX-OUTING-${outingId}`)
+  const before = await outingCount(page)
+
+  const imported = await importViaSettings(page, {
+    name: 'wingdex-roundtrip.csv',
+    mimeType: 'text/csv',
+    buffer: csv,
+  })
+  expect(imported.outings).toBe(0)
+  expect(await outingCount(page)).toBe(before)
+})

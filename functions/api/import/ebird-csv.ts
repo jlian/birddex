@@ -10,6 +10,35 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count} ${count === 1 ? singular : plural}`
 }
 
+async function importContentKey(fileBytes: Uint8Array, profileTimezone: string | undefined): Promise<string> {
+  const prefix = new TextEncoder().encode(`${profileTimezone ?? 'observation-local'}\0`)
+  const bytes = new Uint8Array(prefix.length + fileBytes.length)
+  bytes.set(prefix)
+  bytes.set(fileBytes, prefix.length)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+async function existingImportKeys(
+  db: D1Database,
+  userId: string,
+  source: string,
+  candidateKeys: string[],
+): Promise<Set<string>> {
+  const existing = new Set<string>()
+  const chunkSize = 98 // userId and source consume two of D1's 100 parameters.
+  for (let index = 0; index < candidateKeys.length; index += chunkSize) {
+    const chunk = candidateKeys.slice(index, index + chunkSize)
+    const placeholders = chunk.map(() => '?').join(', ')
+    const found = await db
+      .prepare(`SELECT sourceKey FROM importIdentity WHERE userId = ? AND source = ? AND sourceKey IN (${placeholders})`)
+      .bind(userId, source, ...chunk)
+      .all<{ sourceKey: string }>()
+    for (const row of found.results ?? []) existing.add(row.sourceKey)
+  }
+  return existing
+}
+
 /**
  * Import an eBird CSV export in one request.
  *
@@ -56,18 +85,37 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   let persistedObservationCount = 0
   let skippedRowCount = 0
   let importBatchCommitted = false
+  let fileIdentityKey: string | undefined
   let stage = 'read the uploaded CSV file'
 
   try {
-    const csvContent = await file.text()
+    const fileBytes = new Uint8Array(await file.arrayBuffer())
+    const csvContent = new TextDecoder().decode(fileBytes)
 
     stage = 'parse the uploaded eBird CSV'
-    const parsedRows = parseEBirdCSV(csvContent, typeof profileTimezone === 'string' ? profileTimezone : undefined)
+    const normalizedProfileTimezone = typeof profileTimezone === 'string' ? profileTimezone : undefined
+    const parsedRows = parseEBirdCSV(csvContent, normalizedProfileTimezone)
     parsedRowCount = parsedRows.length
+    fileIdentityKey = await importContentKey(fileBytes, normalizedProfileTimezone)
 
     stage = 'read the pre-import dex snapshot'
     const priorDex = await computeDex(context.env.DB, userId)
     const priorSpecies = new Set(priorDex.map(row => row.speciesName))
+
+    stage = 'check exact import receipt'
+    const existingFileIdentity = await existingImportKeys(
+      context.env.DB,
+      userId,
+      'file',
+      [fileIdentityKey],
+    )
+    if (existingFileIdentity.has(fileIdentityKey)) {
+      return route.complete(Response.json({
+        imported: { outings: 0, observations: 0, newSpecies: 0 },
+        skipped: { rows: parsedRowCount },
+        dexUpdates: enrichDexEntries(priorDex),
+      }), `Skipped exact eBird CSV retry with ${countLabel(parsedRowCount, 'row')}`)
+    }
 
     stage = 'inspect the import database schema'
     const columnNames = await getOutingColumnNames(context.env.DB)
@@ -97,20 +145,26 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       )]
 
       if (candidateIds.length > 0) {
-        const existingIds = new Set<string>()
-        // D1 caps a query at 100 bound parameters, and userId takes one of them.
-        const CHUNK = 99
-        for (let i = 0; i < candidateIds.length; i += CHUNK) {
-          const chunk = candidateIds.slice(i, i + CHUNK)
+        const existingIds = await existingImportKeys(context.env.DB, userId, 'submission', candidateIds)
+
+        const wingDexOutingIds = candidateIds
+          .filter(id => id.startsWith('WINGDEX-OUTING-'))
+          .map(id => id.slice('WINGDEX-OUTING-'.length))
+          .filter(Boolean)
+        const existingWingDexOutings = new Set<string>()
+        const outingChunkSize = 99
+        for (let index = 0; index < wingDexOutingIds.length; index += outingChunkSize) {
+          const chunk = wingDexOutingIds.slice(index, index + outingChunkSize)
           const placeholders = chunk.map(() => '?').join(', ')
           const found = await context.env.DB
-            .prepare(`SELECT DISTINCT submissionId FROM observation WHERE userId = ? AND submissionId IN (${placeholders})`)
+            .prepare(`SELECT id FROM outing WHERE userId = ? AND id IN (${placeholders})`)
             .bind(userId, ...chunk)
-            .all<{ submissionId: string }>()
+            .all<{ id: string }>()
           for (const row of found.results ?? []) {
-            if (row.submissionId) existingIds.add(row.submissionId)
+            existingWingDexOutings.add(`WINGDEX-OUTING-${row.id}`)
           }
         }
+        for (const id of existingWingDexOutings) existingIds.add(id)
 
         if (existingIds.size > 0) {
           importableRows = parsedRows.filter(row => !row.submissionId || !existingIds.has(row.submissionId))
@@ -125,6 +179,30 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     persistedObservationCount = observations.length
 
     const insertStatements: D1PreparedStatement[] = []
+
+    insertStatements.push(
+      context.env.DB
+        .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
+        .bind(userId, 'file', fileIdentityKey, parsedRowCount)
+    )
+
+    const newSubmissionIds = [...new Set(
+      importableRows
+        .map(row => row.submissionId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    )]
+    for (const submissionId of newSubmissionIds) {
+      insertStatements.push(
+        context.env.DB
+          .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
+          .bind(
+            userId,
+            'submission',
+            submissionId,
+            importableRows.filter(row => row.submissionId === submissionId).length,
+          )
+      )
+    }
 
     for (const outing of outings) {
       const columns = ['id', 'userId', 'startTime', 'endTime', 'locationName', 'defaultLocationName', 'lat', 'lon', 'notes', 'createdAt']
@@ -220,13 +298,34 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       skipped: { rows: skippedRowCount },
       dexUpdates: enrichDexEntries(dexUpdates),
     }), `Imported eBird CSV from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')} with ${newSpecies} new species, skipping ${countLabel(skippedRowCount, 'row')} already imported`)
-  } catch (error) {
-    // The stage alone cannot distinguish a bad CSV from a broken query, and the
-    // description is stripped before the response leaves the middleware.
-    const cause = error instanceof Error ? error.message : String(error)
-    if (importBatchCommitted) {
-      return route.fail(500, 'Internal server error', `Committed eBird import batch with ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}; post-commit dex recomputation failed: ${cause}`)
+  } catch {
+    if (!importBatchCommitted && fileIdentityKey) {
+      let wonByConcurrentImport = new Set<string>()
+      try {
+        wonByConcurrentImport = await existingImportKeys(
+          context.env.DB,
+          userId,
+          'file',
+          [fileIdentityKey],
+        )
+      } catch {
+        route.log?.info('import/ebirdCsv/import', {
+          category: 'Application',
+          resultDescription: 'Could not verify whether a concurrent import committed after the batch failed',
+        })
+      }
+      if (wonByConcurrentImport.has(fileIdentityKey)) {
+        const dexUpdates = await computeDex(context.env.DB, userId)
+        return route.complete(Response.json({
+          imported: { outings: 0, observations: 0, newSpecies: 0 },
+          skipped: { rows: parsedRowCount },
+          dexUpdates: enrichDexEntries(dexUpdates),
+        }), `Skipped concurrent eBird CSV retry with ${countLabel(parsedRowCount, 'row')}`)
+      }
     }
-    return route.fail(500, 'Internal server error', `eBird import failed during stage: ${stage}; no import batch was committed: ${cause}`)
+    if (importBatchCommitted) {
+      return route.fail(500, 'Internal server error', `Committed eBird import batch with ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}; post-commit dex recomputation failed`)
+    }
+    return route.fail(500, 'Internal server error', `eBird import failed during stage: ${stage}; no import batch was committed`)
   }
 }

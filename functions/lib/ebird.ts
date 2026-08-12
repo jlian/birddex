@@ -105,6 +105,7 @@ type DexEntryForExport = {
 }
 
 const EBIRD_RECORD_HEADERS = [
+  'Submission ID',
   'Common Name',
   'Genus',
   'Species',
@@ -295,7 +296,7 @@ export function parseEBirdCSV(csvContent: string, profileTimezone?: string): Imp
     const lat = Number.parseFloat(row['latitude'] || row['lat'] || '')
     const lon = Number.parseFloat(row['longitude'] || row['lon'] || row['lng'] || '')
     const time = row['time'] || row['start time'] || ''
-    const submissionId = row['submission id'] || ''
+    const submissionId = (row['submission id'] || '').trim()
     const stateProvince = row['state/province'] || row['state'] || ''
     const protocol = row['protocol'] || ''
     const numberObservers = Number.parseInt(row['number of observers'] || '', 10)
@@ -404,7 +405,9 @@ export function groupPreviewsIntoOutings(
   for (const preview of previews) {
     const dateKey = preview.date.slice(0, 10)
     const key =
-      preview.submissionId && (submissionIdCounts.get(preview.submissionId) || 0) > 1
+      preview.submissionId?.startsWith('WINGDEX-OUTING-')
+        ? preview.submissionId
+        : preview.submissionId && (submissionIdCounts.get(preview.submissionId) || 0) > 1
         ? preview.submissionId
         : `${dateKey}||${preview.location}`
 
@@ -535,6 +538,7 @@ export function exportOutingToEBirdCSV(
       const { genus, species } = splitScientificName(scientificName)
 
       return [
+        `WINGDEX-OUTING-${outing.id}`,
         commonName,
         genus,
         species,

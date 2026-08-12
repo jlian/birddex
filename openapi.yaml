@@ -47,14 +47,6 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          description: Passkey not owned by caller
-          content:
-            text/plain:
-              schema:
-                type: string
-
   /api/auth/mobile/callback:
     get:
       operationId: mobileAuthCallback
@@ -547,10 +539,10 @@ paths:
   /api/import/ebird-csv:
     post:
       operationId: importEbirdCsv
-      summary: Upload eBird CSV for preview
+      summary: Import an eBird CSV
       description: |
-        Parses an eBird CSV export file and returns previews with conflict detection
-        against existing data. Call /api/import/ebird-csv/confirm to finalize.
+        Parses, deduplicates, and writes an eBird CSV in one request. Exact file
+        retries and previously imported submission identities are skipped.
       tags: [Import]
       requestBody:
         required: true
@@ -569,46 +561,17 @@ paths:
                   description: IANA timezone for date parsing
       responses:
         "200":
-          description: Import preview
+          description: Import summary
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ImportPreviewResponse"
+                $ref: "#/components/schemas/ImportResponse"
         "400":
           description: Invalid CSV
           content:
             text/plain:
               schema:
                 type: string
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /api/import/ebird-csv/confirm:
-    post:
-      operationId: confirmEbirdImport
-      summary: Confirm eBird CSV import
-      description: Finalizes the import by creating outings and observations from selected preview items.
-      tags: [Import]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [previewIds]
-              properties:
-                previewIds:
-                  type: array
-                  items:
-                    type: string
-                  description: Base64-encoded preview IDs from the preview response
-      responses:
-        "200":
-          description: Import confirmed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ImportConfirmResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -1027,83 +990,9 @@ components:
     # -------------------------------------------------------------------------
     # Import
     # -------------------------------------------------------------------------
-    ImportPreview:
+    ImportResponse:
       type: object
-      required: [previewId, speciesName, date, location, count]
-      properties:
-        previewId:
-          type: string
-          description: Base64-encoded preview identifier
-        speciesName:
-          type: string
-        date:
-          type: string
-        location:
-          type: string
-        count:
-          type: integer
-        lat:
-          type: number
-        lon:
-          type: number
-        time:
-          type: string
-        submissionId:
-          type: string
-        stateProvince:
-          type: string
-        protocol:
-          type: string
-        numberObservers:
-          type: integer
-        allObsReported:
-          type: boolean
-        effortDistanceMiles:
-          type: number
-        effortAreaAcres:
-          type: number
-        observationNotes:
-          type: string
-        checklistNotes:
-          type: string
-        conflict:
-          type: string
-          enum: [duplicate, update_dates, new]
-        existingEntry:
-          type: object
-          description: Existing dex entry when conflict is detected
-          properties:
-            speciesName:
-              type: string
-            firstSeenDate:
-              type: string
-            lastSeenDate:
-              type: string
-
-    ImportPreviewResponse:
-      type: object
-      required: [previews, summary]
-      properties:
-        previews:
-          type: array
-          items:
-            $ref: "#/components/schemas/ImportPreview"
-        summary:
-          type: object
-          required: [total, new, duplicates, updates]
-          properties:
-            total:
-              type: integer
-            new:
-              type: integer
-            duplicates:
-              type: integer
-            updates:
-              type: integer
-
-    ImportConfirmResponse:
-      type: object
-      required: [imported, dexUpdates]
+      required: [imported, skipped, dexUpdates]
       properties:
         imported:
           type: object
@@ -1114,6 +1003,12 @@ components:
             observations:
               type: integer
             newSpecies:
+              type: integer
+        skipped:
+          type: object
+          required: [rows]
+          properties:
+            rows:
               type: integer
         dexUpdates:
           type: array
