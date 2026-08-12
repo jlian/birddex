@@ -87,6 +87,11 @@ export async function loadApp(page: Page, { promote = true } = {}) {
  * Registration upgrades the anonymous session in place, then reloads.
  */
 export async function promoteAnonymousUser(page: Page) {
+  await expect(
+    page.getByRole('button', { name: /^(Log in|Settings)$/ }),
+    'header identity never resolved',
+  ).toBeVisible({ timeout: 10_000 })
+
   const hasLoginButton = (await page.getByRole('button', { name: 'Log in' }).count()) > 0
   if (!hasLoginButton) {
     return
