@@ -260,10 +260,10 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
       </Card>
       )}
 
-      {/* Keep nickname generation and editing as explicit server writes so the
-          display name and avatar are saved through one profile path. */}
       {!user.isAnonymous && (
       <Card className="p-4 space-y-4">
+        {/* Keep nickname generation and editing as explicit server writes so the
+          display name and avatar are saved through one profile path. */}
         <div className="space-y-2">
           <h3 className="font-semibold text-foreground">Profile</h3>
           <p className="text-sm text-muted-foreground flex items-center gap-1.5">
