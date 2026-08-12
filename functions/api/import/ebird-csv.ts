@@ -39,6 +39,19 @@ async function existingImportKeys(
   return existing
 }
 
+function jsonBulkInsert(
+  db: D1Database,
+  table: string,
+  columns: string[],
+  rows: Array<Record<string, string | number | null>>,
+): D1PreparedStatement | undefined {
+  if (rows.length === 0) return undefined
+  const selections = columns.map(column => `json_extract(value, '$.${column}')`).join(', ')
+  return db
+    .prepare(`INSERT INTO ${table} (${columns.join(', ')}) SELECT ${selections} FROM json_each(?)`)
+    .bind(JSON.stringify(rows))
+}
+
 /**
  * Import an eBird CSV export in one request.
  *
@@ -176,68 +189,78 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const commitRows = async (rows: typeof parsedRows) => {
       stage = 'group the importable rows into outings'
       const { outings, observations } = groupPreviewsIntoOutings(rows, userId)
-      const insertStatements: D1PreparedStatement[] = [
-        context.env.DB
-          .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
-          .bind(userId, 'file', fileIdentityKey, parsedRowCount),
-      ]
+      const insertStatements: D1PreparedStatement[] = []
 
       const submissionIds = [...new Set(
         rows
           .map(row => row.submissionId)
           .filter((id): id is string => typeof id === 'string' && id.length > 0),
       )]
-      for (const submissionId of submissionIds) {
-        insertStatements.push(
-          context.env.DB
-            .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
-            .bind(userId, 'submission', submissionId, rows.filter(row => row.submissionId === submissionId).length)
-        )
-      }
+      const identityRows: Array<Record<string, string | number | null>> = [{
+        userId, source: 'file', sourceKey: fileIdentityKey, rowCount: parsedRowCount,
+      }, ...submissionIds.map(submissionId => ({
+        userId,
+        source: 'submission',
+        sourceKey: submissionId,
+        rowCount: rows.filter(row => row.submissionId === submissionId).length,
+      }))]
+      const identityInsert = jsonBulkInsert(
+        context.env.DB,
+        'importIdentity',
+        ['userId', 'source', 'sourceKey', 'rowCount'],
+        identityRows,
+      )
+      if (identityInsert) insertStatements.push(identityInsert)
 
-      for (const outing of outings) {
-        const columns = ['id', 'userId', 'startTime', 'endTime', 'locationName', 'defaultLocationName', 'lat', 'lon', 'notes', 'createdAt']
-        const values: (string | number | null)[] = [
-          outing.id, userId, outing.startTime, outing.endTime, outing.locationName,
-          outing.defaultLocationName ?? null, outing.lat ?? null, outing.lon ?? null,
-          outing.notes, outing.createdAt,
-        ]
-        if (supportsRegionColumns) {
-          columns.push('stateProvince', 'countryCode')
-          values.push(outing.stateProvince ?? null, outing.countryCode ?? null)
-        }
-        if (supportsChecklistColumns) {
-          columns.push('protocol', 'numberObservers', 'allObsReported', 'effortDistanceMiles', 'effortAreaAcres')
-          values.push(
-            outing.protocol ?? null,
-            outing.numberObservers ?? null,
-            outing.allObsReported == null ? null : outing.allObsReported ? 1 : 0,
-            outing.effortDistanceMiles ?? null,
-            outing.effortAreaAcres ?? null,
-          )
-        }
-        const placeholders = values.map((_, index) => `?${index + 1}`).join(', ')
-        insertStatements.push(context.env.DB.prepare(`INSERT INTO outing (${columns.join(', ')}) VALUES (${placeholders})`).bind(...values))
-      }
+      const outingColumns = ['id', 'userId', 'startTime', 'endTime', 'locationName', 'defaultLocationName', 'lat', 'lon', 'notes', 'createdAt']
+      if (supportsRegionColumns) outingColumns.push('stateProvince', 'countryCode')
+      if (supportsChecklistColumns) outingColumns.push('protocol', 'numberObservers', 'allObsReported', 'effortDistanceMiles', 'effortAreaAcres')
+      const outingInsert = jsonBulkInsert(
+        context.env.DB,
+        'outing',
+        outingColumns,
+        outings.map(outing => ({
+          id: outing.id,
+          userId,
+          startTime: outing.startTime,
+          endTime: outing.endTime,
+          locationName: outing.locationName,
+          defaultLocationName: outing.defaultLocationName ?? null,
+          lat: outing.lat ?? null,
+          lon: outing.lon ?? null,
+          notes: outing.notes,
+          createdAt: outing.createdAt,
+          stateProvince: outing.stateProvince ?? null,
+          countryCode: outing.countryCode ?? null,
+          protocol: outing.protocol ?? null,
+          numberObservers: outing.numberObservers ?? null,
+          allObsReported: outing.allObsReported == null ? null : outing.allObsReported ? 1 : 0,
+          effortDistanceMiles: outing.effortDistanceMiles ?? null,
+          effortAreaAcres: outing.effortAreaAcres ?? null,
+        })),
+      )
+      if (outingInsert) insertStatements.push(outingInsert)
 
-      for (const observation of observations) {
-        const columns = ['id', 'outingId', 'userId', 'speciesName', 'count', 'certainty', 'notes']
-        const values: (string | number | null)[] = [
-          observation.id, observation.outingId, userId, observation.speciesName,
-          observation.count, observation.certainty, observation.notes,
-        ]
-        if (supportsSpeciesCommentsColumn) {
-          columns.push('speciesComments')
-          values.push(observation.notes || null)
-          values[columns.indexOf('notes')] = ''
-        }
-        if (supportsSubmissionId) {
-          columns.push('submissionId')
-          values.push(observation.submissionId ?? null)
-        }
-        const placeholders = values.map((_, index) => `?${index + 1}`).join(', ')
-        insertStatements.push(context.env.DB.prepare(`INSERT INTO observation (${columns.join(', ')}) VALUES (${placeholders})`).bind(...values))
-      }
+      const observationColumns = ['id', 'outingId', 'userId', 'speciesName', 'count', 'certainty', 'notes']
+      if (supportsSpeciesCommentsColumn) observationColumns.push('speciesComments')
+      if (supportsSubmissionId) observationColumns.push('submissionId')
+      const observationInsert = jsonBulkInsert(
+        context.env.DB,
+        'observation',
+        observationColumns,
+        observations.map(observation => ({
+          id: observation.id,
+          outingId: observation.outingId,
+          userId,
+          speciesName: observation.speciesName,
+          count: observation.count,
+          certainty: observation.certainty,
+          notes: supportsSpeciesCommentsColumn ? '' : observation.notes,
+          speciesComments: observation.notes || null,
+          submissionId: observation.submissionId ?? null,
+        })),
+      )
+      if (observationInsert) insertStatements.push(observationInsert)
 
       stage = 'commit the eBird import batch'
       await context.env.DB.batch(insertStatements)
