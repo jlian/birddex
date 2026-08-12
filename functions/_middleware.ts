@@ -11,6 +11,9 @@ const BODY_LIMITS: Array<{ prefix: string; maxBytes: number }> = [
 ]
 const DEFAULT_BODY_LIMIT = 1 * 1024 * 1024 // 1 MB for all other API routes
 
+/** Path prefixes that require a registered account rather than any session. */
+const ACCOUNT_ONLY_PREFIXES = ['/api/import/']
+
 /** Route map: pathname prefix + optional method -> operationName + category.
  *  Ordered longest-prefix-first so /api/data/outings/ beats /api/data/outings. */
 const ROUTE_MAP: Array<{ prefix: string; route: string; method?: string; op: string; category: Category }> = [
@@ -224,6 +227,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     resourceId,
   })
   context.data.log = log
+
+  // Routes that need a real account, not just a session. The UI already keeps
+  // these behind sign-up, but that gate is cosmetic on its own: an anonymous
+  // session can call the endpoint directly. Import is the heaviest write path
+  // an account can reach, so the gate is enforced here too.
+  //
+  // Export is deliberately NOT here. An anonymous user is offered their
+  // sightings as a CSV before signing in to a different account, which is the
+  // one case where leaving with your data matters most.
+  if (identity.isAnonymous && ACCOUNT_ONLY_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    log.warn('auth/sessions/validate', { category: 'Request', resultType: 'Failed', resultSignature: 403, resultDescription: 'Route requires a registered account; the request carried an anonymous session', durationMs: Date.now() - start })
+    const accountResponse = errorResponse('Account required', 403)
+    addTraceHeaders(accountResponse, traceCtx)
+    return accountResponse
+  }
 
   try {
     const response = withSecurityHeaders(await context.next())

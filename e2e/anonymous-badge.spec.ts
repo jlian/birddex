@@ -3,12 +3,9 @@
  *
  * An anonymous account lives in one browser, so the badge states a fact that is
  * otherwise invisible. It is deliberately quiet: it appears only once there are
- * real sightings to lose, and demo checklists do not count because they are
- * sample data rather than the user's own.
+ * sightings to lose.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { readFileSync } from 'fs'
-import path from 'path'
 import { loadApp } from './helpers'
 
 const BADGE = 'These sightings are only on this device'
@@ -26,13 +23,45 @@ async function startAnonymousSession(page: Page) {
   expect(created, 'anonymous sign-in failed').toBe(true)
 }
 
-async function importFixture(page: Page, fixture: string) {
-  const csv = readFileSync(path.resolve('e2e/fixtures', fixture))
+/**
+ * Create an outing and a sighting directly rather than importing them. Import
+ * is account-only now, and this is the path an anonymous visitor actually
+ * takes anyway.
+ */
+async function addSighting(page: Page, locationName: string) {
+  const created = await page.evaluate(async (name) => {
+    const outingId = `outing_${crypto.randomUUID()}`
+    const outing = await fetch('/api/data/outings', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: outingId,
+        startTime: '2026-03-01T09:00:00.000Z',
+        endTime: '2026-03-01T10:00:00.000Z',
+        locationName: name,
+        notes: '',
+        createdAt: new Date().toISOString(),
+      }),
+    })
+    if (!outing.ok) return false
 
-  const imported = await page.request.post('/api/import/ebird-csv', {
-    multipart: { file: { name: fixture, mimeType: 'text/csv', buffer: csv } },
-  })
-  expect(imported.ok(), `CSV import failed: ${imported.status()}`).toBe(true)
+    const observations = await fetch('/api/data/observations', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([{
+        id: `obs_${crypto.randomUUID()}`,
+        outingId,
+        speciesName: 'Rock Pigeon (Columba livia)',
+        count: 1,
+        certainty: 'confirmed',
+        notes: '',
+      }]),
+    })
+    return observations.ok
+  }, locationName)
+  expect(created, 'sighting creation failed').toBe(true)
 
   await page.reload()
   await expect(page.locator('header')).toBeVisible({ timeout: 5_000 })
@@ -65,7 +94,7 @@ test.describe('anonymous durability badge', () => {
   test('badges the avatar once sightings exist', async ({ page }) => {
     await loadApp(page, { promote: false })
     await startAnonymousSession(page)
-    await importFixture(page, 'ebird-import-variant.csv')
+    await addSighting(page, 'My Patch')
 
     await expect(page.getByLabel(BADGE)).toBeVisible()
   })
@@ -75,7 +104,7 @@ test.describe('export offer before an account switch', () => {
   test('warns on log in and not on sign up', async ({ page }) => {
     await loadApp(page, { promote: false })
     await startAnonymousSession(page)
-    await importFixture(page, 'ebird-import-variant.csv')
+    await addSighting(page, 'My Patch')
 
     await page.getByRole('button', { name: 'Log in' }).click()
     const dialog = page.getByRole('dialog')
@@ -97,7 +126,7 @@ test.describe('export offer before an account switch', () => {
   test('exports the anonymous sightings before the session is swapped', async ({ page }) => {
     await loadApp(page, { promote: false })
     await startAnonymousSession(page)
-    await importFixture(page, 'ebird-import-variant.csv')
+    await addSighting(page, 'My Patch')
 
     await page.getByRole('button', { name: 'Log in' }).click()
     const dialog = page.getByRole('dialog')
