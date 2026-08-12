@@ -16,7 +16,7 @@ async function readSession(page: import('@playwright/test').Page) {
     if (!res.ok) return null
     const body = await res.json().catch(() => null)
     if (!body?.user) return null
-    return { id: String(body.user.id), isAnonymous: Boolean(body.user.isAnonymous) }
+    return { id: String(body.user.id), name: String(body.user.name ?? ''), isAnonymous: Boolean(body.user.isAnonymous) }
   })
 }
 test.describe('passkey signup', () => {
@@ -41,6 +41,8 @@ test.describe('passkey signup', () => {
     const before = await readSession(page)
     expect(before, 'expected an anonymous session after bootstrap').not.toBeNull()
     expect(before?.isAnonymous).toBe(true)
+    // Named on creation, not left as the plugin's "Anonymous" default.
+    expect(before?.name).toMatch(/^[a-z]+-[a-z]+-[a-z]+$/)
 
     await promoteAnonymousUser(page)
 
@@ -52,5 +54,10 @@ test.describe('passkey signup', () => {
     // account was discarded, which is what forces data migration and a
     // cascading delete of the old rows.
     expect(after?.id).toBe(before?.id)
+
+    // The bird they saw as a guest is the name they keep. Regression guard:
+    // afterVerification used to write the plugin's WebAuthn handle here, which
+    // is the throwaway anonymous email, so signup renamed people to temp@....
+    expect(after?.name).toBe(before?.name)
   })
 })

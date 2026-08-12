@@ -29,6 +29,12 @@ describe('auth config', () => {
     expect(auth.options.account?.accountLinking?.allowDifferentEmails).toBe(true)
   })
 
+  it('keeps sessions alive for a year', () => {
+    const auth = createAuth(mockEnv)
+    // Under Chrome's 400-day cookie cap, which silently rewrites anything above it.
+    expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24 * 365)
+  })
+
   it('includes passkey and anonymous plugins', () => {
     const auth = createAuth(mockEnv)
     const apiKeys = Object.keys(auth.api)
