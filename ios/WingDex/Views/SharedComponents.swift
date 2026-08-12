@@ -44,6 +44,7 @@ private struct OutingRowActionsModifier: ViewModifier {
     let onView: () -> Void
     let onEditLocation: () -> Void
 
+    @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
@@ -61,12 +62,14 @@ private struct OutingRowActionsModifier: ViewModifier {
                     Label("Edit Location", systemImage: "pencil")
                 }
                 .disabled(!store.hasLoadedAll)
-                Button {
-                    Task { await exportOuting() }
-                } label: {
-                    Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting() }
+                    } label: {
+                        Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(observations.isEmpty || isExporting)
                 }
-                .disabled(observations.isEmpty || isExporting)
                 ShareLink(item: SharePayload.outing(outing, observations: observations)) {
                     Label("Share Summary", systemImage: "text.bubble")
                 }
@@ -80,16 +83,19 @@ private struct OutingRowActionsModifier: ViewModifier {
                 NavigationStack {
                     OutingDetailView(outingId: outing.id)
                 }
+                .environment(auth)
                 .environment(store)
             }
             .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                Button {
-                    Task { await exportOuting() }
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting() }
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                    .tint(.accentColor)
+                    .disabled(observations.isEmpty || isExporting)
                 }
-                .tint(.accentColor)
-                .disabled(observations.isEmpty || isExporting)
             }
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {

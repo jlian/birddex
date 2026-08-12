@@ -10,7 +10,7 @@ struct WingDexApp: App {
     @State private var navigation = AppNavigationModel.shared
 
     init() {
-        let auth = AuthService()
+        let auth = AuthService.shared
         let cache = try? AccountDataCache()
         _authService = State(initialValue: auth)
         _dataStore = State(initialValue: DataStore(
@@ -43,42 +43,18 @@ struct WingDexApp: App {
 
 // MARK: - Root Content View
 
-/// Root view that shows either auth or the main tab interface.
+/// Root view that keeps the main interface available with or without an account.
 struct ContentView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(AppNavigationModel.self) private var navigation
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var isValidating = true
-
     var body: some View {
-        Group {
-            if isValidating {
-                SessionValidationView()
-            } else if auth.isAuthenticated {
-                MainTabView()
-                    .transition(.opacity)
-            } else {
-                SignInView()
-                    .transition(.opacity)
-                    #if DEBUG
-                    .task {
-                        if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
-                           !auth.isAuthenticated {
-                            try? await auth.signInAnonymously()
-                        }
-                    }
-                    #endif
-            }
-        }
+        MainTabView()
         .background(Color.pageBg.ignoresSafeArea())
-        .animation(.easeInOut(duration: 0.25), value: auth.isAuthenticated)
-        .onChange(of: auth.isAuthenticated) { _, isAuthenticated in
-            if isAuthenticated, let accountID = auth.userId {
-                store.activate(accountID: accountID)
-            } else if !isAuthenticated {
-                navigation.setMainInterfaceReady(false)
+        .onChange(of: auth.identity) { _, identity in
+            if identity == .none {
                 store.clearActiveAccount()
                 if let accountID = auth.consumeDiscardedAccountID() {
                     store.clearCachedAccount(accountID: accountID)
@@ -86,46 +62,33 @@ struct ContentView: View {
             }
         }
         .onChange(of: auth.userId) { _, accountID in
-            guard auth.isAuthenticated, let accountID else { return }
+            guard auth.hasSession, let accountID else { return }
             store.activate(accountID: accountID)
+            Task { await store.loadAll() }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, auth.isAuthenticated, !isValidating else { return }
+            guard phase == .active, auth.hasSession else { return }
             Task { await auth.validateSession(force: false) }
         }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
-                auth.signOut()
+                await auth.signOut()
+            }
+            if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
+               !auth.hasSession {
+                try? await auth.ensureAnonymousSession()
             }
             #endif
             if let discardedAccountID = auth.consumeDiscardedAccountID() {
                 store.clearCachedAccount(accountID: discardedAccountID)
             }
-            if auth.isAuthenticated, let accountID = auth.userId {
+            if auth.hasSession, let accountID = auth.userId {
                 store.activate(accountID: accountID)
-                isValidating = false
                 await auth.validateSession()
-            } else {
-                isValidating = false
+                await store.loadAll()
             }
         }
-    }
-}
-
-private struct SessionValidationView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Checking your session...")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.pageBg.ignoresSafeArea())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Checking your session")
     }
 }
 
@@ -138,9 +101,12 @@ struct MainTabView: View {
     @Environment(AppNavigationModel.self) private var navigation
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
+    @State private var showingAccount = false
+    @State private var accountPromptReason: AccountPromptReason = .default
     @State private var addPhotosVM = AddPhotosViewModel()
     @State private var showingWizard = false
     @State private var initialDataLoaded = false
+    @AppStorage("wingdex.signupPrompted") private var signupPrompted = false
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -184,6 +150,9 @@ struct MainTabView: View {
             }
         }
         .fullScreenCover(isPresented: $showingWizard, onDismiss: {
+            let shouldPrompt = auth.identity == .anonymous
+                && addPhotosVM.savedOutingCount > 0
+                && !signupPrompted
             addPhotosVM.cancelSession()
             addPhotosVM = AddPhotosViewModel()
             addPhotosVM.configure(
@@ -193,6 +162,11 @@ struct MainTabView: View {
             if IncomingShareStore.hasPendingShare {
                 Task { await importIncomingShareIfAvailable() }
             }
+            if shouldPrompt {
+                signupPrompted = true
+                accountPromptReason = .firstSave
+                showingAccount = true
+            }
         }) {
             NavigationStack {
                 AddPhotosFlow(viewModel: addPhotosVM)
@@ -201,21 +175,21 @@ struct MainTabView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .fullScreenCover(isPresented: $showingAccount) {
+            AccountAccessView(reason: accountPromptReason)
+        }
         .task {
             navigation.setMainInterfaceReady(true)
-            async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
-            await store.loadAll()
             #if DEBUG
-            // loadDemoData clears the account first, so the reset flag gives UI tests the
-            // same starting data no matter what earlier runs left behind. Tests that never
-            // read the demo dex use the clear flag instead, because importing the CSV
-            // delays everything that follows in this task.
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-reset-signup-prompt") {
+                signupPrompted = false
+            }
+            #endif
+            async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
+            #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             if arguments.contains("--ui-test-clear-data") {
                 try? await store.clearAll()
-            } else if arguments.contains("--ui-test-reset-data")
-                || (arguments.contains("--auto-demo-data") && store.dex.isEmpty) {
-                try? await store.loadDemoData()
             }
             #endif
             await completeInitialLoadIfReady()
@@ -231,6 +205,10 @@ struct MainTabView: View {
                 await addPhotosVM.processSelectedPhotos()
             }
         }
+        .onChange(of: auth.userId) {
+            initialDataLoaded = false
+            addPhotosVM.configure(auth: auth, dataStore: store)
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, initialDataLoaded, IncomingShareStore.hasPendingShare else { return }
             navigation.route(to: .addPhotos())
@@ -245,7 +223,14 @@ struct MainTabView: View {
             await importIncomingShareIfAvailable()
         }
         .environment(\.showAddPhotos) { navigation.route(to: .addPhotos()) }
-        .environment(\.showSettings) { showingSettings = true }
+        .environment(\.showSettings) {
+            if auth.isRegisteredAccount {
+                showingSettings = true
+            } else {
+                accountPromptReason = .default
+                showingAccount = true
+            }
+        }
         .environment(\.showWingDex) { navigation.route(to: .wingdex()) }
         .environment(\.showHome) { navigation.route(to: .home) }
         .environment(\.showOutings) { navigation.route(to: .outings) }
@@ -261,8 +246,13 @@ struct MainTabView: View {
     }
 
     private func completeInitialLoadIfReady() async {
-        guard !initialDataLoaded, auth.isAuthenticated, store.hasLoadedAll else { return }
-        initialDataLoaded = true
+        guard !initialDataLoaded else { return }
+        if !auth.hasSession {
+            initialDataLoaded = true
+        } else {
+            guard store.hasLoadedAll else { return }
+            initialDataLoaded = true
+        }
         if IncomingShareStore.hasPendingShare {
             navigation.route(to: .addPhotos())
             await importIncomingShareIfAvailable()
@@ -303,6 +293,41 @@ struct MainTabView: View {
     #endif
 }
 
+private enum AccountPromptReason {
+    case `default`
+    case firstSave
+}
+
+private struct AccountAccessView: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(\.dismiss) private var dismiss
+    let reason: AccountPromptReason
+
+    var body: some View {
+        NavigationStack {
+            SignInView(showsKeepSightingsMessage: reason == .firstSave)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark") { dismiss() }
+                    }
+                    if auth.identity == .anonymous {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            NavigationLink {
+                                DataManagementView()
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .accessibilityLabel("Delete Data")
+                        }
+                    }
+                }
+        }
+        .onChange(of: auth.isRegisteredAccount) { _, isRegistered in
+            if isRegistered { dismiss() }
+        }
+    }
+}
+
 // MARK: - Avatar View
 
 /// Renders a user avatar - emoji (from SVG data URL), remote image, or fallback initial.
@@ -339,10 +364,10 @@ struct AvatarView: View {
 
     @ViewBuilder
     private var avatar: some View {
-        if let info = emojiInfo {
-            Text(info.emoji)
-                .font(.system(size: size * 0.6))
-                .minimumScaleFactor(0.5)
+        if let info = emojiInfo, let image = renderedEmoji(info.emoji) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
                 .frame(width: size, height: size)
                 .background(info.color)
                 .clipShape(Circle())
@@ -364,6 +389,16 @@ struct AvatarView: View {
         }
     }
 
+    private func renderedEmoji(_ emoji: String) -> UIImage? {
+        let renderer = ImageRenderer(
+            content: Text(emoji)
+                .font(.system(size: size * 0.6))
+                .frame(width: size, height: size)
+        )
+        renderer.scale = UIScreen.main.scale
+        return renderer.uiImage
+    }
+
     private var fallbackView: some View {
         Image(systemName: "person.fill")
             .font(.system(size: size * 0.42, weight: .medium))
@@ -374,11 +409,33 @@ struct AvatarView: View {
     }
 }
 
-#if DEBUG
-#Preview("App - Session Validation") {
-    SessionValidationView()
+struct AccountAvatarView: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(DataStore.self) private var store
+    let size: CGFloat
+
+    private var hasAnonymousData: Bool {
+        auth.identity == .anonymous
+            && (!store.outings.isEmpty || !store.observations.isEmpty)
+    }
+
+    var body: some View {
+        AvatarView(imageURL: auth.avatarImage, name: auth.userName, size: size)
+            .overlay(alignment: .bottomTrailing) {
+                if hasAnonymousData {
+                    Circle()
+                        .fill(.yellow)
+                        .frame(width: size * 0.25, height: size * 0.25)
+                        .overlay(Circle().stroke(Color.pageBg, lineWidth: 2))
+                        .offset(x: 1, y: 1)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHidden(true)
+    }
 }
 
+#if DEBUG
 #Preview("App - Authenticated") {
     ContentView()
         .environment(AuthService())

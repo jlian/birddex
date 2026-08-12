@@ -65,6 +65,7 @@ struct PerPhotoConfirmView: View {
                         Image(systemName: "checkmark")
                     }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("confirm.accept")
                     .disabled(selectedSpecies.isEmpty)
                 } else {
                     Button("Skip", role: .destructive) {

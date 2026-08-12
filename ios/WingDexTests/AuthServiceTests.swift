@@ -2,6 +2,35 @@
 import XCTest
 
 final class AuthenticatedRequestTraceTests: XCTestCase {
+    func testPasskeyAuthResultDecodesCanonicalUserAndFractionalExpiry() throws {
+        let data = Data(#"{"session":{"token":"raw-token","expiresAt":"2027-08-11T04:30:00.123Z"},"user":{"id":"user-1","name":"quiet-heron","email":"user@example.com","image":null,"isAnonymous":false}}"#.utf8)
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: URL(string: "https://example.com/api/auth/passkey/verify-registration")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["set-auth-token": "signed-token"]
+        ))
+
+        let result = try PasskeyService.decodeAuthResult(data: data, response: response)
+
+        XCTAssertEqual(result.token, "raw-token")
+        XCTAssertEqual(result.signedToken, "signed-token")
+        XCTAssertEqual(result.userId, "user-1")
+        XCTAssertEqual(result.user.name, "quiet-heron")
+        XCTAssertFalse(result.user.isAnonymous)
+        XCTAssertNotNil(result.expiresAt)
+    }
+
+    func testAccountPasskeyNameUsesTheCanonicalDisplayName() {
+        XCTAssertEqual(
+            PasskeyService.accountPasskeyName(
+                deviceName: "iPhone",
+                displayName: "quiet-heron"
+            ),
+            "iPhone (quiet-heron)"
+        )
+    }
+
     func testExtractsAndNormalizesSafeTraceID() throws {
         let response = try XCTUnwrap(HTTPURLResponse(
             url: URL(string: "https://example.com")!,
@@ -165,6 +194,44 @@ final class AuthCallbackParsingTests: XCTestCase {
 // MARK: - Session Validation Tests
 
 final class SessionValidationTests: XCTestCase {
+    func testAnonymousUpgradeRequiresItsSignedSessionToken() throws {
+        XCTAssertThrowsError(try AuthService.passkeyRegistrationContext(
+            identity: .anonymous,
+            userID: "anonymous-user",
+            signedToken: nil
+        ))
+
+        XCTAssertEqual(
+            try AuthService.passkeyRegistrationContext(
+                identity: .anonymous,
+                userID: "anonymous-user",
+                signedToken: "signed-token"
+            ),
+            .upgrade(userID: "anonymous-user", signedToken: "signed-token")
+        )
+    }
+
+    func testStaleAuthenticationGenerationCannotInstallState() {
+        XCTAssertTrue(AuthService.isSameAuthenticationGeneration(current: 4, expected: 4))
+        XCTAssertFalse(AuthService.isSameAuthenticationGeneration(current: 5, expected: 4))
+    }
+
+    func testSessionIdentityDistinguishesAnonymousAndRegisteredUsers() {
+        XCTAssertEqual(AuthService.sessionIdentity(isAnonymous: true), .anonymous)
+        XCTAssertEqual(AuthService.sessionIdentity(isAnonymous: false), .registered)
+    }
+
+    func testSessionMetadataDecodesAnonymousIdentityAndFractionalExpiry() throws {
+        let data = Data(#"{"session":{"id":"session-1","expiresAt":"2027-08-11T04:30:00.123Z"},"user":{"id":"user-1","name":"quiet-heron","isAnonymous":true}}"#.utf8)
+
+        let metadata = try XCTUnwrap(AuthService.decodeSessionMetadata(data: data))
+
+        XCTAssertEqual(metadata.user.id, "user-1")
+        XCTAssertEqual(metadata.user.name, "quiet-heron")
+        XCTAssertTrue(metadata.user.isAnonymous)
+        XCTAssertNotNil(metadata.expiresAt)
+    }
+
     func testSessionValidationIsRequiredWithoutSuccessfulValidation() {
         XCTAssertTrue(AuthService.shouldValidateSession(
             lastSuccessfulValidation: nil,
@@ -237,10 +304,10 @@ final class SessionValidationTests: XCTestCase {
     }
 
     @MainActor
-    func testDiscardedAccountIDIsConsumedOnce() {
+    func testDiscardedAccountIDIsConsumedOnce() async {
         let auth = AuthService()
         auth.userId = "account-a"
-        auth.signOut()
+        await auth.signOut()
 
         XCTAssertEqual(auth.consumeDiscardedAccountID(), "account-a")
         XCTAssertNil(auth.consumeDiscardedAccountID())

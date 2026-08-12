@@ -33,6 +33,7 @@ private let signInDarkenDark: Double = 0.7
 
 /// Full-screen sign-in view.
 struct SignInView: View {
+    var showsKeepSightingsMessage = false
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
 
@@ -44,6 +45,13 @@ struct SignInView: View {
     @State private var errorMessage: String?
     @State private var parallaxOffset: CGSize = .zero
     @State private var collageCache = CollageImageCache.shared
+    @State private var pendingSignIn: (() async throws -> Void)?
+    @State private var showingDataWarning = false
+
+    private var hasAnonymousData: Bool {
+        auth.identity == .anonymous
+            && (!store.hasLoadedAll || !store.outings.isEmpty || !store.observations.isEmpty)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -108,26 +116,6 @@ struct SignInView: View {
                     AppIconView()
                         .frame(width: 44, height: 44)
                     Spacer()
-                    #if DEBUG
-                    Menu {
-                        Button {
-                            signIn {
-                                try await auth.signInAnonymously()
-                                try await store.loadDemoData()
-                            }
-                        } label: {
-                            Label("Try with Demo Data", systemImage: "sparkles")
-                        }
-                    } label: {
-                        Image(systemName: "sparkles")
-                            .font(.title3)
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .menuStyle(.borderlessButton)
-                    .buttonStyle(.plain)
-                    #endif
                 }
                 .padding(.horizontal, 28)
                 .padding(.top, 8)
@@ -148,6 +136,19 @@ struct SignInView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 32)
 
+                if showsKeepSightingsMessage {
+                    VStack(spacing: 6) {
+                        Text("Keep your sightings")
+                            .font(.title2.weight(.semibold))
+                        Text("Create a passkey to keep this device's sightings available and make them portable.")
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 20)
+                }
+
                 // Social sign-in buttons
                 let btnHeight: CGFloat = 44
                 let iconSize: CGFloat = btnHeight * 0.32
@@ -157,7 +158,7 @@ struct SignInView: View {
                     SignInWithAppleButton(.continue) { request in
                         request.requestedScopes = [.fullName, .email]
                     } onCompletion: { result in
-                        signIn {
+                        requestSignIn {
                             let authorization = try result.get()
                             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
                                 throw URLError(.userAuthenticationRequired)
@@ -172,7 +173,7 @@ struct SignInView: View {
 
                     // Google -- neutral style per branding guidelines
                     Button {
-                        signIn { try await auth.signInWithGoogle() }
+                        requestSignIn { try await auth.signInWithGoogle() }
                     } label: {
                         HStack(spacing: 6) {
                             Image("GoogleIcon")
@@ -192,7 +193,7 @@ struct SignInView: View {
 
                     // GitHub -- neutral style matching Google
                     Button {
-                        signIn { try await auth.signInWithGitHub() }
+                        requestSignIn { try await auth.signInWithGitHub() }
                     } label: {
                         HStack(spacing: 6) {
                             Image("GitHubIcon")
@@ -237,7 +238,7 @@ struct SignInView: View {
 
                     HStack(spacing: 12) {
                         Button {
-                            signIn { try await auth.signInWithPasskey() }
+                            requestSignIn { try await auth.signInWithPasskey() }
                         } label: {
                             Text("Log in")
                                 .font(.body.weight(.medium))
@@ -305,6 +306,15 @@ struct SignInView: View {
             }
         }
         .animation(.default, value: errorMessage)
+        .sheet(isPresented: $showingDataWarning, onDismiss: {
+            pendingSignIn = nil
+        }) {
+            SignInDataWarning {
+                guard let action = pendingSignIn else { return }
+                pendingSignIn = nil
+                signIn(action: action)
+            }
+        }
         .task { await collageCache.load() }
         .onAppear {
             errorMessage = auth.consumeSignInMessage()
@@ -364,6 +374,15 @@ struct SignInView: View {
 
     // MARK: - Sign-In Handler
 
+    private func requestSignIn(action: @escaping () async throws -> Void) {
+        guard hasAnonymousData else {
+            signIn(action: action)
+            return
+        }
+        pendingSignIn = action
+        showingDataWarning = true
+    }
+
     private func signIn(action: @escaping () async throws -> Void) {
         isSigningIn = true
         errorMessage = nil
@@ -375,6 +394,72 @@ struct SignInView: View {
                 log.debug("Sign-in attempt failed")
             }
             isSigningIn = false
+        }
+    }
+}
+
+private struct SignInDataWarning: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(\.dismiss) private var dismiss
+    @State private var exportItem: ExportFileItem?
+    @State private var exportError: AppError?
+    @State private var isExporting = false
+
+    let onContinue: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Your current sightings belong to this private device session. They will not be merged into the account you log in to.")
+                } header: {
+                    Text("Keep your sightings")
+                }
+
+                Section {
+                    Button {
+                        Task { await exportSightings() }
+                    } label: {
+                        Label("Export Sightings as CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(isExporting)
+
+                    Button("Continue to Log In") {
+                        dismiss()
+                        onContinue()
+                    }
+
+                    Button("Back", role: .cancel) { dismiss() }
+                }
+
+                if let exportError {
+                    Section {
+                        Text(exportError.message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Before You Log In")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $exportItem) { item in
+                ActivityView(item: item)
+            }
+        }
+    }
+
+    private func exportSightings() async {
+        isExporting = true
+        exportError = nil
+        defer { isExporting = false }
+        do {
+            let data = try await DataService(
+                auth: auth,
+                expectedAccountID: auth.userId
+            ).exportSightingsCSV()
+            exportItem = try ExportFileFactory.sightings(data: data)
+        } catch {
+            exportError = AppError.map(error, fallback: "Could not export sightings. Try again.")
         }
     }
 }

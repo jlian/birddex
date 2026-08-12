@@ -29,7 +29,7 @@ struct DataManagementView: View {
             }
 
             // Delete Account & All Data (two-stage)
-            if auth.userId != nil {
+            if auth.isRegisteredAccount {
                 Section {
                     Button("Delete Account & All Data") {
                         showingDeleteAccountStep1 = true
@@ -101,7 +101,7 @@ struct DataManagementView: View {
             Text("This will permanently delete all your outings, observations, and WingDex entries. This cannot be undone.")
         }
         .alert("One more Apple step", isPresented: $showingManualAppleRevocation) {
-            Button("OK") { auth.signOut() }
+            Button("OK") { Task { await auth.signOut() } }
         } message: {
             Text("Your WingDex account was deleted. Remove WingDex from Sign in with Apple in your Apple Account settings to revoke the remaining Apple access.")
         }
@@ -116,7 +116,7 @@ struct DataManagementView: View {
             if needsManualAppleRevocation {
                 showingManualAppleRevocation = true
             } else {
-                auth.signOut()
+                await auth.signOut()
             }
         } catch {
             deleteError = AppError.map(error, fallback: "Could not delete your account. Try again.")

@@ -138,10 +138,14 @@ struct WingDexView: View {
                 .glassEffect(.regular.interactive())
 
                 Button { showSettings() } label: {
-                    AvatarView(imageURL: auth.userImage, name: auth.userName, size: 40)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Settings")
+                    AccountAvatarView(size: 40)
                 }
+                .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
+                .accessibilityValue(
+                    auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
+                        ? "These sightings are only on this device"
+                        : ""
+                )
             }
             .padding(.trailing, -12)
         }

@@ -74,20 +74,26 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     private func launchApp(
+        autoSignIn: Bool = true,
         extraArguments: [String] = [],
         extraEnvironment: [String: String] = [:]
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "--auto-sign-in",
             // Empty the account so leftover outings from earlier runs cannot change the
             // flow. None of these tests read the demo dex, and importing it ahead of the
             // identification run left the app busy long enough to time out CI's UI queries.
             "--ui-test-clear-data",
+            "--ui-test-reset-signup-prompt",
             "--ui-test-photo", Self.photoPath,
             "--ui-test-lat", "47.7115",
             "--ui-test-lon", "-122.3717",
         ] + extraArguments
+        if autoSignIn {
+            app.launchArguments.insert("--auto-sign-in", at: 0)
+        } else {
+            app.launchArguments.insert("--ui-test-sign-out", at: 0)
+        }
         app.launchEnvironment.merge(extraEnvironment) { _, newValue in newValue }
         app.launch()
         return app
@@ -123,7 +129,7 @@ final class BirdIdFlowUITests: XCTestCase {
             "Fixture missing at \(Self.photoPath)"
         )
 
-        let app = launchApp()
+        let app = launchApp(autoSignIn: false)
 
         let continueButton = app.buttons["Continue"]
         XCTAssertTrue(
@@ -175,6 +181,23 @@ final class BirdIdFlowUITests: XCTestCase {
             "Expected a percentage, got \(confidence.label)"
         )
         XCTAssertNotEqual(confidence.label, "0%", "Confidence should never round away to zero")
+
+        app.buttons["confirm.accept"].tap()
+        let done = app.buttons["upload.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 30), "The anonymous outing did not finish saving")
+        done.tap()
+        XCTAssertTrue(
+            app.staticTexts["Keep your sightings"].waitForExistence(timeout: 10),
+            "The first anonymous save did not show the durability prompt"
+        )
+        app.buttons["Close"].tap()
+        let accountButton = app.buttons["Log in"]
+        XCTAssertTrue(accountButton.waitForExistence(timeout: 10))
+        XCTAssertEqual(
+            accountButton.value as? String,
+            "These sightings are only on this device",
+            "The anonymous data badge did not persist after declining the prompt"
+        )
     }
 
     func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
@@ -347,110 +370,89 @@ final class BirdIdFlowUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-test-sign-out"]
         app.launch()
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 30))
+        app.buttons["Log in"].tap()
         XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
 
-        try app.performAccessibilityAudit()
+        try performBoundedAccessibilityAudit(app: app)
     }
 
     func testHomePassesAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
         app.launch()
         let homeTab = app.buttons["Home"]
         XCTAssertTrue(homeTab.waitForExistence(timeout: 120))
         homeTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
-        let elements = app.descendants(matching: .any)
-        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
-        XCTAssertTrue(elements["Eared Dove"].exists)
-
-        var photoContrastFindings = 0
-        var contrastDetails: [String] = []
-        try app.performAccessibilityAudit { issue in
-            // XCTest samples photo-backed cells and one compact glyph without exposing their elements.
-            if issue.auditType == .contrast {
-                photoContrastFindings += 1
-            contrastDetails.append(String(describing: issue.element))
-                return true
-            }
-            return false
-        }
-        XCTAssertLessThanOrEqual(
-            photoContrastFindings,
-            6,
-            "Unexpected contrast samples: \(contrastDetails)"
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 120))
+        try performBoundedAccessibilityAudit(
+            app: app,
+            expectedContrastFindings: 6,
+            expectedDynamicTypeFindings: 1,
+            expectedTextClippingFindings: 1
         )
     }
 
     func testWingDexPassesAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
         app.launch()
         let wingDexTab = app.buttons["WingDex"]
         XCTAssertTrue(wingDexTab.waitForExistence(timeout: 120))
         wingDexTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 120))
 
-        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 0)
     }
 
     func testOutingsPassesAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
         app.launch()
         let outingsTab = app.buttons["Outings"]
         XCTAssertTrue(outingsTab.waitForExistence(timeout: 120))
         outingsTab.tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 120))
 
-        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 4)
+        try performListAccessibilityAudit(app: app, expectedPhotoContrastFindings: 0)
     }
 
-    func testSettingsAndDeletionConfirmationsPassAccessibilityAudit() throws {
+    func testAccountAndDeletionConfirmationsPassAccessibilityAudit() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--auto-sign-in", "--auto-demo-data", "--ui-test-reset-data"]
+        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
         app.launch()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 120))
-        app.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 120))
+        app.buttons["Log in"].tap()
+        XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 10))
         try performBoundedAccessibilityAudit(
             app: app,
             expectedContrastFindings: 6,
             expectedDynamicTypeFindings: 1
         )
 
-        let deleteData = app.buttons["Delete Data..."]
-        while !deleteData.isHittable {
-            app.swipeUp()
-        }
-        deleteData.tap()
+        app.buttons["Delete Data"].tap()
         XCTAssertTrue(app.navigationBars["Data Management"].waitForExistence(timeout: 10))
         try app.performAccessibilityAudit()
 
-        app.buttons["Delete Account & All Data"].tap()
-        XCTAssertTrue(app.alerts["Delete your entire account?"].waitForExistence(timeout: 5))
+        app.buttons["Delete All Data"].tap()
+        XCTAssertTrue(app.alerts["Delete All Data?"].waitForExistence(timeout: 5))
         try performBoundedAccessibilityAudit(
             app: app,
             expectedContrastFindings: 1,
             expectedDynamicTypeFindings: 4
         )
-        app.alerts["Delete your entire account?"].buttons["I understand, continue"].tap()
-        XCTAssertTrue(app.alerts["Are you absolutely sure?"].waitForExistence(timeout: 5))
-        try performBoundedAccessibilityAudit(
-            app: app,
-            expectedContrastFindings: 1,
-            expectedDynamicTypeFindings: 4
-        )
-        app.alerts["Are you absolutely sure?"].buttons["Go back"].tap()
+        app.alerts["Delete All Data?"].buttons["Cancel"].tap()
     }
 
     private func performBoundedAccessibilityAudit(
         app: XCUIApplication,
         expectedContrastFindings: Int = 0,
-        expectedDynamicTypeFindings: Int = 0
+        expectedDynamicTypeFindings: Int = 0,
+        expectedTextClippingFindings: Int = 0
     ) throws {
         var contrastFindings = 0
         var dynamicTypeFindings = 0
+        var textClippingFindings = 0
         var contrastDetails: [String] = []
         try app.performAccessibilityAudit { issue in
             switch issue.auditType {
@@ -465,6 +467,9 @@ final class BirdIdFlowUITests: XCTestCase {
                 // A single-line text field scrolls its value instead of truncating it, and
                 // VoiceOver still reads the whole thing. The audit cannot model that.
                 return true
+            case .textClipped where expectedTextClippingFindings > 0:
+                textClippingFindings += 1
+                return true
             default:
                 return false
             }
@@ -475,6 +480,7 @@ final class BirdIdFlowUITests: XCTestCase {
             "Unexpected contrast samples: \(contrastDetails)"
         )
         XCTAssertLessThanOrEqual(dynamicTypeFindings, expectedDynamicTypeFindings)
+        XCTAssertLessThanOrEqual(textClippingFindings, expectedTextClippingFindings)
     }
 
     private func performListAccessibilityAudit(

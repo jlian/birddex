@@ -62,9 +62,6 @@ struct SettingsView: View {
     @State private var editor: ProfileEditor?
 
     // Other state
-    @State private var isLoadingDemo = false
-    @State private var demoError: AppError?
-    @State private var showingDemoConfirmation = false
     @State private var showingEBirdImport = false
     @State private var isExporting = false
     @State private var exportError: AppError?
@@ -110,10 +107,6 @@ struct SettingsView: View {
             birdIdSection
             privacySection
             dataManagementSection
-
-            #if DEBUG
-            developmentSection
-            #endif
 
             logOutSection
 
@@ -350,59 +343,13 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Development (DEBUG only)
-
-    #if DEBUG
-    @ViewBuilder
-    private var developmentSection: some View {
-        Section("Development") {
-            Button {
-                showingDemoConfirmation = true
-            } label: {
-                if isLoadingDemo {
-                    ProgressView()
-                } else {
-                    Label("Load Demo Data", systemImage: "sparkles")
-                }
-            }
-            .disabled(isLoadingDemo)
-
-            if let demoError {
-                Text(demoError.message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-        .alert(
-            "Load Demo Data?",
-            isPresented: $showingDemoConfirmation
-        ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Replace All Data", role: .destructive) {
-                isLoadingDemo = true
-                demoError = nil
-                Task {
-                    do {
-                        try await store.loadDemoData()
-                    } catch {
-                        demoError = AppError.map(error, fallback: "Could not load demo data. Try again.")
-                    }
-                    isLoadingDemo = false
-                }
-            }
-        } message: {
-            Text("This will replace all your current outings, observations, and WingDex entries with demo data. This cannot be undone.")
-        }
-    }
-    #endif
-
     // MARK: - Log Out
 
     @ViewBuilder
     private var logOutSection: some View {
         Section {
             Button("Log Out", role: .destructive) {
-                auth.signOut()
+                Task { await auth.signOut() }
             }
         }
     }

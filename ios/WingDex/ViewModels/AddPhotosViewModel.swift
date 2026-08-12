@@ -134,6 +134,7 @@ final class AddPhotosViewModel {
 
     private var dataService: DataService?
     private var dataStore: DataStore?
+    private var authService: AuthService?
     private var accountID: String?
     private var sessionGeneration = UUID()
 
@@ -143,6 +144,7 @@ final class AddPhotosViewModel {
             sessionGeneration = UUID()
         }
         self.accountID = accountID
+        authService = auth
         dataService = DataService(auth: auth, expectedAccountID: accountID)
         self.dataStore = dataStore
         // Initialize lastLocationName from the most recent outing
@@ -157,6 +159,7 @@ final class AddPhotosViewModel {
     func cancelSession() {
         sessionGeneration = UUID()
         accountID = nil
+        authService = nil
         dataService = nil
         dataStore = nil
     }
@@ -209,8 +212,16 @@ final class AddPhotosViewModel {
     /// Load photos from the picker and camera, extract EXIF, generate thumbnails, cluster.
     func processSelectedPhotos() async {
         guard !selectedItems.isEmpty || !cameraPhotos.isEmpty || !incomingSharedPhotos.isEmpty else { return }
-        guard let sessionID = try? requireCurrentSession() else { return }
+        guard !isProcessing else { return }
         isProcessing = true
+        let sessionID: UUID
+        do {
+            sessionID = try await prepareCurrentSession()
+        } catch {
+            self.error = AppError.map(error, fallback: "Could not start a private WingDex session. Try again.")
+            isProcessing = false
+            return
+        }
         error = nil
         currentStep = .extracting
         totalCount = selectedItems.count + cameraPhotos.count + incomingSharedPhotos.count
@@ -827,6 +838,21 @@ final class AddPhotosViewModel {
             throw AuthError.notAuthenticated
         }
         return sessionGeneration
+    }
+
+    private func prepareCurrentSession() async throws -> UUID {
+        guard let authService, let dataStore else { throw AuthError.notAuthenticated }
+        try await authService.ensureAnonymousSession()
+        guard let resolvedAccountID = authService.userId else { throw AuthError.notAuthenticated }
+
+        if dataStore.activeAccountID != resolvedAccountID {
+            dataStore.activate(accountID: resolvedAccountID)
+        }
+        if !dataStore.hasLoadedAll {
+            await dataStore.loadAll()
+        }
+        configure(auth: authService, dataStore: dataStore)
+        return try requireCurrentSession()
     }
 
     private func isCurrentSession(_ sessionID: UUID) -> Bool {

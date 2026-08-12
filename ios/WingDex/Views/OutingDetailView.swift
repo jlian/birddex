@@ -4,6 +4,7 @@ import MapKit
 struct OutingDetailView: View {
     let outingId: String
     var beginsLocationEditing = false
+    @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var showDeleteConfirm = false
@@ -110,21 +111,23 @@ struct OutingDetailView: View {
 
             // Actions
             Section {
-                Button {
-                    Task { await exportOuting(outing) }
-                } label: {
-                    if isExporting {
-                        HStack {
-                            ProgressView()
-                                .controlSize(.mini)
-                            Text("Exporting...")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting(outing) }
+                    } label: {
+                        if isExporting {
+                            HStack {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                Text("Exporting...")
+                            }
+                        } else {
+                            Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(Color.accentColor)
                         }
-                    } else {
-                        Label("Export eBird CSV", systemImage: "square.and.arrow.up")
-                            .foregroundStyle(Color.accentColor)
                     }
+                    .disabled(confirmed.isEmpty || isExporting)
                 }
-                .disabled(confirmed.isEmpty || isExporting)
 
                 Button(role: .destructive) {
                     showDeleteConfirm = true
