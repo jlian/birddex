@@ -98,9 +98,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
       if (candidateIds.length > 0) {
         const existingIds = new Set<string>()
-        // Chunked to stay well inside SQLite's bound-parameter limit on a large
-        // export, which can carry hundreds of checklists.
-        const CHUNK = 100
+        // D1 caps a query at 100 bound parameters, and userId takes one of them.
+        const CHUNK = 99
         for (let i = 0; i < candidateIds.length; i += CHUNK) {
           const chunk = candidateIds.slice(i, i + CHUNK)
           const placeholders = chunk.map(() => '?').join(', ')
@@ -221,10 +220,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       skipped: { rows: skippedRowCount },
       dexUpdates: enrichDexEntries(dexUpdates),
     }), `Imported eBird CSV from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')} with ${newSpecies} new species, skipping ${countLabel(skippedRowCount, 'row')} already imported`)
-  } catch {
+  } catch (error) {
+    // The stage alone cannot distinguish a bad CSV from a broken query, and the
+    // description is stripped before the response leaves the middleware.
+    const cause = error instanceof Error ? error.message : String(error)
     if (importBatchCommitted) {
-      return route.fail(500, 'Internal server error', `Committed eBird import batch with ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}; post-commit dex recomputation failed`)
+      return route.fail(500, 'Internal server error', `Committed eBird import batch with ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}; post-commit dex recomputation failed: ${cause}`)
     }
-    return route.fail(500, 'Internal server error', `eBird import failed during stage: ${stage}; no import batch was committed`)
+    return route.fail(500, 'Internal server error', `eBird import failed during stage: ${stage}; no import batch was committed: ${cause}`)
   }
 }
