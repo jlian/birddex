@@ -203,3 +203,51 @@ test('the session cookie is HttpOnly and lasts about a year', async ({ page, con
   expect(daysOut).toBeGreaterThan(300)
   expect(daysOut).toBeLessThan(400)
 })
+
+test('the exit: logging out clears the previous account from the screen', async ({ page }) => {
+  await loadApp(page)
+
+  await addSighting(page, 'Semiahmoo Park')
+  await page.reload()
+  await page.getByRole('tab', { name: 'Outings' }).first().click()
+  await expect(page.getByText('Semiahmoo Park')).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Log out' }).click()
+
+  // Without a reload. The data hook skipped its fetch when the session went
+  // away and left the signed-out account's payload in state, so the next
+  // person at a shared machine kept seeing it.
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible({ timeout: 10_000 })
+  await page.getByRole('tab', { name: 'Outings' }).first().click()
+  // Asserted on the empty state rather than the absence of the outing: a bare
+  // toBeHidden passes before the list has rendered at all.
+  await expect(page.getByText('No outings yet')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Semiahmoo Park')).toBeHidden()
+})
+
+test('a returning user is never shown the logged-out button while the session resolves', async ({ page }) => {
+  // A real account, because an anonymous session's avatar button is also
+  // labelled "Log in" and would not tell the two states apart.
+  await loadApp(page)
+  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible({ timeout: 10_000 })
+
+  // Hold the session check open so the pre-resolution header is observable at
+  // all. Without this the race is real but far too short to assert on.
+  let release: () => void = () => {}
+  const held = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/auth/get-session*', async route => {
+    await held
+    await route.continue()
+  })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('tab', { name: 'Outings' }).first()).toBeVisible({ timeout: 10_000 })
+  await expect(
+    page.getByRole('button', { name: 'Log in' }),
+    'the header must hold the slot rather than claim the user is logged out',
+  ).toBeHidden()
+
+  release()
+  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible({ timeout: 10_000 })
+})

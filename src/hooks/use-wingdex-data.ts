@@ -182,7 +182,13 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     // A guest has no session yet, so this request can only 401. Skipping it keeps
     // the console clean and avoids a pointless round trip; the effect below re-runs
     // once an account exists, because `hasSession` and `userId` both change then.
-    if (!hasSession) return
+    //
+    // Clearing rather than returning: signing out must not leave the previous
+    // account's sightings on screen until the next reload.
+    if (!hasSession) {
+      setPayload({ outings: [], photos: [], observations: [], dex: [] })
+      return
+    }
     try {
       const next = await apiJson<WingDexPayload>('/api/data/all')
       setStorageMode('api')

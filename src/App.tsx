@@ -151,9 +151,16 @@ function App() {
   const wasRealUserRef = useRef(false)
   const explicitSignOutRef = useRef(false)
   const [anonBootstrapFailed, setAnonBootstrapFailed] = useState(false)
+  // Only the first check matters: once the answer is known, later refetches keep
+  // showing it rather than blanking the header again.
+  const [sessionResolved, setSessionResolved] = useState(false)
   // Starts as a guest rather than null: with no BootShell, the app renders
   // immediately and a real session upgrades this in place when it resolves.
   const [user, setUser] = useState<UserInfo>(() => getGuestUser())
+
+  useEffect(() => {
+    if (!isSessionPending) setSessionResolved(true)
+  }, [isSessionPending])
 
   const fetchLinkedProviders = useCallback(async (): Promise<string[]> => {
     try {
@@ -341,10 +348,10 @@ function App() {
 
   // A guest is a placeholder identity with no server row, so data fetching waits
   // until a real session exists.
-  return <AppContent user={user} hasSession={Boolean(session?.user)} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
+  return <AppContent user={user} hasSession={Boolean(session?.user)} sessionResolved={sessionResolved} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
 }
 
-function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; hasSession: boolean; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {
+function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; hasSession: boolean; sessionResolved: boolean; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {
   const { tab, subId, navigate, handleTabChange } = useHashRouter()
   const [showAddPhotos, setShowAddPhotos] = useState(false)
   const data = useWingDexData(user.id, { hasSession })
@@ -550,7 +557,12 @@ function AppContent({ user, hasSession, refetchSession, ensureAnonymousSession, 
 
               {/* Right side: generic icon until an account exists, then the bird avatar */}
               <div className="flex items-center gap-3">
-                {!hasSession ? (
+                {!sessionResolved ? (
+                  // A returning user would otherwise be shown the logged-out
+                  // button for the length of the session check. Hold the slot
+                  // instead of guessing wrong, and keep the body painting.
+                  <div className="h-8 w-8" aria-hidden="true" />
+                ) : !hasSession ? (
                   <button
                     onClick={() => openSignIn()}
                     className="inline-flex items-center justify-center rounded-md text-primary cursor-pointer press-feel-light h-8 w-8"
