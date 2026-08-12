@@ -75,6 +75,8 @@ test.describe('API smoke (request context)', () => {
 
     const exported = await api.get('/api/export/sightings', { headers: { cookie } })
     expect(exported.status(), 'export stays open as the leave-with-your-data path').toBe(200)
+    expect((await api.get('/api/export/dex', { headers: { cookie } })).status()).toBe(403)
+    expect((await api.get('/api/export/outing/missing', { headers: { cookie } })).status()).toBe(403)
 
     await api.dispose()
   })
