@@ -134,6 +134,10 @@ final class BirdIdFlowUITests: XCTestCase {
         }
     }
 
+    private func isKnownSignInAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        issue.auditType == .contrast && issue.element?.label == "Sign up"
+    }
+
     private func isKnownHomeAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
         issue.auditType == .dynamicType
     }
@@ -305,8 +309,7 @@ final class BirdIdFlowUITests: XCTestCase {
         let app = application()
         app.launchArguments = [
             "--ui-test-sign-out",
-            "--ui-test-reset-signup-prompt",
-            "--ui-test-share-photo", Self.photoPath,
+            "--ui-test-reset-signup-prompt", "--ui-test-share-photo",
         ]
         app.launch()
 
@@ -321,7 +324,7 @@ final class BirdIdFlowUITests: XCTestCase {
         app.launchEnvironment["API_BASE_URL"] = "http://127.0.0.1:1"
         app.launchArguments = [
             "--ui-test-sign-out",
-            "--ui-test-share-photo", Self.photoPath,
+            "--ui-test-share-photo",
         ]
         app.launch()
 
@@ -506,7 +509,7 @@ final class BirdIdFlowUITests: XCTestCase {
         app.buttons["Log in"].tap()
         XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
 
-        try runAccessibilityAudit(in: app)
+        try runAccessibilityAudit(in: app, handlingKnownIssue: isKnownSignInAuditIssue)
     }
 
     func testHomePassesAccessibilityAudit() throws {

@@ -240,17 +240,8 @@ struct MainTabView: View {
                     if !store.hasLoadedAll { await store.loadAll() }
                     guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
                 }
-                if let shareFlag = arguments.firstIndex(of: "--ui-test-share-photo"),
-                   arguments.index(after: shareFlag) < arguments.endIndex {
-                    let path = arguments[arguments.index(after: shareFlag)]
-                    guard let image = UIImage(contentsOfFile: path),
-                          let imageData = image.jpegData(compressionQuality: 0.9)
-                    else { throw IncomingShareError.stagingFailed }
-                    let stagedSource = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("ui-test-share-\(UUID().uuidString).jpg")
-                    try imageData.write(to: stagedSource, options: .atomic)
-                    defer { try? FileManager.default.removeItem(at: stagedSource) }
-                    try await IncomingShareStore.stage(fileURLs: [stagedSource])
+                if arguments.contains("--ui-test-share-photo") {
+                    try await stageUITestSharePhoto()
                     navigation.handleIncomingShare()
                 }
                 if arguments.contains("--ui-test-clear-data") {
@@ -376,6 +367,24 @@ struct MainTabView: View {
     }
 
     #if DEBUG
+    private func stageUITestSharePhoto() async throws {
+        let size = CGSize(width: 320, height: 240)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor.systemYellow.setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 110, y: 70, width: 100, height: 100))
+        }
+        guard let data = image.jpegData(compressionQuality: 0.9) else {
+            throw IncomingShareError.stagingFailed
+        }
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ui-test-share-\(UUID().uuidString).jpg")
+        try data.write(to: source, options: Data.WritingOptions.atomic)
+        defer { try? FileManager.default.removeItem(at: source) }
+        try await IncomingShareStore.stage(fileURLs: [source])
+    }
+
     /// Feeds a bird photo straight into the add-photos flow so UI tests can exercise
     /// on-device identification. The system photo picker runs out of process and is
     /// invisible to the accessibility tree, so it cannot be driven from a test. The
