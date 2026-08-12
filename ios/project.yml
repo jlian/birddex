@@ -206,13 +206,8 @@ schemes:
         WingDex: all
     run:
       config: Localhost Debug
-      # On by default: Localhost points at a throwaway local backend, so a run
-      # should land in a signed-in app with data rather than an empty one.
-      # Untick in Xcode for a cold-start run, but change it here to make it
-      # stick, since xcodegen rewrites the scheme.
       commandLineArguments:
-        "--auto-sign-in": true
-        "--auto-demo-data": true
+        "--auto-sign-in": false
     test:
       config: Localhost Debug
       targets:
@@ -233,7 +228,6 @@ schemes:
       config: Dev Debug
       commandLineArguments:
         "--auto-sign-in": false
-        "--auto-demo-data": false
     test:
       config: Dev Debug
       targets:

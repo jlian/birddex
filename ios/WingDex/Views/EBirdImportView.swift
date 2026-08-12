@@ -4,7 +4,7 @@ import os
 
 private let log = Logger(subsystem: Config.bundleID, category: "EBirdImport")
 
-/// eBird CSV import flow with timezone picker, help section, and conflict display.
+/// eBird CSV import flow with timezone picker and export help.
 struct EBirdImportView: View {
     let auth: AuthService
     /// Called after a successful import with the new-species count and their display names.
@@ -56,12 +56,6 @@ struct EBirdImportView: View {
     @State private var showHelp = false
     @State private var isImporting = false
     @State private var importError: AppError?
-
-    // Preview state
-    @State private var previews: [DataService.ImportPreview] = []
-    @State private var showPreview = false
-    @State private var selectedPreviewIds: Set<String> = []
-    @State private var previewAccountID: String?
 
     private var timezoneOptions: [(value: String, label: String)] {
         let now = Date()
@@ -139,32 +133,6 @@ struct EBirdImportView: View {
                     }
                 }
 
-                // Preview / conflict display
-                if showPreview, !previews.isEmpty {
-                    Section {
-                        let duplicates = previews.filter { $0.conflict == "duplicate" }
-                        let nonDuplicates = previews.filter { $0.conflict != "duplicate" }
-
-                        if !duplicates.isEmpty {
-                            Text("\(duplicates.count) duplicate\(duplicates.count == 1 ? "" : "s") will be skipped")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Text("\(nonDuplicates.count) observation\(nonDuplicates.count == 1 ? "" : "s") ready to import")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-
-                        Button {
-                            Task { await confirmImport() }
-                        } label: {
-                            Label("Confirm Import", systemImage: "checkmark.circle")
-                        }
-                        .disabled(selectedPreviewIds.isEmpty || isImporting)
-                    } header: {
-                        Text("Preview")
-                    }
-                }
             }
             .scrollContentBackground(.hidden)
             .background(Color.pageBg.ignoresSafeArea())
@@ -182,11 +150,6 @@ struct EBirdImportView: View {
             ) { result in
                 Task { await handleFileSelection(result) }
             }
-            .onChange(of: store.activeAccountID) { _, accountID in
-                guard accountID != previewAccountID else { return }
-                discardPreview()
-            }
-            .onDisappear { discardPreview() }
         }
     }
 
@@ -208,7 +171,6 @@ struct EBirdImportView: View {
 
     private func handleFileSelection(_ result: Result<[URL], Error>) async {
         importError = nil
-        showPreview = false
 
         switch result {
         case .failure(let error):
@@ -232,75 +194,27 @@ struct EBirdImportView: View {
 
                 let service = DataService(auth: auth, expectedAccountID: accountID)
                 let timezone = selectedTimezone == "observation-local" ? nil : selectedTimezone
-                let results = try await service.importEBirdCSVPreview(csvData, profileTimezone: timezone)
-                guard store.activeAccountID == accountID, store.hasLoadedAll else {
-                    throw CancellationError()
-                }
+                let priorSpecies = Set(store.dex.map(\.speciesName))
+                let imported = try await service.importEBirdCSV(csvData, profileTimezone: timezone)
+                guard store.activeAccountID == accountID else { throw CancellationError() }
 
-                previewAccountID = accountID
-                previews = results
-                selectedPreviewIds = Set(
-                    results
-                        .filter { $0.conflict != "duplicate" }
-                        .map(\.previewId)
-                )
-                showPreview = true
-                isImporting = false
+                await store.loadAll()
+                guard store.activeAccountID == accountID else { throw CancellationError() }
+                let newSpeciesNames = store.dex
+                    .map(\.speciesName)
+                    .filter { !priorSpecies.contains($0) }
+                    .map { getDisplayName($0) }
+
+                log.info("Imported eBird data across \(imported.imported.outings) outings; skipped \(imported.skipped.rows) rows")
+                onImported?(imported.imported.newSpecies, newSpeciesNames)
+                dismiss()
             } catch is CancellationError {
-                discardPreview()
+                isImporting = false
             } catch {
-                importError = AppError.map(error, fallback: "Could not preview this CSV. Check the file and try again.")
+                importError = AppError.map(error, fallback: "Could not import this CSV. Check the file and try again.")
                 isImporting = false
             }
         }
-    }
-
-    private func confirmImport() async {
-        guard !selectedPreviewIds.isEmpty,
-              let accountID = previewAccountID,
-              store.activeAccountID == accountID,
-              store.hasLoadedAll
-        else {
-            discardPreview()
-            return
-        }
-        isImporting = true
-        importError = nil
-
-        do {
-            let service = DataService(auth: auth, expectedAccountID: accountID)
-            let priorSpecies = Set(store.dex.map(\.speciesName))
-            let result = try await service.confirmImport(previewIds: Array(selectedPreviewIds))
-            guard store.activeAccountID == accountID else { throw CancellationError() }
-
-            await store.loadAll()
-            guard store.activeAccountID == accountID else { throw CancellationError() }
-
-            let newSpeciesNames = store.dex
-                .map(\.speciesName)
-                .filter { !priorSpecies.contains($0) }
-                .map { getDisplayName($0) }
-
-            let message = "Imported eBird data across \(result.imported.outings) outing\(result.imported.outings == 1 ? "" : "s")"
-                + (result.imported.newSpecies > 0 ? " (\(result.imported.newSpecies) new!)" : "")
-            log.info("\(message)")
-
-            onImported?(result.imported.newSpecies, newSpeciesNames)
-            dismiss()
-        } catch is CancellationError {
-            discardPreview()
-        } catch {
-            importError = AppError.map(error, fallback: "Could not import this CSV. Try again.")
-            isImporting = false
-        }
-    }
-
-    private func discardPreview() {
-        previewAccountID = nil
-        previews = []
-        selectedPreviewIds = []
-        showPreview = false
-        isImporting = false
     }
 }
 

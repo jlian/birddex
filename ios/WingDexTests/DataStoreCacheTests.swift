@@ -4,6 +4,17 @@ import XCTest
 
 @MainActor
 final class DataStoreCacheTests: XCTestCase {
+    func testSingleRequestImportResponseDecodesSummaryAndSkippedRows() throws {
+        let data = Data(#"{"imported":{"outings":2,"observations":3,"newSpecies":1},"skipped":{"rows":4},"dexUpdates":[]}"#.utf8)
+
+        let response = try JSONDecoder().decode(DataService.ImportResponse.self, from: data)
+
+        XCTAssertEqual(response.imported.outings, 2)
+        XCTAssertEqual(response.imported.observations, 3)
+        XCTAssertEqual(response.imported.newSpecies, 1)
+        XCTAssertEqual(response.skipped.rows, 4)
+    }
+
     func testDerivedDataRebuildsWhenRawCollectionsChange() {
         let store = DataStore(service: ServiceStub(result: .failure(URLError(.notConnectedToInternet))))
         let older = Outing(
@@ -370,34 +381,6 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(store.outings.first?.locationName, "Final Marsh")
     }
 
-    func testDemoLoadSerializesItsFullReplacementSequence() async throws {
-        let service = DemoLoadRaceService(
-            initial: fixtureResponse(locationName: "Initial Marsh"),
-            replacement: fixtureResponse(locationName: "Demo Marsh")
-        )
-        let store = DataStore(service: service)
-        store.activate(accountID: "account-a")
-        await store.loadAll()
-
-        let demoLoad = Task { try await store.loadDemoData() }
-        await service.waitUntilClearStarts()
-        let queuedRefresh = Task { await store.loadAll() }
-        await Task.yield()
-        let callsWhileClearIsSuspended = await service.recordedCalls()
-        XCTAssertEqual(callsWhileClearIsSuspended, ["fetch", "clear"])
-
-        await service.completeClear()
-        try await demoLoad.value
-        await queuedRefresh.value
-
-        let completedCalls = await service.recordedCalls()
-        XCTAssertEqual(
-            completedCalls,
-            ["fetch", "clear", "import", "confirm", "fetch", "fetch"]
-        )
-        XCTAssertEqual(store.outings.first?.locationName, "Demo Marsh")
-    }
-
     func testOverlappingRefreshCannotRestoreSuccessfullyDeletedData() async throws {
         let service = RefreshDeleteRaceService(response: fixtureResponse(locationName: "Fresh Marsh"))
         let cache = CacheStub(snapshot: nil)
@@ -540,8 +523,7 @@ private final class ServiceStub: DataStoreService, @unchecked Sendable {
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
     func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] { [] }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse { fatalError() }
+    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse { fatalError() }
     func clearAllData() async throws { clearAllCalls += 1 }
 }
 
@@ -580,62 +562,8 @@ private actor MultiFetchService: DataStoreService {
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
     func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] { [] }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse { fatalError() }
+    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse { fatalError() }
     func clearAllData() async throws {}
-}
-
-private actor DemoLoadRaceService: DataStoreService {
-    private let initial: AllDataResponse
-    private let replacement: AllDataResponse
-    private var calls: [String] = []
-    private var clearContinuation: CheckedContinuation<Void, Never>?
-    private var clearWaiters: [CheckedContinuation<Void, Never>] = []
-
-    init(initial: AllDataResponse, replacement: AllDataResponse) {
-        self.initial = initial
-        self.replacement = replacement
-    }
-
-    func fetchAllData() async throws -> AllDataResponse {
-        calls.append("fetch")
-        return calls.filter { $0 == "fetch" }.count == 1 ? initial : replacement
-    }
-
-    func clearAllData() async throws {
-        calls.append("clear")
-        clearWaiters.forEach { $0.resume() }
-        clearWaiters.removeAll()
-        await withCheckedContinuation { clearContinuation = $0 }
-    }
-
-    func waitUntilClearStarts() async {
-        guard !calls.contains("clear") else { return }
-        await withCheckedContinuation { clearWaiters.append($0) }
-    }
-
-    func completeClear() {
-        clearContinuation?.resume()
-        clearContinuation = nil
-    }
-
-    func recordedCalls() -> [String] { calls }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] {
-        calls.append("import")
-        return ["preview-1"]
-    }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse {
-        calls.append("confirm")
-        return DataService.ImportConfirmResponse(
-            imported: .init(outings: 1, newSpecies: 1)
-        )
-    }
-    func deleteOuting(id _: String) async throws -> DexUpdateResponse { fatalError() }
-    func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
-    func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
-    func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
-    func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
-    func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
 }
 
 private actor SuspendedFetchService: DataStoreService {
@@ -668,8 +596,7 @@ private actor SuspendedFetchService: DataStoreService {
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
     func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] { [] }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse { fatalError() }
+    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse { fatalError() }
     func clearAllData() async throws {}
 }
 
@@ -707,8 +634,7 @@ private actor RefreshDeleteRaceService: DataStoreService {
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
     func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] { [] }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse { fatalError() }
+    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse { fatalError() }
     func clearAllData() async throws {}
 }
 
@@ -748,8 +674,7 @@ private actor SuspendedDeleteService: DataStoreService {
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
     func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] { [] }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse { fatalError() }
+    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse { fatalError() }
     func clearAllData() async throws {}
 }
 
@@ -788,7 +713,6 @@ private actor AmbiguousDeleteService: DataStoreService {
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
     func exportOutingCSV(outingId _: String) async throws -> Data { Data() }
-    func importEBirdCSV(_ csvData: Data) async throws -> [String] { [] }
-    func confirmImport(previewIds _: [String]) async throws -> DataService.ImportConfirmResponse { fatalError() }
+    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse { fatalError() }
     func clearAllData() async throws {}
 }

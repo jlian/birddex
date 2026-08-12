@@ -408,39 +408,6 @@ final class DataStore {
         }
     }
 
-    /// Load demo data by importing the bundled eBird CSV.
-    func loadDemoData() async throws {
-        let mutationContext = try await acquireOperationContext(requireLoadedSnapshot: true)
-        defer { releaseOperation(mutationContext) }
-        guard let service else { throw AuthError.notAuthenticated }
-        guard let csvURL = Bundle.main.url(forResource: "demo-ebird-import", withExtension: "csv"),
-              let csvData = try? Data(contentsOf: csvURL)
-        else {
-            throw AppError.message("Demo data isn't available in this build.")
-        }
-
-        do {
-            try await service.clearAllData()
-            guard isCurrentMutation(mutationContext) else { return }
-            let previewIds = try await service.importEBirdCSV(csvData)
-            guard isCurrentMutation(mutationContext) else { return }
-            _ = try await service.confirmImport(previewIds: previewIds)
-            guard isCurrentMutation(mutationContext) else { return }
-            let response = try await service.fetchAllData()
-            guard isCurrentMutation(mutationContext) else { return }
-            install(response)
-            hasLoadedAll = true
-            cachedAt = nil
-            confirmAndPersistCurrentSnapshot()
-        } catch {
-            guard isCurrentMutation(mutationContext) else { return }
-            restoreConfirmedSnapshot()
-            log.warning("Demo data load failed; reconciling account data")
-            reconcileAfterMutationFailure(mutationContext)
-            throw error
-        }
-    }
-
     private func install(_ response: AllDataResponse) {
         outings = response.outings
         photos = response.photos
