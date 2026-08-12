@@ -119,6 +119,72 @@ test('the loss event: clearing cookies leaves a working app', async ({ page, con
   await expect(page.getByText('Doomed Patch')).toBeHidden()
 })
 
+test('the collision: signing in to another account does not merge or silently discard', async ({ page, context }) => {
+  // One authenticator kept alive for the whole test, so the passkey created at
+  // signup can be used to sign back in later. The shared helper removes its
+  // authenticator when it is done, which would strand the credential.
+  const cdp = await context.newCDPSession(page)
+  await cdp.send('WebAuthn.enable')
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2',
+      transport: 'internal',
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  }) as { authenticatorId: string }
+
+  try {
+    await loadApp(page, { promote: false })
+
+    // Account A, with its own sighting.
+    await page.getByRole('button', { name: 'Log in' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 })
+    await page.getByRole('dialog').getByRole('button', { name: 'Sign up' }).click()
+    await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible({ timeout: 10_000 })
+
+    const accountA = await readSession(page)
+    expect(accountA?.isAnonymous).toBe(false)
+    await addSighting(page, 'Account A Patch')
+
+    // Now a different visitor on the same browser: no session, then their own
+    // anonymous sightings.
+    await context.clearCookies()
+    await page.reload()
+    await expect(page.locator('header')).toBeVisible({ timeout: 5_000 })
+    await startAnonymousSession(page)
+    await addSighting(page, 'Anonymous Patch')
+
+    const anonymous = await readSession(page)
+    expect(anonymous?.isAnonymous).toBe(true)
+    expect(anonymous?.id).not.toBe(accountA?.id)
+
+    await page.getByRole('button', { name: 'Log in' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+    await dialog.getByRole('button', { name: 'Log in' }).click()
+
+    // The warning is the whole point: this is where the sightings are lost.
+    await expect(dialog.getByRole('button', { name: 'Export sightings as CSV' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Continue to log in' }).click()
+
+    await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible({ timeout: 10_000 })
+    const after = await readSession(page)
+    expect(after?.id, 'signing in lands in the account that owns the passkey').toBe(accountA?.id)
+
+    // Merging is rejected on purpose, and so is silently dropping the data
+    // without saying so first.
+    await page.getByRole('tab', { name: 'Outings' }).first().click()
+    await expect(page.getByText('Account A Patch')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Anonymous Patch')).toBeHidden()
+  } finally {
+    await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => undefined)
+    await cdp.detach().catch(() => undefined)
+  }
+})
+
 test('the session cookie is HttpOnly and lasts about a year', async ({ page, context }) => {
   await loadApp(page, { promote: false })
   await promoteAnonymousUser(page)

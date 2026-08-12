@@ -205,7 +205,7 @@ test.describe('CSV import + photo upload integration', () => {
     await mockGeocoding(page, 'Haleakala National Park, Maui')
     await mockWikimedia(page)
 
-    await loadApp(page)
+    await loadApp(page, { promote: false })
 
     // Open upload wizard
     await page.getByRole('button', { name: 'Upload & Identify' }).click()
@@ -246,6 +246,11 @@ test.describe('CSV import + photo upload integration', () => {
     // Dialog shows upload summary - dismiss it
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 })
     await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
+
+    // Closing the flow after the first save is where the one sign-up prompt
+    // fires, and this is the only test that reaches it through a real upload.
+    await expect(page.getByRole('heading', { name: 'Keep your sightings' })).toBeVisible({ timeout: 5_000 })
+    await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 5_000 })
 
     // Navigate to Outings and verify the new outing is visible immediately (no refresh)
@@ -265,7 +270,7 @@ test.describe('CSV import + photo upload integration', () => {
 
   test('location search waits for explicit submission and uses the WingDex route', async ({ page }) => {
     await mockGeocoding(page, 'Discovery Park, Seattle')
-    await loadApp(page)
+    await loadApp(page, { promote: false })
 
     await page.getByRole('button', { name: 'Upload & Identify' }).click()
     const dialog = page.getByRole('dialog')
@@ -379,7 +384,7 @@ test.describe('CSV import + photo upload integration', () => {
     await mockGeocoding(page, 'Discovery Park, Seattle')
     await mockWikimedia(page)
 
-    await loadApp(page)
+    await loadApp(page, { promote: false })
 
     // Open upload wizard
     await page.getByRole('button', { name: 'Upload & Identify' }).click()
@@ -425,6 +430,10 @@ test.describe('CSV import + photo upload integration', () => {
     // Dialog shows upload summary - dismiss it
     await expect(dialog).toBeVisible({ timeout: 10_000 })
     await dialog.getByRole('button', { name: 'Done' }).click()
+
+    // The one sign-up prompt fires as the flow closes on a first save.
+    await expect(page.getByRole('heading', { name: 'Keep your sightings' })).toBeVisible({ timeout: 5_000 })
+    await page.keyboard.press('Escape')
     await expect(dialog).not.toBeVisible({ timeout: 10_000 })
   })
 })
