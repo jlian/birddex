@@ -48,6 +48,7 @@ final class AddPhotosViewModel {
 
     var currentStep: Step = .selectPhotos
     private(set) var flowDismissalRequestID = UUID()
+    private(set) var resumesPendingShareAfterDismissal = true
 
     // MARK: - Photo Selection
 
@@ -162,6 +163,10 @@ final class AddPhotosViewModel {
         authService = nil
         dataService = nil
         dataStore = nil
+    }
+
+    func suppressPendingShareAutoResume() {
+        resumesPendingShareAfterDismissal = false
     }
 
     func createOuting(_ outing: Outing) async throws -> Outing {

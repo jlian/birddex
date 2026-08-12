@@ -173,112 +173,106 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       }
     }
 
-    stage = 'group the importable rows into outings'
-    const { outings, observations } = groupPreviewsIntoOutings(importableRows, userId)
-    persistedOutingCount = outings.length
-    persistedObservationCount = observations.length
-
-    const insertStatements: D1PreparedStatement[] = []
-
-    insertStatements.push(
-      context.env.DB
-        .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
-        .bind(userId, 'file', fileIdentityKey, parsedRowCount)
-    )
-
-    const newSubmissionIds = [...new Set(
-      importableRows
-        .map(row => row.submissionId)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0),
-    )]
-    for (const submissionId of newSubmissionIds) {
-      insertStatements.push(
+    const commitRows = async (rows: typeof parsedRows) => {
+      stage = 'group the importable rows into outings'
+      const { outings, observations } = groupPreviewsIntoOutings(rows, userId)
+      const insertStatements: D1PreparedStatement[] = [
         context.env.DB
           .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
-          .bind(
-            userId,
-            'submission',
-            submissionId,
-            importableRows.filter(row => row.submissionId === submissionId).length,
-          )
-      )
-    }
-
-    for (const outing of outings) {
-      const columns = ['id', 'userId', 'startTime', 'endTime', 'locationName', 'defaultLocationName', 'lat', 'lon', 'notes', 'createdAt']
-      const values: (string | number | null)[] = [
-        outing.id,
-        userId,
-        outing.startTime,
-        outing.endTime,
-        outing.locationName,
-        outing.defaultLocationName ?? null,
-        outing.lat ?? null,
-        outing.lon ?? null,
-        outing.notes,
-        outing.createdAt,
+          .bind(userId, 'file', fileIdentityKey, parsedRowCount),
       ]
 
-      if (supportsRegionColumns) {
-        columns.push('stateProvince', 'countryCode')
-        values.push(outing.stateProvince ?? null, outing.countryCode ?? null)
-      }
-
-      if (supportsChecklistColumns) {
-        columns.push('protocol', 'numberObservers', 'allObsReported', 'effortDistanceMiles', 'effortAreaAcres')
-        values.push(
-          outing.protocol ?? null,
-          outing.numberObservers ?? null,
-          outing.allObsReported == null ? null : outing.allObsReported ? 1 : 0,
-          outing.effortDistanceMiles ?? null,
-          outing.effortAreaAcres ?? null,
+      const submissionIds = [...new Set(
+        rows
+          .map(row => row.submissionId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      )]
+      for (const submissionId of submissionIds) {
+        insertStatements.push(
+          context.env.DB
+            .prepare('INSERT INTO importIdentity (userId, source, sourceKey, rowCount) VALUES (?, ?, ?, ?)')
+            .bind(userId, 'submission', submissionId, rows.filter(row => row.submissionId === submissionId).length)
         )
       }
 
-      const placeholders = values.map((_, index) => `?${index + 1}`).join(', ')
-      insertStatements.push(
-        context.env.DB
-          .prepare(`INSERT INTO outing (${columns.join(', ')}) VALUES (${placeholders})`)
-          .bind(...values)
-      )
-    }
-
-    for (const observation of observations) {
-      const columns = ['id', 'outingId', 'userId', 'speciesName', 'count', 'certainty', 'notes']
-      const values: (string | number | null)[] = [
-        observation.id,
-        observation.outingId,
-        userId,
-        observation.speciesName,
-        observation.count,
-        observation.certainty,
-        observation.notes,
-      ]
-
-      if (supportsSpeciesCommentsColumn) {
-        // The imported note belongs in speciesComments, leaving notes empty.
-        columns.push('speciesComments')
-        values.push(observation.notes || null)
-        values[columns.indexOf('notes')] = ''
+      for (const outing of outings) {
+        const columns = ['id', 'userId', 'startTime', 'endTime', 'locationName', 'defaultLocationName', 'lat', 'lon', 'notes', 'createdAt']
+        const values: (string | number | null)[] = [
+          outing.id, userId, outing.startTime, outing.endTime, outing.locationName,
+          outing.defaultLocationName ?? null, outing.lat ?? null, outing.lon ?? null,
+          outing.notes, outing.createdAt,
+        ]
+        if (supportsRegionColumns) {
+          columns.push('stateProvince', 'countryCode')
+          values.push(outing.stateProvince ?? null, outing.countryCode ?? null)
+        }
+        if (supportsChecklistColumns) {
+          columns.push('protocol', 'numberObservers', 'allObsReported', 'effortDistanceMiles', 'effortAreaAcres')
+          values.push(
+            outing.protocol ?? null,
+            outing.numberObservers ?? null,
+            outing.allObsReported == null ? null : outing.allObsReported ? 1 : 0,
+            outing.effortDistanceMiles ?? null,
+            outing.effortAreaAcres ?? null,
+          )
+        }
+        const placeholders = values.map((_, index) => `?${index + 1}`).join(', ')
+        insertStatements.push(context.env.DB.prepare(`INSERT INTO outing (${columns.join(', ')}) VALUES (${placeholders})`).bind(...values))
       }
 
-      if (supportsSubmissionId) {
-        columns.push('submissionId')
-        values.push(observation.submissionId ?? null)
+      for (const observation of observations) {
+        const columns = ['id', 'outingId', 'userId', 'speciesName', 'count', 'certainty', 'notes']
+        const values: (string | number | null)[] = [
+          observation.id, observation.outingId, userId, observation.speciesName,
+          observation.count, observation.certainty, observation.notes,
+        ]
+        if (supportsSpeciesCommentsColumn) {
+          columns.push('speciesComments')
+          values.push(observation.notes || null)
+          values[columns.indexOf('notes')] = ''
+        }
+        if (supportsSubmissionId) {
+          columns.push('submissionId')
+          values.push(observation.submissionId ?? null)
+        }
+        const placeholders = values.map((_, index) => `?${index + 1}`).join(', ')
+        insertStatements.push(context.env.DB.prepare(`INSERT INTO observation (${columns.join(', ')}) VALUES (${placeholders})`).bind(...values))
       }
 
-      const placeholders = values.map((_, index) => `?${index + 1}`).join(', ')
-      insertStatements.push(
-        context.env.DB
-          .prepare(`INSERT INTO observation (${columns.join(', ')}) VALUES (${placeholders})`)
-          .bind(...values)
-      )
-    }
-
-    if (insertStatements.length > 0) {
       stage = 'commit the eBird import batch'
       await context.env.DB.batch(insertStatements)
-      importBatchCommitted = true
+      return { outings: outings.length, observations: observations.length }
+    }
+
+    let rowsToCommit = importableRows
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const committed = await commitRows(rowsToCommit)
+        persistedOutingCount = committed.outings
+        persistedObservationCount = committed.observations
+        importBatchCommitted = true
+        break
+      } catch {
+        const exactReceipt = await existingImportKeys(context.env.DB, userId, 'file', [fileIdentityKey])
+        if (exactReceipt.has(fileIdentityKey)) {
+          skippedRowCount = parsedRowCount
+          rowsToCommit = []
+          break
+        }
+        const candidateIds = [...new Set(rowsToCommit.flatMap(row => row.submissionId ? [row.submissionId] : []))]
+        const newlyClaimed = candidateIds.length > 0
+          ? await existingImportKeys(context.env.DB, userId, 'submission', candidateIds)
+          : new Set<string>()
+        const remaining = rowsToCommit.filter(row => !row.submissionId || !newlyClaimed.has(row.submissionId))
+        if (remaining.length === rowsToCommit.length) throw new Error('Import batch failed without a competing identity claim')
+        skippedRowCount += rowsToCommit.length - remaining.length
+        rowsToCommit = remaining
+      }
+    }
+    if (!importBatchCommitted && rowsToCommit.length > 0) {
+      throw new Error('Import identity retry limit exceeded')
+    }
+    if (importBatchCommitted) {
       route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}`)
     }
 

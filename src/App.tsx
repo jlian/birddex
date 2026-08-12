@@ -271,6 +271,7 @@ function App() {
     }
 
     anonBootstrapStarted.current = true
+    let succeeded = false
     const inFlight = authClient.signIn.anonymous().then((result) => {
       if (result.error) {
         setAnonBootstrapFailed(true)
@@ -291,6 +292,7 @@ function App() {
           isAnonymous: isAnon,
         })
       }
+      succeeded = true
       return true
     }).catch(() => {
       setAnonBootstrapFailed(true)
@@ -298,7 +300,9 @@ function App() {
       if (isDevRuntime()) setUser(getFallbackUser())
       return false
     }).finally(() => {
-      anonBootstrapPromise.current = null
+      // Keep a successful readiness promise until useSession publishes the
+      // session. Multiple first-write boundaries can run during that gap.
+      if (!succeeded) anonBootstrapPromise.current = null
     })
 
     anonBootstrapPromise.current = inFlight

@@ -126,9 +126,11 @@ struct MainTabView: View {
     @State private var addPhotosVM = AddPhotosViewModel()
     @State private var showingWizard = false
     @State private var initialDataLoaded = false
-    private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
     #if DEBUG
+    private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
+    #else
+    private let uiTestForcesSettings = false
     #endif
 
     var body: some View {
@@ -176,6 +178,7 @@ struct MainTabView: View {
             }
         }
         .fullScreenCover(isPresented: $showingWizard, onDismiss: {
+            let shouldResumePendingShare = addPhotosVM.resumesPendingShareAfterDismissal
             let shouldPrompt = auth.identity == .anonymous
                 && addPhotosVM.savedOutingCount > 0
                 && auth.userId.map { !SignupPromptStore.hasPrompted(userID: $0) } == true
@@ -185,7 +188,7 @@ struct MainTabView: View {
                 auth: auth,
                 dataStore: store
             )
-            if IncomingShareStore.hasPendingShare {
+            if shouldResumePendingShare, IncomingShareStore.hasPendingShare {
                 Task { await importIncomingShareIfAvailable() }
             }
             if shouldPrompt {

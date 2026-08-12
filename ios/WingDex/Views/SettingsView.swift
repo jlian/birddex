@@ -152,12 +152,14 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingEBirdImport) {
             EBirdImportView(auth: auth) { response, newSpeciesNames in
-                importNotice = TransientNotice(message: response.userMessage)
                 if response.imported.newSpecies > 0 {
                     celebration = LiferCelebration(
                         newSpeciesCount: response.imported.newSpecies,
-                        speciesNames: newSpeciesNames
+                        speciesNames: newSpeciesNames,
+                        messageOverride: response.userMessage
                     )
+                } else {
+                    importNotice = TransientNotice(message: response.userMessage)
                 }
             }
         }

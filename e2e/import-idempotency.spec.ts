@@ -133,6 +133,37 @@ test('concurrent exact imports commit only one copy', async ({ page }) => {
   expect(await outingCount(page)).toBe(1)
 })
 
+test('concurrent overlapping exports keep each file unique rows', async ({ page }) => {
+  await loadApp(page)
+  const header = 'Submission ID,Common Name,Scientific Name,Taxonomic Order,Count,State/Province,County,Location ID,Location,Latitude,Longitude,Date,Time,Protocol,Duration (Min),All Obs Reported,Distance Traveled (km),Area Covered (ha),Number of Observers,Breeding Code,Observation Details,Checklist Comments,ML Catalog Numbers'
+  const firstCsv = [
+    header,
+    'S-SHARED,Mallard,Anas platyrhynchos,,1,US-WA,King,L1,Shared Marsh,47.6,-122.4,2026-03-13,08:00 AM,Incidental,60,N,,,1,,,,',
+    'S-FIRST,Great Blue Heron,Ardea herodias,,1,US-WA,King,L1,First Marsh,47.6,-122.4,2026-03-13,09:00 AM,Incidental,60,N,,,1,,,,',
+  ].join('\n')
+  const secondCsv = [
+    header,
+    'S-SHARED,Mallard,Anas platyrhynchos,,1,US-WA,King,L1,Shared Marsh,47.6,-122.4,2026-03-13,08:00 AM,Incidental,60,N,,,1,,,,',
+    'S-SECOND,Bald Eagle,Haliaeetus leucocephalus,,1,US-WA,King,L2,Second Marsh,47.7,-122.3,2026-03-14,09:00 AM,Incidental,60,N,,,1,,,,',
+  ].join('\n')
+
+  const [first, second] = await Promise.all([
+    page.request.post('/api/import/ebird-csv', { multipart: { file: { name: 'first.csv', mimeType: 'text/csv', buffer: Buffer.from(firstCsv) } } }),
+    page.request.post('/api/import/ebird-csv', { multipart: { file: { name: 'second.csv', mimeType: 'text/csv', buffer: Buffer.from(secondCsv) } } }),
+  ])
+
+  expect(first.status()).toBe(200)
+  expect(second.status()).toBe(200)
+  const data = await page.request.get('/api/data/all')
+  const payload = await data.json() as { observations: Array<{ speciesName: string }> }
+  expect(payload.observations.map(row => row.speciesName)).toEqual(expect.arrayContaining([
+    'Mallard (Anas platyrhynchos)',
+    'Great Blue Heron (Ardea herodias)',
+    'Bald Eagle (Haliaeetus leucocephalus)',
+  ]))
+  expect(payload.observations.filter(row => row.speciesName.startsWith('Mallard')).length).toBe(1)
+})
+
 test('a WingDex export uses its outing ID and does not re-import into the same account', async ({ page }) => {
   await loadApp(page)
   const outingId = `outing_${crypto.randomUUID()}`

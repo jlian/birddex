@@ -46,7 +46,6 @@ paths:
                     example: ["github"]
         "401":
           $ref: "#/components/responses/Unauthorized"
-
   /api/auth/mobile/callback:
     get:
       operationId: mobileAuthCallback
@@ -574,6 +573,23 @@ paths:
                 type: string
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "413":
+          description: CSV file exceeds the 10 MB limit
+          content:
+            text/plain:
+              schema:
+                type: string
+        "429":
+          description: Import rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds before another import attempt
+          content:
+            text/plain:
+              schema:
+                type: string
 
 # =============================================================================
 # Components

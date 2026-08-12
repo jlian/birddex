@@ -329,6 +329,9 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 30), "Share bootstrap failure stayed invisible")
         XCTAssertTrue(alert.buttons["Retry"].exists)
         XCTAssertTrue(alert.buttons["Close Upload"].exists)
+        alert.buttons["Close Upload"].tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { !app.alerts["Could Not Continue"].exists })
+        XCTAssertFalse(app.buttons["Continue"].exists, "Explicit close immediately reopened the queued share")
     }
 
     func testColdLaunchShowsAccountOptionalShellAndGates() {

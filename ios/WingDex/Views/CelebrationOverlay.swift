@@ -9,9 +9,10 @@ struct LiferCelebration: Equatable, Identifiable {
     var newSpeciesCount: Int
     /// Display names of the newly added species. May be empty when only a count is known.
     var speciesNames: [String]
+    var messageOverride: String?
 
     var bannerMessage: String {
-        Self.bannerMessage(newSpeciesCount: newSpeciesCount, speciesNames: speciesNames)
+        messageOverride ?? Self.bannerMessage(newSpeciesCount: newSpeciesCount, speciesNames: speciesNames)
     }
 
     /// Build the banner text. Pure function so it can be unit tested.

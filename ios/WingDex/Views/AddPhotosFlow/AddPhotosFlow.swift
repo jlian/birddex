@@ -127,6 +127,7 @@ struct AddPhotosFlow: View {
     /// Dismiss the wizard full-screen cover. The onDismiss handler in
     /// MainTabView resets the view model and returns to the photo selection tab.
     private func dismissWizard() {
+        viewModel.suppressPendingShareAutoResume()
         viewModel.currentStep = .selectPhotos
         dismiss()
     }
