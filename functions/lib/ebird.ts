@@ -105,6 +105,8 @@ type DexEntryForExport = {
   notes?: string | null
 }
 
+// Keep the eBird Record shape with separate Genus/Species columns. The importer
+// accepts this shape, and Submission ID is what makes exported rows round-trip.
 const EBIRD_RECORD_HEADERS = [
   'Submission ID',
   'Common Name',
@@ -499,6 +501,8 @@ export function exportOutingToEBirdCSV(
 ): string {
   const localMatch = outing.startTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
 
+  // eBird Record CSV uses MM/DD/YYYY. Prefer the stored wall-clock components:
+  // converting an offset-aware timestamp through Date can shift its day or time.
   const date = localMatch
     ? `${localMatch[2]}/${localMatch[3]}/${localMatch[1]}`
     : (() => {
@@ -535,6 +539,8 @@ export function exportOutingToEBirdCSV(
     .filter(observation => observation.certainty === 'confirmed')
     .map(observation => {
       const commonName = sanitizeForEBird(getDisplayName(observation.speciesName))
+      // splitScientificName performs the sanitization. Leave unknown taxonomy
+      // empty rather than copying a common name into the scientific columns.
       const scientificName = getScientificName(observation.speciesName) || ''
       const { genus, species } = splitScientificName(scientificName)
 

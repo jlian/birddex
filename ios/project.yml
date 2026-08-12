@@ -1,6 +1,8 @@
 name: WingDex
 options:
   bundleIdPrefix: app.wingdex
+  # Product minimum: the UI uses iOS 26 Tab and Liquid Glass APIs. CI should
+  # install the matching runtime rather than lower this target.
   deploymentTarget:
     iOS: "26.0"
   xcodeVersion: "26.3"
@@ -207,6 +209,7 @@ schemes:
     run:
       config: Localhost Debug
       commandLineArguments:
+        # Localhost starts sessionless; individual tests opt into identities.
         "--auto-sign-in": false
     test:
       config: Localhost Debug

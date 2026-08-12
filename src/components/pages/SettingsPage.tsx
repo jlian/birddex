@@ -260,6 +260,8 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
       </Card>
       )}
 
+      {/* Keep nickname generation and editing as explicit server writes so the
+          display name and avatar are saved through one profile path. */}
       {!user.isAnonymous && (
       <Card className="p-4 space-y-4">
         <div className="space-y-2">
@@ -467,6 +469,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         </div>
       </Card>
 
+      {/* Ordinary import/export is account-only. The anonymous CSV escape hatch
+          exists only in the pre-login leave-with-your-data warning; middleware
+          enforces the same registered-account boundary. */}
       {!user.isAnonymous && (
       <Card className="p-4 space-y-4">
         <div className="space-y-2">

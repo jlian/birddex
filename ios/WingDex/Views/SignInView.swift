@@ -235,6 +235,8 @@ struct SignInView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white)
 
+                    // Both controls use prominent material for reliable contrast
+                    // over the moving collage; tint distinguishes login/signup.
                     HStack(spacing: 12) {
                         Button {
                             requestSignIn { try await auth.signInWithPasskey() }
@@ -343,6 +345,8 @@ struct SignInView: View {
               !manager.isDeviceMotionActive
         else { return }
         gravityBaseline = nil
+        // 30 Hz is deliberate: 60 Hz caused excess render churn, while 15 Hz
+        // made the parallax visibly choppy.
         manager.deviceMotionUpdateInterval = 1.0 / 30.0
         manager.startDeviceMotionUpdates(to: .main) { motion, _ in
             guard let gravity = motion?.gravity else { return }

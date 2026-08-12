@@ -718,6 +718,8 @@ function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureA
         </Suspense>
       )}
 
+      {/* Preview deployments may use production bundles, so hostname - not
+          build mode - decides whether commit diagnostics are useful. */}
       <footer className="flex flex-col-reverse items-center gap-4 px-4 pt-12 pb-10 text-xs text-muted-foreground/50 sm:flex-row sm:justify-center sm:gap-4">
         <div className="flex items-center gap-2">
           <a href="https://github.com/jlian/wingdex/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="press-feel-light">

@@ -69,6 +69,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        // Render the shell immediately, but do not activate restored account
+        // cache until session validation says valid or offline.
         MainTabView()
         .background(Color.pageBg.ignoresSafeArea())
         .onChange(of: auth.identity) { _, identity in
@@ -156,6 +158,8 @@ struct MainTabView: View {
             }
 
             Tab(value: AppTab.add, role: .search) {
+                // Add is a real tab, not a modal trigger. Its own stack keeps
+                // picker navigation scoped to the tab when it is reselected.
                 NavigationStack {
                     PhotoSelectionView(viewModel: addPhotosVM)
                         .navigationTitle("Add Photos")
@@ -245,6 +249,8 @@ struct MainTabView: View {
                     navigation.handleIncomingShare()
                 }
                 if arguments.contains("--ui-test-clear-data") {
+                    // Tests clear only the active account. Demo replacement was
+                    // removed because it could overwrite real anonymous data.
                     try await store.clearAll()
                 }
                 if let seedFlag = arguments.firstIndex(of: "--ui-test-seed-csv"),
@@ -307,6 +313,8 @@ struct MainTabView: View {
             }
         }
         .onChange(of: auth.userId) {
+            // A changed identity must finish its own load before queued shares
+            // can process; otherwise they can write under the departed account.
             initialDataLoaded = false
             addPhotosVM.configure(auth: auth, dataStore: store)
         }
