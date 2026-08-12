@@ -279,6 +279,7 @@ struct MainTabView: View {
                 }
                 if arguments.contains("--ui-test-open-settings") {
                     showingSettings = true
+                    await Task.yield()
                 }
                 uiTestDataSetupIdentifier = "ui-test.dataSetupComplete"
             } catch {
