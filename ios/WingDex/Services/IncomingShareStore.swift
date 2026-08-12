@@ -18,31 +18,37 @@ enum IncomingShareStore {
 
     private static let manifestsDirectoryName = "incoming-share-manifests"
 
-    static var hasPendingShare: Bool {
-        guard let container = FileManager.default.containerURL(
+    private nonisolated static var containerURL: URL? {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-test-share-photo")
+            || arguments.contains("--ui-test-clear-pending-share") {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("wingdex-ui-test-shares", isDirectory: true)
+        }
+        #endif
+        return FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { return false }
+        )
+    }
+
+    static var hasPendingShare: Bool {
+        guard let container = containerURL else { return false }
         return hasPendingShare(in: container)
     }
 
     nonisolated static func stage(fileURLs: [URL]) async throws {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { throw IncomingShareError.containerUnavailable }
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         try await stage(fileURLs: fileURLs, in: container)
     }
 
     static func pendingShare() throws -> IncomingShareSnapshot? {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { throw IncomingShareError.containerUnavailable }
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         return try pendingShare(in: container)
     }
 
     static func completePendingShare(id: String) throws {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { throw IncomingShareError.containerUnavailable }
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         try completePendingShare(id: id, in: container)
     }
 
