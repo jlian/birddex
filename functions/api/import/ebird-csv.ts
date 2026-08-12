@@ -98,7 +98,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   let persistedObservationCount = 0
   let skippedRowCount = 0
   let importBatchCommitted = false
-  let fileIdentityKey: string | undefined
+  let fileIdentityKey = ''
   let stage = 'read the uploaded CSV file'
 
   try {
