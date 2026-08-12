@@ -8,6 +8,14 @@ import type { Logger } from './log'
 import { allowlistedProvider } from './provider-revocation'
 import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '../../src/lib/fun-names'
 
+export function passkeyRegistrationAction(
+  sessionUser: { id?: string; isAnonymous?: boolean } | null | undefined,
+  resolvedUserId: string,
+): 'upgrade' | 'reuse' | 'create' {
+  if (!sessionUser?.id || sessionUser.id !== resolvedUserId) return 'create'
+  return sessionUser.isAnonymous === true ? 'upgrade' : 'reuse'
+}
+
 type CreateAuthOptions = {
   request?: Request
   // `default` keeps local browser/passkey flows on loopback for dev/e2e.
@@ -339,7 +347,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
           afterVerification: async ({ ctx, user }: {
             ctx: {
               context: {
-                session?: { user?: { id?: string; name?: string } } | null
+                session?: { user?: { id?: string; name?: string; isAnonymous?: boolean } } | null
                 internalAdapter: {
                   createUser: (v: Record<string, unknown>) => Promise<{ id: string }>
                   updateUser: (id: string, v: Record<string, unknown>) => Promise<unknown>
@@ -350,6 +358,11 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
           }) => {
             const sessionUser = ctx.context.session?.user
             const sessionUserId = sessionUser?.id
+            const action = passkeyRegistrationAction(sessionUser, user.id)
+
+            if (action === 'reuse') {
+              return { userId: sessionUserId! }
+            }
 
             // Upgrade in place. The plugin already resolved `user` to the
             // session user, so this is the anonymous account being made
@@ -357,7 +370,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
             // every row that points at it. Runs inside the plugin's
             // registration transaction, so a failed ceremony rolls the flag
             // back along with the passkey and session.
-            if (sessionUserId && sessionUserId === user.id) {
+            if (action === 'upgrade' && sessionUserId) {
               // `user.name` here is the WebAuthn handle, which the plugin sets
               // to the account's email. Writing that would make the temp
               // anonymous address the display name, so keep the bird name the
