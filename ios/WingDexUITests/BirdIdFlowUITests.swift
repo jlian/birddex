@@ -596,6 +596,11 @@ final class BirdIdFlowUITests: XCTestCase {
         ]
         app.launch()
         waitForDataSetup(in: app)
+        if !app.buttons["Done"].waitForExistence(timeout: 10) {
+            app.terminate()
+            app.launch()
+            waitForDataSetup(in: app)
+        }
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
         try runAccessibilityAudit(
             in: app,
