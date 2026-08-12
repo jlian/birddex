@@ -45,6 +45,38 @@ test.describe('App smoke tests', () => {
     await expect(page.getByRole('button', { name: 'Upload & Identify' })).toBeVisible({ timeout: 5_000 });
   });
 
+  test('anonymous visitor can browse, and is kept out of Settings', async ({ page }) => {
+    await loadApp(page, { promote: false });
+
+    await page.getByRole('tab', { name: 'Outings' }).first().click();
+    await expect(
+      page.getByText('Your Outings').or(page.getByText('No outings yet'))
+    ).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole('tab', { name: 'WingDex' }).first().click();
+    await expect(
+      page.getByText('Your WingDex is empty').or(page.getByRole('heading', { name: 'WingDex' }))
+    ).toBeVisible({ timeout: 5_000 });
+
+    // The avatar offers sign-in rather than Settings, and the route itself is
+    // closed: keeping and moving data is what an account is for.
+    await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Settings' })).toBeHidden();
+
+    await page.goto('/#settings');
+    await expect(page.getByRole('button', { name: 'Upload & Identify' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeHidden();
+
+    // Import stays closed at the API too, not just in the UI.
+    const importStatus = await page.evaluate(async () => {
+      const form = new FormData();
+      form.append('file', new Blob(['Submission ID,Common Name\n'], { type: 'text/csv' }), 'x.csv');
+      const res = await fetch('/api/import/ebird-csv', { method: 'POST', credentials: 'include', body: form });
+      return res.status;
+    });
+    expect([401, 403]).toContain(importStatus);
+  });
+
   test('footer exposes crawlable legal links and they navigate correctly', async ({ page }) => {
     await loadApp(page, { promote: false });
 
@@ -94,7 +126,7 @@ test.describe('App smoke tests', () => {
 
   test('add photos button opens flow on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     // The home page Upload & Identify button should be visible
     const addBtn = page.getByRole('button', { name: 'Upload & Identify' });
@@ -106,7 +138,7 @@ test.describe('App smoke tests', () => {
   });
 
   test('add photos dialog can be closed', async ({ page }) => {
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     // Open dialog via Upload & Identify button
     await page.getByRole('button', { name: 'Upload & Identify' }).click();
@@ -147,7 +179,7 @@ test.describe('App smoke tests', () => {
   });
 
   test('upload flow processes photos and reaches review outing step', async ({ page }) => {
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     // Open the wizard
     await page.getByRole('button', { name: 'Upload & Identify' }).click();
@@ -175,7 +207,7 @@ test.describe('App smoke tests', () => {
   });
 
   test('upload flow accepts drag-and-drop on Select Photos', async ({ page }) => {
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     await page.getByRole('button', { name: 'Upload & Identify' }).click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
@@ -203,7 +235,7 @@ test.describe('App smoke tests', () => {
   });
 
   test('upload flow handles multiple photos', async ({ page }) => {
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     await page.getByRole('button', { name: 'Upload & Identify' }).click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
@@ -223,7 +255,7 @@ test.describe('App smoke tests', () => {
   });
 
   test('closing upload wizard mid-flow shows confirmation dialog', async ({ page }) => {
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     // Open add photos dialog
     await page.getByRole('button', { name: 'Upload & Identify' }).click();
@@ -253,7 +285,7 @@ test.describe('App smoke tests', () => {
   });
 
   test('confirmation dialog discards wizard when clicking Discard', async ({ page }) => {
-    await loadApp(page);
+    await loadApp(page, { promote: false });
 
     // Open and advance the wizard
     await page.getByRole('button', { name: 'Upload & Identify' }).click();
