@@ -122,9 +122,17 @@ jobs:
           set -euo pipefail
 
           probe_backend() {
-            local response
-            response=$(curl -fsS --max-time 15 "$1/api/health" 2>/dev/null) || return 1
-            jq -e '.status == "ok" and .db == "ok"' <<< "$response" > /dev/null
+            local response http_status body
+            response=$(curl -sS --max-time 15 -w '\n%{http_code}' "$1/api/health" 2>&1) || {
+              echo "  $1/api/health could not be reached: $(printf '%s' "$response" | tr '\n' ' ' | cut -c1-200)"
+              return 1
+            }
+            http_status=${response##*$'\n'}
+            body=${response%$'\n'*}
+            if [ "$http_status" != "200" ] || ! jq -e '.status == "ok" and .db == "ok"' <<< "$body" > /dev/null 2>&1; then
+              echo "  $1/api/health returned HTTP $http_status: $(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)"
+              return 1
+            fi
           }
 
           wait_for_backend() {
