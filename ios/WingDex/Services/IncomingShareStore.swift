@@ -45,7 +45,11 @@ enum IncomingShareStore {
     nonisolated static func stage(fileURLs: [URL]) async throws {
         guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         try await stage(fileURLs: fileURLs, in: container)
-        NotificationCenter.default.post(name: didStageNotification, object: nil)
+        // Observers deliver on the posting thread and drive SwiftUI state, so
+        // this has to be posted from the main actor.
+        await MainActor.run {
+            NotificationCenter.default.post(name: didStageNotification, object: nil)
+        }
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
             CFNotificationName(changeNotificationName as CFString),
