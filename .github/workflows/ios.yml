@@ -111,7 +111,8 @@ jobs:
 
       - name: Select API backend
         env:
-          DEV_URL: https://dev.wingdex.app
+          # The zone's Bot Fight Mode challenges GitHub runner IPs; workers.dev is the same Worker.
+          DEV_URL: https://wingdex-app-preview.lianguanlun.workers.dev
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.head_ref }}
