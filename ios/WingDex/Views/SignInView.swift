@@ -123,7 +123,7 @@ struct SignInView: View {
 
                 // Big left-aligned title
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Start your")
+                    Text(hasAnonymousData ? "Keep your" : "Start your")
                         .font(.system(size: titleSize, weight: .bold, design: .serif))
                     Text("WingDex")
                         .font(.system(size: titleSize, weight: .bold, design: .serif))
@@ -136,13 +136,9 @@ struct SignInView: View {
                 .padding(.bottom, 32)
 
                 if hasAnonymousData {
-                    VStack(spacing: 6) {
-                        Text("Keep your sightings")
-                            .font(.title2.weight(.semibold))
-                        Text("Your sightings are saved only on this device. They can disappear if the app's data is removed or you switch devices. An account keeps them and unlocks import and export. It takes one tap and no email.")
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                    }
+                    Text("Your sightings are saved only on this device. They can disappear if the app's data is removed or you switch devices. An account keeps them and unlocks import and export. It takes one tap and no email.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 28)
                     .padding(.bottom, 20)

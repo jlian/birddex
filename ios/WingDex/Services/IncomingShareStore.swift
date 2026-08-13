@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 struct IncomingSharedPhoto: Equatable {
     let fileName: String
@@ -17,11 +18,15 @@ enum IncomingShareStore {
     static let maximumPhotoBytes = 50 * 1_024 * 1_024
 
     private static let manifestsDirectoryName = "incoming-share-manifests"
+    static let changeNotificationName = "app.wingdex.incoming-share.staged"
+    static let didStageNotification = Notification.Name(changeNotificationName)
 
     private nonisolated static var containerURL: URL? {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-test-share-photo")
+            || arguments.contains("--ui-test-delayed-share-photo")
+            || arguments.contains("--ui-test-reset-pending-share")
             || arguments.contains("--ui-test-clear-pending-share") {
             return FileManager.default.temporaryDirectory
                 .appendingPathComponent("wingdex-ui-test-shares", isDirectory: true)
@@ -40,6 +45,14 @@ enum IncomingShareStore {
     nonisolated static func stage(fileURLs: [URL]) async throws {
         guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         try await stage(fileURLs: fileURLs, in: container)
+        NotificationCenter.default.post(name: didStageNotification, object: nil)
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(changeNotificationName as CFString),
+            nil,
+            nil,
+            true
+        )
     }
 
     static func pendingShare() throws -> IncomingShareSnapshot? {

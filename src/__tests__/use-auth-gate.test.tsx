@@ -156,12 +156,12 @@ describe('useAuthGate', () => {
     expect(mockAddPasskey).not.toHaveBeenCalled()
   })
 
-  it('uses Keep your sightings copy whenever anonymous data exists', async () => {
+  it('uses Keep your WingDex copy whenever anonymous data exists', async () => {
     render(<Harness onUpgraded={vi.fn()} hasUnsavedSightings />)
 
     await userEvent.click(screen.getByText('Open gated action'))
 
-    expect(screen.getByRole('heading', { name: 'Keep your sightings' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Keep your WingDex' })).toBeInTheDocument()
     expect(screen.getByText(/only in this browser/i)).toBeInTheDocument()
   })
 

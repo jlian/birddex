@@ -22,12 +22,28 @@ enum SignupPromptStore {
 
 @main
 struct WingDexApp: App {
+    private static let incomingShareObserver: Void = {
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            nil,
+            { _, _, _, _, _ in
+                DispatchQueue.main.async {
+                    AppNavigationModel.shared.handleIncomingShare()
+                }
+            },
+            IncomingShareStore.changeNotificationName as CFString,
+            nil,
+            .deliverImmediately
+        )
+    }()
+
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var authService: AuthService
     @State private var dataStore: DataStore
     @State private var navigation = AppNavigationModel.shared
 
     init() {
+        _ = Self.incomingShareObserver
         let auth = AuthService.shared
         let cache = try? AccountDataCache()
         _authService = State(initialValue: auth)
@@ -84,7 +100,7 @@ struct ContentView: View {
         .onChange(of: auth.userId) { _, accountID in
             guard auth.hasSession, let accountID else { return }
             store.activate(accountID: accountID)
-            Task { await store.loadAll() }
+            Task { try? await store.ensureLoaded() }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, auth.hasSession else { return }
@@ -92,7 +108,8 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--ui-test-clear-pending-share"),
+            if (ProcessInfo.processInfo.arguments.contains("--ui-test-clear-pending-share")
+                || ProcessInfo.processInfo.arguments.contains("--ui-test-reset-pending-share")),
                let pendingShare = try? IncomingShareStore.pendingShare() {
                 try? IncomingShareStore.completePendingShare(id: pendingShare.id)
             }
@@ -112,7 +129,7 @@ struct ContentView: View {
                 if validation != .rejected,
                    auth.userId == accountID {
                     store.activate(accountID: accountID)
-                    await store.loadAll()
+                    try? await store.ensureLoaded()
                 }
             }
         }
@@ -300,6 +317,14 @@ struct MainTabView: View {
             }
             #endif
             await completeInitialLoadIfReady()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-delayed-share-photo") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1))
+                    try? await stageUITestSharePhoto()
+                }
+            }
+            #endif
             _ = await taxonomyWarmup
             #if DEBUG
             await startUITestIdentificationIfRequested()
@@ -313,18 +338,14 @@ struct MainTabView: View {
             }
         }
         .onChange(of: auth.userId) {
-            // A changed identity must finish its own load before queued shares
-            // can process; otherwise they can write under the departed account.
             initialDataLoaded = false
             addPhotosVM.configure(auth: auth, dataStore: store)
         }
         .onChange(of: scenePhase) { _, phase in
             guard !uiTestIgnoresPendingShare,
                   phase == .active,
-                  initialDataLoaded,
                   IncomingShareStore.hasPendingShare
             else { return }
-            navigation.route(to: .addPhotos())
             Task { await importIncomingShareIfAvailable() }
         }
         .onDisappear {
@@ -332,8 +353,11 @@ struct MainTabView: View {
             addPhotosVM.cancelSession()
         }
         .task(id: navigation.incomingShareRequestID) {
-            guard !uiTestIgnoresPendingShare, initialDataLoaded else { return }
+            guard !uiTestIgnoresPendingShare else { return }
             await importIncomingShareIfAvailable()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: IncomingShareStore.didStageNotification)) { _ in
+            navigation.handleIncomingShare()
         }
         .environment(\.showAddPhotos) { navigation.route(to: .addPhotos()) }
         .environment(\.showSettings) {
@@ -350,9 +374,9 @@ struct MainTabView: View {
 
     private func importIncomingShareIfAvailable() async {
         guard !uiTestIgnoresPendingShare,
-              initialDataLoaded,
               IncomingShareStore.hasPendingShare
         else { return }
+        navigation.route(to: .addPhotos())
         addPhotosVM.configure(
             auth: auth,
             dataStore: store
@@ -369,7 +393,6 @@ struct MainTabView: View {
             initialDataLoaded = true
         }
         if !uiTestIgnoresPendingShare, IncomingShareStore.hasPendingShare {
-            navigation.route(to: .addPhotos())
             await importIncomingShareIfAvailable()
         }
     }
@@ -452,6 +475,7 @@ struct AvatarView: View {
     let imageURL: String?
     let name: String?
     let size: CGFloat
+    @Environment(\.displayScale) private var displayScale
 
     private var emojiInfo: (emoji: String, color: Color)? {
         guard let url = imageURL,
@@ -512,7 +536,7 @@ struct AvatarView: View {
                 .font(.system(size: size * 0.6))
                 .frame(width: size, height: size)
         )
-        renderer.scale = UIScreen.main.scale
+        renderer.scale = displayScale
         return renderer.uiImage
     }
 

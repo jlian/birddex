@@ -285,7 +285,7 @@ final class BirdIdFlowUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 30), "The anonymous outing did not finish saving")
         done.tap()
         XCTAssertTrue(
-            app.staticTexts["Keep your sightings"].waitForExistence(timeout: 10),
+            app.staticTexts["Keep your"].waitForExistence(timeout: 10),
             "The first anonymous save did not show the durability prompt"
         )
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'An account keeps them'")).firstMatch.exists)
@@ -297,7 +297,8 @@ final class BirdIdFlowUITests: XCTestCase {
             "These sightings are only on this device"
         )
         accountButton.tap()
-        XCTAssertTrue(app.staticTexts["Keep your sightings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Keep your"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Keep your sightings"].exists)
         app.buttons["auth.passkeyLogin"].tap()
         XCTAssertTrue(app.staticTexts["Your sightings stay on this device"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Export sightings as CSV"].exists)
@@ -309,13 +310,31 @@ final class BirdIdFlowUITests: XCTestCase {
         let app = application()
         app.launchArguments = [
             "--ui-test-sign-out",
-            "--ui-test-reset-signup-prompt", "--ui-test-share-photo",
+            "--ui-test-reset-signup-prompt",
+            "--ui-test-delay-session-enrichment",
+            "--ui-test-share-photo",
         ]
         app.launch()
 
         XCTAssertTrue(
-            app.buttons["Continue"].waitForExistence(timeout: 120),
+            app.buttons["Continue"].waitForExistence(timeout: 30),
             "Queued shared photo never reached outing review"
+        )
+    }
+
+    func testAlreadyLoadedSessionlessAppReceivesStagedShare() {
+        let app = application()
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-reset-pending-share",
+            "--ui-test-delayed-share-photo",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertTrue(
+            app.buttons["Continue"].waitForExistence(timeout: 30),
+            "A share staged after launch was not delivered to the loaded app"
         )
     }
 

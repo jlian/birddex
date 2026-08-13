@@ -249,7 +249,7 @@ test.describe('CSV import + photo upload integration', () => {
 
     // Closing the flow after the first save is where the one sign-up prompt
     // fires, and this is the only test that reaches it through a real upload.
-    await expect(page.getByRole('heading', { name: 'Keep your sightings' })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('heading', { name: 'Keep your WingDex' })).toBeVisible({ timeout: 5_000 })
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 5_000 })
 
@@ -432,7 +432,7 @@ test.describe('CSV import + photo upload integration', () => {
     await dialog.getByRole('button', { name: 'Done' }).click()
 
     // The one sign-up prompt fires as the flow closes on a first save.
-    await expect(page.getByRole('heading', { name: 'Keep your sightings' })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('heading', { name: 'Keep your WingDex' })).toBeVisible({ timeout: 5_000 })
     await page.keyboard.press('Escape')
     await expect(dialog).not.toBeVisible({ timeout: 10_000 })
   })

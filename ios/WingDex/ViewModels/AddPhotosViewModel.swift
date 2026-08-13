@@ -221,25 +221,17 @@ final class AddPhotosViewModel {
         isProcessing = true
         error = nil
         currentStep = .extracting
-        processingMessage = "Preparing your private WingDex..."
-        let sessionID: UUID
-        do {
-            sessionID = try await prepareCurrentSession()
-        } catch {
-            self.error = AppError.map(error, fallback: "Could not start a private WingDex session. Try again.")
-            errorRecovery = .sessionPreparation
-            isProcessing = false
-            return
-        }
         totalCount = selectedItems.count + cameraPhotos.count + incomingSharedPhotos.count
         processedCount = 0
         extractionProgress = 0
         processingMessage = "Reading photo data..."
+        async let preparedSession = prepareCurrentSession()
 
         // Reset accumulated stats for this upload session
         uploadSummary = nil
         newSpeciesNames = []
 
+        var candidatePhotos: [ProcessedPhoto] = []
         var newPhotos: [ProcessedPhoto] = []
         var duplicatePhotos: [ProcessedPhoto] = []
         var rejectedSharedFileNames: [String] = []
@@ -247,12 +239,8 @@ final class AddPhotosViewModel {
         for item in selectedItems {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else { continue }
-                guard isCurrentSession(sessionID) else {
-                    cancelExtractionForSessionChange()
-                    return
-                }
                 if let photo = makeProcessedPhoto(data: data, fileName: nil) {
-                    appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+                    candidatePhotos.append(photo)
                 }
             } catch {
                 log.error("Failed to load a selected photo")
@@ -262,14 +250,10 @@ final class AddPhotosViewModel {
         }
 
         for sharedPhoto in incomingSharedPhotos {
-            guard isCurrentSession(sessionID) else {
-                cancelExtractionForSessionChange()
-                return
-            }
             do {
                 let data = try await readSharedPhotoData(from: sharedPhoto.fileURL)
                 if let photo = makeProcessedPhoto(data: data, fileName: sharedPhoto.fileName) {
-                    appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+                    candidatePhotos.append(photo)
                 } else {
                     log.error("Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
                     rejectedSharedFileNames.append(sharedPhoto.fileName)
@@ -281,12 +265,36 @@ final class AddPhotosViewModel {
             processedCount += 1
             extractionProgress = Double(processedCount) / Double(totalCount) * 100
         }
+
+        processingMessage = "Preparing your WingDex..."
+        let sessionID: UUID
+        do {
+            sessionID = try await preparedSession
+        } catch {
+            self.error = AppError.map(error, fallback: "Could not start a WingDex session. Try again.")
+            errorRecovery = .sessionPreparation
+            isProcessing = false
+            return
+        }
         guard isCurrentSession(sessionID) else {
             cancelExtractionForSessionChange()
             return
         }
+        for photo in candidatePhotos {
+            appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+        }
         if let incomingShareID {
-            try? IncomingShareStore.completePendingShare(id: incomingShareID)
+            do {
+                try IncomingShareStore.completePendingShare(id: incomingShareID)
+            } catch {
+                self.error = AppError.map(
+                    error,
+                    fallback: "Could not finish importing the shared photos. Try again."
+                )
+                errorRecovery = .sessionPreparation
+                isProcessing = false
+                return
+            }
         }
         incomingShareID = nil
         incomingSharedPhotos = []
@@ -857,12 +865,7 @@ final class AddPhotosViewModel {
         if dataStore.activeAccountID != resolvedAccountID {
             dataStore.activate(accountID: resolvedAccountID)
         }
-        if !dataStore.hasLoadedAll {
-            await dataStore.loadAll()
-        }
-        guard dataStore.hasLoadedAll else {
-            throw dataStore.error ?? AuthError.notAuthenticated
-        }
+        try await dataStore.ensureLoaded()
         configure(auth: authService, dataStore: dataStore)
         return try requireCurrentSession()
     }

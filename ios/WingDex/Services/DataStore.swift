@@ -65,6 +65,10 @@ final class DataStore {
     private var generation = 0
     private var loadRequestID = UUID()
     private var confirmedSnapshot: AllDataResponse?
+    private var initialLoadTask: Task<Void, Never>?
+    private var initialLoadID: UUID?
+    private var initialLoadAccountID: String?
+    private var initialLoadGeneration: Int?
     private var operationInProgress = false
     private var operationWaiters: [OperationWaiter] = []
 
@@ -89,6 +93,46 @@ final class DataStore {
     }
 
     // MARK: - Fetch
+
+    func ensureLoaded() async throws {
+        if hasLoadedAll { return }
+        guard let accountID = activeAccountID else { throw AuthError.notAuthenticated }
+        let loadGeneration = generation
+
+        let task: Task<Void, Never>
+        let taskID: UUID
+        if let initialLoadTask,
+           let initialLoadID,
+           initialLoadAccountID == accountID,
+           initialLoadGeneration == loadGeneration {
+            task = initialLoadTask
+            taskID = initialLoadID
+        } else {
+            let newTaskID = UUID()
+            let newTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.loadAll()
+            }
+            initialLoadTask = newTask
+            initialLoadID = newTaskID
+            initialLoadAccountID = accountID
+            initialLoadGeneration = loadGeneration
+            task = newTask
+            taskID = newTaskID
+        }
+
+        await task.value
+        guard activeAccountID == accountID, generation == loadGeneration else {
+            throw CancellationError()
+        }
+        if initialLoadID == taskID {
+            initialLoadTask = nil
+            initialLoadID = nil
+            initialLoadAccountID = nil
+            initialLoadGeneration = nil
+        }
+        guard hasLoadedAll else { throw error ?? AuthError.notAuthenticated }
+    }
 
     /// Activate one account and hydrate its read-only cache synchronously.
     func activate(accountID: String) {
@@ -160,6 +204,11 @@ final class DataStore {
     /// Clear all account-owned state and invalidate in-flight bulk loads.
     func reset() {
         generation += 1
+        initialLoadTask?.cancel()
+        initialLoadTask = nil
+        initialLoadID = nil
+        initialLoadAccountID = nil
+        initialLoadGeneration = nil
         operationInProgress = false
         operationWaiters.forEach { $0.continuation.resume(throwing: CancellationError()) }
         operationWaiters.removeAll()

@@ -360,6 +360,49 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(cache.replacements.last?.response.outings.first?.locationName, "Second Marsh")
     }
 
+    func testConcurrentInitialLoadsShareOneFetch() async throws {
+        let service = MultiFetchService()
+        let store = DataStore(service: service)
+        store.activate(accountID: "account-a")
+
+        let firstLoad = Task { try await store.ensureLoaded() }
+        await service.waitForFetchCount(1)
+        let secondLoad = Task { try await store.ensureLoaded() }
+        await Task.yield()
+        let fetchCountBeforeRelease = await service.fetchCount()
+        XCTAssertEqual(fetchCountBeforeRelease, 1)
+
+        await service.complete(index: 0, with: fixtureResponse(locationName: "Initial Marsh"))
+        try await firstLoad.value
+        try await secondLoad.value
+
+        let finalFetchCount = await service.fetchCount()
+        XCTAssertEqual(finalFetchCount, 1)
+        XCTAssertEqual(store.outings.first?.locationName, "Initial Marsh")
+    }
+
+    func testAccountReplacementInvalidatesInitialLoad() async {
+        let service = SuspendedFetchService()
+        let store = DataStore(service: service)
+        store.activate(accountID: "account-a")
+
+        let load = Task { try await store.ensureLoaded() }
+        await service.waitUntilFetchStarts()
+        store.activate(accountID: "account-b")
+        await service.complete(with: fixtureResponse(locationName: "Departed Marsh"))
+
+        do {
+            try await load.value
+            XCTFail("Departed account hydration should be cancelled")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(store.activeAccountID, "account-b")
+        XCTAssertTrue(store.outings.isEmpty)
+    }
+
     func testCancelledQueuedRefreshReleasesOperationSlot() async {
         let service = MultiFetchService()
         let store = DataStore(service: service)

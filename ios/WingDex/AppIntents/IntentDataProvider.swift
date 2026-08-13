@@ -23,7 +23,7 @@ struct IntentDataProvider {
         try ensureProtectedDataAvailable()
         do {
             let auth = AuthService.shared
-            await auth.validateSession()
+            _ = await auth.validateSession()
             guard auth.isRegisteredAccount else { throw IntentDataError.notSignedIn }
             return try await DataService(auth: auth).exportSightingsCSV()
         } catch is CancellationError {

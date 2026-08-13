@@ -58,6 +58,8 @@ final class AuthService: @unchecked Sendable {
     private var lastSuccessfulSessionValidation: Date?
     private var anonymousSessionTask: Task<Void, Error>?
     private var anonymousSessionTaskID: UUID?
+    private var sessionEnrichmentTask: Task<Void, Never>?
+    private var sessionEnrichmentTaskID: UUID?
     private var authenticationGeneration = 0
     private let keychain = Keychain(service: Config.bundleID)
         .accessibility(.whenUnlockedThisDeviceOnly)
@@ -356,12 +358,27 @@ final class AuthService: @unchecked Sendable {
         guard isCurrentAuthentication(generation) else { throw CancellationError() }
 
         let token = try processTokenResponse(data: data, response: response)
-        try? await fetchUserInfo(token: token)
+        startSessionEnrichment(token: token, generation: generation)
         log.info("Anonymous sign-in succeeded")
         } catch {
             let reference = Self.referenceSuffix(for: error)
             log.error("Anonymous sign-in failed\(reference, privacy: .public)")
             throw error
+        }
+    }
+
+    private func startSessionEnrichment(token: String, generation: Int) {
+        sessionEnrichmentTask?.cancel()
+        let taskID = UUID()
+        sessionEnrichmentTaskID = taskID
+        sessionEnrichmentTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await self.fetchUserInfo(token: token, expectedGeneration: generation)
+            guard !Task.isCancelled else { return }
+            if self.sessionEnrichmentTaskID == taskID {
+                self.sessionEnrichmentTask = nil
+                self.sessionEnrichmentTaskID = nil
+            }
         }
     }
 
@@ -480,6 +497,9 @@ final class AuthService: @unchecked Sendable {
     private func clearSession() {
         authenticationGeneration += 1
         resetSessionValidation()
+        sessionEnrichmentTask?.cancel()
+        sessionEnrichmentTask = nil
+        sessionEnrichmentTaskID = nil
         anonymousSessionTask?.cancel()
         anonymousSessionTask = nil
         anonymousSessionTaskID = nil
@@ -724,10 +744,16 @@ final class AuthService: @unchecked Sendable {
     /// Fetch user info from Better Auth's get-session endpoint.
     /// Uses Bearer token auth via the bearer() plugin.
     /// Also captures the signed session token for passkey endpoint cookies.
-    private func fetchUserInfo(token: String) async throws {
+    private func fetchUserInfo(token: String, expectedGeneration: Int? = nil) async throws {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-delay-session-enrichment") {
+            try await Task.sleep(for: .seconds(60))
+        }
+        #endif
         let url = Config.apiBaseURL.appendingPathComponent("api/auth/get-session")
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 5
         AuthenticatedRequest.instrument(&request)
 
         let (data, response) = try await AuthenticatedRequest.data(
@@ -746,10 +772,18 @@ final class AuthService: @unchecked Sendable {
             log.warning("fetchUserInfo: HTTP \(httpResponse.statusCode)\(reference, privacy: .public)")
             return
         }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let user = json["user"] as? [String: Any]
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["user"] is [String: Any]
         else {
             log.warning("fetchUserInfo: response 200 but body could not be decoded as { user: ... }")
+            return
+        }
+
+        if let expectedGeneration,
+           !Self.isSameAuthenticationGeneration(
+            current: authenticationGeneration,
+            expected: expectedGeneration
+           ) {
             return
         }
 
@@ -1002,8 +1036,6 @@ final class AuthService: @unchecked Sendable {
 
     private func restoreSession() {
         guard let token = keychain[Self.tokenKey],
-              let expiryString = keychain[Self.expiryKey],
-              let expiry = Self.parseISO8601(expiryString),
               let userID = keychain[Self.userIdKey],
               let identityValue = keychain[Self.identityKey],
               let restoredIdentity = SessionIdentity(rawValue: identityValue)
@@ -1014,7 +1046,7 @@ final class AuthService: @unchecked Sendable {
 
         sessionToken = token
         signedSessionToken = keychain[Self.signedTokenKey]
-        sessionExpiry = expiry
+        sessionExpiry = keychain[Self.expiryKey].flatMap(Self.parseISO8601)
         userId = userID
         userName = keychain[Self.userNameKey]
         userEmail = keychain[Self.userEmailKey]
@@ -1061,6 +1093,9 @@ final class AuthService: @unchecked Sendable {
 
     private func beginAuthentication() -> Int {
         authenticationGeneration += 1
+        sessionEnrichmentTask?.cancel()
+        sessionEnrichmentTask = nil
+        sessionEnrichmentTaskID = nil
         return authenticationGeneration
     }
 

@@ -242,7 +242,7 @@ function AuthGateModal({
       >
         <DialogHeader>
           <DialogTitle>
-            {hasUnsavedSightings ? 'Keep your sightings' : 'Start your WingDex'}
+            {hasUnsavedSightings ? 'Keep your WingDex' : 'Start your WingDex'}
           </DialogTitle>
           {hasUnsavedSightings && (
             <p className="text-sm text-muted-foreground">
