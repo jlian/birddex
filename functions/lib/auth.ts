@@ -1,6 +1,5 @@
 import { betterAuth } from 'better-auth'
 import { anonymous, bearer } from 'better-auth/plugins'
-import { logPasskeyAccountUpgrade } from './auth-observability'
 import { passkey } from '@better-auth/passkey'
 import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
@@ -23,6 +22,11 @@ type CreateAuthOptions = {
   // same public callback domain that is registered in their app settings.
   mode?: 'default' | 'hosted-oauth'
   log?: Logger
+  // Called when the registration transaction asked to upgrade an anonymous
+  // account. It is only a request, not an outcome: the passkey and session
+  // writes can still fail and roll the update back, so the caller emits the
+  // durable event once the route itself succeeds.
+  onAnonymousUpgradeRequested?: () => void
 }
 
 type SocialProviderConfig = {
@@ -385,7 +389,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
                 image: emojiAvatarDataUrl(emojiForBirdName(name)),
                 isAnonymous: false,
               })
-              logPasskeyAccountUpgrade(options.log)
+              options.onAnonymousUpgradeRequested?.()
               return { userId: sessionUserId }
             }
 

@@ -52,6 +52,19 @@ describe('route-owned auth lifecycle events', () => {
     expect(events.some(event => event.operationName === 'auth/sessions/invoke')).toBe(false)
   })
 
+  it('emits the anonymous upgrade only when the registration route itself succeeded', () => {
+    const failed = mockLogger()
+    logDurableAuthRouteOutcome(failed.log, 'POST', '/api/auth/passkey/verify-registration', 400, true)
+    expect(failed.events).toEqual([])
+
+    const succeeded = mockLogger()
+    logDurableAuthRouteOutcome(succeeded.log, 'POST', '/api/auth/passkey/verify-registration', 200, true)
+    expect(succeeded.events.map(event => event.operationName)).toEqual([
+      'auth/account/upgrade',
+      'auth/passkey/create',
+    ])
+  })
+
   it('emits exact Apple storage and passkey account upgrade outcomes', () => {
     const { log, events } = mockLogger()
     logNativeAppleRevocationCredentialStorage(log)
