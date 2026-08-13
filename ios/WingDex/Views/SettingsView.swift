@@ -62,9 +62,6 @@ struct SettingsView: View {
     @State private var editor: ProfileEditor?
 
     // Other state
-    @State private var isLoadingDemo = false
-    @State private var demoError: AppError?
-    @State private var showingDemoConfirmation = false
     @State private var showingEBirdImport = false
     @State private var isExporting = false
     @State private var exportError: AppError?
@@ -72,6 +69,7 @@ struct SettingsView: View {
     @FocusState private var isNameFieldFocused: Bool
     @State private var editedName = ""
     @State private var celebration: LiferCelebration?
+    @State private var importNotice: TransientNotice?
 
     private var profile: ProfileEditor { editor! }
 
@@ -119,10 +117,6 @@ struct SettingsView: View {
             privacySection
             dataManagementSection
 
-            #if DEBUG
-            developmentSection
-            #endif
-
             logOutSection
 
             // Version info
@@ -157,17 +151,22 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showingEBirdImport) {
-            EBirdImportView(auth: auth) { newSpeciesCount, newSpeciesNames in
-                guard newSpeciesCount > 0 else { return }
-                celebration = LiferCelebration(
-                    newSpeciesCount: newSpeciesCount,
-                    speciesNames: newSpeciesNames
-                )
+            EBirdImportView(auth: auth) { response, newSpeciesNames in
+                if response.imported.newSpecies > 0 {
+                    celebration = LiferCelebration(
+                        newSpeciesCount: response.imported.newSpecies,
+                        speciesNames: newSpeciesNames,
+                        messageOverride: response.userMessage
+                    )
+                } else {
+                    importNotice = TransientNotice(message: response.userMessage)
+                }
             }
         }
         .sheet(item: $exportItem) { item in
             ActivityView(item: item)
         }
+        .transientNotice($importNotice)
     }
 
     // MARK: - Account
@@ -369,60 +368,13 @@ struct SettingsView: View {
         .headerProminence(.increased)
     }
 
-    // MARK: - Development (DEBUG only)
-
-    #if DEBUG
-    @ViewBuilder
-    private var developmentSection: some View {
-        Section("Development") {
-            Button {
-                showingDemoConfirmation = true
-            } label: {
-                if isLoadingDemo {
-                    ProgressView()
-                } else {
-                    Label("Load Demo Data", systemImage: "sparkles")
-                }
-            }
-            .disabled(isLoadingDemo)
-
-            if let demoError {
-                Text(demoError.message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-        .headerProminence(.increased)
-        .alert(
-            "Load Demo Data?",
-            isPresented: $showingDemoConfirmation
-        ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Replace All Data", role: .destructive) {
-                isLoadingDemo = true
-                demoError = nil
-                Task {
-                    do {
-                        try await store.loadDemoData()
-                    } catch {
-                        demoError = AppError.map(error, fallback: "Could not load demo data. Try again.")
-                    }
-                    isLoadingDemo = false
-                }
-            }
-        } message: {
-            Text("This will replace all your current outings, observations, and WingDex entries with demo data. This cannot be undone.")
-        }
-    }
-    #endif
-
     // MARK: - Log Out
 
     @ViewBuilder
     private var logOutSection: some View {
         Section {
             Button("Log Out", role: .destructive) {
-                auth.signOut()
+                Task { await auth.signOut() }
             }
         }
     }

@@ -28,10 +28,14 @@ struct HomeView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showSettings() } label: {
-                            AvatarView(imageURL: auth.userImage, name: auth.userName, size: 40)
-                                .accessibilityElement(children: .ignore)
-                                .accessibilityLabel("Settings")
+                            AccountAvatarView(size: 40)
                         }
+                        .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
+                        .accessibilityValue(
+                            auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
+                                ? "These sightings are only on this device"
+                                : ""
+                        )
                         // WHY negative padding: shifts the avatar closer to the trailing edge
                         // to match Apple Music's profile button position. Without this, the
                         // system toolbar inset leaves too much gap on the right.
@@ -141,9 +145,13 @@ struct HomeView: View {
                     Image(systemName: "camera.fill")
                         .font(.body)
                 }
+                .font(.body.weight(.medium))
                 .frame(maxWidth: .infinity, minHeight: 44)
+                .padding(.vertical, 10)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
+            .buttonSizing(.flexible)
+            .tint(Color(red: 0.0, green: 0.28, blue: 0.14))
             .padding(.horizontal, 32)
 
             Spacer()

@@ -91,7 +91,7 @@ enum AuthenticatedRequest {
     /// Optionally forwards additional cookies (e.g., challenge cookies).
     static func withCookieOnly(
         url: URL,
-        signedToken: String,
+        signedToken: String?,
         additionalCookies: String? = nil,
         method: String = "GET",
         body: Data? = nil,
@@ -106,14 +106,17 @@ enum AuthenticatedRequest {
         request.httpBody = body
 
         // Session cookie only - both prefixed variants for HTTP/HTTPS compat
-        var cookieParts = [
-            "better-auth.session_token=\(signedToken)",
-            "__Secure-better-auth.session_token=\(signedToken)",
-        ]
+        var cookieParts: [String] = []
+        if let signedToken {
+            cookieParts.append("better-auth.session_token=\(signedToken)")
+            cookieParts.append("__Secure-better-auth.session_token=\(signedToken)")
+        }
         if let extra = additionalCookies {
             cookieParts.append(extra)
         }
-        request.setValue(cookieParts.joined(separator: "; "), forHTTPHeaderField: "Cookie")
+        if !cookieParts.isEmpty {
+            request.setValue(cookieParts.joined(separator: "; "), forHTTPHeaderField: "Cookie")
+        }
         instrument(&request)
 
         return request

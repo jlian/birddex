@@ -44,6 +44,9 @@ import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
 interface AddPhotosFlowProps {
   data: WingDexDataStore
   onClose: () => void
+  /** Fired once the flow has persisted at least one outing. */
+  onOutingSaved?: () => void
+  ensureSessionReady: () => Promise<boolean>
   userId: string
 }
 
@@ -57,7 +60,7 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, ms))
 }
 
-export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowProps) {
+export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSessionReady, userId }: AddPhotosFlowProps) {
   // Object URLs stay alive until revoked, so track and release them. Without
   // this, every uploaded photo would pin its full blob for the page's lifetime.
   const objectUrls = useRef<string[]>([])
@@ -254,6 +257,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
   // ─── Save all observations and finish ────────────────────
   const saveOuting = async (allResults: PhotoResult[]) => {
+    if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
     const confirmed = filterConfirmedResults(allResults)
     const existingSpecies = new Set(data.dex.map(entry => entry.speciesName))
 
@@ -344,6 +348,8 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
     window.sessionStorage.setItem('home:highlightOutingId', currentOutingId)
     window.dispatchEvent(new Event('home:highlightOuting'))
+
+    if (stats.outings > 0) onOutingSaved?.()
 
     // Show upload summary instead of closing immediately
     setUploadSummary({ ...stats })
@@ -495,6 +501,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     outingId: string,
     locationName: string
   ) => {
+    if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
     const normalizedLocationName = normalizeLocationName(locationName)
     setLastLocationName(normalizedLocationName)
     setCurrentOutingId(outingId)
@@ -696,6 +703,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
               userId={userId}
               defaultLocationName={lastLocationName}
               autoLookupGps={useGeoContext}
+              ensureSessionReady={ensureSessionReady}
               onConfirm={handleOutingConfirmed}
             />
           )}

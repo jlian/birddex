@@ -1,4 +1,5 @@
 import { createAuth, normalizeAuthRequest } from '../../lib/auth'
+import { logPasskeyAccountUpgrade } from '../../lib/auth-observability'
 import { createRouteResponder, RESULT_TYPE_HEADER, type Logger } from '../../lib/log'
 
 type AuthRouteClass =
@@ -51,9 +52,13 @@ export function logDurableAuthRouteOutcome(
   method: string,
   pathname: string,
   status: number,
+  upgradedAnonymousAccount = false,
 ): void {
   if (!log || method !== 'POST' || status < 200 || status >= 300) return
   if (pathname.endsWith('/passkey/verify-registration')) {
+    // The registration transaction covers the user update, the passkey and the
+    // session, so only a successful response proves the upgrade is durable.
+    if (upgradedAnonymousAccount) logPasskeyAccountUpgrade(log)
     log.info('auth/passkey/create', {
       category: 'Application',
       resultType: 'Succeeded',
@@ -75,7 +80,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // Do not force hosted mode here or localhost web OAuth callbacks will fail
   // state validation.
   const request = normalizeAuthRequest(context.env, context.request)
-  const auth = createAuth(context.env, { request, log: (context.data as RequestData).log })
+  let upgradedAnonymousAccount = false
+  const auth = createAuth(context.env, {
+    request,
+    log: (context.data as RequestData).log,
+    onAnonymousUpgradeRequested: () => { upgradedAnonymousAccount = true },
+  })
   const response = await auth.handler(request)
 
   const { pathname } = new URL(request.url)
@@ -87,6 +97,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     request.method,
     pathname,
     response.status,
+    upgradedAnonymousAccount,
   )
   const completed = route.complete(
     response,

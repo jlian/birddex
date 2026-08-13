@@ -21,6 +21,7 @@ type ExportRow = {
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   observationNotes?: string | null
+  submissionId?: string | null
 }
 
 function countLabel(count: number, singular: string, plural = `${singular}s`): string {
@@ -39,6 +40,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     const columnNames = await getOutingColumnNames(context.env.DB)
     stage = 'observation schema inspection'
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
+    const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
     const observationNotesSelect = supportsSpeciesCommentsColumn
     ? 'COALESCE(ob.speciesComments, ob.notes)'
     : 'ob.notes'
@@ -60,6 +62,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
          ob.speciesName,
          ob.count,
          ob.certainty,
+         ${supportsSubmissionId ? 'ob.submissionId' : 'NULL'} as submissionId,
          ${observationNotesSelect} as observationNotes
        FROM observation ob
        INNER JOIN outing o ON o.id = ob.outingId
@@ -129,6 +132,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
         count: row.count,
         certainty: row.certainty,
         notes: row.observationNotes,
+        submissionId: row.submissionId,
       })),
       includeHeader
     )

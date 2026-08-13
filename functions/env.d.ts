@@ -19,6 +19,8 @@ interface Env {
   GEOAPIFY_KEY: string
   /** Burst limiter for the Geoapify-backed routes. See [[ratelimits]] in wrangler.toml. */
   GEOCODING_LIMITER: RateLimit
+  /** Burst limiter for the eBird CSV import routes. See [[ratelimits]] in wrangler.toml. */
+  IMPORT_LIMITER: RateLimit
   AI_DAILY_LIMIT_IDENTIFY?: string
   AI_DAILY_LIMIT_SUGGEST?: string
   TRUSTED_ORIGINS?: string

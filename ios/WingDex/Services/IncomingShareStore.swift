@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 struct IncomingSharedPhoto: Equatable {
     let fileName: String
@@ -17,32 +18,54 @@ enum IncomingShareStore {
     static let maximumPhotoBytes = 50 * 1_024 * 1_024
 
     private static let manifestsDirectoryName = "incoming-share-manifests"
+    static let changeNotificationName = "app.wingdex.incoming-share.staged"
+    static let didStageNotification = Notification.Name(changeNotificationName)
+
+    private nonisolated static var containerURL: URL? {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-test-share-photo")
+            || arguments.contains("--ui-test-delayed-share-photo")
+            || arguments.contains("--ui-test-reset-pending-share")
+            || arguments.contains("--ui-test-clear-pending-share") {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("wingdex-ui-test-shares", isDirectory: true)
+        }
+        #endif
+        return FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: appGroupIdentifier
+        )
+    }
 
     static var hasPendingShare: Bool {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { return false }
+        guard let container = containerURL else { return false }
         return hasPendingShare(in: container)
     }
 
     nonisolated static func stage(fileURLs: [URL]) async throws {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { throw IncomingShareError.containerUnavailable }
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         try await stage(fileURLs: fileURLs, in: container)
+        // Observers deliver on the posting thread and drive SwiftUI state, so
+        // this has to be posted from the main actor.
+        await MainActor.run {
+            NotificationCenter.default.post(name: didStageNotification, object: nil)
+        }
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(changeNotificationName as CFString),
+            nil,
+            nil,
+            true
+        )
     }
 
     static func pendingShare() throws -> IncomingShareSnapshot? {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { throw IncomingShareError.containerUnavailable }
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         return try pendingShare(in: container)
     }
 
     static func completePendingShare(id: String) throws {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupIdentifier
-        ) else { throw IncomingShareError.containerUnavailable }
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         try completePendingShare(id: id, in: container)
     }
 

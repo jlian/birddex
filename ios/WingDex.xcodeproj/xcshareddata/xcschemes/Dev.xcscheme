@@ -87,10 +87,6 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "--auto-demo-data"
-            isEnabled = "NO">
-         </CommandLineArgument>
-         <CommandLineArgument
             argument = "--auto-sign-in"
             isEnabled = "NO">
          </CommandLineArgument>

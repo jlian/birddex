@@ -44,6 +44,7 @@ private struct OutingRowActionsModifier: ViewModifier {
     let onView: () -> Void
     let onEditLocation: () -> Void
 
+    @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
@@ -61,12 +62,14 @@ private struct OutingRowActionsModifier: ViewModifier {
                     Label("Edit Location", systemImage: "pencil")
                 }
                 .disabled(!store.hasLoadedAll)
-                Button {
-                    Task { await exportOuting() }
-                } label: {
-                    Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting() }
+                    } label: {
+                        Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(observations.isEmpty || isExporting)
                 }
-                .disabled(observations.isEmpty || isExporting)
                 ShareLink(item: SharePayload.outing(outing, observations: observations)) {
                     Label("Share Summary", systemImage: "text.bubble")
                 }
@@ -80,16 +83,19 @@ private struct OutingRowActionsModifier: ViewModifier {
                 NavigationStack {
                     OutingDetailView(outingId: outing.id)
                 }
+                .environment(auth)
                 .environment(store)
             }
             .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                Button {
-                    Task { await exportOuting() }
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting() }
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                    .tint(.accentColor)
+                    .disabled(observations.isEmpty || isExporting)
                 }
-                .tint(.accentColor)
-                .disabled(observations.isEmpty || isExporting)
             }
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
@@ -353,7 +359,7 @@ struct BirdRow: View {
                 Text(getDisplayName(speciesName))
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let sci = getScientificName(speciesName) {
                     Text(sci)
@@ -361,13 +367,14 @@ struct BirdRow: View {
                         .italic()
                         .foregroundStyle(Color.mutedText)
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let count, count > 1 {
@@ -433,7 +440,7 @@ struct OutingRow: View {
                 Text(outing.locationName.isEmpty ? "Outing" : outing.locationName)
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let observation {
                     HStack(spacing: 4) {
@@ -452,6 +459,7 @@ struct OutingRow: View {
                     Text("\(DateFormatting.formatDate(outing.startTime, style: .medium)) \u{00B7} \(speciesNames.count) species")
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if observation == nil, !speciesNames.isEmpty {
@@ -461,13 +469,29 @@ struct OutingRow: View {
                     )
                     .font(.caption)
                     .foregroundStyle(Color.mutedText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .contentShape(Rectangle())
         .padding(.vertical, 2)
         .frame(minHeight: 56)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        let location = outing.locationName.isEmpty ? "Outing" : outing.locationName
+        let date = DateFormatting.formatDate(outing.startTime, style: .medium)
+        if let observation {
+            return "\(location), \(date), \(getDisplayName(observation.speciesName)), \(observation.certainty.rawValue)"
+        }
+        let speciesCount = store.confirmedObservations(outing.id)
+            .map(\.speciesName)
+            .reduce(into: Set<String>()) { $0.insert($1) }
+            .count
+        return "\(location), \(date), \(speciesCount) species"
     }
 
     @ViewBuilder

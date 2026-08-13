@@ -40,6 +40,37 @@ describe('OutingReview', () => {
     vi.unstubAllGlobals()
   })
 
+  it('waits for session readiness before creating an outing', async () => {
+    const data = createDataStore()
+    let releaseSession: (ready: boolean) => void = () => undefined
+    const ensureSessionReady = vi.fn(() => new Promise<boolean>(resolve => {
+      releaseSession = resolve
+    }))
+    const onConfirm = vi.fn(async () => undefined)
+
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+        }}
+        data={data}
+        userId="anonymous-user"
+        defaultLocationName="Discovery Park"
+        ensureSessionReady={ensureSessionReady}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    await waitFor(() => expect(ensureSessionReady).toHaveBeenCalledOnce())
+    expect(data.addOuting).not.toHaveBeenCalled()
+
+    releaseSession(true)
+    await waitFor(() => expect(data.addOuting).toHaveBeenCalledOnce())
+  })
+
   it('does not offer a newly created outing as an existing outing while confirming', async () => {
     const data = createDataStore()
     data.addOuting = vi.fn(async (outing: Outing) => {

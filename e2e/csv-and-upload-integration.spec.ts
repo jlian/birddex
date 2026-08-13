@@ -111,11 +111,8 @@ test.describe('CSV import + photo upload integration', () => {
 
     // Profile timezone defaults to America/Los_Angeles (Pacific), no need to change it
 
-    const previewResponsePromise = page.waitForResponse(
+    const importResponsePromise = page.waitForResponse(
       response => response.url().includes('/api/import/ebird-csv') && response.request().method() === 'POST'
-    )
-    const confirmResponsePromise = page.waitForResponse(
-      response => response.url().includes('/api/import/ebird-csv/confirm') && response.request().method() === 'POST'
     )
 
     await page.getByRole('button', { name: 'Import from eBird CSV' }).click()
@@ -126,11 +123,8 @@ test.describe('CSV import + photo upload integration', () => {
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(path.resolve('e2e/fixtures/ebird-import.csv'))
 
-    const previewResponse = await previewResponsePromise
-    expect(previewResponse.status()).toBe(200)
-
-    const confirmResponse = await confirmResponsePromise
-    expect(confirmResponse.status()).toBe(200)
+    const importResponse = await importResponsePromise
+    expect(importResponse.status()).toBe(200)
 
     await expect(page.getByText(/Failed to import eBird data/i)).not.toBeVisible()
 
@@ -167,11 +161,8 @@ test.describe('CSV import + photo upload integration', () => {
     await loadApp(page)
     await goToSettings(page)
 
-    const previewResponsePromise = page.waitForResponse(
+    const importResponsePromise = page.waitForResponse(
       response => response.url().includes('/api/import/ebird-csv') && response.request().method() === 'POST'
-    )
-    const confirmResponsePromise = page.waitForResponse(
-      response => response.url().includes('/api/import/ebird-csv/confirm') && response.request().method() === 'POST'
     )
 
     await page.getByRole('button', { name: 'Import from eBird CSV' }).click()
@@ -182,11 +173,8 @@ test.describe('CSV import + photo upload integration', () => {
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(path.resolve('e2e/fixtures/ebird-import-variant.csv'))
 
-    const previewResponse = await previewResponsePromise
-    expect(previewResponse.status()).toBe(200)
-
-    const confirmResponse = await confirmResponsePromise
-    expect(confirmResponse.status()).toBe(200)
+    const importResponse = await importResponsePromise
+    expect(importResponse.status()).toBe(200)
 
     await expect(page.getByText(/Failed to import eBird data/i)).not.toBeVisible()
 
@@ -217,7 +205,7 @@ test.describe('CSV import + photo upload integration', () => {
     await mockGeocoding(page, 'Haleakala National Park, Maui')
     await mockWikimedia(page)
 
-    await loadApp(page)
+    await loadApp(page, { promote: false })
 
     // Open upload wizard
     await page.getByRole('button', { name: 'Upload & Identify' }).click()
@@ -258,6 +246,11 @@ test.describe('CSV import + photo upload integration', () => {
     // Dialog shows upload summary - dismiss it
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 })
     await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
+
+    // Closing the flow after the first save is where the one sign-up prompt
+    // fires, and this is the only test that reaches it through a real upload.
+    await expect(page.getByRole('heading', { name: 'Keep your WingDex' })).toBeVisible({ timeout: 5_000 })
+    await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 5_000 })
 
     // Navigate to Outings and verify the new outing is visible immediately (no refresh)
@@ -277,7 +270,7 @@ test.describe('CSV import + photo upload integration', () => {
 
   test('location search waits for explicit submission and uses the WingDex route', async ({ page }) => {
     await mockGeocoding(page, 'Discovery Park, Seattle')
-    await loadApp(page)
+    await loadApp(page, { promote: false })
 
     await page.getByRole('button', { name: 'Upload & Identify' }).click()
     const dialog = page.getByRole('dialog')
@@ -315,20 +308,12 @@ test.describe('CSV import + photo upload integration', () => {
     await loadApp(page)
 
     const csvBuffer = readFileSync(path.resolve('e2e/fixtures/ebird-import.csv'))
-    const preview = await page.request.post('/api/import/ebird-csv', {
+    const imported = await page.request.post('/api/import/ebird-csv', {
       multipart: {
         file: { name: 'ebird-import.csv', mimeType: 'text/csv', buffer: csvBuffer },
       },
     })
-    expect(preview.ok()).toBe(true)
-    const { previews } = await preview.json()
-    const previewIds = previews
-      .map((e: { previewId?: string }) => e.previewId)
-      .filter(Boolean)
-    const confirm = await page.request.post('/api/import/ebird-csv/confirm', {
-      data: { previewIds },
-    })
-    expect(confirm.ok()).toBe(true)
+    expect(imported.ok()).toBe(true)
 
     // Reload so the UI picks up the seeded data
     await page.reload()
@@ -399,7 +384,7 @@ test.describe('CSV import + photo upload integration', () => {
     await mockGeocoding(page, 'Discovery Park, Seattle')
     await mockWikimedia(page)
 
-    await loadApp(page)
+    await loadApp(page, { promote: false })
 
     // Open upload wizard
     await page.getByRole('button', { name: 'Upload & Identify' }).click()
@@ -445,6 +430,10 @@ test.describe('CSV import + photo upload integration', () => {
     // Dialog shows upload summary - dismiss it
     await expect(dialog).toBeVisible({ timeout: 10_000 })
     await dialog.getByRole('button', { name: 'Done' }).click()
+
+    // The one sign-up prompt fires as the flow closes on a first save.
+    await expect(page.getByRole('heading', { name: 'Keep your WingDex' })).toBeVisible({ timeout: 5_000 })
+    await page.keyboard.press('Escape')
     await expect(dialog).not.toBeVisible({ timeout: 10_000 })
   })
 })

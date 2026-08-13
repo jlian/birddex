@@ -360,7 +360,7 @@ Migrate from the current 4-tab layout to the new architecture: 3 tabs left + det
 ### 3.5.2: SignInView Rework ✅
 
 - [x] **Remove ScrollView**: Centered VStack layout, no scroll
-- [x] **Title**: "Start your WingDex" (static, matching web)
+- [x] **Title**: "Start your WingDex" when empty, "Keep your WingDex" when anonymous data exists (matching web)
 - [x] **Social buttons**: GitHub, Apple, Google at top (all working)
 - [x] **Passkey section with border**: Bordered container with muted fill, key icon header
 - [x] **Two passkey buttons side-by-side**: "Log in" (filled) + "Sign up" (outlined)

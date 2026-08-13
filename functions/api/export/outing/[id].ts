@@ -65,6 +65,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
 
     stage = 'observation schema inspection'
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
+    const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
     const observationNotesSelect = supportsSpeciesCommentsColumn
       ? 'COALESCE(speciesComments, notes) as notes'
       : 'notes'
@@ -72,7 +73,9 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     stage = 'outing observation database query'
     const observationsResult = await context.env.DB
       .prepare(
-        `SELECT speciesName, count, certainty, ${observationNotesSelect}
+        `SELECT speciesName, count, certainty,
+          ${supportsSubmissionId ? 'submissionId' : 'NULL'} as submissionId,
+          ${observationNotesSelect}
        FROM observation
        WHERE outingId = ? AND userId = ?`
       )
@@ -82,6 +85,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
         count: number
         certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
         notes?: string | null
+        submissionId?: string | null
       }>()
 
     stage = 'outing CSV serialization'

@@ -9,9 +9,10 @@ struct LiferCelebration: Equatable, Identifiable {
     var newSpeciesCount: Int
     /// Display names of the newly added species. May be empty when only a count is known.
     var speciesNames: [String]
+    var messageOverride: String?
 
     var bannerMessage: String {
-        Self.bannerMessage(newSpeciesCount: newSpeciesCount, speciesNames: speciesNames)
+        messageOverride ?? Self.bannerMessage(newSpeciesCount: newSpeciesCount, speciesNames: speciesNames)
     }
 
     /// Build the banner text. Pure function so it can be unit tested.
@@ -27,12 +28,47 @@ struct LiferCelebration: Equatable, Identifiable {
     }
 }
 
+struct TransientNotice: Equatable, Identifiable {
+    let id = UUID()
+    let message: String
+    var symbol = "checkmark.circle.fill"
+}
+
 extension View {
     /// Present a lifer celebration (banner + confetti + success haptic) when the
     /// bound value becomes non-nil. Auto-dismisses after a few seconds. Respects
     /// Reduce Motion by skipping confetti and fading the banner in gently.
     func celebration(_ celebration: Binding<LiferCelebration?>) -> some View {
         modifier(CelebrationModifier(celebration: celebration))
+    }
+
+    func transientNotice(_ notice: Binding<TransientNotice?>) -> some View {
+        modifier(TransientNoticeModifier(notice: notice))
+    }
+}
+
+private struct TransientNoticeModifier: ViewModifier {
+    @Binding var notice: TransientNotice?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .top) {
+                if let notice {
+                    StatusBanner(message: notice.message, symbol: notice.symbol)
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: notice)
+            .sensoryFeedback(.success, trigger: notice)
+            .onChange(of: notice) { _, newValue in
+                guard let newValue else { return }
+                UIAccessibility.post(notification: .announcement, argument: newValue.message)
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    if notice?.id == newValue.id { notice = nil }
+                }
+            }
     }
 }
 
@@ -56,7 +92,7 @@ private struct CelebrationModifier: ViewModifier {
             }
             .overlay(alignment: .top) {
                 if let celebration {
-                    LiferBanner(message: celebration.bannerMessage)
+                    StatusBanner(message: celebration.bannerMessage, symbol: "sparkles")
                         .padding(.horizontal)
                         .transition(
                             reduceMotion
@@ -95,8 +131,9 @@ private struct CelebrationModifier: ViewModifier {
 
 // MARK: - Banner
 
-private struct LiferBanner: View {
+private struct StatusBanner: View {
     let message: String
+    let symbol: String
 
     var body: some View {
         Label {
@@ -105,7 +142,7 @@ private struct LiferBanner: View {
                 .foregroundStyle(Color.foregroundText)
                 .multilineTextAlignment(.leading)
         } icon: {
-            Image(systemName: "sparkles")
+            Image(systemName: symbol)
                 .foregroundStyle(Color.accentColor)
         }
         .padding(.horizontal, 16)

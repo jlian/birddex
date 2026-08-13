@@ -2,6 +2,7 @@ import { test, expect, request } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { testBaseURL } from './test-server'
+import { loadApp } from './helpers'
 
 const API_BASE = testBaseURL
 const PREVIEW_BASE = process.env.PREVIEW_BASE_URL || 'https://localhost.wingdex.app'
@@ -30,6 +31,54 @@ async function waitForServerReady(baseURL: string, timeoutMs: number) {
 test.describe('API smoke (request context)', () => {
   test.beforeAll(async () => {
     await waitForServerReady(API_BASE, 10_000)
+  })
+
+  test('import is closed to anonymous sessions', async () => {
+    const api = await request.newContext({ baseURL: API_BASE })
+
+    const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
+    expect(signIn.status()).toBe(200)
+    const cookie = buildCookieHeader(
+      signIn.headersArray().filter(h => h.name.toLowerCase() === 'set-cookie').map(h => h.value),
+    )
+    expect(cookie).toBeTruthy()
+
+    // The UI keeps import behind sign-up, but that gate is cosmetic on its own:
+    // an anonymous session could call the endpoint directly, and it is the
+    // heaviest write path an account can reach.
+    const imported = await api.post('/api/import/ebird-csv', {
+      headers: { cookie },
+      multipart: {
+        file: {
+          name: 'ebird-import.csv',
+          mimeType: 'text/csv',
+          buffer: readFileSync(path.resolve('e2e/fixtures/ebird-import.csv')),
+        },
+      },
+    })
+    expect(imported.status()).toBe(403)
+
+    // Creating and exporting their own sightings still works, since that is
+    // the app rather than account management.
+    const outing = await api.post('/api/data/outings', {
+      headers: { cookie, 'Content-Type': 'application/json' },
+      data: {
+        id: `outing_${crypto.randomUUID()}`,
+        startTime: '2026-03-01T09:00:00.000Z',
+        endTime: '2026-03-01T10:00:00.000Z',
+        locationName: 'Anonymous Patch',
+        notes: '',
+        createdAt: new Date().toISOString(),
+      },
+    })
+    expect(outing.ok(), `outing create failed: ${outing.status()}`).toBe(true)
+
+    const exported = await api.get('/api/export/sightings', { headers: { cookie } })
+    expect(exported.status(), 'export stays open as the leave-with-your-data path').toBe(200)
+    expect((await api.get('/api/export/dex', { headers: { cookie } })).status()).toBe(403)
+    expect((await api.get('/api/export/outing/missing', { headers: { cookie } })).status()).toBe(403)
+
+    await api.dispose()
   })
 
   test('anonymous auth + protected data CRUD', async () => {
@@ -152,19 +201,12 @@ test.describe('API smoke (request context)', () => {
     await api.dispose()
   })
 
-  test('realistic eBird CSV import preview + confirm (multiple fixtures)', async () => {
-    const api = await request.newContext({ baseURL: API_BASE })
-
-    const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
-    expect(signIn.status()).toBe(200)
-
-    const authCookie = buildCookieHeader(
-      signIn
-        .headersArray()
-        .filter(header => header.name.toLowerCase() === 'set-cookie')
-        .map(header => header.value),
-    )
-    expect(authCookie).toBeTruthy()
+  // Import needs a registered account, and the only way to get one is the passkey
+  // ceremony, which needs a browser. These drive the API directly through the
+  // promoted page's request context rather than a bare request context.
+  test('realistic eBird CSV import (multiple fixtures)', async ({ page }) => {
+    await loadApp(page)
+    const api = page.request
 
     const fixturePaths = [
       'e2e/fixtures/ebird-import.csv',
@@ -175,8 +217,7 @@ test.describe('API smoke (request context)', () => {
       const csvPath = path.resolve(fixturePath)
       const csvBuffer = readFileSync(csvPath)
 
-      const preview = await api.post('/api/import/ebird-csv', {
-        headers: { cookie: authCookie },
+      const imported = await api.post('/api/import/ebird-csv', {
         multipart: {
           file: {
             name: path.basename(fixturePath),
@@ -186,58 +227,27 @@ test.describe('API smoke (request context)', () => {
         },
       })
 
-      expect(preview.status(), `preview should succeed for ${fixturePath}`).toBe(200)
-      const previewJson = await preview.json()
-      expect(Array.isArray(previewJson.previews)).toBe(true)
-      expect(previewJson.previews.length, `previews should exist for ${fixturePath}`).toBeGreaterThan(0)
-
-      const previewIds = previewJson.previews
-        .map((entry: { previewId?: string }) => entry.previewId)
-        .filter((id: string | undefined): id is string => !!id)
-
-      expect(previewIds.length, `preview IDs should exist for ${fixturePath}`).toBeGreaterThan(0)
-
-      const confirm = await api.post('/api/import/ebird-csv/confirm', {
-        headers: { cookie: authCookie },
-        data: { previewIds },
-      })
-
-      expect(confirm.status(), `confirm should succeed for ${fixturePath}`).toBe(200)
-      const confirmJson = await confirm.json()
-      expect(confirmJson.imported.outings, `outings imported for ${fixturePath}`).toBeGreaterThan(0)
-      expect(confirmJson.imported.observations, `observations imported for ${fixturePath}`).toBeGreaterThan(0)
+      expect(imported.status(), `import should succeed for ${fixturePath}`).toBe(200)
+      const importJson = await imported.json()
+      expect(importJson.imported.outings, `outings imported for ${fixturePath}`).toBeGreaterThan(0)
+      expect(importJson.imported.observations, `observations imported for ${fixturePath}`).toBeGreaterThan(0)
     }
 
-    const dataAll = await api.get('/api/data/all', {
-      headers: { cookie: authCookie },
-    })
+    const dataAll = await api.get('/api/data/all')
     expect(dataAll.status()).toBe(200)
     const dataAllJson = await dataAll.json()
     expect(dataAllJson.outings.length).toBeGreaterThan(0)
     expect(dataAllJson.observations.length).toBeGreaterThan(0)
     expect(dataAllJson.dex.length).toBeGreaterThan(0)
-
-    await api.dispose()
   })
 
-  test('re-import preview marks rows as duplicate conflicts', async () => {
-    const api = await request.newContext({ baseURL: API_BASE })
-
-    const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
-    expect(signIn.status()).toBe(200)
-
-    const authCookie = buildCookieHeader(
-      signIn
-        .headersArray()
-        .filter(header => header.name.toLowerCase() === 'set-cookie')
-        .map(header => header.value),
-    )
-    expect(authCookie).toBeTruthy()
+  test('re-importing the same export is a no-op', async ({ page }) => {
+    await loadApp(page)
+    const api = page.request
 
     const csvBuffer = readFileSync(path.resolve('e2e/fixtures/ebird-import.csv'))
 
-    const firstPreview = await api.post('/api/import/ebird-csv', {
-      headers: { cookie: authCookie },
+    const firstImport = await api.post('/api/import/ebird-csv', {
       multipart: {
         file: {
           name: 'ebird-import.csv',
@@ -246,22 +256,18 @@ test.describe('API smoke (request context)', () => {
         },
       },
     })
-    expect(firstPreview.status()).toBe(200)
-    const firstPreviewJson = await firstPreview.json()
+    expect(firstImport.status()).toBe(200)
+    expect((await firstImport.json()).imported.outings).toBeGreaterThan(0)
 
-    const firstPreviewIds = firstPreviewJson.previews
-      .map((entry: { previewId?: string }) => entry.previewId)
-      .filter((id: string | undefined): id is string => !!id)
-    expect(firstPreviewIds.length).toBeGreaterThan(0)
+    // Re-importing the same export used to insert a second copy of every
+    // checklist. Assert it is a genuine no-op: nothing persisted, rows skipped
+    // by submission id, and the library unchanged.
+    const beforeAll = await api.get('/api/data/all')
+    expect(beforeAll.status()).toBe(200)
+    const outingCountAfterFirstImport = (await beforeAll.json()).outings.length
+    expect(outingCountAfterFirstImport).toBeGreaterThan(0)
 
-    const firstConfirm = await api.post('/api/import/ebird-csv/confirm', {
-      headers: { cookie: authCookie },
-      data: { previewIds: firstPreviewIds },
-    })
-    expect(firstConfirm.status()).toBe(200)
-
-    const secondPreview = await api.post('/api/import/ebird-csv', {
-      headers: { cookie: authCookie },
+    const secondImport = await api.post('/api/import/ebird-csv', {
       multipart: {
         file: {
           name: 'ebird-import.csv',
@@ -270,22 +276,17 @@ test.describe('API smoke (request context)', () => {
         },
       },
     })
+    expect(secondImport.status()).toBe(200)
+    const secondImportJson = await secondImport.json()
 
-    expect(secondPreview.status()).toBe(200)
-    const secondPreviewJson = await secondPreview.json()
-    expect(Array.isArray(secondPreviewJson.previews)).toBe(true)
-    expect(secondPreviewJson.previews.length).toBeGreaterThan(0)
+    expect(secondImportJson.imported.outings).toBe(0)
+    expect(secondImportJson.imported.observations).toBe(0)
+    expect(secondImportJson.skipped.rows).toBeGreaterThan(0)
 
-    const conflictTypes = new Set(
-      secondPreviewJson.previews
-        .map((entry: { conflict?: string }) => entry.conflict)
-        .filter((conflict: string | undefined): conflict is string => !!conflict)
-    )
+    const afterAll = await api.get('/api/data/all')
+    expect(afterAll.status()).toBe(200)
+    expect((await afterAll.json()).outings.length).toBe(outingCountAfterFirstImport)
 
-    expect(conflictTypes.size).toBe(1)
-    expect(conflictTypes.has('duplicate')).toBe(true)
-
-    await api.dispose()
   })
 
   test('bearer token auth - CRUD without cookies', async () => {
@@ -415,7 +416,13 @@ test.describe('API smoke (request context)', () => {
         name: 'test',
       },
     })
-    expect(verifyRaw.status()).toBe(401)
+    // Was 401: verify-registration used to sit behind freshSessionMiddleware, so an
+    // unsigned token was rejected before the body was ever examined. Registration is
+    // now sessionless by design (#271), the middleware is gone, and the request gets
+    // as far as decoding the deliberately fake WebAuthn payload. 401 here would now
+    // mean the sessionless path had regressed.
+    expect(verifyRaw.status()).not.toBe(401)
+    expect(verifyRaw.status()).toBeGreaterThanOrEqual(400)
 
     // verify-registration with Bearer + signed token cookie = 400 (auth passes, fake data rejected)
     const verifySigned = await freshApi.post('/api/auth/passkey/verify-registration', {

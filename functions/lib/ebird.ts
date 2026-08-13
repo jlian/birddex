@@ -72,6 +72,12 @@ export type ObservationForImport = {
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   notes: string
+  /**
+   * eBird submission id of the checklist this row came from. One eBird row is
+   * exactly one (checklist, species) pair, so this is lossless here; an outing
+   * can merge several checklists and could only record one of them.
+   */
+  submissionId?: string
 }
 
 import {
@@ -87,6 +93,7 @@ type ObservationForExport = {
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   notes?: string | null
+  submissionId?: string | null
 }
 
 type DexEntryForExport = {
@@ -98,7 +105,10 @@ type DexEntryForExport = {
   notes?: string | null
 }
 
+// Keep the eBird Record shape with separate Genus/Species columns. The importer
+// accepts this shape, and Submission ID is what makes exported rows round-trip.
 const EBIRD_RECORD_HEADERS = [
+  'Submission ID',
   'Common Name',
   'Genus',
   'Species',
@@ -289,7 +299,7 @@ export function parseEBirdCSV(csvContent: string, profileTimezone?: string): Imp
     const lat = Number.parseFloat(row['latitude'] || row['lat'] || '')
     const lon = Number.parseFloat(row['longitude'] || row['lon'] || row['lng'] || '')
     const time = row['time'] || row['start time'] || ''
-    const submissionId = row['submission id'] || ''
+    const submissionId = (row['submission id'] || '').trim()
     const stateProvince = row['state/province'] || row['state'] || ''
     const protocol = row['protocol'] || ''
     const numberObservers = Number.parseInt(row['number of observers'] || '', 10)
@@ -398,7 +408,9 @@ export function groupPreviewsIntoOutings(
   for (const preview of previews) {
     const dateKey = preview.date.slice(0, 10)
     const key =
-      preview.submissionId && (submissionIdCounts.get(preview.submissionId) || 0) > 1
+      preview.submissionId?.startsWith('WINGDEX-OUTING-')
+        ? preview.submissionId
+        : preview.submissionId && (submissionIdCounts.get(preview.submissionId) || 0) > 1
         ? preview.submissionId
         : `${dateKey}||${preview.location}`
 
@@ -444,27 +456,37 @@ export function groupPreviewsIntoOutings(
       createdAt: new Date().toISOString(),
     })
 
-    const speciesMap = new Map<string, { count: number; notes: string }>()
+    const speciesMap = new Map<string, { speciesName: string; submissionId?: string; count: number; notes: string }>()
     for (const preview of group) {
-      const existing = speciesMap.get(preview.speciesName)
+      // Keyed by checklist as well as species. Merging across checklists would
+      // keep only one submission id, which is the lossiness that made a
+      // re-import unable to recognise what it had already stored.
+      const key = `${preview.submissionId ?? ''}||${preview.speciesName}`
+      const existing = speciesMap.get(key)
       if (existing) {
         existing.count += preview.count
         if (preview.observationNotes && !existing.notes.includes(preview.observationNotes)) {
           existing.notes = existing.notes ? `${existing.notes}; ${preview.observationNotes}` : preview.observationNotes
         }
       } else {
-        speciesMap.set(preview.speciesName, { count: preview.count, notes: preview.observationNotes || '' })
+        speciesMap.set(key, {
+          speciesName: preview.speciesName,
+          submissionId: preview.submissionId,
+          count: preview.count,
+          notes: preview.observationNotes || '',
+        })
       }
     }
 
-    for (const [speciesName, info] of speciesMap) {
+    for (const info of speciesMap.values()) {
       observations.push({
         id: `obs_import_${crypto.randomUUID()}`,
         outingId,
-        speciesName,
+        speciesName: info.speciesName,
         count: info.count,
         certainty: 'confirmed',
         notes: info.notes,
+        submissionId: info.submissionId,
       })
     }
   }
@@ -479,6 +501,8 @@ export function exportOutingToEBirdCSV(
 ): string {
   const localMatch = outing.startTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
 
+  // eBird Record CSV uses MM/DD/YYYY. Prefer the stored wall-clock components:
+  // converting an offset-aware timestamp through Date can shift its day or time.
   const date = localMatch
     ? `${localMatch[2]}/${localMatch[3]}/${localMatch[1]}`
     : (() => {
@@ -515,10 +539,13 @@ export function exportOutingToEBirdCSV(
     .filter(observation => observation.certainty === 'confirmed')
     .map(observation => {
       const commonName = sanitizeForEBird(getDisplayName(observation.speciesName))
+      // splitScientificName performs the sanitization. Leave unknown taxonomy
+      // empty rather than copying a common name into the scientific columns.
       const scientificName = getScientificName(observation.speciesName) || ''
       const { genus, species } = splitScientificName(scientificName)
 
       return [
+        observation.submissionId?.trim() || `WINGDEX-OUTING-${outing.id}`,
         commonName,
         genus,
         species,

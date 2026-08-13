@@ -5,6 +5,15 @@ import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
 import type { Logger } from './log'
 import { allowlistedProvider } from './provider-revocation'
+import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '../../src/lib/fun-names'
+
+export function passkeyRegistrationAction(
+  sessionUser: { id?: string; isAnonymous?: boolean } | null | undefined,
+  resolvedUserId: string,
+): 'upgrade' | 'reuse' | 'create' {
+  if (!sessionUser?.id || sessionUser.id !== resolvedUserId) return 'create'
+  return sessionUser.isAnonymous === true ? 'upgrade' : 'reuse'
+}
 
 type CreateAuthOptions = {
   request?: Request
@@ -13,6 +22,11 @@ type CreateAuthOptions = {
   // same public callback domain that is registered in their app settings.
   mode?: 'default' | 'hosted-oauth'
   log?: Logger
+  // Called when the registration transaction asked to upgrade an anonymous
+  // account. It is only a request, not an outcome: the passkey and session
+  // writes can still fail and roll the update back, so the caller emits the
+  // durable event once the route itself succeeds.
+  onAnonymousUpgradeRequested?: () => void
 }
 
 type SocialProviderConfig = {
@@ -215,6 +229,12 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
     advanced: {
       useSecureCookies,
     },
+    session: {
+      // Chrome silently rewrites anything over 400 days, so a year sits
+      // comfortably under the cap instead of on it. updateAge (1 day) still
+      // rolls this forward, so an active user effectively never expires.
+      expiresIn: 60 * 60 * 24 * 365,
+    },
     ...(Object.keys(socialProviders).length > 0 ? { socialProviders } : {}),
     user: {
       deleteUser: {
@@ -288,12 +308,103 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
       },
     } : undefined,
     plugins: [
-      anonymous(),
+      // Without this the plugin names every anonymous user "Anonymous". The bird
+      // name is the display name from the moment the account exists, and signup
+      // keeps it, so the identity a visitor sees never changes underneath them.
+      anonymous({ generateName: () => generateBirdName() }),
       bearer(),
       passkey({
         rpName: 'WingDex',
         rpID: new URL(passkeyOrigin).hostname,
         origin: passkeyOrigin,
+        // SPIKE (#271): one ceremony, no anonymous account to promote afterwards.
+        // requireSession false lets registration start unauthenticated; resolveUser
+        // returns a NON-PERSISTED stub purely so WebAuthn has a user handle, and
+        // afterVerification is the first point at which a row is written. With
+        // createSession the plugin wraps user + passkey + session in one
+        // runWithTransaction, so a cancelled or failed ceremony leaves nothing behind.
+        registration: {
+          // Demo-first, one ceremony. requireSession false lets registration
+          // start without a session, but WingDex normally has one: the app
+          // bootstraps an anonymous user on load so a visitor can use the app
+          // before signing up.
+          //
+          // That is deliberate rather than tolerated. resolveRegistrationUser
+          // returns the SESSION user whenever one exists, so the passkey
+          // attaches to the anonymous user that already owns the demo and real
+          // data, and the id never changes. No new user, so no row migration
+          // and no cascading delete of the old one.
+          requireSession: false,
+
+          // Only reached for a genuinely sessionless signup (cookies cleared,
+          // or a client that never bootstrapped). The stub is not persisted;
+          // afterVerification creates the durable row from this name.
+          resolveUser: async () => ({
+            id: crypto.randomUUID(),
+            name: generateBirdName(),
+          }),
+
+          // rc.4 calls this as afterVerification({ ctx, verification, user,
+          // clientData, context }). Note `context` is NOT the auth context: it
+          // is the opaque caller-supplied string from ?context=, round-tripped
+          // through the stored challenge. The adapter lives on ctx.context.
+          afterVerification: async ({ ctx, user }: {
+            ctx: {
+              context: {
+                session?: { user?: { id?: string; name?: string; isAnonymous?: boolean } } | null
+                internalAdapter: {
+                  createUser: (v: Record<string, unknown>) => Promise<{ id: string }>
+                  updateUser: (id: string, v: Record<string, unknown>) => Promise<unknown>
+                }
+              }
+            }
+            user: { id: string; name?: string }
+          }) => {
+            const sessionUser = ctx.context.session?.user
+            const sessionUserId = sessionUser?.id
+            const action = passkeyRegistrationAction(sessionUser, user.id)
+
+            if (action === 'reuse') {
+              return { userId: sessionUserId! }
+            }
+
+            // Upgrade in place. The plugin already resolved `user` to the
+            // session user, so this is the anonymous account being made
+            // durable: clear the anonymous flag, keeping the id and therefore
+            // every row that points at it. Runs inside the plugin's
+            // registration transaction, so a failed ceremony rolls the flag
+            // back along with the passkey and session.
+            if (action === 'upgrade' && sessionUserId) {
+              // `user.name` here is the WebAuthn handle, which the plugin sets
+              // to the account's email. Writing that would make the temp
+              // anonymous address the display name, so keep the bird name the
+              // account already has. Legacy rows predate generateName.
+              const existingName = sessionUser?.name
+              const name = existingName && existingName !== 'Anonymous' ? existingName : generateBirdName()
+              // Anonymous users have no stored image; the client derives one
+              // from the name. Persist it here so the account keeps the same
+              // avatar and Settings has a value to show as selected.
+              await ctx.context.internalAdapter.updateUser(sessionUserId, {
+                name,
+                image: emojiAvatarDataUrl(emojiForBirdName(name)),
+                isAnonymous: false,
+              })
+              options.onAnonymousUpgradeRequested?.()
+              return { userId: sessionUserId }
+            }
+
+            // No session: nothing to upgrade, so create the durable user here.
+            // `user.name` is the bird name from resolveUser on this path.
+            const createdName = user.name || generateBirdName()
+            const created = await ctx.context.internalAdapter.createUser({
+              name: createdName,
+              image: emojiAvatarDataUrl(emojiForBirdName(createdName)),
+              email: `${user.id}@passkey.wingdex.app`,
+              emailVerified: false,
+            })
+            return { userId: created.id }
+          },
+        },
       }),
     ],
   })

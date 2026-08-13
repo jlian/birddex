@@ -11,6 +11,9 @@ const BODY_LIMITS: Array<{ prefix: string; maxBytes: number }> = [
 ]
 const DEFAULT_BODY_LIMIT = 1 * 1024 * 1024 // 1 MB for all other API routes
 
+/** Path prefixes that require a registered account rather than any session. */
+const ACCOUNT_ONLY_PREFIXES = ['/api/import/', '/api/export/outing/', '/api/export/dex']
+
 /** Route map: pathname prefix + optional method -> operationName + category.
  *  Ordered longest-prefix-first so /api/data/outings/ beats /api/data/outings. */
 const ROUTE_MAP: Array<{ prefix: string; route: string; method?: string; op: string; category: Category }> = [
@@ -25,14 +28,12 @@ const ROUTE_MAP: Array<{ prefix: string; route: string; method?: string; op: str
   { prefix: '/api/data/dex', route: '/api/data/dex', method: 'PATCH', op: 'data/dex/write', category: 'Application' },
   { prefix: '/api/data/clear', route: '/api/data/clear', method: 'DELETE', op: 'data/clear/delete', category: 'Audit' },
   { prefix: '/api/data/all', route: '/api/data/all', method: 'GET', op: 'data/all/read', category: 'Application' },
-  { prefix: '/api/auth/finalize-passkey', route: '/api/auth/finalize-passkey', op: 'auth/finalizePasskey/invoke', category: 'Application' },
   { prefix: '/api/auth/linked-providers', route: '/api/auth/linked-providers', op: 'auth/linkedProviders/read', category: 'Application' },
   { prefix: '/api/auth/apple/revocation-token', route: '/api/auth/apple/revocation-token', op: 'auth/appleRevocationToken/write', category: 'Application' },
   { prefix: '/api/auth/delete-account', route: '/api/auth/delete-account', op: 'auth/account/delete', category: 'Application' },
   { prefix: '/api/auth/mobile/start', route: '/api/auth/mobile/start', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/mobile/callback', route: '/api/auth/mobile/callback', op: 'auth/mobileOAuth/invoke', category: 'Application' },
   { prefix: '/api/auth/', route: '/api/auth/:path', op: 'auth/sessions/invoke', category: 'Application' },
-  { prefix: '/api/import/ebird-csv/confirm', route: '/api/import/ebird-csv/confirm', op: 'import/ebirdCsvConfirm/write', category: 'Application' },
   { prefix: '/api/import/ebird-csv', route: '/api/import/ebird-csv', op: 'import/ebirdCsv/import', category: 'Application' },
   { prefix: '/api/export/outing/', route: '/api/export/outing/:id', op: 'export/outingCsv/export', category: 'Application' },
   { prefix: '/api/export/dex', route: '/api/export/dex', op: 'export/dex/export', category: 'Application' },
@@ -225,6 +226,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     resourceId,
   })
   context.data.log = log
+
+  // Routes that need a real account, not just a session. The UI already keeps
+  // these behind sign-up, but that gate is cosmetic on its own: an anonymous
+  // session can call the endpoint directly. Import is the heaviest write path
+  // an account can reach, so the gate is enforced here too.
+  //
+  // Anonymous sightings export remains available only for the pre-login
+  // leave-with-your-data warning. Ordinary outing and dex exports require a
+  // registered account like import and Settings.
+  if (identity.isAnonymous && ACCOUNT_ONLY_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    log.warn('auth/sessions/validate', { category: 'Request', resultType: 'Failed', resultSignature: 403, resultDescription: 'Route requires a registered account; the request carried an anonymous session', durationMs: Date.now() - start })
+    const accountResponse = errorResponse('Account required', 403)
+    addTraceHeaders(accountResponse, traceCtx)
+    return accountResponse
+  }
 
   try {
     const response = withSecurityHeaders(await context.next())

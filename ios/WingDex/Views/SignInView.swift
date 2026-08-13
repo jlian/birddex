@@ -44,6 +44,13 @@ struct SignInView: View {
     @State private var errorMessage: String?
     @State private var parallaxOffset: CGSize = .zero
     @State private var collageCache = CollageImageCache.shared
+    @State private var pendingSignIn: (() async throws -> Void)?
+    @State private var showingDataWarning = false
+
+    private var hasAnonymousData: Bool {
+        auth.identity == .anonymous
+            && (!store.hasLoadedAll || !store.outings.isEmpty || !store.observations.isEmpty)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -108,26 +115,6 @@ struct SignInView: View {
                     AppIconView()
                         .frame(width: 44, height: 44)
                     Spacer()
-                    #if DEBUG
-                    Menu {
-                        Button {
-                            signIn {
-                                try await auth.signInAnonymously()
-                                try await store.loadDemoData()
-                            }
-                        } label: {
-                            Label("Try with Demo Data", systemImage: "sparkles")
-                        }
-                    } label: {
-                        Image(systemName: "sparkles")
-                            .font(.title3)
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .menuStyle(.borderlessButton)
-                    .buttonStyle(.plain)
-                    #endif
                 }
                 .padding(.horizontal, 28)
                 .padding(.top, 8)
@@ -136,7 +123,7 @@ struct SignInView: View {
 
                 // Big left-aligned title
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Start your")
+                    Text(hasAnonymousData ? "Keep your" : "Start your")
                         .font(.system(size: titleSize, weight: .bold, design: .serif))
                     Text("WingDex")
                         .font(.system(size: titleSize, weight: .bold, design: .serif))
@@ -148,6 +135,15 @@ struct SignInView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 32)
 
+                if hasAnonymousData {
+                    Text("Your sightings are saved only on this device. They can disappear if the app's data is removed or you switch devices. An account keeps them and unlocks import and export. It takes one tap and no email.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 20)
+                }
+
                 // Social sign-in buttons
                 let btnHeight: CGFloat = 44
                 let iconSize: CGFloat = btnHeight * 0.32
@@ -157,7 +153,7 @@ struct SignInView: View {
                     SignInWithAppleButton(.continue) { request in
                         request.requestedScopes = [.fullName, .email]
                     } onCompletion: { result in
-                        signIn {
+                        requestSignIn {
                             let authorization = try result.get()
                             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
                                 throw URLError(.userAuthenticationRequired)
@@ -172,7 +168,7 @@ struct SignInView: View {
 
                     // Google -- neutral style per branding guidelines
                     Button {
-                        signIn { try await auth.signInWithGoogle() }
+                        requestSignIn { try await auth.signInWithGoogle() }
                     } label: {
                         HStack(spacing: 6) {
                             Image("GoogleIcon")
@@ -192,7 +188,7 @@ struct SignInView: View {
 
                     // GitHub -- neutral style matching Google
                     Button {
-                        signIn { try await auth.signInWithGitHub() }
+                        requestSignIn { try await auth.signInWithGitHub() }
                     } label: {
                         HStack(spacing: 6) {
                             Image("GitHubIcon")
@@ -235,9 +231,11 @@ struct SignInView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white)
 
+                    // Both controls use prominent material for reliable contrast
+                    // over the moving collage; tint distinguishes login/signup.
                     HStack(spacing: 12) {
                         Button {
-                            signIn { try await auth.signInWithPasskey() }
+                            requestSignIn { try await auth.signInWithPasskey() }
                         } label: {
                             Text("Log in")
                                 .font(.body.weight(.medium))
@@ -246,6 +244,7 @@ struct SignInView: View {
                         .buttonStyle(.glassProminent)
                         .buttonSizing(.flexible)
                         .tint(Color(red: 0.0, green: 0.28, blue: 0.14))
+                        .accessibilityIdentifier("auth.passkeyLogin")
 
                         Button {
                             signIn { try await auth.signUpWithPasskey() }
@@ -254,10 +253,10 @@ struct SignInView: View {
                                 .font(.body.weight(.medium))
                                 .frame(minHeight: glassLabelHeight)
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.glassProminent)
                         .buttonSizing(.flexible)
-                        .colorScheme(colorScheme == .dark ? .light : .dark)
-                        .background(Color.black.opacity(0.72), in: Capsule())
+                        .foregroundStyle(.white)
+                        .tint(Color.black.opacity(0.82))
                     }
                 }
                 .padding(16)
@@ -305,6 +304,15 @@ struct SignInView: View {
             }
         }
         .animation(.default, value: errorMessage)
+        .sheet(isPresented: $showingDataWarning, onDismiss: {
+            pendingSignIn = nil
+        }) {
+            SignInDataWarning {
+                guard let action = pendingSignIn else { return }
+                pendingSignIn = nil
+                signIn(action: action)
+            }
+        }
         .task { await collageCache.load() }
         .onAppear {
             errorMessage = auth.consumeSignInMessage()
@@ -333,6 +341,8 @@ struct SignInView: View {
               !manager.isDeviceMotionActive
         else { return }
         gravityBaseline = nil
+        // 30 Hz is deliberate: 60 Hz caused excess render churn, while 15 Hz
+        // made the parallax visibly choppy.
         manager.deviceMotionUpdateInterval = 1.0 / 30.0
         manager.startDeviceMotionUpdates(to: .main) { motion, _ in
             guard let gravity = motion?.gravity else { return }
@@ -364,6 +374,15 @@ struct SignInView: View {
 
     // MARK: - Sign-In Handler
 
+    private func requestSignIn(action: @escaping () async throws -> Void) {
+        guard hasAnonymousData else {
+            signIn(action: action)
+            return
+        }
+        pendingSignIn = action
+        showingDataWarning = true
+    }
+
     private func signIn(action: @escaping () async throws -> Void) {
         isSigningIn = true
         errorMessage = nil
@@ -375,6 +394,90 @@ struct SignInView: View {
                 log.debug("Sign-in attempt failed")
             }
             isSigningIn = false
+        }
+    }
+}
+
+private struct SignInDataWarning: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(\.dismiss) private var dismiss
+    @State private var exportItem: ExportFileItem?
+    @State private var exportError: AppError?
+    @State private var isExporting = false
+
+    let onContinue: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Your sightings stay on this device")
+                        .font(.headline)
+                    Text("They belong to this device, not to the account you are about to log in to, so they will not show up there. Export them first if you want a copy.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("Signing up instead keeps them: it turns this device's sightings into an account.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.yellow.opacity(0.45)))
+
+                Button {
+                    Task { await exportSightings() }
+                } label: {
+                    Label(isExporting ? "Exporting..." : "Export sightings as CSV", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.glass)
+                .buttonSizing(.flexible)
+                .disabled(isExporting)
+
+                Button("Continue to log in") {
+                    dismiss()
+                    onContinue()
+                }
+                .buttonStyle(.glassProminent)
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
+
+                Button("Back", role: .cancel) { dismiss() }
+                    .buttonStyle(.glass)
+                    .buttonSizing(.flexible)
+                    .frame(maxWidth: .infinity)
+
+                if let exportError {
+                    Text(exportError.message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .background(Color.pageBg.ignoresSafeArea())
+            .navigationTitle("Before You Log In")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $exportItem) { item in
+                ActivityView(item: item)
+            }
+        }
+    }
+
+    private func exportSightings() async {
+        isExporting = true
+        exportError = nil
+        defer { isExporting = false }
+        do {
+            let data = try await DataService(
+                auth: auth,
+                expectedAccountID: auth.userId
+            ).exportSightingsCSV()
+            exportItem = try ExportFileFactory.sightings(data: data)
+        } catch {
+            exportError = AppError.map(error, fallback: "Could not export sightings. Try again.")
         }
     }
 }

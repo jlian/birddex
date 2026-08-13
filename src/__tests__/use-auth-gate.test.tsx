@@ -64,16 +64,22 @@ vi.mock('@/components/ui/switch', () => ({
   ),
 }))
 
-function Harness({ onUpgraded, isAnonymous = true }: { onUpgraded: () => void | Promise<void>; isAnonymous?: boolean }) {
+function Harness({ onUpgraded, isAnonymous = true, hasUnsavedSightings = false }: { onUpgraded: () => void | Promise<void>; isAnonymous?: boolean; hasUnsavedSightings?: boolean }) {
   const [actionRan, setActionRan] = useState(false)
-  const { requireAuth, authGateModal } = useAuthGate({
+  // requireAuth is gone: nothing gates on having an account any more. The modal
+  // is opened directly now, and onUpgraded is what callers hang work off.
+  const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous,
-    onUpgraded,
+    hasUnsavedSightings,
+    onUpgraded: async () => {
+      setActionRan(true)
+      await onUpgraded()
+    },
   })
 
   return (
     <>
-      <button onClick={() => requireAuth(() => setActionRan(true))}>Open gated action</button>
+      <button onClick={() => openSignIn()}>Open gated action</button>
       {authGateModal}
       {actionRan && <div>action-ran</div>}
     </>
@@ -93,7 +99,12 @@ describe('useAuthGate', () => {
   })
 
   it('opens the combined auth modal and signs up with the passkey action', async () => {
-    mockAddPasskey.mockResolvedValue({ data: { id: 'pk-test-1' }, error: null })
+    // One ceremony (#271): verify-registration returns the session and user it
+    // just created, and sets the cookie server-side. No finalize call follows.
+    mockAddPasskey.mockResolvedValue({
+      data: { id: 'pk-test-1', session: { id: 'sess-1' }, user: { id: 'user-1' } },
+      error: null,
+    })
 
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
     vi.stubGlobal('fetch', fetchMock)
@@ -114,14 +125,9 @@ describe('useAuthGate', () => {
     })
 
     expect(mockAddPasskey).toHaveBeenCalledTimes(1)
-    const finalizeCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/finalize-passkey')
-    expect(finalizeCall).toBeTruthy()
-    const finalizeInit = finalizeCall?.[1] as RequestInit
-    expect(typeof finalizeInit.body).toBe('string')
-    expect(JSON.parse(String(finalizeInit.body))).toMatchObject({
-      name: 'test-bird',
-      passkeyId: 'pk-test-1',
-    })
+    expect(mockAddPasskey).toHaveBeenCalledWith(
+      expect.objectContaining({ createSession: true }),
+    )
   })
 
   it('uses the passkey log-in action from the combined auth modal', async () => {
@@ -150,16 +156,25 @@ describe('useAuthGate', () => {
     expect(mockAddPasskey).not.toHaveBeenCalled()
   })
 
-  it('runs callback immediately when user is not anonymous', async () => {
+  it('uses Keep your WingDex copy whenever anonymous data exists', async () => {
+    render(<Harness onUpgraded={vi.fn()} hasUnsavedSightings />)
+
+    await userEvent.click(screen.getByText('Open gated action'))
+
+    expect(screen.getByRole('heading', { name: 'Keep your WingDex' })).toBeInTheDocument()
+    expect(screen.getByText(/only in this browser/i)).toBeInTheDocument()
+  })
+
+  it('still opens the modal for a signed-in user, since it is now a sign-in entry point', async () => {
+    // There is no gate to bypass any more. openSignIn is what the header button
+    // and Settings use, so it opens regardless of who is asking.
     const onUpgraded = vi.fn()
     render(<Harness onUpgraded={onUpgraded} isAnonymous={false} />)
 
     await userEvent.click(screen.getByText('Open gated action'))
 
-    // Callback runs immediately without opening modal
-    expect(screen.getByText('action-ran')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /start your wingdex/i })).toBeInTheDocument()
     expect(onUpgraded).not.toHaveBeenCalled()
-    expect(screen.queryByRole('heading', { name: /start your wingdex/i })).not.toBeInTheDocument()
   })
 
   it('does not call onUpgraded when passkey creation is cancelled', async () => {

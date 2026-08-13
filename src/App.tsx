@@ -10,9 +10,8 @@ import { useWingDexData } from '@/hooks/use-wingdex-data'
 import { getStableDevUserId } from '@/lib/dev-user'
 import { authClient } from '@/lib/auth-client'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
-import { getEmojiAvatarColor } from '@/lib/fun-names'
+import { getEmojiAvatarColor, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fun-names'
 import { useAuthGate } from '@/hooks/use-auth-gate'
-import { loadDemoData } from '@/lib/demo-data'
 import type { OutingSortField, SortDir as OutingSortDir } from '@/components/pages/OutingsPage'
 import type { SortField as WingDexSortField, SortDir as WingDexSortDir } from '@/components/pages/WingDexPage'
 
@@ -46,6 +45,39 @@ function getFallbackUser(): UserInfo {
     email: 'dev@localhost',
     id: getStableDevUserId(),
     isAnonymous: false,
+  }
+}
+
+/** Placeholder id used for a visitor that has no session yet. */
+const GUEST_USER_ID = 'guest'
+
+const SIGNUP_PROMPT_KEY = 'wingdex.signupPrompted'
+
+function signupPromptKey(userId: string): string {
+  return `${SIGNUP_PROMPT_KEY}.${userId}`
+}
+
+/**
+ * The server names every anonymous account with a bird name and stores no
+ * image, so the avatar is derived from that name rather than stored twice.
+ */
+function avatarForBirdName(name: string): string {
+  return emojiAvatarDataUrl(emojiForBirdName(name))
+}
+
+/**
+ * Identity used before any session exists. It lets AppContent mount so a
+ * visitor can browse immediately, while no anonymous user has been created
+ * on the server yet. It is `isAnonymous` so every existing auth gate keeps
+ * treating it as "not signed in".
+ */
+function getGuestUser(): UserInfo {
+  return {
+    name: 'guest',
+    image: '',
+    email: '',
+    id: isDevRuntime() ? getStableDevUserId() : GUEST_USER_ID,
+    isAnonymous: true,
   }
 }
 
@@ -118,11 +150,21 @@ function App() {
   const isSessionPending = sessionState.isPending
   const refetchSession = sessionState.refetch
   const anonBootstrapStarted = useRef(false)
+  const anonBootstrapPromise = useRef<Promise<boolean> | null>(null)
   const hadSessionRef = useRef(false)
   const wasRealUserRef = useRef(false)
   const explicitSignOutRef = useRef(false)
   const [anonBootstrapFailed, setAnonBootstrapFailed] = useState(false)
-  const [user, setUser] = useState<UserInfo | null>(null)
+  // Only the first check matters: once the answer is known, later refetches keep
+  // showing it rather than blanking the header again.
+  const [sessionResolved, setSessionResolved] = useState(false)
+  // Starts as a guest rather than null: with no BootShell, the app renders
+  // immediately and a real session upgrades this in place when it resolves.
+  const [user, setUser] = useState<UserInfo>(() => getGuestUser())
+
+  useEffect(() => {
+    if (!isSessionPending) setSessionResolved(true)
+  }, [isSessionPending])
 
   const fetchLinkedProviders = useCallback(async (): Promise<string[]> => {
     try {
@@ -155,14 +197,16 @@ function App() {
     if (session && session.user) {
       hadSessionRef.current = true
       anonBootstrapStarted.current = false
+      anonBootstrapPromise.current = null
       const isAnon = Boolean((session.user as { isAnonymous?: boolean }).isAnonymous)
       wasRealUserRef.current = !isAnon
 
       setAnonBootstrapFailed(false)
+      const name = session.user.name || session.user.email || 'user'
       setUser({
         id: session.user.id,
-        name: session.user.name || session.user.email || 'user',
-        image: session.user.image || '',
+        name,
+        image: isAnon ? avatarForBirdName(name) : (session.user.image || ''),
         email: session.user.email || '',
         isAnonymous: isAnon,
       })
@@ -174,88 +218,96 @@ function App() {
     if (hadSessionRef.current) {
       if (wasRealUserRef.current && !explicitSignOutRef.current) {
         toast.info('Your session has expired. Please sign in again.')
-        setUser(null)
+        // Fall back to the guest view rather than an empty screen: the toast
+        // explains what happened, and the app stays usable while they sign in.
+        setUser(getGuestUser())
       }
       hadSessionRef.current = false
       wasRealUserRef.current = false
       explicitSignOutRef.current = false
       anonBootstrapStarted.current = false
+      anonBootstrapPromise.current = null
     }
+
+    // No session. Passkey registration is sessionless-capable now
+    // (`requireSession: false`), so nothing here needs an anonymous user yet.
+    // Mount as a guest and defer the anonymous sign-in to the first action
+    // that actually needs a server-side identity (see ensureAnonymousSession).
+    //
+    // This applies while the session check is still in flight too. A returning
+    // user is resolved as a guest for those few hundred milliseconds and then
+    // upgraded in place when the check returns, which shows the app immediately
+    // instead of holding a splash screen for every visitor.
 
     if (isDevRuntime()) {
-      if (anonBootstrapFailed) {
-        setUser(getFallbackUser())
-        return
-      }
-
-      if (!isSessionPending && !anonBootstrapStarted.current) {
-        anonBootstrapStarted.current = true
-        void authClient.signIn.anonymous().then((result) => {
-          if (result.error) {
-            setAnonBootstrapFailed(true)
-            return
-          }
-          // Set user directly from sign-in response so AppContent mounts
-          // immediately and fires /api/data/all in parallel with the
-          // auto-refetch get-session instead of waiting for it.
-          const u = result.data?.user
-          if (u) {
-            setUser({
-              id: u.id,
-              name: u.name || u.email || 'user',
-              image: u.image || '',
-              email: u.email || '',
-              isAnonymous: Boolean((u as { isAnonymous?: boolean }).isAnonymous),
-            })
-          }
-        }).catch(() => {
-          setAnonBootstrapFailed(true)
-          anonBootstrapStarted.current = false
-        })
-      }
-
-      if (!anonBootstrapStarted.current) setUser(null)
+      // Dev keeps its own fallback identity when the auth backend is dead.
+      setUser(anonBootstrapFailed ? getFallbackUser() : getGuestUser())
       return
     }
 
-    // Hosted: auto-bootstrap anonymous session (demo-first)
-    if (anonBootstrapFailed) {
-      // Auth backend unreachable, stop retrying to avoid tight loop.
-      // User must reload to reattempt.
-      return
-    }
-
-    if (!isSessionPending && !anonBootstrapStarted.current) {
-      anonBootstrapStarted.current = true
-      void authClient.signIn.anonymous().then((result) => {
-        if (result.error) {
-          setAnonBootstrapFailed(true)
-          return
-        }
-        // Set user directly from sign-in response so AppContent mounts
-        // immediately and fires /api/data/all in parallel with the
-        // auto-refetch get-session instead of waiting for it.
-        const u = result.data?.user
-        if (u) {
-          setUser({
-            id: u.id,
-            name: u.name || u.email || 'user',
-            image: u.image || '',
-            email: u.email || '',
-            isAnonymous: Boolean((u as { isAnonymous?: boolean }).isAnonymous),
-          })
-        }
-      }).catch(() => {
-        setAnonBootstrapFailed(true)
-      })
-    }
-
-    if (!anonBootstrapStarted.current) setUser(null)
+    setUser(getGuestUser())
   }, [
     session,
     isSessionPending,
     anonBootstrapFailed,
   ])
+
+  /**
+   * Create the anonymous user on demand, at the first point a server-side
+   * identity is actually required. Idempotent: concurrent callers await the
+   * same in-flight promise, so only one anonymous user is ever minted.
+   * Resolves true when a session exists (or already existed), false on
+   * failure. On failure it sets `anonBootstrapFailed` and does not retry in a
+   * loop, matching the previous on-load behavior.
+   */
+  const ensureAnonymousSession = useCallback(async (): Promise<boolean> => {
+    if (session?.user) return true
+    if (anonBootstrapPromise.current) return anonBootstrapPromise.current
+    if (anonBootstrapStarted.current) return false
+    if (anonBootstrapFailed) {
+      // Auth backend unreachable, stop retrying to avoid a tight loop.
+      // User must reload to reattempt.
+      return false
+    }
+
+    anonBootstrapStarted.current = true
+    let succeeded = false
+    const inFlight = authClient.signIn.anonymous().then((result) => {
+      if (result.error) {
+        setAnonBootstrapFailed(true)
+        return false
+      }
+      // Set user directly from sign-in response so AppContent keeps rendering
+      // with the real id immediately and fires /api/data/all in parallel with
+      // the auto-refetch get-session instead of waiting for it.
+      const u = result.data?.user
+      if (u) {
+        const isAnon = Boolean((u as { isAnonymous?: boolean }).isAnonymous)
+        const name = u.name || u.email || 'user'
+        setUser({
+          id: u.id,
+          name,
+          image: isAnon ? avatarForBirdName(name) : (u.image || ''),
+          email: u.email || '',
+          isAnonymous: isAnon,
+        })
+      }
+      succeeded = true
+      return true
+    }).catch(() => {
+      setAnonBootstrapFailed(true)
+      anonBootstrapStarted.current = false
+      if (isDevRuntime()) setUser(getFallbackUser())
+      return false
+    }).finally(() => {
+      // Keep a successful readiness promise until useSession publishes the
+      // session. Multiple first-write boundaries can run during that gap.
+      if (!succeeded) anonBootstrapPromise.current = null
+    })
+
+    anonBootstrapPromise.current = inFlight
+    return inFlight
+  }, [session, anonBootstrapFailed])
 
   useEffect(() => {
     if (!user || user.isAnonymous) return
@@ -302,44 +354,31 @@ function App() {
     void finalizeSocialToast()
   }, [user, fetchLinkedProviders])
 
-  if (!user) {
-    return <BootShell />
-  }
-
-  return <AppContent user={user} refetchSession={refetchSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
+  // A guest is a placeholder identity with no server row, so data fetching waits
+  // until a real session exists.
+  return <AppContent user={user} hasSession={Boolean(session?.user)} sessionResolved={sessionResolved} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
 }
 
-function BootShell() {
-  return (
-    <div className="min-h-dvh bg-background flex items-center justify-center">
-      <BirdLogo size={40} className="text-primary animate-pulse" duotone />
-      <p className="sr-only" aria-live="polite">Verifying your session.</p>
-    </div>
-  )
-}
-
-function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo; refetchSession: () => Promise<unknown>; onBeforeSignOut: () => void }) {
+function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; hasSession: boolean; sessionResolved: boolean; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {
   const { tab, subId, navigate, handleTabChange } = useHashRouter()
   const [showAddPhotos, setShowAddPhotos] = useState(false)
-  const data = useWingDexData(user.id)
+  const data = useWingDexData(user.id, { hasSession })
 
-  const { requireAuth, openSignIn, authGateModal } = useAuthGate({
+  // Everything an anonymous account holds is the user's own now, and it lives
+  // only in this browser.
+  const hasUnsavedSightings = user.isAnonymous
+    && hasSession
+    && (data.isLoading || data.outings.length > 0 || data.observations.length > 0)
+
+  const { openSignIn, authGateModal } = useAuthGate({
     isAnonymous: user.isAnonymous,
+    hasUnsavedSightings,
     onUpgraded: async () => {
       await refetchSession()
       navigate('home')
     },
-    demoDataEnabled: user.isAnonymous && (data.dex.length > 0 || data.outings.length > 0),
-    onSetDemoDataEnabled: async (enabled) => {
-      if (!user.isAnonymous) return
-      if (enabled) {
-        await loadDemoData(data)
-        return
-      }
-      data.clearAllData()
-      await data.refresh()
-    },
   })
+
   const [wingDexSearchQuery, setWingDexSearchQuery] = useState('')
   const [wingDexSortField, setWingDexSortField] = useState<WingDexSortField>('date')
   const [wingDexSortDir, setWingDexSortDir] = useState<WingDexSortDir>('desc')
@@ -355,8 +394,55 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
   }, [])
 
   const handleAddPhotos = useCallback(() => {
-    requireAuth(() => setShowAddPhotos(true))
-  }, [requireAuth])
+    // No sign-up gate. Identification runs on-device, so an anonymous visitor
+    // costs nothing to serve, and gating the core feature behind an account was
+    // asking for commitment before showing any value. Signing up is now about
+    // keeping the results: an anonymous account lives in one browser and is lost
+    // when cookies are cleared, while a passkey makes it durable and portable.
+    //
+    // The flow still uploads and persists under a real user id, so the anonymous
+    // account has to exist. Open the dialog first and create it in the
+    // background: the first step is photo selection, which needs no identity,
+    // and on a cold worker the round trip is slow enough to feel like a dead
+    // click. If it fails, close again and surface the error.
+    setShowAddPhotos(true)
+    void ensureAnonymousSession().then((ok) => {
+      if (!ok) {
+        setShowAddPhotos(false)
+        toast.error('Could not start a session. Please try again.')
+      }
+    })
+  }, [ensureAnonymousSession])
+
+  // Prompt to sign up exactly once, at the first save rather than the first
+  // identification: saving is the moment there is something to lose. If they
+  // decline, the avatar badge carries the message from then on.
+  const promptSignupOnCloseRef = useRef<string | null>(null)
+
+  const handleOutingSaved = useCallback(() => {
+    if (!user.isAnonymous || !hasSession) return
+    try {
+      if (window.localStorage.getItem(signupPromptKey(user.id))) return
+    } catch {
+      // Without storage there is no way to remember a decline, and a prompt
+      // that cannot promise "once" is worse than no prompt.
+      return
+    }
+    promptSignupOnCloseRef.current = user.id
+  }, [hasSession, user.id, user.isAnonymous])
+
+  const handleCloseAddPhotos = useCallback(() => {
+    setShowAddPhotos(false)
+    const promptedUserId = promptSignupOnCloseRef.current
+    if (!promptedUserId) return
+    promptSignupOnCloseRef.current = null
+    try {
+      window.localStorage.setItem(signupPromptKey(promptedUserId), '1')
+    } catch {
+      return
+    }
+    openSignIn()
+  }, [openSignIn])
 
   const handleSelectOuting = useCallback((id: string) => {
     navigate('outings', id)
@@ -406,6 +492,8 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
     }
   }, [resolvedTheme])
 
+  // Settings stays behind sign-up. Identification is free, but keeping and
+  // moving data (import, export, passkeys, profile) is what an account is for.
   useEffect(() => {
     if (user.isAnonymous && tab === 'settings') {
       navigate('home')
@@ -482,11 +570,16 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
                 ))}
               </TabsList>
 
-              {/* Right side: sign-in (anonymous) or avatar (authenticated) */}
+              {/* Right side: generic icon until an account exists, then the bird avatar */}
               <div className="flex items-center gap-3">
-                {user.isAnonymous ? (
+                {!sessionResolved ? (
+                  // A returning user would otherwise be shown the logged-out
+                  // button for the length of the session check. Hold the slot
+                  // instead of guessing wrong, and keep the body painting.
+                  <div className="h-8 w-8" aria-hidden="true" />
+                ) : !hasSession ? (
                   <button
-                    onClick={openSignIn}
+                    onClick={() => openSignIn()}
                     className="inline-flex items-center justify-center rounded-md text-primary cursor-pointer press-feel-light h-8 w-8"
                     aria-label="Log in"
                     title="Log in"
@@ -495,18 +588,27 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate('settings')}
-                    className="cursor-pointer press-feel"
-                    aria-label="Settings"
+                    onClick={user.isAnonymous ? () => openSignIn() : () => navigate('settings')}
+                    className="relative cursor-pointer press-feel"
+                    aria-label={user.isAnonymous ? 'Log in' : 'Settings'}
+                    title={user.isAnonymous ? 'Log in' : undefined}
                   >
                     <Avatar className={`h-8 w-8 ${avatarColorClass || 'bg-muted'}`}>
                       <AvatarImage
                         src={user.image}
-                        alt={user.name}
+                        alt={user.isAnonymous ? '' : user.name}
                         className={isEmojiAvatar ? 'scale-[0.65] object-contain' : 'object-cover'}
                       />
                       <AvatarFallback className="bg-muted text-muted-foreground text-xs">{user.name[0].toUpperCase()}</AvatarFallback>
                     </Avatar>
+                    {hasUnsavedSightings && (
+                      <span
+                        role="status"
+                        aria-label="These sightings are only on this device"
+                        title="These sightings are only on this device"
+                        className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-yellow-400 ring-2 ring-background"
+                      />
+                    )}
                   </button>
                 )}
               </div>
@@ -608,12 +710,16 @@ function AppContent({ user, refetchSession, onBeforeSignOut }: { user: UserInfo;
         <Suspense fallback={null}>
           <AddPhotosFlow
             data={data}
-            onClose={() => setShowAddPhotos(false)}
+            onClose={handleCloseAddPhotos}
+            onOutingSaved={handleOutingSaved}
+            ensureSessionReady={ensureAnonymousSession}
             userId={user.id}
           />
         </Suspense>
       )}
 
+      {/* Preview deployments may use production bundles, so hostname - not
+          build mode - decides whether commit diagnostics are useful. */}
       <footer className="flex flex-col-reverse items-center gap-4 px-4 pt-12 pb-10 text-xs text-muted-foreground/50 sm:flex-row sm:justify-center sm:gap-4">
         <div className="flex items-center gap-2">
           <a href="https://github.com/jlian/wingdex/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="press-feel-light">

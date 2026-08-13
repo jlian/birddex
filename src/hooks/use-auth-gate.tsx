@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { Key, GithubLogo, AppleLogo, GoogleChromeLogo } from '@phosphor-icons/react'
+import { Key, GithubLogo, AppleLogo, GoogleChromeLogo, DownloadSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 import { authClient } from '@/lib/auth-client'
@@ -12,7 +12,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 
 /** Safely extract error code from Better Auth error union */
 function errCode(err: { code?: string; message?: string }): string | undefined {
@@ -21,77 +20,65 @@ function errCode(err: { code?: string; message?: string }): string | undefined {
 
 interface AuthGateOptions {
   isAnonymous: boolean
+  /** Anonymous sightings that signing in to another account would leave behind. */
+  hasUnsavedSightings?: boolean
   onUpgraded: () => void | Promise<void>
-  demoDataEnabled?: boolean
-  onSetDemoDataEnabled?: (enabled: boolean) => Promise<void> | void
 }
 
 /**
  * Hook that gates actions behind authentication.
- * Returns `requireAuth(callback)` -- if user is anonymous, opens auth modal.
+ * Returns `openSignIn()` to open the auth modal. Nothing gates on having an
+ * account: identification runs on-device, so signing up is about making data
+ * durable rather than unlocking a feature.
  * If user is already authenticated, runs the callback immediately.
  * Also returns `authGateModal` element to render once in the tree.
  */
-export function useAuthGate({ isAnonymous, onUpgraded, demoDataEnabled, onSetDemoDataEnabled }: AuthGateOptions) {
+export function useAuthGate({ isAnonymous, hasUnsavedSightings, onUpgraded }: AuthGateOptions) {
   const [open, setOpen] = useState(false)
-  const pendingCallback = useRef<(() => void) | null>(null)
-
-  const requireAuth = useCallback((callback: () => void) => {
-    if (!isAnonymous) {
-      callback()
-      return
-    }
-    pendingCallback.current = callback
-    setOpen(true)
-  }, [isAnonymous])
 
   const openSignIn = useCallback(() => {
-    pendingCallback.current = null
     setOpen(true)
   }, [])
 
   const handleUpgraded = useCallback(async () => {
     setOpen(false)
     await onUpgraded()
-    const callback = pendingCallback.current
-    pendingCallback.current = null
-    callback?.()
   }, [onUpgraded])
 
   const modal = (
     <AuthGateModal
       open={open}
       onOpenChange={setOpen}
+      hasUnsavedSightings={hasUnsavedSightings}
       onUpgraded={handleUpgraded}
-      demoDataEnabled={demoDataEnabled}
-      onSetDemoDataEnabled={onSetDemoDataEnabled}
     />
   )
 
-  return { requireAuth, openSignIn, authGateModal: modal }
+  return { openSignIn, authGateModal: modal }
 }
 
 // -- Modal ------------------------------------------------
 
+type SignInIntent = { kind: 'passkey' } | { kind: 'social'; provider: 'github' | 'apple' | 'google' }
+
 interface AuthGateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  hasUnsavedSightings?: boolean
   onUpgraded: () => void
-  demoDataEnabled?: boolean
-  onSetDemoDataEnabled?: (enabled: boolean) => Promise<void> | void
 }
 
 function AuthGateModal({
   open,
   onOpenChange,
+  hasUnsavedSightings,
   onUpgraded,
-  demoDataEnabled,
-  onSetDemoDataEnabled,
 }: AuthGateModalProps) {
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isTogglingDemo, setIsTogglingDemo] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [pendingSignIn, setPendingSignIn] = useState<SignInIntent | null>(null)
   const visibleProviders = ['github', 'apple', 'google'] as const
 
   const buildSocialCallbackURL = (provider: 'github' | 'apple' | 'google'): string => {
@@ -106,14 +93,17 @@ function AuthGateModal({
     setErrorMessage(null)
     setIsLoading(true)
 
-    // Create account: the current session is already anonymous, so just
-    // register a passkey on it and finalize.
+    // One ceremony (#271). Registration now starts unauthenticated and the
+    // server creates the user, the passkey and the session together, so there
+    // is no anonymous account to mint first and promote afterwards. The server
+    // sets the session cookie on the same response.
     const birdName = generateBirdName()
     const passkeyName = buildPasskeyName(getDeviceLabelFromNavigator(), birdName)
 
     const passkeyResult = await authClient.passkey.addPasskey({
       name: passkeyName,
       authenticatorAttachment: 'platform',
+      createSession: true,
     })
     if (passkeyResult.error) {
       setIsLoading(false)
@@ -127,26 +117,13 @@ function AuthGateModal({
       return
     }
 
-    const passkeyId = (
-      typeof (passkeyResult.data as { id?: unknown } | undefined)?.id === 'string'
-        ? (passkeyResult.data as { id: string }).id.trim()
-        : ''
-    )
-
-    // Finalize -- flip anonymous -> real user
-    const finalizeRes = await fetchWithLocalAuthRetry('/api/auth/finalize-passkey', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: birdName,
-        ...(passkeyId ? { passkeyId } : {}),
-      }),
-    })
-    try {
-      await assertWingDexApiResponse(finalizeRes, 'Account setup failed')
-    } catch (error) {
-      logClientFailure('auth/passkey/finalize', error)
+    // A cancelled or failed ceremony never reaches here: the server rolls back
+    // user, passkey and session together, so there is no half-made account to
+    // clean up. Guard anyway, since a missing session would otherwise surface
+    // much later as a confusing signed-out state.
+    const created = passkeyResult.data as { session?: unknown; user?: unknown } | undefined
+    if (!created?.session || !created?.user) {
+      logClientFailure('auth/passkey/register', new Error('verify-registration returned no session'))
       setIsLoading(false)
       setErrorMessage('Account setup failed. Please try again.')
       return
@@ -198,22 +175,61 @@ function AuthGateModal({
     })
   }
 
-  const handleDemoToggle = async (enabled: boolean) => {
-    if (!onSetDemoDataEnabled) return
-    setIsTogglingDemo(true)
+  /**
+   * Signing in swaps to a different account, so anonymous sightings are left
+   * behind. Signing up does not: it upgrades the anonymous user in place and
+   * keeps the id. So this warns on the log-in paths only, and once per attempt
+   * rather than any time the modal is open.
+   */
+  const requestSignIn = (intent: SignInIntent) => {
+    if (hasUnsavedSightings) {
+      setPendingSignIn(intent)
+      return
+    }
+    runSignIn(intent)
+  }
+
+  const runSignIn = (intent: SignInIntent) => {
+    if (intent.kind === 'passkey') {
+      void handlePasskeySignIn()
+      return
+    }
+    handleSocialSignIn(intent.provider)
+  }
+
+  // Runs against the session that is about to be replaced, so it has to happen
+  // before the ceremony rather than after it.
+  const handleExportSightings = async () => {
+    setIsExporting(true)
     setErrorMessage(null)
     try {
-      await onSetDemoDataEnabled(enabled)
+      const response = await fetchWithLocalAuthRetry('/api/export/sightings', { credentials: 'include' })
+      await assertWingDexApiResponse(response, 'Export failed')
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `wingdex-sightings-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Sightings CSV exported')
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Unknown error'
-      setErrorMessage(`Demo data update failed: ${detail}`)
+      logClientFailure('export/sightings/export', error)
+      setErrorMessage('Could not export your sightings. Please try again.')
     } finally {
-      setIsTogglingDemo(false)
+      setIsExporting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setPendingSignIn(null)
+        onOpenChange(next)
+      }}
+    >
       <DialogContent
         ref={dialogContentRef}
         className="sm:max-w-md outline-none"
@@ -225,7 +241,16 @@ function AuthGateModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Start your WingDex</DialogTitle>
+          <DialogTitle>
+            {hasUnsavedSightings ? 'Keep your WingDex' : 'Start your WingDex'}
+          </DialogTitle>
+          {hasUnsavedSightings && (
+            <p className="text-sm text-muted-foreground">
+              Your sightings are saved, but only in this browser. They go away if you
+              clear your cookies or switch devices. An account keeps them, and unlocks
+              import and export. It takes one tap and no email.
+            </p>
+          )}
           <DialogDescription>
             By continuing you accept{' '}
             <a
@@ -246,7 +271,18 @@ function AuthGateModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 pt-1 min-h-[280px]">
+        {pendingSignIn && (
+          <SignInDataWarning
+            isBusy={isLoading}
+            isExporting={isExporting}
+            errorMessage={errorMessage}
+            onExport={() => void handleExportSightings()}
+            onContinue={() => runSignIn(pendingSignIn)}
+            onBack={() => setPendingSignIn(null)}
+          />
+        )}
+
+        <div className={`space-y-3 pt-1 min-h-[280px] ${pendingSignIn ? 'hidden' : ''}`}>
           {/* Social providers -- top, like Reddit */}
           {visibleProviders.length > 0 && (
             <div className="space-y-2">
@@ -254,7 +290,7 @@ function AuthGateModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => handleSocialSignIn('github')}
+                  onClick={() => requestSignIn({ kind: 'social', provider: 'github' })}
                   disabled={isLoading}
                 >
                   <GithubLogo size={18} className="mr-2" />
@@ -265,7 +301,7 @@ function AuthGateModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => handleSocialSignIn('apple')}
+                  onClick={() => requestSignIn({ kind: 'social', provider: 'apple' })}
                   disabled={isLoading}
                 >
                   <AppleLogo size={18} className="mr-2" />
@@ -276,7 +312,7 @@ function AuthGateModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => handleSocialSignIn('google')}
+                  onClick={() => requestSignIn({ kind: 'social', provider: 'google' })}
                   disabled={isLoading}
                 >
                   <GoogleChromeLogo size={18} className="mr-2" />
@@ -307,7 +343,7 @@ function AuthGateModal({
             <div className="grid grid-cols-2 gap-2">
               <Button
                 className="w-full"
-                onClick={() => void handlePasskeySignIn()}
+                onClick={() => requestSignIn({ kind: 'passkey' })}
                 disabled={isLoading}
               >
                 {isLoading ? 'Working…' : 'Log in'}
@@ -324,25 +360,59 @@ function AuthGateModal({
           </div>
 
           {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
-
-          {typeof demoDataEnabled === 'boolean' && onSetDemoDataEnabled && (
-            <div className="pt-1">
-              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Demo data</p>
-                  <p className="text-xs text-muted-foreground">Preview WingDex with sample sightings</p>
-                </div>
-                <Switch
-                  checked={demoDataEnabled}
-                  onCheckedChange={(checked) => void handleDemoToggle(checked)}
-                  disabled={isLoading || isTogglingDemo}
-                  aria-label="Toggle demo data"
-                />
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function SignInDataWarning({
+  isBusy,
+  isExporting,
+  errorMessage,
+  onExport,
+  onContinue,
+  onBack,
+}: {
+  isBusy: boolean
+  isExporting: boolean
+  errorMessage: string | null
+  onExport: () => void
+  onContinue: () => void
+  onBack: () => void
+}) {
+  return (
+    <div className="space-y-3 pt-1 min-h-[280px]">
+      <div className="space-y-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-3">
+        <p className="text-sm font-medium text-foreground">Your sightings stay on this device</p>
+        <p className="text-xs text-muted-foreground">
+          They belong to this browser, not to the account you are about to log in to,
+          so they will not show up there. Export them first if you want a copy.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Signing up instead keeps them: it turns this browser&rsquo;s sightings into an account.
+        </p>
+      </div>
+
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={onExport}
+        disabled={isBusy || isExporting}
+      >
+        <DownloadSimple size={18} className="mr-2" />
+        {isExporting ? 'Exporting…' : 'Export sightings as CSV'}
+      </Button>
+
+      <Button className="w-full" onClick={onContinue} disabled={isBusy}>
+        {isBusy ? 'Working…' : 'Continue to log in'}
+      </Button>
+
+      <Button variant="ghost" className="w-full" onClick={onBack} disabled={isBusy}>
+        Back
+      </Button>
+
+      {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
+    </div>
   )
 }
