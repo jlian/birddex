@@ -51,6 +51,7 @@ function authEnv(db: DatabaseSync): Env {
 describe('Better Auth account issuer ownership lookup', () => {
   it('fails against the pre-1.7 account schema', async () => {
     const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
     applyMigrations(db, '0009_import_identity.sql')
     db.exec(`
       INSERT INTO user (id, name, email) VALUES ('user-github', 'github', 'github@example.com');
@@ -67,6 +68,7 @@ describe('Better Auth account issuer ownership lookup', () => {
 
   it('finds an OAuth account by issuer and provider account id', async () => {
     const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
     applyMigrations(db)
     db.exec(`
       INSERT INTO user (id, name, email) VALUES ('user-github', 'github', 'github@example.com');

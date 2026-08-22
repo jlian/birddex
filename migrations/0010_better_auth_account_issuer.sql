@@ -18,6 +18,12 @@ CREATE TABLE account_new (
   updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Dropping a parent table fires ON DELETE CASCADE in D1. Preserve native Apple
+-- revocation credentials outside that foreign-key graph during the rebuild.
+CREATE TABLE account_issuer_apple_credential_backup AS
+SELECT authAccountId, accessToken, refreshToken, updatedAt
+FROM apple_native_revocation_credential;
+
 INSERT INTO account_new (
   id, userId, accountId, providerId, issuer,
   accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt,
@@ -35,8 +41,20 @@ SELECT
   scope, idToken, password, createdAt, updatedAt
 FROM account;
 
+-- Build the unique identity constraint before touching the old table. Any
+-- collision leaves the original account and credential rows intact.
+CREATE UNIQUE INDEX account_issuer_accountId_uidx
+ON account_new(issuer, accountId);
+
 DROP TABLE account;
 ALTER TABLE account_new RENAME TO account;
 
 CREATE INDEX idx_account_userId ON account(userId);
-CREATE UNIQUE INDEX account_issuer_accountId_uidx ON account(issuer, accountId);
+
+INSERT INTO apple_native_revocation_credential (
+  authAccountId, accessToken, refreshToken, updatedAt
+)
+SELECT authAccountId, accessToken, refreshToken, updatedAt
+FROM account_issuer_apple_credential_backup;
+
+DROP TABLE account_issuer_apple_credential_backup;

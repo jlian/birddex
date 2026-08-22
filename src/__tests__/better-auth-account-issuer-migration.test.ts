@@ -14,11 +14,16 @@ function applyMigrations(db: DatabaseSync, through: string) {
   }
 }
 
+function legacyDatabase(): DatabaseSync {
+  const db = new DatabaseSync(':memory:')
+  db.exec('PRAGMA foreign_keys = ON')
+  applyMigrations(db, '0009_import_identity.sql')
+  return db
+}
 
 describe('Better Auth 1.7 account issuer migration', () => {
   it('backfills configured providers and supports issuer-scoped ownership lookup', () => {
-    const db = new DatabaseSync(':memory:')
-    applyMigrations(db, '0009_import_identity.sql')
+    const db = legacyDatabase()
 
     const insertUser = db.prepare(
       'INSERT INTO user (id, name, email) VALUES (?, ?, ?)',
@@ -35,6 +40,11 @@ describe('Better Auth 1.7 account issuer migration', () => {
       insertUser.run(userId, provider, `${provider}@example.com`)
       insertAccount.run(`account-${provider}`, userId, accountId, provider)
     }
+    db.prepare(`
+      INSERT INTO apple_native_revocation_credential
+        (authAccountId, accessToken, refreshToken)
+      VALUES (?, ?, ?)
+    `).run('account-apple', 'apple-access', 'apple-refresh')
 
     db.exec(readFileSync(path.join(migrationsDirectory, '0010_better_auth_account_issuer.sql'), 'utf8'))
 
@@ -47,6 +57,15 @@ describe('Better Auth 1.7 account issuer migration', () => {
 
     const columns = db.prepare('PRAGMA table_info(account)').all() as Array<{ name: string; notnull: number }>
     expect(columns.find(column => column.name === 'issuer')).toMatchObject({ notnull: 1 })
+    expect(db.prepare(`
+      SELECT authAccountId, accessToken, refreshToken
+      FROM apple_native_revocation_credential
+    `).get()).toEqual({
+      authAccountId: 'account-apple',
+      accessToken: 'apple-access',
+      refreshToken: 'apple-refresh',
+    })
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
 
     const insertMigratedAccount = db.prepare(
       'INSERT INTO account (id, userId, accountId, providerId, issuer) VALUES (?, ?, ?, ?, ?)',
@@ -63,8 +82,7 @@ describe('Better Auth 1.7 account issuer migration', () => {
   })
 
   it('fails closed when a legacy account has an unreviewed provider', () => {
-    const db = new DatabaseSync(':memory:')
-    applyMigrations(db, '0009_import_identity.sql')
+    const db = legacyDatabase()
     db.exec(`
       INSERT INTO user (id, name, email) VALUES ('user-custom', 'custom', 'custom@example.com');
       INSERT INTO account (id, userId, accountId, providerId)
@@ -74,5 +92,25 @@ describe('Better Auth 1.7 account issuer migration', () => {
     expect(() => {
       db.exec(readFileSync(path.join(migrationsDirectory, '0010_better_auth_account_issuer.sql'), 'utf8'))
     }).toThrow()
+    expect(db.prepare('SELECT providerId FROM account').get()).toEqual({ providerId: 'custom-provider' })
+    expect(db.prepare(`SELECT COUNT(*) AS count FROM pragma_table_info('account') WHERE name = 'issuer'`).get()).toEqual({ count: 0 })
+  })
+
+  it('detects issuer collisions before dropping the legacy account table', () => {
+    const db = legacyDatabase()
+    db.exec(`
+      INSERT INTO user (id, name, email) VALUES
+        ('user-a', 'a', 'a@example.com'),
+        ('user-b', 'b', 'b@example.com');
+      INSERT INTO account (id, userId, accountId, providerId) VALUES
+        ('account-a', 'user-a', 'same-subject', 'github'),
+        ('account-b', 'user-b', 'same-subject', 'github');
+    `)
+
+    expect(() => {
+      db.exec(readFileSync(path.join(migrationsDirectory, '0010_better_auth_account_issuer.sql'), 'utf8'))
+    }).toThrow()
+    expect(db.prepare('SELECT COUNT(*) AS count FROM account').get()).toEqual({ count: 2 })
+    expect(db.prepare(`SELECT COUNT(*) AS count FROM pragma_table_info('account') WHERE name = 'issuer'`).get()).toEqual({ count: 0 })
   })
 })
