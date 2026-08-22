@@ -13,12 +13,15 @@ const mockSignInPasskey = vi.fn()
 const mockGetSession = vi.fn()
 const mockAddPasskey = vi.fn()
 const mockSignOut = vi.fn()
+const mockSignInAnonymous = vi.fn()
+const mockSignInSocial = vi.fn()
 
 vi.mock('@/lib/auth-client', () => ({
   authClient: {
     signIn: {
       passkey: (...args: unknown[]) => mockSignInPasskey(...args),
-      social: vi.fn(),
+      anonymous: (...args: unknown[]) => mockSignInAnonymous(...args),
+      social: (...args: unknown[]) => mockSignInSocial(...args),
     },
     getSession: (...args: unknown[]) => mockGetSession(...args),
     passkey: {
@@ -93,21 +96,40 @@ describe('useAuthGate', () => {
     mockGetSession.mockReset()
     mockAddPasskey.mockReset()
     mockSignOut.mockReset()
-    vi.stubGlobal('fetch', vi.fn())
+    mockSignInAnonymous.mockReset()
+    mockSignInSocial.mockReset()
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/auth/merge/prepare')) {
+        return Response.json({ token: 't'.repeat(43) })
+      }
+      if (url.endsWith('/api/auth/merge/finalize')) {
+        return Response.json({
+          status: 'completed',
+          sourceUserId: 'anon-1',
+          targetUserId: 'anon-1',
+          promoted: true,
+          outings: 0,
+          observations: 0,
+          photos: 0,
+        })
+      }
+      return new Response(null, { status: 404 })
+    }))
     mockSignOut.mockResolvedValue({ error: null })
     mockAddPasskey.mockResolvedValue({ error: null })
+    mockSignInAnonymous.mockResolvedValue({ data: { user: { id: 'anon-1' } }, error: null })
+    mockGetSession.mockResolvedValue({ data: null })
+    mockSignInSocial.mockResolvedValue({ error: null })
   })
 
   it('opens the combined auth modal and signs up with the passkey action', async () => {
-    // One ceremony (#271): verify-registration returns the session and user it
-    // just created, and sets the cookie server-side. No finalize call follows.
+    // One ceremony (#271): Better Auth creates user, passkey, and session in
+    // one transaction because no anonymous owner exists in this fixture.
     mockAddPasskey.mockResolvedValue({
       data: { id: 'pk-test-1', session: { id: 'sess-1' }, user: { id: 'user-1' } },
       error: null,
     })
-
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
-    vi.stubGlobal('fetch', fetchMock)
 
     const onUpgraded = vi.fn()
     render(<Harness onUpgraded={onUpgraded} />)
@@ -125,6 +147,8 @@ describe('useAuthGate', () => {
     })
 
     expect(mockAddPasskey).toHaveBeenCalledTimes(1)
+    expect(mockSignInAnonymous).not.toHaveBeenCalled()
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith('/api/auth/merge/prepare', expect.anything())
     expect(mockAddPasskey).toHaveBeenCalledWith(
       expect.objectContaining({ createSession: true }),
     )
@@ -156,6 +180,36 @@ describe('useAuthGate', () => {
     expect(mockAddPasskey).not.toHaveBeenCalled()
   })
 
+  it('does not prepare a merge when passkey login starts from a registered session', async () => {
+    mockSignInPasskey.mockResolvedValue({ error: null })
+    mockGetSession.mockResolvedValue({
+      data: { user: { id: 'registered', isAnonymous: false } },
+    })
+    const fetchMock = vi.mocked(fetch)
+
+    render(<Harness onUpgraded={vi.fn()} isAnonymous={false} />)
+    await userEvent.click(screen.getByText('Open gated action'))
+    await userEvent.click(screen.getByRole('button', { name: /log in/i }))
+
+    await waitFor(() => expect(mockSignInPasskey).toHaveBeenCalledTimes(1))
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/merge/prepare', expect.anything())
+  })
+
+  it('uses ordinary social authentication in one ceremony', async () => {
+    render(<Harness onUpgraded={vi.fn()} />)
+
+    await userEvent.click(screen.getByText('Open gated action'))
+    await userEvent.click(screen.getByRole('button', { name: /continue with github/i }))
+
+    await waitFor(() => {
+      expect(mockSignInSocial).toHaveBeenCalledWith(expect.objectContaining({
+        provider: 'github',
+        callbackURL: expect.stringContaining('auth_source=social'),
+      }))
+    })
+    expect(mockSignInAnonymous).not.toHaveBeenCalled()
+  })
+
   it('uses Keep your WingDex copy whenever anonymous data exists', async () => {
     render(<Harness onUpgraded={vi.fn()} hasUnsavedSightings />)
 
@@ -169,7 +223,7 @@ describe('useAuthGate', () => {
     // There is no gate to bypass any more. openSignIn is what the header button
     // and Settings use, so it opens regardless of who is asking.
     const onUpgraded = vi.fn()
-    render(<Harness onUpgraded={onUpgraded} isAnonymous={false} />)
+    render(<Harness onUpgraded={onUpgraded} />)
 
     await userEvent.click(screen.getByText('Open gated action'))
 

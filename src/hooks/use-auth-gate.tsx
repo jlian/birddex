@@ -1,10 +1,9 @@
 import { useState, useCallback, useRef } from 'react'
-import { Key, GithubLogo, AppleLogo, GoogleChromeLogo, DownloadSimple } from '@phosphor-icons/react'
+import { Key, GithubLogo, AppleLogo, GoogleChromeLogo } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 import { authClient } from '@/lib/auth-client'
-import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
-import { assertWingDexApiResponse } from '@/lib/api-error'
+import { discardPendingAccountMergeToken, finalizeAccountMerge, prepareAccountMerge } from '@/lib/account-merge'
 import { logClientFailure } from '@/lib/client-log'
 import { generateBirdName } from '@/lib/fun-names'
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike } from '@/lib/passkey-label'
@@ -20,7 +19,6 @@ function errCode(err: { code?: string; message?: string }): string | undefined {
 
 interface AuthGateOptions {
   isAnonymous: boolean
-  /** Anonymous sightings that signing in to another account would leave behind. */
   hasUnsavedSightings?: boolean
   onUpgraded: () => void | Promise<void>
 }
@@ -49,6 +47,7 @@ export function useAuthGate({ isAnonymous, hasUnsavedSightings, onUpgraded }: Au
     <AuthGateModal
       open={open}
       onOpenChange={setOpen}
+      isAnonymous={isAnonymous}
       hasUnsavedSightings={hasUnsavedSightings}
       onUpgraded={handleUpgraded}
     />
@@ -64,6 +63,7 @@ type SignInIntent = { kind: 'passkey' } | { kind: 'social'; provider: 'github' |
 interface AuthGateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  isAnonymous: boolean
   hasUnsavedSightings?: boolean
   onUpgraded: () => void
 }
@@ -71,14 +71,13 @@ interface AuthGateModalProps {
 function AuthGateModal({
   open,
   onOpenChange,
+  isAnonymous,
   hasUnsavedSightings,
   onUpgraded,
 }: AuthGateModalProps) {
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [pendingSignIn, setPendingSignIn] = useState<SignInIntent | null>(null)
   const visibleProviders = ['github', 'apple', 'google'] as const
 
   const buildSocialCallbackURL = (provider: 'github' | 'apple' | 'google'): string => {
@@ -89,14 +88,33 @@ function AuthGateModal({
     return `/?${params.toString()}`
   }
 
+  const prepareCurrentAnonymousMerge = async (
+    authMethod: 'github' | 'apple' | 'google' | 'passkey',
+  ): Promise<string | null> => {
+    if (!isAnonymous) return null
+    const current = await authClient.getSession()
+    const currentIsAnonymous = Boolean(
+      (current.data?.user as { isAnonymous?: boolean } | undefined)?.isAnonymous,
+    )
+    return currentIsAnonymous ? prepareAccountMerge(authMethod) : null
+  }
+
   const handleSignUpWithPasskey = async () => {
     setErrorMessage(null)
     setIsLoading(true)
 
-    // One ceremony (#271). Registration now starts unauthenticated and the
-    // server creates the user, the passkey and the session together, so there
-    // is no anonymous account to mint first and promote afterwards. The server
-    // sets the session cookie on the same response.
+    let mergeToken: string | null = null
+    try {
+      mergeToken = await prepareCurrentAnonymousMerge('passkey')
+    } catch (error) {
+      logClientFailure('auth/account-merge/prepare', error)
+      setIsLoading(false)
+      setErrorMessage('Could not prepare your WingDex for account setup. Please try again.')
+      return
+    }
+
+    // Better Auth creates a sessionless account transactionally, or promotes
+    // the current anonymous owner in place when one already exists.
     const birdName = generateBirdName()
     const passkeyName = buildPasskeyName(getDeviceLabelFromNavigator(), birdName)
 
@@ -106,6 +124,7 @@ function AuthGateModal({
       createSession: true,
     })
     if (passkeyResult.error) {
+      discardPendingAccountMergeToken()
       setIsLoading(false)
       if (isPasskeyCancellationLike(passkeyResult.error)) {
         return
@@ -117,10 +136,8 @@ function AuthGateModal({
       return
     }
 
-    // A cancelled or failed ceremony never reaches here: the server rolls back
-    // user, passkey and session together, so there is no half-made account to
-    // clean up. Guard anyway, since a missing session would otherwise surface
-    // much later as a confusing signed-out state.
+    // A cancelled or failed sessionless ceremony leaves no account behind. An
+    // existing anonymous account remains unchanged until verification succeeds.
     const created = passkeyResult.data as { session?: unknown; user?: unknown } | undefined
     if (!created?.session || !created?.user) {
       logClientFailure('auth/passkey/register', new Error('verify-registration returned no session'))
@@ -129,6 +146,14 @@ function AuthGateModal({
       return
     }
 
+    try {
+      if (mergeToken) await finalizeAccountMerge(mergeToken)
+    } catch (error) {
+      logClientFailure('auth/account-merge/finalize', error)
+      setIsLoading(false)
+      setErrorMessage('Your account is ready, but your WingDex still needs to be kept. Please try again.')
+      return
+    }
     setIsLoading(false)
     toast.success('Signed up with passkey')
     onUpgraded()
@@ -138,8 +163,18 @@ function AuthGateModal({
     setErrorMessage(null)
     setIsLoading(true)
 
+    let mergeToken: string | null
+    try {
+      mergeToken = await prepareCurrentAnonymousMerge('passkey')
+    } catch (error) {
+      logClientFailure('auth/account-merge/prepare', error)
+      setIsLoading(false)
+      setErrorMessage('Could not prepare your WingDex for login. Please try again.')
+      return
+    }
     const result = await authClient.signIn.passkey({ autoFill: false })
     if (result.error) {
+      discardPendingAccountMergeToken()
       setIsLoading(false)
       if (isPasskeyCancellationLike(result.error)) {
         return
@@ -147,6 +182,17 @@ function AuthGateModal({
         setErrorMessage(result.error.message || 'Passkey sign-in failed.')
       }
       return
+    }
+
+    if (mergeToken) {
+      try {
+        await finalizeAccountMerge(mergeToken)
+      } catch (error) {
+        logClientFailure('auth/account-merge/finalize', error)
+        setIsLoading(false)
+        setErrorMessage('Signed in, but your WingDex still needs to be kept. Please try again.')
+        return
+      }
     }
 
     // Verify it's a real (non-anonymous) session
@@ -166,26 +212,25 @@ function AuthGateModal({
     onUpgraded()
   }
 
-  const handleSocialSignIn = (provider: 'github' | 'apple' | 'google') => {
+  const handleSocialSignIn = async (provider: 'github' | 'apple' | 'google') => {
     setErrorMessage(null)
-    void authClient.signIn.social({
-      provider,
-      callbackURL: buildSocialCallbackURL(provider),
-      errorCallbackURL: '/',
-    })
+    setIsLoading(true)
+    try {
+      await prepareCurrentAnonymousMerge(provider)
+      await authClient.signIn.social({
+        provider,
+        callbackURL: buildSocialCallbackURL(provider),
+        errorCallbackURL: '/',
+      })
+    } catch (error) {
+      discardPendingAccountMergeToken()
+      logClientFailure('auth/social/sign-in', error)
+      setIsLoading(false)
+      setErrorMessage('Could not continue with that provider. Please try again.')
+    }
   }
 
-  /**
-   * Signing in swaps to a different account, so anonymous sightings are left
-   * behind. Signing up does not: it upgrades the anonymous user in place and
-   * keeps the id. So this warns on the log-in paths only, and once per attempt
-   * rather than any time the modal is open.
-   */
   const requestSignIn = (intent: SignInIntent) => {
-    if (hasUnsavedSightings) {
-      setPendingSignIn(intent)
-      return
-    }
     runSignIn(intent)
   }
 
@@ -194,42 +239,11 @@ function AuthGateModal({
       void handlePasskeySignIn()
       return
     }
-    handleSocialSignIn(intent.provider)
-  }
-
-  // Runs against the session that is about to be replaced, so it has to happen
-  // before the ceremony rather than after it.
-  const handleExportSightings = async () => {
-    setIsExporting(true)
-    setErrorMessage(null)
-    try {
-      const response = await fetchWithLocalAuthRetry('/api/export/sightings', { credentials: 'include' })
-      await assertWingDexApiResponse(response, 'Export failed')
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `wingdex-sightings-${new Date().toISOString().split('T')[0]}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success('Sightings CSV exported')
-    } catch (error) {
-      logClientFailure('export/sightings/export', error)
-      setErrorMessage('Could not export your sightings. Please try again.')
-    } finally {
-      setIsExporting(false)
-    }
+    void handleSocialSignIn(intent.provider)
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setPendingSignIn(null)
-        onOpenChange(next)
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={dialogContentRef}
         className="sm:max-w-md outline-none"
@@ -271,18 +285,7 @@ function AuthGateModal({
           </DialogDescription>
         </DialogHeader>
 
-        {pendingSignIn && (
-          <SignInDataWarning
-            isBusy={isLoading}
-            isExporting={isExporting}
-            errorMessage={errorMessage}
-            onExport={() => void handleExportSightings()}
-            onContinue={() => runSignIn(pendingSignIn)}
-            onBack={() => setPendingSignIn(null)}
-          />
-        )}
-
-        <div className={`space-y-3 pt-1 min-h-[280px] ${pendingSignIn ? 'hidden' : ''}`}>
+        <div className="space-y-3 pt-1 min-h-[280px]">
           {/* Social providers -- top, like Reddit */}
           {visibleProviders.length > 0 && (
             <div className="space-y-2">
@@ -363,56 +366,5 @@ function AuthGateModal({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function SignInDataWarning({
-  isBusy,
-  isExporting,
-  errorMessage,
-  onExport,
-  onContinue,
-  onBack,
-}: {
-  isBusy: boolean
-  isExporting: boolean
-  errorMessage: string | null
-  onExport: () => void
-  onContinue: () => void
-  onBack: () => void
-}) {
-  return (
-    <div className="space-y-3 pt-1 min-h-[280px]">
-      <div className="space-y-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-3">
-        <p className="text-sm font-medium text-foreground">These sightings will not move</p>
-        <p className="text-xs text-muted-foreground">
-          Continuing switches this browser to the account you log in to. These sightings
-          will not appear there, so export them first if you want a copy.
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Signing up instead keeps them: it turns this browser&rsquo;s sightings into an account.
-        </p>
-      </div>
-
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={onExport}
-        disabled={isBusy || isExporting}
-      >
-        <DownloadSimple size={18} className="mr-2" />
-        {isExporting ? 'Exporting…' : 'Export sightings as CSV'}
-      </Button>
-
-      <Button className="w-full" onClick={onContinue} disabled={isBusy}>
-        {isBusy ? 'Working…' : 'Continue to log in'}
-      </Button>
-
-      <Button variant="ghost" className="w-full" onClick={onBack} disabled={isBusy}>
-        Back
-      </Button>
-
-      {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
-    </div>
   )
 }

@@ -100,8 +100,8 @@ test.describe('anonymous durability badge', () => {
   })
 })
 
-test.describe('export offer before an account switch', () => {
-  test('warns on log in and not on sign up', async ({ page }) => {
+test.describe('account authentication with anonymous data', () => {
+  test('starts authentication directly without an export warning', async ({ page }) => {
     await loadApp(page, { promote: false })
     await startAnonymousSession(page)
     await addSighting(page, 'My Patch')
@@ -110,47 +110,9 @@ test.describe('export offer before an account switch', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
-    // Sign up upgrades the anonymous user in place and keeps the id, so there
-    // is nothing to warn about on that path.
     await expect(dialog.getByRole('button', { name: 'Sign up' })).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Export sightings as CSV' })).toBeHidden()
-
-    await dialog.getByRole('button', { name: 'Log in' }).click()
-    await expect(dialog.getByRole('button', { name: 'Export sightings as CSV' })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Continue to log in' })).toBeVisible()
-    // Non-blocking: the sign-up path is still reachable by backing out.
-    await dialog.getByRole('button', { name: 'Back' }).click()
-    await expect(dialog.getByRole('button', { name: 'Sign up' })).toBeVisible()
-  })
-
-  test('exports the anonymous sightings before the session is swapped', async ({ page }) => {
-    await loadApp(page, { promote: false })
-    await startAnonymousSession(page)
-    await addSighting(page, 'My Patch')
-
-    await page.getByRole('button', { name: 'Log in' }).click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: 'Log in' }).click()
-
-    const download = page.waitForEvent('download')
-    await dialog.getByRole('button', { name: 'Export sightings as CSV' }).click()
-    const csv = await (await download).createReadStream()
-
-    const chunks: Buffer[] = []
-    for await (const chunk of csv) chunks.push(chunk as Buffer)
-    expect(Buffer.concat(chunks).toString()).toContain('Rock Pigeon')
-  })
-
-  test('skips the warning when there is nothing to lose', async ({ page }) => {
-    await loadApp(page, { promote: false })
-
-    await page.getByRole('button', { name: 'Log in' }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible({ timeout: 5_000 })
-    await dialog.getByRole('button', { name: 'Log in' }).click()
-
-    // Goes straight to the passkey ceremony, which fails with no authenticator
-    // registered. What matters is that the warning step was not interposed.
     await expect(dialog.getByRole('button', { name: 'Continue to log in' })).toBeHidden()
+    await expect(dialog.getByRole('button', { name: 'Back' })).toBeHidden()
   })
 })

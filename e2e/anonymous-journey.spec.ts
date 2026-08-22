@@ -119,7 +119,7 @@ test('the loss event: clearing cookies leaves a working app', async ({ page, con
   await expect(page.getByText('Doomed Patch')).toBeHidden()
 })
 
-test('the collision: signing in to another account does not merge or silently discard', async ({ page, context }) => {
+test('the collision: signing in to another account merges anonymous sightings', async ({ page, context }) => {
   // One authenticator kept alive for the whole test, so the passkey created at
   // signup can be used to sign back in later. The shared helper removes its
   // authenticator when it is done, which would strand the credential.
@@ -166,19 +166,14 @@ test('the collision: signing in to another account does not merge or silently di
     await expect(dialog).toBeVisible({ timeout: 5_000 })
     await dialog.getByRole('button', { name: 'Log in' }).click()
 
-    // The warning is the whole point: this is where the sightings are lost.
-    await expect(dialog.getByRole('button', { name: 'Export sightings as CSV' })).toBeVisible()
-    await dialog.getByRole('button', { name: 'Continue to log in' }).click()
-
     await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible({ timeout: 10_000 })
     const after = await readSession(page)
     expect(after?.id, 'signing in lands in the account that owns the passkey').toBe(accountA?.id)
 
-    // Merging is rejected on purpose, and so is silently dropping the data
-    // without saying so first.
+    // Both target and anonymous source data are visible after one ceremony.
     await page.getByRole('tab', { name: 'Outings' }).first().click()
     await expect(page.getByText('Account A Patch')).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByText('Anonymous Patch')).toBeHidden()
+    await expect(page.getByText('Anonymous Patch')).toBeVisible({ timeout: 5_000 })
   } finally {
     await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => undefined)
     await cdp.detach().catch(() => undefined)

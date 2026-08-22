@@ -7,9 +7,17 @@ import { toast } from 'sonner'
 import { MapPin, GithubLogo, UserCircle } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
 import { useWingDexData } from '@/hooks/use-wingdex-data'
+import {
+  bindPendingAccountMergeTarget,
+  discardPendingAccountMergeToken,
+  discardUnboundAccountMergeToken,
+  finalizeAccountMerge,
+  pendingAccountMergeToken,
+} from '@/lib/account-merge'
 import { getStableDevUserId } from '@/lib/dev-user'
 import { authClient } from '@/lib/auth-client'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
+import { logClientFailure } from '@/lib/client-log'
 import { getEmojiAvatarColor, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fun-names'
 import { useAuthGate } from '@/hooks/use-auth-gate'
 import type { OutingSortField, SortDir as OutingSortDir } from '@/components/pages/OutingsPage'
@@ -154,7 +162,10 @@ function App() {
   const hadSessionRef = useRef(false)
   const wasRealUserRef = useRef(false)
   const explicitSignOutRef = useRef(false)
+  const accountMergePromiseRef = useRef<Promise<void> | null>(null)
+  const accountMergeCheckedUserRef = useRef<string | null>(null)
   const [anonBootstrapFailed, setAnonBootstrapFailed] = useState(false)
+  const [accountMergeState, setAccountMergeState] = useState<'idle' | 'finalizing' | 'failed'>('idle')
   // Only the first check matters: once the answer is known, later refetches keep
   // showing it rather than blanking the header again.
   const [sessionResolved, setSessionResolved] = useState(false)
@@ -184,6 +195,7 @@ function App() {
     const params = new URLSearchParams(window.location.search)
     const error = params.get('error')
     if (!error) return
+    discardPendingAccountMergeToken()
     const desc = params.get('error_description')
     toast.error(`Sign-in failed: ${error}${desc ? `, ${desc}` : ''}`)
     params.delete('error')
@@ -229,10 +241,8 @@ function App() {
       anonBootstrapPromise.current = null
     }
 
-    // No session. Passkey registration is sessionless-capable now
-    // (`requireSession: false`), so nothing here needs an anonymous user yet.
-    // Mount as a guest and defer the anonymous sign-in to the first action
-    // that actually needs a server-side identity (see ensureAnonymousSession).
+    // No session. Mount as a guest and defer anonymous sign-in to the first
+    // action that needs a server-side identity (see ensureAnonymousSession).
     //
     // This applies while the session check is still in flight too. A returning
     // user is resolved as a guest for those few hundred milliseconds and then
@@ -309,6 +319,46 @@ function App() {
     return inFlight
   }, [session, anonBootstrapFailed])
 
+  const resumeAccountMerge = useCallback(async () => {
+    const mergeToken = pendingAccountMergeToken()
+    if (accountMergePromiseRef.current) return accountMergePromiseRef.current
+    setAccountMergeState('finalizing')
+    if (mergeToken) {
+      try {
+        bindPendingAccountMergeTarget(user.id)
+      } catch (error) {
+        logClientFailure('auth/account-merge/target', error)
+        setAccountMergeState('failed')
+        return
+      }
+    }
+    const promise = finalizeAccountMerge(mergeToken).then(async merged => {
+      await refetchSession()
+      accountMergeCheckedUserRef.current = user.id
+      setAccountMergeState('idle')
+      if (merged && !merged.promoted) {
+        toast.success(`Added ${merged.outings} outings and ${merged.observations} sightings to your account`)
+      }
+    }).catch(error => {
+      logClientFailure('auth/account-merge/finalize', error)
+      setAccountMergeState('failed')
+    }).finally(() => {
+      accountMergePromiseRef.current = null
+    })
+    accountMergePromiseRef.current = promise
+    return promise
+  }, [refetchSession, user.id])
+
+  useEffect(() => {
+    if (user.isAnonymous) {
+      accountMergeCheckedUserRef.current = null
+      return
+    }
+    if (accountMergeCheckedUserRef.current !== user.id || pendingAccountMergeToken()) {
+      void resumeAccountMerge()
+    }
+  }, [user.id, user.isAnonymous, resumeAccountMerge])
+
   useEffect(() => {
     if (!user || user.isAnonymous) return
 
@@ -354,9 +404,56 @@ function App() {
     void finalizeSocialToast()
   }, [user, fetchLinkedProviders])
 
+  const blocksForAccountMerge = !user.isAnonymous
+    && (
+      accountMergeCheckedUserRef.current !== user.id
+      || accountMergeState !== 'idle'
+      || pendingAccountMergeToken() !== null
+    )
+  const abandonAccountMerge = async () => {
+    explicitSignOutRef.current = true
+    setAccountMergeState('idle')
+    await authClient.signOut()
+  }
+  if (blocksForAccountMerge) {
+    return (
+      <main className="min-h-screen bg-background text-foreground grid place-items-center px-6">
+        <div className="w-full max-w-sm space-y-5 text-center">
+          <BirdLogo className="mx-auto h-14 w-14" />
+          <div className="space-y-2">
+            <h1 className="font-serif text-3xl font-semibold">Keeping your WingDex...</h1>
+            {accountMergeState === 'failed' && (
+              <p className="text-sm text-muted-foreground">
+                Your original sightings are safe. Retry to finish adding them to this account.
+              </p>
+            )}
+          </div>
+          {accountMergeState === 'failed' && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="h-11 w-full bg-primary px-4 font-medium text-primary-foreground"
+                onClick={() => void resumeAccountMerge()}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                className="h-11 w-full border border-border px-4 font-medium"
+                onClick={() => void abandonAccountMerge()}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    )
+  }
+
   // A guest is a placeholder identity with no server row, so data fetching waits
   // until a real session exists.
-  return <AppContent user={user} hasSession={Boolean(session?.user)} sessionResolved={sessionResolved} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true }} />
+  return <AppContent user={user} hasSession={Boolean(session?.user)} sessionResolved={sessionResolved} refetchSession={refetchSession} ensureAnonymousSession={ensureAnonymousSession} onBeforeSignOut={() => { explicitSignOutRef.current = true; discardUnboundAccountMergeToken() }} />
 }
 
 function AppContent({ user, hasSession, sessionResolved, refetchSession, ensureAnonymousSession, onBeforeSignOut }: { user: UserInfo; hasSession: boolean; sessionResolved: boolean; refetchSession: () => Promise<unknown>; ensureAnonymousSession: () => Promise<boolean>; onBeforeSignOut: () => void }) {

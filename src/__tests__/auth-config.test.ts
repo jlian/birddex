@@ -35,6 +35,9 @@ describe('passkey registration action', () => {
     expect(auth.options.account?.accountLinking?.trustedProviders).toContain('apple')
     expect(auth.options.account?.accountLinking?.trustedProviders).toContain('google')
     expect(auth.options.account?.accountLinking?.allowDifferentEmails).toBe(true)
+    // Preserve the long-standing verified same-email linking behavior. This is
+    // distinct from exposing an explicit provider-linking control in Settings.
+    expect(auth.options.account?.accountLinking?.disableImplicitLinking).not.toBe(true)
   })
 
   it('keeps sessions alive for a year', () => {
@@ -50,6 +53,8 @@ describe('passkey registration action', () => {
     expect(apiKeys.some((k) => k.toLowerCase().includes('passkey'))).toBe(true)
     // Anonymous plugin adds signInAnonymous
     expect(apiKeys.some((k) => k.toLowerCase().includes('anonymous'))).toBe(true)
+    const pluginIds = auth.options.plugins?.map(plugin => plugin.id) ?? []
+    expect(pluginIds.indexOf('bearer')).toBeLessThan(pluginIds.indexOf('anonymous'))
   })
 
   it('does not delete anonymous WingDex data when social login switches accounts', () => {
