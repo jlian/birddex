@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createAuth } from './auth'
+import { accountMergeAuthMethod, createAuth } from './auth'
 import type { LogFields, Logger } from './log'
 
 type LoggedEvent = { level: string; operationName: string; fields?: LogFields }
@@ -26,6 +26,15 @@ const testEnv = {
 } as Env
 
 describe('auth routes', () => {
+  it('derives merge methods only from supported Better Auth callback paths and bodies', () => {
+    expect(accountMergeAuthMethod({ path: '/callback/github' })).toBe('github')
+    expect(accountMergeAuthMethod({ path: '/callback/google' })).toBe('google')
+    expect(accountMergeAuthMethod({ path: '/callback/apple' })).toBe('apple')
+    expect(accountMergeAuthMethod({ path: '/passkey/verify-authentication' })).toBe('passkey')
+    expect(accountMergeAuthMethod({ path: '/sign-in/social', body: { provider: 'apple' } })).toBe('apple')
+    expect(accountMergeAuthMethod({ path: '/callback/private-provider' })).toBeNull()
+  })
+
   it('does not expose Better Auth built-in account deletion', async () => {
     const request = new Request('https://wingdex.app/api/auth/delete-user', { method: 'POST' })
     const auth = createAuth(testEnv, { request })

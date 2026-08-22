@@ -232,9 +232,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // session can call the endpoint directly. Import is the heaviest write path
   // an account can reach, so the gate is enforced here too.
   //
-  // Anonymous sightings export remains available only for the pre-login
-  // leave-with-your-data warning. Ordinary outing and dex exports require a
-  // registered account like import and Settings.
+  // Anonymous sightings export remains available as a recovery fallback.
+  // Ordinary outing and dex exports require a registered account like import
+  // and Settings.
   if (identity.isAnonymous && ACCOUNT_ONLY_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
     log.warn('auth/sessions/validate', { category: 'Request', resultType: 'Failed', resultSignature: 403, resultDescription: 'Route requires a registered account; the request carried an anonymous session', durationMs: Date.now() - start })
     const accountResponse = errorResponse('Account required', 403)

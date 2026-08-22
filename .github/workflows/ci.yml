@@ -65,7 +65,7 @@ jobs:
       - name: Write .dev.vars for local e2e
         run: |
           umask 077
-          printf 'BETTER_AUTH_SECRET=%s\nGEOAPIFY_KEY=%s\n' \
+          printf 'BETTER_AUTH_SECRET=%s\nGEOAPIFY_KEY=%s\nGITHUB_CLIENT_ID=ci-test-client\nGITHUB_CLIENT_SECRET=ci-test-secret\n' \
             "$BETTER_AUTH_SECRET" "$GEOAPIFY_KEY" > .dev.vars
         env:
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}

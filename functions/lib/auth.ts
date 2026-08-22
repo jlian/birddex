@@ -4,6 +4,7 @@ import { passkey } from '@better-auth/passkey'
 import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
 import type { Logger } from './log'
+import { accountMergeFinalizationEnabled, finalizePendingAccountMerge } from './account-merge'
 import { allowlistedProvider } from './provider-revocation'
 import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '../../src/lib/fun-names'
 
@@ -36,6 +37,20 @@ type SocialProviderConfig = {
 }
 
 type CreatedUserKind = 'anonymous' | 'authenticated'
+
+export function accountMergeAuthMethod(context: { path?: unknown; body?: unknown }): 'github' | 'google' | 'apple' | 'passkey' | null {
+  const path = typeof context.path === 'string' ? context.path : ''
+  if (path.endsWith('/passkey/verify-authentication')) return 'passkey'
+  for (const provider of ['github', 'google', 'apple'] as const) {
+    if (path.endsWith(`/callback/${provider}`)) return provider
+  }
+  const body = context.body && typeof context.body === 'object'
+    ? context.body as { provider?: unknown }
+    : null
+  return body?.provider === 'github' || body?.provider === 'google' || body?.provider === 'apple'
+    ? body.provider
+    : null
+}
 
 export const anonymousAccountPolicy = {
   disableDeleteAnonymousUser: true,
@@ -312,43 +327,60 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
       },
     } : undefined,
     plugins: [
+      // Native social requests carry the anonymous source as a bearer token.
+      // Normalize it to Better Auth's signed session cookie before the
+      // anonymous plugin captures source identity in OAuth state.
+      bearer(),
       // Without this the plugin names every anonymous user "Anonymous". The bird
       // name is the display name from the moment the account exists, and signup
       // keeps it, so the identity a visitor sees never changes underneath them.
-      // Social login switches accounts rather than merging anonymous data.
-      // Keep the old anonymous account instead of letting the plugin cascade-
-      // delete its WingDex rows; the UI requires export before switching.
+      // WingDex owns anonymous-source deletion so it happens only after the
+      // account merge batch has transferred all durable data.
       anonymous({
         generateName: () => generateBirdName(),
         ...anonymousAccountPolicy,
+        onLinkAccount: async ({ anonymousUser, newUser, ctx }) => {
+          if (!accountMergeFinalizationEnabled(env)) return
+          const authMethod = accountMergeAuthMethod(ctx)
+          if (!authMethod) return
+          try {
+            const result = await finalizePendingAccountMerge(
+              env.DB,
+              anonymousUser.user.id,
+              anonymousUser.session.id,
+              authMethod,
+              newUser.user.id,
+            )
+            if (!result) return
+            options.log?.info('auth/account/merge', {
+              category: 'Application',
+              resultType: 'Succeeded',
+              resultDescription: result.promoted
+                ? 'Promoted the anonymous WingDex account after successful authentication'
+                : `Merged ${result.outings} outings, ${result.observations} observations, and ${result.photos} photos into the authenticated account`,
+            })
+          } catch {
+            options.log?.error('auth/account/merge', {
+              category: 'Application',
+              resultType: 'Failed',
+              resultDescription: 'Automatic account merge did not complete; the anonymous source and retry intent were preserved',
+            })
+          }
+        },
       }),
-      bearer(),
       passkey({
         rpName: 'WingDex',
         rpID: new URL(passkeyOrigin).hostname,
         origin: passkeyOrigin,
-        // SPIKE (#271): one ceremony, no anonymous account to promote afterwards.
-        // requireSession false lets registration start unauthenticated; resolveUser
-        // returns a NON-PERSISTED stub purely so WebAuthn has a user handle, and
-        // afterVerification is the first point at which a row is written. With
-        // createSession the plugin wraps user + passkey + session in one
-        // runWithTransaction, so a cancelled or failed ceremony leaves nothing behind.
         registration: {
-          // Demo-first, one ceremony. requireSession false lets registration
-          // start without a session, but WingDex normally has one: the app
-          // bootstraps an anonymous user on load so a visitor can use the app
-          // before signing up.
-          //
-          // That is deliberate rather than tolerated. resolveRegistrationUser
-          // returns the SESSION user whenever one exists, so the passkey
-          // attaches to the anonymous user that already owns the demo and real
-          // data, and the id never changes. No new user, so no row migration
-          // and no cascading delete of the old one.
+          // Sessionless signup and anonymous promotion both use the plugin's
+          // createSession transaction, so failed ceremonies leave no partial
+          // user/passkey/session state.
           requireSession: false,
 
-          // Only reached for a genuinely sessionless signup (cookies cleared,
-          // or a client that never bootstrapped). The stub is not persisted;
-          // afterVerification creates the durable row from this name.
+          // Used only when no session exists. This stub is not persisted;
+          // afterVerification creates the durable user inside the registration
+          // transaction after WebAuthn verification succeeds.
           resolveUser: async () => ({
             id: crypto.randomUUID(),
             name: generateBirdName(),
@@ -392,8 +424,6 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
               return { userId: sessionUserId }
             }
 
-            // No session: nothing to upgrade, so create the durable user here.
-            // `user.name` is the bird name from resolveUser on this path.
             const createdName = user.name || generateBirdName()
             const created = await ctx.context.internalAdapter.createUser(
               {

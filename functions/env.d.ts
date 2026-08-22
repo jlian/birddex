@@ -23,6 +23,8 @@ interface Env {
   IMPORT_LIMITER: RateLimit
   AI_DAILY_LIMIT_IDENTIFY?: string
   AI_DAILY_LIMIT_SUGGEST?: string
+  /** Set to "false" to preserve merge intents without finalizing them. */
+  ACCOUNT_MERGE_ENABLED?: string
   TRUSTED_ORIGINS?: string
   /** @deprecated Use LOG_LEVEL instead. Kept for backwards compat (DEBUG=1 maps to LOG_LEVEL=debug). */
   DEBUG?: string
