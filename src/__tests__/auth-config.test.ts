@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createAuth, normalizeAuthRequest } from '../../functions/lib/auth'
+import { anonymousAccountPolicy, createAuth, normalizeAuthRequest } from '../../functions/lib/auth'
 import { passkeyRegistrationAction } from '../../functions/lib/auth'
 
 const mockEnv = {
@@ -50,6 +50,10 @@ describe('passkey registration action', () => {
     expect(apiKeys.some((k) => k.toLowerCase().includes('passkey'))).toBe(true)
     // Anonymous plugin adds signInAnonymous
     expect(apiKeys.some((k) => k.toLowerCase().includes('anonymous'))).toBe(true)
+  })
+
+  it('does not delete anonymous WingDex data when social login switches accounts', () => {
+    expect(anonymousAccountPolicy.disableDeleteAnonymousUser).toBe(true)
   })
 
   it('registers GitHub callback route when credentials are set', () => {

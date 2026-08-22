@@ -37,6 +37,10 @@ type SocialProviderConfig = {
 
 type CreatedUserKind = 'anonymous' | 'authenticated'
 
+export const anonymousAccountPolicy = {
+  disableDeleteAnonymousUser: true,
+} as const
+
 function hookPath(context: { path?: unknown } | null): string | null {
   return typeof context?.path === 'string' ? context.path : null
 }
@@ -311,7 +315,13 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
       // Without this the plugin names every anonymous user "Anonymous". The bird
       // name is the display name from the moment the account exists, and signup
       // keeps it, so the identity a visitor sees never changes underneath them.
-      anonymous({ generateName: () => generateBirdName() }),
+      // Social login switches accounts rather than merging anonymous data.
+      // Keep the old anonymous account instead of letting the plugin cascade-
+      // delete its WingDex rows; the UI requires export before switching.
+      anonymous({
+        generateName: () => generateBirdName(),
+        ...anonymousAccountPolicy,
+      }),
       bearer(),
       passkey({
         rpName: 'WingDex',

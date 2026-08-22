@@ -411,9 +411,9 @@ private struct SignInDataWarning: View {
         NavigationStack {
             VStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Your sightings stay on this device")
+                    Text("These sightings will not move")
                         .font(.headline)
-                    Text("They belong to this device, not to the account you are about to log in to, so they will not show up there. Export them first if you want a copy.")
+                    Text("Continuing switches this device to the account you log in to. These sightings will not appear there, so export them first if you want a copy.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("Signing up instead keeps them: it turns this device's sightings into an account.")

@@ -384,10 +384,10 @@ function SignInDataWarning({
   return (
     <div className="space-y-3 pt-1 min-h-[280px]">
       <div className="space-y-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-3">
-        <p className="text-sm font-medium text-foreground">Your sightings stay on this device</p>
+        <p className="text-sm font-medium text-foreground">These sightings will not move</p>
         <p className="text-xs text-muted-foreground">
-          They belong to this browser, not to the account you are about to log in to,
-          so they will not show up there. Export them first if you want a copy.
+          Continuing switches this browser to the account you log in to. These sightings
+          will not appear there, so export them first if you want a copy.
         </p>
         <p className="text-xs text-muted-foreground">
           Signing up instead keeps them: it turns this browser&rsquo;s sightings into an account.
