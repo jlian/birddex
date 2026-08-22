@@ -9,7 +9,7 @@ function parseLimit(value: string | null): number {
 }
 
 export const onRequestGet: PagesFunction<Env> = async context => {
-  const route = createRouteResponder(context.data.log, 'species/search/read', 'Application')
+  const route = createRouteResponder((context.data as RequestData).log, 'species/search/read', 'Application')
   const userId = (context.data as { user?: { id?: string } }).user?.id
   if (!userId) {
     return route.fail(401, 'Unauthorized', 'Species search requires an authenticated session')

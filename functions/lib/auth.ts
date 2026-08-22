@@ -348,18 +348,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
           // clientData, context }). Note `context` is NOT the auth context: it
           // is the opaque caller-supplied string from ?context=, round-tripped
           // through the stored challenge. The adapter lives on ctx.context.
-          afterVerification: async ({ ctx, user }: {
-            ctx: {
-              context: {
-                session?: { user?: { id?: string; name?: string; isAnonymous?: boolean } } | null
-                internalAdapter: {
-                  createUser: (v: Record<string, unknown>) => Promise<{ id: string }>
-                  updateUser: (id: string, v: Record<string, unknown>) => Promise<unknown>
-                }
-              }
-            }
-            user: { id: string; name?: string }
-          }) => {
+          afterVerification: async ({ ctx, user }) => {
             const sessionUser = ctx.context.session?.user
             const sessionUserId = sessionUser?.id
             const action = passkeyRegistrationAction(sessionUser, user.id)
@@ -396,12 +385,15 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
             // No session: nothing to upgrade, so create the durable user here.
             // `user.name` is the bird name from resolveUser on this path.
             const createdName = user.name || generateBirdName()
-            const created = await ctx.context.internalAdapter.createUser({
-              name: createdName,
-              image: emojiAvatarDataUrl(emojiForBirdName(createdName)),
-              email: `${user.id}@passkey.wingdex.app`,
-              emailVerified: false,
-            })
+            const created = await ctx.context.internalAdapter.createUser(
+              {
+                name: createdName,
+                image: emojiAvatarDataUrl(emojiForBirdName(createdName)),
+                email: `${user.id}@passkey.wingdex.app`,
+                emailVerified: false,
+              },
+              { method: 'passkey' },
+            )
             return { userId: created.id }
           },
         },

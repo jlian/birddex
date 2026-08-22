@@ -2,7 +2,7 @@ import { getWikiMetadata } from '../../lib/taxonomy'
 import { createRouteResponder } from '../../lib/log'
 
 export const onRequestGet: PagesFunction<Env> = async context => {
-  const route = createRouteResponder(context.data.log, 'species/wikiTitle/read', 'Application')
+  const route = createRouteResponder((context.data as RequestData).log, 'species/wikiTitle/read', 'Application')
   const name = new URL(context.request.url).searchParams.get('name')
 
   if (!name?.trim()) {

@@ -46,8 +46,8 @@ describe('auth routes', () => {
     const accountAfter = hooks?.account?.create?.after
     const sessionAfter = hooks?.session?.create?.after
 
-    await userAfter?.({ id: 'user-private', isAnonymous: false } as Parameters<NonNullable<typeof userAfter>>[0], null)
-    await accountAfter?.({ userId: 'user-private', providerId: 'github' } as Parameters<NonNullable<typeof accountAfter>>[0], null)
+    await userAfter?.({ id: 'user-private', isAnonymous: false } as unknown as Parameters<NonNullable<typeof userAfter>>[0])
+    await accountAfter?.({ userId: 'user-private', providerId: 'github' } as Parameters<NonNullable<typeof accountAfter>>[0])
     await sessionAfter?.({ userId: 'user-private' } as Parameters<NonNullable<typeof sessionAfter>>[0], null)
 
     expect(events).toEqual([
@@ -94,9 +94,9 @@ describe('auth routes', () => {
     const sessionCreateAfter = hooks?.session?.create?.after
     const sessionDeleteAfter = hooks?.session?.delete?.after
 
-    await userAfter?.({ id: 'anonymous-private', isAnonymous: true } as Parameters<NonNullable<typeof userAfter>>[0], null)
+    await userAfter?.({ id: 'anonymous-private', isAnonymous: true } as unknown as Parameters<NonNullable<typeof userAfter>>[0])
     await sessionCreateAfter?.({ userId: 'anonymous-private' } as Parameters<NonNullable<typeof sessionCreateAfter>>[0], null)
-    await accountAfter?.({ userId: 'existing-private', providerId: 'apple' } as Parameters<NonNullable<typeof accountAfter>>[0], null)
+    await accountAfter?.({ userId: 'existing-private', providerId: 'apple' } as Parameters<NonNullable<typeof accountAfter>>[0])
     await sessionCreateAfter?.(
       { userId: 'existing-private' } as Parameters<NonNullable<typeof sessionCreateAfter>>[0],
       { path: '/passkey/verify-authentication' } as Parameters<NonNullable<typeof sessionCreateAfter>>[1],
@@ -131,7 +131,6 @@ describe('auth routes', () => {
 
     await accountAfter?.(
       { userId: 'private-user', providerId: 'private-provider-value' } as Parameters<NonNullable<typeof accountAfter>>[0],
-      null,
     )
 
     expect(events[0]?.fields?.resultDescription).toBe(
