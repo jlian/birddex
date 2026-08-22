@@ -57,7 +57,7 @@ final class PasskeyService: NSObject, @unchecked Sendable {
     /// 2. Present the system passkey sheet
     /// 3. Verify the assertion with the server
     /// Returns a session token on success.
-    func authenticate() async throws -> AuthResult {
+    func authenticate(signedToken: String? = nil) async throws -> AuthResult {
         // Step 1 - Fetch authentication options (no auth needed - user not signed in yet)
         let optionsURL = Config.apiBaseURL.appendingPathComponent("api/auth/passkey/generate-authenticate-options")
         var optionsRequest = URLRequest(url: optionsURL)
@@ -106,15 +106,14 @@ final class PasskeyService: NSObject, @unchecked Sendable {
                 "clientExtensionResults": [String: Any](),
             ] as [String: Any],
         ]
-        var verifyRequest = URLRequest(url: verifyURL)
-        verifyRequest.httpMethod = "POST"
-        verifyRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        verifyRequest.setValue(Config.apiBaseURL.absoluteString, forHTTPHeaderField: "Origin")
-        if let cookies = challengeCookies {
-            verifyRequest.setValue(cookies, forHTTPHeaderField: "Cookie")
-        }
-        verifyRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
-        AuthenticatedRequest.instrument(&verifyRequest)
+        let verifyRequest = AuthenticatedRequest.withCookieOnly(
+            url: verifyURL,
+            signedToken: signedToken,
+            additionalCookies: challengeCookies,
+            method: "POST",
+            body: try JSONSerialization.data(withJSONObject: body),
+            contentType: "application/json"
+        )
 
         let (verifyData, verifyResponse) = try await AuthenticatedRequest.data(
             for: verifyRequest, session: Self.session,

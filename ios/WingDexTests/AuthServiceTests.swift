@@ -1,4 +1,5 @@
 @testable import WingDex
+import AuthenticationServices
 import XCTest
 
 final class AuthenticatedRequestTraceTests: XCTestCase {
@@ -29,6 +30,20 @@ final class AuthenticatedRequestTraceTests: XCTestCase {
             ),
             "iPhone (quiet-heron)"
         )
+    }
+
+    func testPasskeyVerificationCombinesSourceSessionAndChallengeCookies() throws {
+        let request = AuthenticatedRequest.withCookieOnly(
+            url: try XCTUnwrap(URL(string: "https://example.com/api/auth/passkey/verify-authentication")),
+            signedToken: "source.signed-token",
+            additionalCookies: "better-auth.passkey_challenge=challenge"
+        )
+        let cookie = try XCTUnwrap(request.value(forHTTPHeaderField: "Cookie"))
+
+        XCTAssertTrue(cookie.contains("better-auth.session_token=source.signed-token"))
+        XCTAssertTrue(cookie.contains("__Secure-better-auth.session_token=source.signed-token"))
+        XCTAssertTrue(cookie.contains("better-auth.passkey_challenge=challenge"))
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
     }
 
     func testExtractsAndNormalizesSafeTraceID() throws {
@@ -194,6 +209,30 @@ final class AuthCallbackParsingTests: XCTestCase {
 // MARK: - Session Validation Tests
 
 final class SessionValidationTests: XCTestCase {
+    func testAppleNonceUsesSHA256AndStateMustRoundTrip() {
+        XCTAssertEqual(
+            AuthService.appleNonceHash("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+        XCTAssertTrue(AuthService.appleStateMatches(expected: "state-1", received: "state-1"))
+        XCTAssertFalse(AuthService.appleStateMatches(expected: "state-1", received: "state-2"))
+        XCTAssertFalse(AuthService.appleStateMatches(expected: "state-1", received: nil))
+    }
+
+    @MainActor
+    func testAppleRequestIncludesUniqueNonceAndState() {
+        let auth = AuthService()
+        let first = ASAuthorizationAppleIDProvider().createRequest()
+        let second = ASAuthorizationAppleIDProvider().createRequest()
+        auth.configureAppleSignInRequest(first)
+        auth.configureAppleSignInRequest(second)
+
+        XCTAssertNotNil(first.nonce)
+        XCTAssertNotNil(first.state)
+        XCTAssertNotEqual(first.nonce, second.nonce)
+        XCTAssertNotEqual(first.state, second.state)
+    }
+
     func testSignupPromptStateIsScopedPerAnonymousUser() throws {
         let suiteName = "SignupPromptStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

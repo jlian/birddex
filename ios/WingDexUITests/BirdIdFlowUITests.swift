@@ -26,7 +26,7 @@ final class BirdIdFlowUITests: XCTestCase {
     }
 
     private var apiBaseURL: URL {
-        configuredAPIBaseURL ?? URL(string: "https://localhost.wingdex.app")!
+        configuredAPIBaseURL ?? URL(string: "http://127.0.0.1:5000")!
     }
 
     private static var photoPath: String {
@@ -299,11 +299,8 @@ final class BirdIdFlowUITests: XCTestCase {
         accountButton.tap()
         XCTAssertTrue(app.staticTexts["Keep your"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["Keep your sightings"].exists)
-        app.buttons["auth.passkeyLogin"].tap()
-        XCTAssertTrue(app.staticTexts["Your sightings stay on this device"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Export sightings as CSV"].exists)
-        XCTAssertTrue(app.buttons["Continue to log in"].exists)
-        app.buttons["Back"].tap()
+        XCTAssertFalse(app.staticTexts["Keep this WingDex or switch accounts"].exists)
+        XCTAssertFalse(app.buttons["Export sightings as CSV"].exists)
     }
 
     func testColdSessionlessShareReachesOutingReview() {

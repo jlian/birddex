@@ -1,4 +1,5 @@
 import AuthenticationServices
+import CryptoKit
 import Foundation
 import KeychainAccess
 import Observation
@@ -17,6 +18,13 @@ enum SessionValidationResult: Sendable {
     case valid
     case rejected
     case offline
+}
+
+enum AccountMergeState: Sendable {
+    case none
+    case pending
+    case finalizing
+    case failed
 }
 
 enum PasskeyRegistrationContext: Equatable, Sendable {
@@ -47,6 +55,16 @@ final class AuthService: @unchecked Sendable {
     var userImage: String?
     var signInMessage: String?
     private(set) var discardedAccountID: String?
+    private(set) var accountMergeState: AccountMergeState = .none
+    var hasPendingAccountMerge: Bool { keychain[Self.accountMergeTokenKey] != nil }
+    var hasPendingAccountMergeForCurrentAccount: Bool {
+        guard identity == .registered,
+              hasPendingAccountMerge,
+              let currentUserID = userId
+        else { return false }
+        guard let targetUserID = keychain[Self.accountMergeTargetKey] else { return true }
+        return targetUserID == currentUserID
+    }
 
     private var sessionToken: String?
     /// Signed session token (includes HMAC suffix) for cookie-based auth.
@@ -81,6 +99,8 @@ final class AuthService: @unchecked Sendable {
     private static let userEmailKey = "user_email"
     private static let userImageKey = "user_image"
     private static let identityKey = "session_identity"
+    private static let accountMergeTokenKey = "account_merge_token"
+    private static let accountMergeTargetKey = "account_merge_target"
 
     private static func referenceSuffix(for error: Error) -> String {
         let traceID: String?
@@ -96,6 +116,9 @@ final class AuthService: @unchecked Sendable {
 
     init() {
         restoreSession()
+        if hasPendingAccountMergeForCurrentAccount {
+            accountMergeState = .pending
+        }
         log.info("AuthService initialized - identity: \(self.identity.rawValue)")
     }
 
@@ -207,7 +230,7 @@ final class AuthService: @unchecked Sendable {
     /// Shows the system Face ID / Touch ID sheet - no web view needed.
     func signInWithAppleNative() async throws {
         let request = ASAuthorizationAppleIDProvider().createRequest()
-        request.requestedScopes = [.fullName, .email]
+        configureAppleSignInRequest(request)
 
         let credential = try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>) in
@@ -223,12 +246,29 @@ final class AuthService: @unchecked Sendable {
     }
 
     private var appleSignInHandler: AppleSignInHandler?
+    private var pendingAppleNonce: String?
+    private var pendingAppleState: String?
+
+    func configureAppleSignInRequest(_ request: ASAuthorizationAppleIDRequest) {
+        let nonce = Self.randomOAuthValue()
+        let state = Self.randomOAuthValue()
+        pendingAppleNonce = nonce
+        pendingAppleState = state
+        request.nonce = Self.appleNonceHash(nonce)
+        request.state = state
+        request.requestedScopes = [.fullName, .email]
+    }
 
     /// Sign in with Apple using a pre-obtained credential.
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async throws {
-        let generation = beginAuthentication()
         log.info("Apple sign-in started")
         do {
+        guard let nonce = pendingAppleNonce,
+              let expectedState = pendingAppleState,
+              Self.appleStateMatches(expected: expectedState, received: credential.state)
+        else { throw AuthError.oauthFailed("Apple sign-in state did not match") }
+        pendingAppleNonce = nil
+        pendingAppleState = nil
         guard let identityTokenData = credential.identityToken,
                             let identityToken = String(data: identityTokenData, encoding: .utf8),
                             let authorizationCodeData = credential.authorizationCode,
@@ -236,6 +276,11 @@ final class AuthService: @unchecked Sendable {
         else {
                         throw AuthError.oauthFailed("Missing Apple sign-in credentials")
         }
+
+        let sourceToken = identity == .anonymous ? try validToken() : nil
+        let mergeToken = try await prepareAccountMerge(authMethod: "apple")
+        let generation = beginAuthentication()
+        let idToken: [String: Any] = ["token": identityToken, "nonce": nonce]
 
         // POST to Better Auth's sign-in/social endpoint with the Apple ID token.
         // Better Auth verifies the token with Apple, creates/links the account,
@@ -245,10 +290,13 @@ final class AuthService: @unchecked Sendable {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(Config.apiBaseURL.absoluteString, forHTTPHeaderField: "Origin")
+        if let sourceToken {
+            request.setValue("Bearer \(sourceToken)", forHTTPHeaderField: "Authorization")
+        }
 
         let body: [String: Any] = [
             "provider": "apple",
-            "idToken": ["token": identityToken],
+            "idToken": idToken,
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         AuthenticatedRequest.instrument(&request)
@@ -272,6 +320,9 @@ final class AuthService: @unchecked Sendable {
 
         let token = try processTokenResponse(data: data, response: response)
         try? await fetchUserInfo(token: token)
+        if !(await resumePendingAccountMerge()) {
+            throw AuthError.oauthFailed("Account merge did not complete")
+        }
         // The account and session are now live. Capturing the Apple revocation
         // token is a best-effort step that lets a future account deletion revoke
         // Apple's grant automatically; the server's deletion flow already falls
@@ -293,6 +344,22 @@ final class AuthService: @unchecked Sendable {
             log.error("Apple sign-in failed\(reference, privacy: .public)")
             throw error
         }
+    }
+
+    nonisolated static func appleNonceHash(_ nonce: String) -> String {
+        SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    nonisolated static func appleStateMatches(expected: String, received: String?) -> Bool {
+        received == expected
+    }
+
+    nonisolated private static func randomOAuthValue() -> String {
+        let bytes = (0..<32).map { _ in UInt8.random(in: .min ... .max) }
+        return Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 
     private func captureAppleRevocationToken(authorizationCode: String) async throws {
@@ -410,6 +477,7 @@ final class AuthService: @unchecked Sendable {
     /// Generic OAuth flow via ASWebAuthenticationSession.
     /// Opens Better Auth's sign-in URL with callbackURL pointed at our mobile bridge.
     private func signInWithProvider(_ provider: String) async throws {
+        let mergeToken = try await prepareAccountMerge(authMethod: provider)
         let generation = beginAuthentication()
         log.info("Starting OAuth flow for provider: \(provider)")
         do {
@@ -417,6 +485,9 @@ final class AuthService: @unchecked Sendable {
         components.queryItems = [
             URLQueryItem(name: "provider", value: provider),
         ]
+        if let mergeToken {
+            components.queryItems?.append(URLQueryItem(name: "merge_token", value: mergeToken))
+        }
         guard let signInURL = components.url else {
             throw AuthError.oauthFailed("Invalid sign-in URL")
         }
@@ -425,6 +496,9 @@ final class AuthService: @unchecked Sendable {
         guard isCurrentAuthentication(generation) else { throw CancellationError() }
         log.debug("OAuth callback received for provider: \(provider)")
         try processAuthCallback(url: callbackURL)
+        if !(await resumePendingAccountMerge()) {
+            throw AuthError.oauthFailed("Account merge did not complete")
+        }
         log.info("OAuth sign-in succeeded for \(provider)")
         } catch {
             let reference = Self.referenceSuffix(for: error)
@@ -437,6 +511,9 @@ final class AuthService: @unchecked Sendable {
     func signOut() async {
         log.info("Signing out")
         signInMessage = nil
+        if keychain[Self.accountMergeTargetKey] == nil {
+            discardPendingAccountMerge()
+        }
         guard let token = sessionToken else {
             clearSession()
             return
@@ -622,11 +699,19 @@ final class AuthService: @unchecked Sendable {
 
     /// Sign in with a passkey. Presents the system passkey sheet.
     func signInWithPasskey() async throws {
+        var sourceSignedToken: String?
+        if identity == .anonymous {
+            if signedSessionToken == nil, let token = sessionToken {
+                try await fetchUserInfo(token: token)
+            }
+            sourceSignedToken = signedSessionToken
+        }
+        let mergeToken = try await prepareAccountMerge(authMethod: "passkey")
         let generation = beginAuthentication()
         log.info("Starting passkey sign-in")
         do {
         let service = PasskeyService()
-        let result = try await service.authenticate()
+        let result = try await service.authenticate(signedToken: sourceSignedToken)
         guard isCurrentAuthentication(generation) else { throw CancellationError() }
 
         resetSessionValidation()
@@ -639,6 +724,9 @@ final class AuthService: @unchecked Sendable {
         userImage = result.user.image
         identity = Self.sessionIdentity(isAnonymous: result.user.isAnonymous)
         persistSession()
+        if !(await resumePendingAccountMerge()) {
+            throw AuthError.oauthFailed("Account merge did not complete")
+        }
         log.info("Passkey sign-in succeeded")
         } catch {
             let reference = Self.referenceSuffix(for: error)
@@ -661,6 +749,7 @@ final class AuthService: @unchecked Sendable {
                 throw AuthError.notAuthenticated
             }
         }
+        let mergeToken = try await prepareAccountMerge(authMethod: "passkey")
         let context = try Self.passkeyRegistrationContext(
             identity: identity,
             userID: userId,
@@ -696,6 +785,13 @@ final class AuthService: @unchecked Sendable {
         identity = Self.sessionIdentity(isAnonymous: result.user.isAnonymous)
         persistSession()
         clearAPICookies()
+        try await fetchUserInfo(token: result.token)
+        guard identity == .registered else {
+            throw AuthError.oauthFailed("Passkey account upgrade did not complete")
+        }
+        if !(await resumePendingAccountMerge()) {
+            throw AuthError.oauthFailed("Account merge did not complete")
+        }
         log.info("Passkey sign-up succeeded")
         } catch {
             let reference = Self.referenceSuffix(for: error)
@@ -809,6 +905,96 @@ final class AuthService: @unchecked Sendable {
             throw AuthError.notAuthenticated
         }
         return try validToken()
+    }
+
+    private func prepareAccountMerge(authMethod: String) async throws -> String? {
+        guard identity == .anonymous else { return nil }
+        let token = try validToken()
+        let body = try JSONSerialization.data(withJSONObject: ["authMethod": authMethod])
+        let request = AuthenticatedRequest.withBearer(
+            url: Config.apiBaseURL.appendingPathComponent("api/auth/merge/prepare"),
+            token: token,
+            method: "POST",
+            body: body,
+            contentType: "application/json"
+        )
+        let (data, response) = try await AuthenticatedRequest.data(
+            for: request,
+            session: Self.bearerSession,
+            context: "Prepare account merge",
+            logger: log
+        )
+        try AuthenticatedRequest.validateHTTP(
+            response,
+            data: data,
+            context: "Could not prepare account merge",
+            logger: log
+        )
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let mergeToken = json["token"] as? String,
+              mergeToken.count >= 32
+        else { throw AuthError.oauthFailed("Invalid account merge response") }
+        keychain[Self.accountMergeTokenKey] = mergeToken
+        keychain[Self.accountMergeTargetKey] = nil
+        return mergeToken
+    }
+
+    func resumePendingAccountMerge() async -> Bool {
+        let mergeToken = keychain[Self.accountMergeTokenKey]
+        guard identity == .registered, let currentUserID = userId else { return false }
+        if mergeToken != nil {
+            if let targetUserID = keychain[Self.accountMergeTargetKey],
+               targetUserID != currentUserID {
+                accountMergeState = .none
+                return false
+            }
+            keychain[Self.accountMergeTargetKey] = currentUserID
+        }
+        accountMergeState = .finalizing
+        do {
+            let token = try validToken()
+            let body = if let mergeToken {
+                try JSONSerialization.data(withJSONObject: ["token": mergeToken])
+            } else {
+                Data("{}".utf8)
+            }
+            let request = AuthenticatedRequest.withBearer(
+                url: Config.apiBaseURL.appendingPathComponent("api/auth/merge/finalize"),
+                token: token,
+                method: "POST",
+                body: body,
+                contentType: "application/json"
+            )
+            let (data, response) = try await AuthenticatedRequest.data(
+                for: request,
+                session: Self.bearerSession,
+                context: "Finalize account merge",
+                logger: log
+            )
+            try AuthenticatedRequest.validateHTTP(
+                response,
+                data: data,
+                context: "Could not finalize account merge",
+                logger: log
+            )
+            if mergeToken != nil {
+                keychain[Self.accountMergeTokenKey] = nil
+                keychain[Self.accountMergeTargetKey] = nil
+            }
+            accountMergeState = .none
+            return true
+        } catch {
+            accountMergeState = .failed
+            let reference = Self.referenceSuffix(for: error)
+            log.error("Account merge finalization failed; source preserved\(reference, privacy: .public)")
+            return false
+        }
+    }
+
+    private func discardPendingAccountMerge() {
+        keychain[Self.accountMergeTokenKey] = nil
+        keychain[Self.accountMergeTargetKey] = nil
+        accountMergeState = .none
     }
 
     nonisolated static func isSameAccount(currentAccountID: String?, expectedAccountID: String) -> Bool {

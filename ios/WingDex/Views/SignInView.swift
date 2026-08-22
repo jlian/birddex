@@ -44,8 +44,6 @@ struct SignInView: View {
     @State private var errorMessage: String?
     @State private var parallaxOffset: CGSize = .zero
     @State private var collageCache = CollageImageCache.shared
-    @State private var pendingSignIn: (() async throws -> Void)?
-    @State private var showingDataWarning = false
 
     private var hasAnonymousData: Bool {
         auth.identity == .anonymous
@@ -151,7 +149,7 @@ struct SignInView: View {
                 VStack(spacing: 12) {
                     // Apple -- native SignInWithAppleButton
                     SignInWithAppleButton(.continue) { request in
-                        request.requestedScopes = [.fullName, .email]
+                        auth.configureAppleSignInRequest(request)
                     } onCompletion: { result in
                         requestSignIn {
                             let authorization = try result.get()
@@ -304,15 +302,6 @@ struct SignInView: View {
             }
         }
         .animation(.default, value: errorMessage)
-        .sheet(isPresented: $showingDataWarning, onDismiss: {
-            pendingSignIn = nil
-        }) {
-            SignInDataWarning {
-                guard let action = pendingSignIn else { return }
-                pendingSignIn = nil
-                signIn(action: action)
-            }
-        }
         .task { await collageCache.load() }
         .onAppear {
             errorMessage = auth.consumeSignInMessage()
@@ -375,12 +364,7 @@ struct SignInView: View {
     // MARK: - Sign-In Handler
 
     private func requestSignIn(action: @escaping () async throws -> Void) {
-        guard hasAnonymousData else {
-            signIn(action: action)
-            return
-        }
-        pendingSignIn = action
-        showingDataWarning = true
+        signIn(action: action)
     }
 
     private func signIn(action: @escaping () async throws -> Void) {
@@ -394,90 +378,6 @@ struct SignInView: View {
                 log.debug("Sign-in attempt failed")
             }
             isSigningIn = false
-        }
-    }
-}
-
-private struct SignInDataWarning: View {
-    @Environment(AuthService.self) private var auth
-    @Environment(\.dismiss) private var dismiss
-    @State private var exportItem: ExportFileItem?
-    @State private var exportError: AppError?
-    @State private var isExporting = false
-
-    let onContinue: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("These sightings will not move")
-                        .font(.headline)
-                    Text("Continuing switches this device to the account you log in to. These sightings will not appear there, so export them first if you want a copy.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Signing up instead keeps them: it turns this device's sightings into an account.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.yellow.opacity(0.45)))
-
-                Button {
-                    Task { await exportSightings() }
-                } label: {
-                    Label(isExporting ? "Exporting..." : "Export sightings as CSV", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.glass)
-                .buttonSizing(.flexible)
-                .disabled(isExporting)
-
-                Button("Continue to log in") {
-                    dismiss()
-                    onContinue()
-                }
-                .buttonStyle(.glassProminent)
-                .buttonSizing(.flexible)
-                .frame(maxWidth: .infinity)
-
-                Button("Back", role: .cancel) { dismiss() }
-                    .buttonStyle(.glass)
-                    .buttonSizing(.flexible)
-                    .frame(maxWidth: .infinity)
-
-                if let exportError {
-                    Text(exportError.message)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Spacer()
-            }
-            .padding(20)
-            .background(Color.pageBg.ignoresSafeArea())
-            .navigationTitle("Before You Log In")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(item: $exportItem) { item in
-                ActivityView(item: item)
-            }
-        }
-    }
-
-    private func exportSightings() async {
-        isExporting = true
-        exportError = nil
-        defer { isExporting = false }
-        do {
-            let data = try await DataService(
-                auth: auth,
-                expectedAccountID: auth.userId
-            ).exportSightingsCSV()
-            exportItem = try ExportFileFactory.sightings(data: data)
-        } catch {
-            exportError = AppError.map(error, fallback: "Could not export sightings. Try again.")
         }
     }
 }

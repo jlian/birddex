@@ -84,10 +84,21 @@ struct ContentView: View {
     @Environment(AppNavigationModel.self) private var navigation
     @Environment(\.scenePhase) private var scenePhase
 
+    private var blocksForAccountMerge: Bool {
+        auth.isRegisteredAccount
+            && (auth.hasPendingAccountMergeForCurrentAccount || auth.accountMergeState != .none)
+    }
+
     var body: some View {
         // Render the shell immediately, but do not activate restored account
         // cache until session validation says valid or offline.
-        MainTabView()
+        ZStack {
+            MainTabView()
+                .disabled(blocksForAccountMerge)
+            if blocksForAccountMerge {
+                AccountMergeRecoveryView()
+            }
+        }
         .background(Color.pageBg.ignoresSafeArea())
         .onChange(of: auth.identity) { _, identity in
             if identity == .none {
@@ -98,7 +109,15 @@ struct ContentView: View {
             }
         }
         .onChange(of: auth.userId) { _, accountID in
-            guard auth.hasSession, let accountID else { return }
+            guard auth.hasSession, !blocksForAccountMerge, let accountID else { return }
+            store.activate(accountID: accountID)
+            Task { try? await store.ensureLoaded() }
+        }
+        .onChange(of: auth.accountMergeState) { _, state in
+            guard state == .none,
+                  auth.isRegisteredAccount,
+                  let accountID = auth.userId
+            else { return }
             store.activate(accountID: accountID)
             Task { try? await store.ensureLoaded() }
         }
@@ -128,11 +147,50 @@ struct ContentView: View {
                 let validation = await auth.validateSession()
                 if validation != .rejected,
                    auth.userId == accountID {
+                          if auth.isRegisteredAccount,
+                              !(await auth.resumePendingAccountMerge()) {
+                        return
+                    }
                     store.activate(accountID: accountID)
                     try? await store.ensureLoaded()
                 }
             }
         }
+    }
+}
+
+private struct AccountMergeRecoveryView: View {
+    @Environment(AuthService.self) private var auth
+
+    var body: some View {
+        VStack(spacing: 18) {
+            AppIconView()
+                .frame(width: 64, height: 64)
+            Text("Keeping your WingDex...")
+                .font(.title2.bold())
+            if auth.accountMergeState == .failed {
+                Text("Your original sightings are safe. Retry to finish adding them to this account.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry") {
+                    Task { await auth.resumePendingAccountMerge() }
+                }
+                .buttonStyle(.glassProminent)
+                .buttonSizing(.flexible)
+                Button("Sign out") {
+                    Task { await auth.signOut() }
+                }
+                .buttonStyle(.glass)
+                .buttonSizing(.flexible)
+            } else {
+                ProgressView()
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial)
+        .accessibilityIdentifier("accountMerge.recovery")
     }
 }
 
