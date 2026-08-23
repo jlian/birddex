@@ -248,6 +248,9 @@ struct OutingReviewView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            // Matches the 44pt search button that replaces it, so the row does not grow when
+            // the lookup finishes.
+            .frame(minHeight: 44)
         } else {
             // The field is the outing name. Typing renames the outing; submitting
             // looks the name up so a matching place can also supply coordinates.

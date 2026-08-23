@@ -96,7 +96,7 @@ final class ShareViewController: UIViewController {
 
             try Task.checkCancellation()
             try await stageInBackground(fileURLs: temporaryFiles)
-            if openHostApp() {
+            if await openHostApp() {
                 extensionContext?.completeRequest(returningItems: nil)
                 return
             }
@@ -120,18 +120,20 @@ final class ShareViewController: UIViewController {
     /// Matches the app's `CFBundleURLSchemes` entry and the `share-import` host it handles.
     private static let hostAppShareImportURL = URL(string: "wingdex://share-import")
 
-    /// `NSExtensionContext.open` is documented as supported only by the Today and iMessage
-    /// extension points, and `UIApplication` is unavailable to extensions, so the responder
-    /// chain is the only handoff left. Returns false when the chain yields nothing, which is
-    /// why the Done screen has to stay.
-    private func openHostApp() -> Bool {
+    /// Whether the app actually came to the front.
+    ///
+    /// iOS 18 blocks the old `UIApplication.openURL:` responder-chain trick outright, and
+    /// `NSExtensionContext.open` reports success while doing nothing unless the app already
+    /// happens to be in memory. Reaching the hosting scene is the route that still launches
+    /// the app, and it is undocumented for extensions, so failing has to stay survivable.
+    private func openHostApp() async -> Bool {
         guard let url = Self.hostAppShareImportURL else { return false }
-        let selector = sel_registerName("openURL:")
-        var responder = next
+        var responder: UIResponder? = self
         while let current = responder {
-            if current.responds(to: selector) {
-                _ = current.perform(selector, with: url)
-                return true
+            if let scene = current as? UIScene {
+                return await withCheckedContinuation { continuation in
+                    scene.open(url, options: nil) { continuation.resume(returning: $0) }
+                }
             }
             responder = current.next
         }
