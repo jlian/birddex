@@ -96,6 +96,10 @@ final class ShareViewController: UIViewController {
 
             try Task.checkCancellation()
             try await stageInBackground(fileURLs: temporaryFiles)
+            if openHostApp() {
+                extensionContext?.completeRequest(returningItems: nil)
+                return
+            }
             statusLabel.text = providers.count == 1
                 ? "Saved to WingDex. Tap Done, then open WingDex to continue."
                 : "Saved \(providers.count) photos to WingDex. Tap Done, then open WingDex to continue."
@@ -111,6 +115,27 @@ final class ShareViewController: UIViewController {
                 ?? IncomingShareError.stagingFailed.localizedDescription
             cancelButton.configuration?.title = "Close"
         }
+    }
+
+    /// Matches the app's `CFBundleURLSchemes` entry and the `share-import` host it handles.
+    private static let hostAppShareImportURL = URL(string: "wingdex://share-import")
+
+    /// `NSExtensionContext.open` is documented as supported only by the Today and iMessage
+    /// extension points, and `UIApplication` is unavailable to extensions, so the responder
+    /// chain is the only handoff left. Returns false when the chain yields nothing, which is
+    /// why the Done screen has to stay.
+    private func openHostApp() -> Bool {
+        guard let url = Self.hostAppShareImportURL else { return false }
+        let selector = sel_registerName("openURL:")
+        var responder = next
+        while let current = responder {
+            if current.responds(to: selector) {
+                _ = current.perform(selector, with: url)
+                return true
+            }
+            responder = current.next
+        }
+        return false
     }
 
     private func stageInBackground(fileURLs: [URL]) async throws {
