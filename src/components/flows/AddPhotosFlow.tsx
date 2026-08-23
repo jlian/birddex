@@ -31,6 +31,7 @@ import {
   needsCloseConfirmation,
   resolvePhotoResults,
   filterConfirmedResults,
+  clusterHasSightings,
   groupResultsBySpecies,
   normalizeLocationName,
   resolveInferenceLocationName,
@@ -341,7 +342,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
 
     // Accumulate stats across all clusters. A cluster where every photo was skipped saved
     // nothing, so it must not count towards the summary or the sign-up prompt.
-    if (observations.length > 0) {
+    if (clusterHasSightings(allResults)) {
       const outingName = data.outings.find(o => o.id === currentOutingId)?.locationName
       const uniqueSpecies = new Set(confirmed.map(r => r.species)).size
       const totalCount = confirmed.reduce((sum, r) => sum + r.count, 0)

@@ -52,6 +52,14 @@ export function filterConfirmedResults(
   )
 }
 
+/**
+ * Whether a cluster earned its outing. Nothing is written for a cluster the user skipped
+ * their way through, so this also decides whether it counts towards the upload summary.
+ */
+export function clusterHasSightings(allResults: PhotoResult[]): boolean {
+  return filterConfirmedResults(allResults).length > 0
+}
+
 export interface SpeciesGroup {
   count: number
   status: ObservationStatus

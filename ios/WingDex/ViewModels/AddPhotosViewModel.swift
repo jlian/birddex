@@ -714,7 +714,7 @@ final class AddPhotosViewModel {
         error = nil
         errorRecovery = nil
 
-        let confirmed = photoResults.filter { $0.status == .confirmed || $0.status == .possible }
+        let confirmed = sightingResults(photoResults)
         let existingSpecies = Set(store.dex.map(\.speciesName))
 
         // Group by species, sum counts
@@ -906,6 +906,12 @@ final class AddPhotosViewModel {
         let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+}
+
+/// Photos that count as a sighting. A cluster with none of these earned no outing, so it is
+/// neither written nor counted towards the upload summary.
+func sightingResults(_ results: [PhotoResult]) -> [PhotoResult] {
+    results.filter { $0.status == .confirmed || $0.status == .possible }
 }
 
 private enum ErrorRecovery {

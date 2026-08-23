@@ -3,6 +3,7 @@ import {
   needsCloseConfirmation,
   resolvePhotoResults,
   filterConfirmedResults,
+  clusterHasSightings,
   groupResultsBySpecies,
   friendlyErrorMessage,
   normalizeLocationName,
@@ -59,6 +60,34 @@ describe('filterConfirmedResults', () => {
 
   it('returns empty array for empty input', () => {
     expect(filterConfirmedResults([])).toHaveLength(0)
+  })
+})
+
+// ── clusterHasSightings (whether the outing gets written at all) ──────────
+
+describe('clusterHasSightings', () => {
+  const result = (status: PhotoResult['status']): PhotoResult => ({
+    photoId: '1', species: 'A', confidence: 1, status, count: 1,
+  })
+
+  it('is false when every photo was skipped', () => {
+    expect(clusterHasSightings([result('rejected'), result('rejected')])).toBe(false)
+  })
+
+  it('is false for a cluster with no photos', () => {
+    expect(clusterHasSightings([])).toBe(false)
+  })
+
+  it('is true when a bird was only marked possible', () => {
+    expect(clusterHasSightings([result('possible')])).toBe(true)
+  })
+
+  it('is false when nothing got past pending', () => {
+    expect(clusterHasSightings([result('pending')])).toBe(false)
+  })
+
+  it('is true when one photo was confirmed among skips', () => {
+    expect(clusterHasSightings([result('rejected'), result('confirmed')])).toBe(true)
   })
 })
 
