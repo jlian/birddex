@@ -594,3 +594,26 @@ final class DataStore {
         }
     }
 }
+
+/// Collapse repeat observations of one species on one outing into a single sighting.
+///
+/// Several photos of the same bird in one outing are stored as separate observations, which
+/// would otherwise render as identical rows. Certainty is part of the key so a possible
+/// sighting is never folded into a confirmed count. Input order is preserved.
+func mergeSightingsByOuting(
+    _ sightings: [(observation: BirdObservation, outing: Outing)]
+) -> [(observation: BirdObservation, outing: Outing)] {
+    var order: [String] = []
+    var groups: [String: (observation: BirdObservation, outing: Outing)] = [:]
+    for item in sightings {
+        let key = "\(item.outing.id)|\(item.observation.certainty.rawValue)"
+        if var existing = groups[key] {
+            existing.observation.count += item.observation.count
+            groups[key] = existing
+        } else {
+            order.append(key)
+            groups[key] = item
+        }
+    }
+    return order.compactMap { groups[$0] }
+}

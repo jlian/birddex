@@ -398,6 +398,23 @@ function SpeciesDetail({
     }
   }
 
+  // Several photos of the same bird on one outing are stored as separate observations, so
+  // the list shows one row per outing and certainty with the counts added up.
+  const sightingsByOuting = new Map<string, (typeof sightings)[number]>()
+  for (const sighting of sightings) {
+    const key = `${sighting.outing.id}|${sighting.observation.certainty}`
+    const existing = sightingsByOuting.get(key)
+    if (existing) {
+      existing.observation = {
+        ...existing.observation,
+        count: existing.observation.count + sighting.observation.count,
+      }
+    } else {
+      sightingsByOuting.set(key, sighting)
+    }
+  }
+  const mergedSightings = Array.from(sightingsByOuting.values())
+
   const thumbnailUrl = entry.thumbnailUrl
   // Derived from the thumbnail so the hero has its final URL on first render instead of
   // waiting on the Wikipedia summary, which returns an unbounded original.
@@ -553,7 +570,7 @@ function SpeciesDetail({
               Sightings ({sightings.length})
             </h3>
             <div>
-              {sightings.map(({ observation, outing }) => (
+              {mergedSightings.map(({ observation, outing }) => (
                 <ListRow
                   key={observation.id}
                   icon={<CalendarBlank size={16} className="text-muted-foreground/60" />}

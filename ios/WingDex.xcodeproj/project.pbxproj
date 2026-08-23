@@ -68,6 +68,7 @@
 		6F963B1157CEB369EBDB2E3A /* CachedDataNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCBC6608B2BC3873131FB2D /* CachedDataNotice.swift */; };
 		701F62DDB95D5BDF65E3E23D /* CelebrationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1934AFCA827070FC4A689F84 /* CelebrationOverlay.swift */; };
 		735564E615ECED94D844C13B /* TaxonomyOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C56DDD787BF000019EB3051 /* TaxonomyOrderTests.swift */; };
+		764596672DB1A7AC6E42C586 /* SightingsMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A40EA46444DE64147E772AD /* SightingsMergeTests.swift */; };
 		76D79E728919533E7EC625BA /* wingdex.bird.fill.svg in Resources */ = {isa = PBXBuildFile; fileRef = B594465F1456F0C7DB88CEDC /* wingdex.bird.fill.svg */; };
 		78A345C5C3608103CBE304D2 /* AuthenticatedRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55E48905A381B4AAD9D6D13 /* AuthenticatedRequest.swift */; };
 		7D8B718A1CCBEBD903238420 /* PhotoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5873328D24830AA514049E5C /* PhotoService.swift */; };
@@ -194,6 +195,7 @@
 		2563AE60F5FF5A8525BC8C2F /* AccountDataCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDataCacheTests.swift; sourceTree = "<group>"; };
 		29828A1E6E0D8724C9F520A0 /* WingDexUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WingDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		29F5471006ACBF058737B455 /* AccountDataCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDataCache.swift; sourceTree = "<group>"; };
+		2A40EA46444DE64147E772AD /* SightingsMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SightingsMergeTests.swift; sourceTree = "<group>"; };
 		2B15C5A1EAE7387A54648C09 /* collage5.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage5.jpg; sourceTree = "<group>"; };
 		2B505419B0FFD0BDB41AB49F /* BirdIDParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirdIDParityTests.swift; sourceTree = "<group>"; };
 		2C367F98A44D6C24B18F1301 /* PasskeyManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyManagementView.swift; sourceTree = "<group>"; };
@@ -513,6 +515,7 @@
 				1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */,
 				01E11C0BD94777FAA9D33933 /* PhotoDecoderTests.swift */,
 				5E241AB56AD080BA22577CE3 /* PrivacyManifestTests.swift */,
+				2A40EA46444DE64147E772AD /* SightingsMergeTests.swift */,
 				4C56DDD787BF000019EB3051 /* TaxonomyOrderTests.swift */,
 				7E72665B257D80E572558029 /* WikimediaURLTests.swift */,
 			);
@@ -949,6 +952,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				3EF5CB0983D37395F5272CFD /* Phase9FoundationTests.swift in Sources */,
 				61B05C30EE88054031D97717 /* PhotoDecoderTests.swift in Sources */,
 				F5031B9305E4469E4BF4F9FC /* PrivacyManifestTests.swift in Sources */,
+				764596672DB1A7AC6E42C586 /* SightingsMergeTests.swift in Sources */,
 				735564E615ECED94D844C13B /* TaxonomyOrderTests.swift in Sources */,
 				8668EC3C4072BB264C7FE1E6 /* WikimediaURLTests.swift in Sources */,
 			);
