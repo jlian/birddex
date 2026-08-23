@@ -34,6 +34,28 @@ struct TransientNotice: Equatable, Identifiable {
     var symbol = "checkmark.circle.fill"
 }
 
+/// App-wide transient notices, so a view can report success without owning a banner and a
+/// toast raised inside a sheet still reads out once rather than per presenter.
+@MainActor
+@Observable
+final class ToastCenter {
+    private(set) var notice: TransientNotice?
+    @ObservationIgnored private var dismissTask: Task<Void, Never>?
+
+    func show(_ message: String, symbol: String = "checkmark.circle.fill") {
+        let next = TransientNotice(message: message, symbol: symbol)
+        notice = next
+        UIAccessibility.post(notification: .announcement, argument: message)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        dismissTask?.cancel()
+        dismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled, self?.notice?.id == next.id else { return }
+            self?.notice = nil
+        }
+    }
+}
+
 extension View {
     /// Present a lifer celebration (banner + confetti + success haptic) when the
     /// bound value becomes non-nil. Auto-dismisses after a few seconds. Respects
@@ -44,6 +66,19 @@ extension View {
 
     func transientNotice(_ notice: Binding<TransientNotice?>) -> some View {
         modifier(TransientNoticeModifier(notice: notice))
+    }
+
+    /// Render whatever the `ToastCenter` is currently showing. Safe to apply in more than one
+    /// presentation context; the center owns dismissal, announcement and haptics.
+    func toastPresenter(_ notice: TransientNotice?) -> some View {
+        overlay(alignment: .top) {
+            if let notice {
+                StatusBanner(message: notice.message, symbol: notice.symbol)
+                    .padding(.horizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: notice)
     }
 }
 
@@ -147,9 +182,7 @@ private struct StatusBanner: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
-        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+        .glassEffect(.regular, in: Capsule())
         .padding(.top, 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(message)

@@ -44,6 +44,7 @@ struct WingDexApp: App {
     @State private var authService: AuthService
     @State private var dataStore: DataStore
     @State private var navigation = AppNavigationModel.shared
+    @State private var toasts = ToastCenter()
 
     init() {
         _ = Self.incomingShareObserver
@@ -68,6 +69,7 @@ struct WingDexApp: App {
                 .environment(authService)
                 .environment(dataStore)
                 .environment(navigation)
+                .environment(toasts)
                 .onOpenURL { url in
                     guard url.scheme == Config.oauthCallbackScheme,
                           url.host == "share-import"
@@ -204,6 +206,7 @@ struct MainTabView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(AppNavigationModel.self) private var navigation
+    @Environment(ToastCenter.self) private var toasts
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
     @State private var showingAccount = false
@@ -257,6 +260,7 @@ struct MainTabView: View {
                 Label("Add", systemImage: "camera.fill")
             }
         }
+        .toastPresenter(toasts.notice)
         #if DEBUG
         .accessibilityIdentifier(uiTestDataSetupIdentifier)
         #endif
@@ -290,6 +294,7 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+                .toastPresenter(toasts.notice)
         }
         .onChange(of: auth.identity) { _, identity in
             if identity != .registered && !uiTestForcesSettings {

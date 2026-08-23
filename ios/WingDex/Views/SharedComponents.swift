@@ -144,6 +144,7 @@ private struct OutingDeletionConfirmationModifier: ViewModifier {
     @Binding var outing: Outing?
 
     @Environment(DataStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
     @State private var operationError: String?
 
     func body(content: Content) -> some View {
@@ -174,6 +175,7 @@ private struct OutingDeletionConfirmationModifier: ViewModifier {
     private func delete(_ target: Outing) async {
         do {
             try await store.deleteOuting(id: target.id)
+            toasts.show("Outing deleted")
         } catch {
             operationError = AppError.map(error, fallback: "Could not delete outing. Try again.")?.message
         }

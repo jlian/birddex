@@ -58,6 +58,7 @@ struct SettingsView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(ToastCenter.self) private var toasts
 
     @State private var editor: ProfileEditor?
 
@@ -69,7 +70,6 @@ struct SettingsView: View {
     @FocusState private var isNameFieldFocused: Bool
     @State private var editedName = ""
     @State private var celebration: LiferCelebration?
-    @State private var importNotice: TransientNotice?
 
     private var profile: ProfileEditor { editor! }
 
@@ -159,14 +159,13 @@ struct SettingsView: View {
                         messageOverride: response.userMessage
                     )
                 } else {
-                    importNotice = TransientNotice(message: response.userMessage)
+                    toasts.show(response.userMessage)
                 }
             }
         }
         .sheet(item: $exportItem) { item in
             ActivityView(item: item)
         }
-        .transientNotice($importNotice)
     }
 
     // MARK: - Account
@@ -374,7 +373,10 @@ struct SettingsView: View {
     private var logOutSection: some View {
         Section {
             Button("Log Out", role: .destructive) {
-                Task { await auth.signOut() }
+                Task {
+                    await auth.signOut()
+                    toasts.show("Logged out")
+                }
             }
         }
     }
@@ -400,5 +402,6 @@ struct SettingsView: View {
     SettingsView()
         .environment(AuthService())
         .environment(previewStore())
+        .environment(ToastCenter())
 }
 #endif

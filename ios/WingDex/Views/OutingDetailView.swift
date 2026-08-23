@@ -26,6 +26,7 @@ struct OutingDetailView: View {
     /// Held so the view keeps rendering the outing between the delete landing in the store
     /// and the dismiss animation finishing, instead of flashing "Outing not found".
     @State private var deletedOuting: Outing?
+    @Environment(ToastCenter.self) private var toasts
 
     private var outing: Outing? { store.outing(id: outingId) ?? deletedOuting }
     private var confirmed: [BirdObservation] { store.confirmedObservations(outingId) }
@@ -64,6 +65,7 @@ struct OutingDetailView: View {
                         deletedOuting = outing
                         try await store.deleteOuting(id: outingId)
                         dismiss()
+                        toasts.show("Outing deleted")
                     } catch {
                         deletedOuting = nil
                         showError(error, fallback: "Could not delete outing. Try again.")
@@ -489,6 +491,7 @@ struct OutingDetailView: View {
                             do {
                                 try await store.updateOuting(id: outingId, fields: OutingUpdate(notes: notesText))
                                 editingNotes = false
+                                toasts.show("Notes saved")
                             } catch {
                                 showError(error, fallback: "Could not save notes. Try again.")
                             }
@@ -594,6 +597,7 @@ struct OutingDetailView: View {
                 fields: OutingUpdate(locationName: newName, defaultLocationName: defaultName)
             )
             editingLocation = false
+            toasts.show(trimmed.isEmpty ? "Outing name reset" : "Outing name saved")
         } catch {
             showError(error, fallback: "Could not save outing name. Try again.")
         }
@@ -654,6 +658,7 @@ struct OutingDetailView: View {
             try await store.addObservation(observation)
             resetSpeciesForm()
             showingAddSpecies = false
+            toasts.show("\(displayName) added")
         } catch {
             showError(error, fallback: "Could not add \(displayName). Try again.")
         }
@@ -671,6 +676,7 @@ struct OutingDetailView: View {
     private func removeSpecies(displayName: String, observationIds: [String]) async {
         do {
             try await store.rejectObservations(ids: observationIds)
+            toasts.show("\(displayName) removed")
         } catch {
             showError(error, fallback: "Could not remove \(displayName). Try again.")
         }
@@ -706,6 +712,7 @@ struct OutingDetailView: View {
         NavigationStack {
             OutingDetailView(outingId: PreviewData.sampleOutingId)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
 }
@@ -715,6 +722,7 @@ struct OutingDetailView: View {
         NavigationStack {
             OutingDetailView(outingId: PreviewData.richOutingId)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
 }
@@ -724,6 +732,7 @@ struct OutingDetailView: View {
         NavigationStack {
             OutingDetailView(outingId: "nonexistent")
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
 }
