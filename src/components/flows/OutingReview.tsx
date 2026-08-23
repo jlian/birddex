@@ -31,6 +31,7 @@ interface OutingReviewProps {
   autoLookupGps?: boolean
   ensureSessionReady?: () => Promise<boolean>
   onConfirm: (
+    outing: Outing | null,
     outingId: string,
     locationName: string,
     lat?: number,
@@ -53,7 +54,6 @@ export default function OutingReview({
   const [locationName, setLocationName] = useState(defaultLocationName)
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
-  const preparedOutingRef = useRef<Outing | null>(null)
   const defaultLocationNameRef = useRef(defaultLocationName)
   const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
   const [suggestedStateProvince, setSuggestedStateProvince] = useState<string | undefined>(undefined)
@@ -178,11 +178,11 @@ export default function OutingReview({
           })
         }
 
-        await onConfirm(matchingOuting.id, matchingOuting.locationName, matchingOuting.lat, matchingOuting.lon)
+        await onConfirm(null, matchingOuting.id, matchingOuting.locationName, matchingOuting.lat, matchingOuting.lon)
         return
       }
 
-      const outing = preparedOutingRef.current ?? {
+      const outing = {
         id: `outing_${crypto.randomUUID()}`,
         userId: userId.toString(),
         startTime: dateToLocalISOWithOffset(effectiveStartTime, effectiveLat, effectiveLon),
@@ -196,11 +196,9 @@ export default function OutingReview({
         notes: '',
         createdAt: new Date().toISOString()
       }
-      preparedOutingRef.current = outing
 
-      await data.addOuting(outing)
-      await onConfirm(outing.id, name || 'Unknown Location', effectiveLat, effectiveLon)
-      preparedOutingRef.current = null
+      // Nothing is written until the cluster produces a sighting; see AddPhotosFlow.
+      await onConfirm(outing, outing.id, name || 'Unknown Location', effectiveLat, effectiveLon)
     } finally {
       setIsConfirming(false)
     }

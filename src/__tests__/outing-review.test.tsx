@@ -65,10 +65,12 @@ describe('OutingReview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
     await waitFor(() => expect(ensureSessionReady).toHaveBeenCalledOnce())
-    expect(data.addOuting).not.toHaveBeenCalled()
+    expect(onConfirm).not.toHaveBeenCalled()
 
     releaseSession(true)
-    await waitFor(() => expect(data.addOuting).toHaveBeenCalledOnce())
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce())
+    // The outing is handed over, not written: nothing is saved until the cluster has a sighting.
+    expect(data.addOuting).not.toHaveBeenCalled()
   })
 
   it('does not offer a newly created outing as an existing outing while confirming', async () => {

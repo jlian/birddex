@@ -26,7 +26,7 @@ import { getDisplayName, getScientificName, cn } from '@/lib/utils'
 import { toLocalISOWithOffset } from '@/lib/timezone'
 import ImageCropDialog from '@/components/ui/image-crop-dialog'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
-import type { Photo, ObservationStatus } from '@/lib/types'
+import type { Photo, ObservationStatus, Outing } from '@/lib/types'
 import {
   needsCloseConfirmation,
   resolvePhotoResults,
@@ -72,6 +72,9 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   const [step, setStep] = useState<FlowStep>('upload')
   // Survives the download screen so the resolved location name is not lost.
   const pendingLocationName = useRef<string | undefined>(undefined)
+  /// Held until the cluster turns out to have a sighting worth saving.
+  const pendingOutingRef = useRef<Outing | null>(null)
+  const pendingPhotosRef = useRef<Photo[]>([])
   const [photos, setPhotos] = useState<PhotoWithCrop[]>([])
   const [currentClusterIndex, setCurrentClusterIndex] = useState(0)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
@@ -255,6 +258,18 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
 
   const uploadStatsRef = useRef({ newSpecies: 0, outings: 0, totalSpecies: 0, totalCount: 0, locationNames: [] as string[] })
 
+  // Order matters: observation has an FK to photo, and photo has one to outing.
+  const ensureOutingAndPhotosExist = async () => {
+    if (pendingOutingRef.current) {
+      await data.addOuting(pendingOutingRef.current)
+      pendingOutingRef.current = null
+    }
+    if (pendingPhotosRef.current.length > 0) {
+      await data.addPhotos(pendingPhotosRef.current)
+      pendingPhotosRef.current = []
+    }
+  }
+
   // ─── Save all observations and finish ────────────────────
   const saveOuting = async (allResults: PhotoResult[]) => {
     if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
@@ -281,6 +296,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
     let liferMessage = ''
 
     if (observations.length > 0) {
+      await ensureOutingAndPhotosExist()
       const persistObservations = data.addObservations(observations)
       const result = data.updateDex(currentOutingId, observations)
       await persistObservations
@@ -323,18 +339,22 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
       window.setTimeout(() => setShowConfetti(false), 1400)
     }
 
-    // Accumulate stats across all clusters
-    const outingName = data.outings.find(o => o.id === currentOutingId)?.locationName
-    const uniqueSpecies = new Set(confirmed.map(r => r.species)).size
-    const totalCount = confirmed.reduce((sum, r) => sum + r.count, 0)
-    const stats = uploadStatsRef.current
-    stats.newSpecies += newSpeciesCount
-    stats.outings += 1
-    stats.totalSpecies += uniqueSpecies
-    stats.totalCount += totalCount
-    if (outingName && !stats.locationNames.includes(outingName)) {
-      stats.locationNames.push(outingName)
+    // Accumulate stats across all clusters. A cluster where every photo was skipped saved
+    // nothing, so it must not count towards the summary or the sign-up prompt.
+    if (observations.length > 0) {
+      const outingName = data.outings.find(o => o.id === currentOutingId)?.locationName
+      const uniqueSpecies = new Set(confirmed.map(r => r.species)).size
+      const totalCount = confirmed.reduce((sum, r) => sum + r.count, 0)
+      const stats = uploadStatsRef.current
+      stats.newSpecies += newSpeciesCount
+      stats.outings += 1
+      stats.totalSpecies += uniqueSpecies
+      stats.totalCount += totalCount
+      if (outingName && !stats.locationNames.includes(outingName)) {
+        stats.locationNames.push(outingName)
+      }
     }
+    const stats = uploadStatsRef.current
 
     if (currentClusterIndex < clusters.length - 1) {
       setCurrentClusterIndex(prev => prev + 1)
@@ -498,6 +518,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
 
   // ─── Outing confirmed → start per-photo loop ────────────
   const handleOutingConfirmed = async (
+    pendingOuting: Outing | null,
     outingId: string,
     locationName: string
   ) => {
@@ -522,7 +543,8 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
       fileHash: p.fileHash,
       fileName: p.fileName,
     }))
-    await data.addPhotos(photosForStorage as Photo[])
+    pendingOutingRef.current = pendingOuting
+    pendingPhotosRef.current = photosForStorage as Photo[]
     setPhotos(prev =>
       prev.map(p => {
         const updated = updatedPhotos.find((up: any) => up.id === p.id)

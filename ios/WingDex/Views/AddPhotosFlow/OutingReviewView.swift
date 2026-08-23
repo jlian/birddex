@@ -49,8 +49,6 @@ struct OutingReviewView: View {
     /// Whether to add photos to an existing matching outing
     @State private var matchingOuting: Outing?
     @State private var useExistingOuting = false
-    @State private var isCreatingOuting = false
-    @State private var preparedOuting: Outing?
 
     /// Tracks whether the view has initiated geocoding for the current cluster.
     @State private var didInitialize = false
@@ -148,7 +146,7 @@ struct OutingReviewView: View {
                 }
                 .accessibilityLabel("Continue")
                 .buttonStyle(.borderedProminent)
-                .disabled(isLoadingLocation || isCreatingOuting)
+                .disabled(isLoadingLocation)
             }
         }
         .onAppear { initializeIfNeeded() }
@@ -474,8 +472,6 @@ struct OutingReviewView: View {
         matchingOuting = nil
         useExistingOuting = false
         isLoadingLocation = false
-        isCreatingOuting = false
-        preparedOuting = nil
     }
 
     /// Initialize location lookup and matching outing detection.
@@ -646,10 +642,13 @@ struct OutingReviewView: View {
 
     /// Confirm the outing and proceed to species identification.
     private func handleConfirm() {
-        guard !isCreatingOuting else { return }
         if useExistingOuting, let existing = matchingOuting {
             // Merge into existing outing
-            viewModel.outingConfirmed(outingId: existing.id, locationName: existing.locationName)
+            viewModel.outingConfirmed(
+                outing: nil,
+                outingId: existing.id,
+                locationName: existing.locationName
+            )
             return
         }
 
@@ -657,7 +656,7 @@ struct OutingReviewView: View {
         let formatter = ISO8601DateFormatter()
 
         let finalLocationName = trimmedLocationName.isEmpty ? "Unknown Location" : trimmedLocationName
-        let outing = preparedOuting ?? Outing(
+        let outing = Outing(
             id: "outing_\(UUID().uuidString)",
             userId: "",
             startTime: formatter.string(from: effectiveStartTime),
@@ -671,22 +670,11 @@ struct OutingReviewView: View {
             notes: "",
             createdAt: formatter.string(from: Date())
         )
-        preparedOuting = outing
-        isCreatingOuting = true
-
-        Task {
-            defer { isCreatingOuting = false }
-            do {
-                let saved = try await viewModel.createOuting(outing)
-                preparedOuting = nil
-                viewModel.outingConfirmed(outingId: saved.id, locationName: finalLocationName)
-            } catch is CancellationError {
-                return
-            } catch {
-                log.error("Failed to create outing")
-                viewModel.error = AppError.map(error, fallback: "Could not create this outing. Try again.")
-            }
-        }
+        viewModel.outingConfirmed(
+            outing: outing,
+            outingId: outing.id,
+            locationName: finalLocationName
+        )
     }
 
     /// Find an existing outing that matches this cluster by time and location.

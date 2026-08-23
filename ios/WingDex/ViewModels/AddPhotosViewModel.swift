@@ -110,6 +110,10 @@ final class AddPhotosViewModel {
     var totalCount = 0
     var extractionProgress: Double = 0
     var error: AppError?
+    /// The outing for the current cluster, held here until the cluster turns out to have a
+    /// sighting worth saving. Nil when merging into an outing that already exists.
+    private var pendingOuting: Outing?
+    private var didCreatePhotos = false
     private var errorRecovery: ErrorRecovery?
     private var preparedObservations: [BirdObservation]?
 
@@ -167,14 +171,6 @@ final class AddPhotosViewModel {
 
     func suppressPendingShareAutoResume() {
         resumesPendingShareAfterDismissal = false
-    }
-
-    func createOuting(_ outing: Outing) async throws -> Outing {
-        let sessionID = try requireCurrentSession()
-        guard let service = dataService else { throw AuthError.notAuthenticated }
-        let saved = try await service.createOuting(outing)
-        guard isCurrentSession(sessionID) else { throw CancellationError() }
-        return saved
     }
 
     // MARK: - Convenience
@@ -466,33 +462,36 @@ final class AddPhotosViewModel {
     /// Called when the user confirms the outing in OutingReviewView.
     /// Creates photo metadata on the server immediately (matching web flow),
     /// then starts the per-photo AI identification loop.
-    func outingConfirmed(outingId: String, locationName: String) {
-        guard let sessionID = try? requireCurrentSession() else { return }
+    /// Pass `outing` for a new outing, or nil when merging into one that already exists.
+    /// Nothing is written until the cluster produces at least one sighting.
+    func outingConfirmed(outing: Outing?, outingId: String, locationName: String) {
+        guard (try? requireCurrentSession()) != nil else { return }
         let normalizedName = locationName.trimmingCharacters(in: .whitespacesAndNewlines)
         lastLocationName = normalizedName
         currentOutingId = outingId
+        pendingOuting = outing
+        didCreatePhotos = false
         photoResults = []
         currentCandidates = []
         rangeAdjusted = false
         cropPromptContext = .manualRecrop
         currentPhotoIndex = 0
 
-        // Save photo metadata to server BEFORE AI identification starts.
-        // The observation table has a FK to photo(id), so photos must exist first.
-        Task {
-            do {
-                try await createPhotoMetadata(outingId: outingId, sessionID: sessionID)
-                await runSpeciesId(photoIndex: 0)
-            } catch is CancellationError {
-                return
-            } catch {
-                log.error("Failed to save photo metadata")
-                self.error = AppError.map(error, fallback: "Could not save photo details. Try again.")
-                errorRecovery = .photoMetadata
-                processingMessage = "Photo details could not be saved"
-                currentStep = .photoProcessing
-            }
+        Task { await runSpeciesId(photoIndex: 0) }
+    }
+
+    /// Create the outing and its photo rows, the first time the cluster has something to save.
+    /// Order matters: observation has an FK to photo, and photo has one to outing.
+    private func ensureOutingAndPhotosExist(sessionID: UUID) async throws {
+        guard let service = dataService else { throw AuthError.notAuthenticated }
+        if let outing = pendingOuting {
+            _ = try await service.createOuting(outing)
+            guard isCurrentSession(sessionID) else { throw CancellationError() }
+            pendingOuting = nil
         }
+        guard !didCreatePhotos else { return }
+        try await createPhotoMetadata(outingId: currentOutingId, sessionID: sessionID)
+        didCreatePhotos = true
     }
 
     /// Persist photo metadata for the current cluster to the server.
@@ -694,8 +693,12 @@ final class AddPhotosViewModel {
             currentCandidates = []
             rangeAdjusted = false
             cropPromptContext = .manualRecrop
+            // Leave the confirm screen in the same update that clears the candidates, or it
+            // renders its empty state for a frame and flashes a question mark.
+            currentStep = .photoProcessing
             Task { await runSpeciesId(photoIndex: nextIdx) }
         } else {
+            currentStep = .saving
             Task { await saveCurrentCluster() }
         }
     }
@@ -746,52 +749,51 @@ final class AddPhotosViewModel {
 
         do {
             if !observations.isEmpty {
+                try await ensureOutingAndPhotosExist(sessionID: sessionID)
                 let response = try await service.createObservations(observations)
                 guard isCurrentSession(sessionID) else { return }
                 if let dexUpdates = response.dexUpdates {
                     store.dex = dexUpdates
                 }
-            }
 
-            // Photo metadata was already created in outingConfirmed() before AI started
-
-            // Count new species
-            var clusterNewSpecies = 0
-            for obs in observations where !existingSpecies.contains(obs.speciesName) {
-                clusterNewSpecies += 1
-                newSpeciesNames.append(getDisplayName(obs.speciesName))
-            }
-            newSpeciesCount += clusterNewSpecies
-            savedOutingCount += 1
-            savedObservationCount += observations.count
-
-            // Accumulate upload summary
-            let outingName = store.outings.first(where: { $0.id == currentOutingId })?.locationName ?? ""
-            let uniqueSpecies = Set(confirmed.map(\.species)).count
-            let totalCount = confirmed.reduce(0) { $0 + $1.count }
-            if var summary = uploadSummary {
-                summary.newSpecies += clusterNewSpecies
-                summary.outings += 1
-                summary.totalSpecies += uniqueSpecies
-                summary.totalCount += totalCount
-                if !outingName.isEmpty && !summary.locationNames.contains(outingName) {
-                    summary.locationNames.append(outingName)
+                // Count new species
+                var clusterNewSpecies = 0
+                for obs in observations where !existingSpecies.contains(obs.speciesName) {
+                    clusterNewSpecies += 1
+                    newSpeciesNames.append(getDisplayName(obs.speciesName))
                 }
-                uploadSummary = summary
-            } else {
-                uploadSummary = UploadSummary(
-                    newSpecies: clusterNewSpecies,
-                    outings: 1,
-                    totalSpecies: uniqueSpecies,
-                    totalCount: totalCount,
-                    locationNames: outingName.isEmpty ? [] : [outingName]
-                )
-            }
+                newSpeciesCount += clusterNewSpecies
+                savedOutingCount += 1
+                savedObservationCount += observations.count
 
-            // Brief "saved" notice before advancing
-            processingMessage = "Outing saved!"
-            try? await Task.sleep(for: .milliseconds(1200))
-            guard isCurrentSession(sessionID) else { return }
+                // Accumulate upload summary
+                let outingName = store.outings.first(where: { $0.id == currentOutingId })?.locationName ?? ""
+                let uniqueSpecies = Set(confirmed.map(\.species)).count
+                let totalCount = confirmed.reduce(0) { $0 + $1.count }
+                if var summary = uploadSummary {
+                    summary.newSpecies += clusterNewSpecies
+                    summary.outings += 1
+                    summary.totalSpecies += uniqueSpecies
+                    summary.totalCount += totalCount
+                    if !outingName.isEmpty && !summary.locationNames.contains(outingName) {
+                        summary.locationNames.append(outingName)
+                    }
+                    uploadSummary = summary
+                } else {
+                    uploadSummary = UploadSummary(
+                        newSpecies: clusterNewSpecies,
+                        outings: 1,
+                        totalSpecies: uniqueSpecies,
+                        totalCount: totalCount,
+                        locationNames: outingName.isEmpty ? [] : [outingName]
+                    )
+                }
+
+                // Brief "saved" notice before advancing
+                processingMessage = "Outing saved!"
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard isCurrentSession(sessionID) else { return }
+            }
 
             // Move to next cluster or finish
             if currentClusterIndex < clusters.count - 1 {
@@ -825,19 +827,6 @@ final class AddPhotosViewModel {
         switch recovery {
         case .sessionPreparation:
             Task { await processSelectedPhotos() }
-        case .photoMetadata:
-            Task {
-                do {
-                    let sessionID = try requireCurrentSession()
-                    try await createPhotoMetadata(outingId: currentOutingId, sessionID: sessionID)
-                    await runSpeciesId(photoIndex: currentPhotoIndex)
-                } catch is CancellationError {
-                    return
-                } catch {
-                    self.error = AppError.map(error, fallback: "Could not save photo details. Try again.")
-                    errorRecovery = .photoMetadata
-                }
-            }
         case .speciesIdentification(let photoIndex, let croppedImageData):
             Task { await runSpeciesId(photoIndex: photoIndex, croppedImageData: croppedImageData) }
         case .saveCluster:
@@ -921,7 +910,6 @@ final class AddPhotosViewModel {
 
 private enum ErrorRecovery {
     case sessionPreparation
-    case photoMetadata
     case speciesIdentification(photoIndex: Int, croppedImageData: Data?)
     case saveCluster
 }
