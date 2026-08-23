@@ -181,14 +181,8 @@ private final class SpeciesCarouselCell: UICollectionViewCell {
     static let reuseIdentifier = "SpeciesCarouselCell"
     var onAccessibilityActivate: (() -> Void)?
     var speciesName: String? {
-        didSet {
-            nameLabel.text = speciesName
-            accessibilityLabel = speciesName
-        }
+        didSet { accessibilityLabel = speciesName }
     }
-
-    private let captionView = UIView()
-    private let nameLabel = UILabel()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -196,38 +190,10 @@ private final class SpeciesCarouselCell: UICollectionViewCell {
         contentView.backgroundColor = .clear
         isAccessibilityElement = true
         accessibilityTraits = .button
-
-        captionView.translatesAutoresizingMaskIntoConstraints = false
-        captionView.backgroundColor = .black
-        captionView.isAccessibilityElement = false
-        nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.adjustsFontForContentSizeCategory = true
-        nameLabel.font = .preferredFont(forTextStyle: .caption1)
-        nameLabel.textColor = .white
-        nameLabel.numberOfLines = 0
-        nameLabel.isAccessibilityElement = false
-        captionView.addSubview(nameLabel)
-        contentView.addSubview(captionView)
-
-        NSLayoutConstraint.activate([
-            captionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            captionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            captionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            captionView.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            nameLabel.leadingAnchor.constraint(equalTo: captionView.leadingAnchor, constant: 10),
-            nameLabel.trailingAnchor.constraint(equalTo: captionView.trailingAnchor, constant: -10),
-            nameLabel.topAnchor.constraint(equalTo: captionView.topAnchor, constant: 8),
-            nameLabel.bottomAnchor.constraint(equalTo: captionView.bottomAnchor, constant: -8),
-        ])
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        contentView.bringSubviewToFront(captionView)
     }
 
     override var isHighlighted: Bool {

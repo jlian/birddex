@@ -15,6 +15,11 @@ const SHOULD_LAZY_LOAD_THUMBNAILS = (() => {
 
 import type { GalleryImage } from '@/lib/wikimedia'
 
+/** Crop anchor for a bird photo. Tall sources anchor to the top so the head stays visible. */
+export function birdObjectPosition(portrait: boolean): string {
+  return portrait ? 'center top' : 'center center'
+}
+
 interface WikiBirdThumbnailProps {
   speciesName: string
   imageUrl?: string
@@ -128,7 +133,7 @@ export function WikiBirdThumbnail({
             setPortrait(img.naturalHeight > img.naturalWidth)
           }}
           className="w-full h-full object-cover"
-          style={{ objectPosition: portrait ? 'center top' : 'center center' }}
+          style={{ objectPosition: birdObjectPosition(portrait) }}
         />
       ) : (
         <div

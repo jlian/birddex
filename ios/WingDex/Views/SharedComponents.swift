@@ -201,8 +201,13 @@ func presentActivitySheet(items: [Any], sourceView: UIView? = nil) {
 
 // MARK: - Bird Thumbnail
 
-/// Portrait-aware bird thumbnail that crops tall images near the top (head area).
-/// Uses an in-memory cache for smooth scrolling.
+/// Crop anchor for a `.scaledToFill()` bird photo. Tall sources are cropped from the top so
+/// the head survives; wide ones are centered. Same rule as the web `wiki-bird-thumbnail.tsx`.
+func birdFillAlignment(for image: UIImage) -> Alignment {
+    image.size.height > image.size.width ? .top : .center
+}
+
+/// Orientation-aware bird thumbnail. Uses an in-memory cache for smooth scrolling.
 struct BirdThumbnail: View {
     let url: String?
     var size: CGFloat = 48
@@ -215,7 +220,7 @@ struct BirdThumbnail: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: size, height: size, alignment: .top)
+                    .frame(width: size, height: size, alignment: birdFillAlignment(for: uiImage))
             } else {
                 placeholder
             }
@@ -279,6 +284,13 @@ struct BirdHeroImage: View {
     private var awaitingFullRes: Bool { fullImageUrl == nil || fullImageUrl != thumbnailUrl }
     private var targetPoints: CGFloat { max(width, height) }
 
+    /// Both layers render the same file, so resolving the anchor once keeps the cross-fade
+    /// from shifting the framing mid-transition.
+    private var fillAlignment: Alignment {
+        guard let image = thumbnailImage ?? fullImage else { return .center }
+        return birdFillAlignment(for: image)
+    }
+
     var body: some View {
         ZStack {
             if let thumbnailImage {
@@ -315,7 +327,7 @@ struct BirdHeroImage: View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .frame(width: width, height: height, alignment: .top)
+            .frame(width: width, height: height, alignment: fillAlignment)
             .clipped()
     }
 
@@ -395,14 +407,33 @@ struct BirdRow: View {
 // MARK: - Species Card
 
 /// Square image card for the Home recent-species carousel.
-/// The UIKit carousel cell owns its scalable caption and accessibility behavior.
+/// The UIKit carousel cell owns the accessibility behavior; this is the visual only.
 struct SpeciesCard: View {
     let entry: DexEntry
     var size: CGFloat = 120
 
     var body: some View {
-        BirdThumbnail(url: entry.thumbnailUrl, size: size, cornerRadius: 0)
+        BirdThumbnail(
+            url: cardImageUrl(fromThumbnail: entry.thumbnailUrl) ?? entry.thumbnailUrl,
+            size: size,
+            cornerRadius: 0
+        )
         .frame(width: size, height: size)
+        .overlay {
+            LinearGradient(
+                colors: [.clear, .clear, .black.opacity(0.6)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .overlay(alignment: .bottomLeading) {
+            Text(getDisplayName(entry.speciesName))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+        }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 10, style: .continuous))

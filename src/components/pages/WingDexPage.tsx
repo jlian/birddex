@@ -8,6 +8,7 @@ import {
   ArrowUp, ArrowDown, Camera, Hash, TextAa, Leaf
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
+import { birdObjectPosition } from '@/components/ui/wiki-bird-thumbnail'
 import { useBirdSummary } from '@/hooks/use-bird-image'
 import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
@@ -403,6 +404,8 @@ function SpeciesDetail({
   const fullResUrl = getHeroImageUrl(thumbnailUrl) ?? summary?.imageUrl
   const baseImageUrl = thumbnailUrl || fullResUrl
   const [fullResLoaded, setFullResLoaded] = useState(false)
+  // Both layers render the same file, so the base layer settles the crop anchor for both.
+  const [heroPortrait, setHeroPortrait] = useState(false)
   const hasDistinctFullRes = !!(fullResUrl && thumbnailUrl && fullResUrl !== thumbnailUrl)
   const canShowOverlay = hasDistinctFullRes
   const fullResRevealToken = useRef(0)
@@ -424,6 +427,7 @@ function SpeciesDetail({
   useEffect(() => {
     fullResRevealToken.current += 1
     setFullResLoaded(false)
+    setHeroPortrait(false)
   }, [entry.speciesName])
 
   // The hero is an individually licensed Commons photo, so it needs its own credit.
@@ -456,7 +460,9 @@ function SpeciesDetail({
               src={baseImageUrl}
               alt={canShowOverlay ? '' : displayName}
               aria-hidden={canShowOverlay}
-              className={`absolute inset-0 w-full h-full object-cover object-[center_10%] ${canShowOverlay ? 'blur-md scale-105' : ''}`}
+              onLoad={e => setHeroPortrait(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)}
+              style={{ objectPosition: birdObjectPosition(heroPortrait) }}
+              className={`absolute inset-0 w-full h-full object-cover ${canShowOverlay ? 'blur-md scale-105' : ''}`}
             />
           )}
           {/* Full-res overlay fades in over the base layer */}
@@ -465,7 +471,8 @@ function SpeciesDetail({
               src={fullResUrl}
               alt={displayName}
               onLoad={revealFullRes}
-              className={`absolute inset-0 w-full h-full object-cover object-[center_10%] transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
+              style={{ objectPosition: birdObjectPosition(heroPortrait) }}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
             />
           )}
           {!baseImageUrl && (

@@ -1,9 +1,11 @@
 import Foundation
 
 /// Wikimedia renders thumbnails only at the widths in `$wgThumbnailSteps`, and rejects
-/// direct requests for any other width. 960 is the step that covers a 280pt hero at 3x.
+/// direct requests for any other width. 960 is the step that covers a 280pt hero at 3x, and
+/// 500 the one that covers a ~150pt carousel card.
 /// https://www.mediawiki.org/wiki/Common_thumbnail_sizes
 private let heroThumbnailStep = 960
+private let cardThumbnailStep = 500
 
 /// Derive a hero-sized image URL from a dex thumbnail URL.
 ///
@@ -15,6 +17,16 @@ private let heroThumbnailStep = 960
 /// Returns nil for originals served without a `/thumb/` segment, which have no rendered
 /// variants and are already full size.
 func heroImageUrl(fromThumbnail thumbnailUrl: String?) -> String? {
+    resizedThumbnailUrl(thumbnailUrl, toStep: heroThumbnailStep)
+}
+
+/// Card-sized variant for the Home recent-species carousel, where the stored 330px render is
+/// upscaled and visibly soft.
+func cardImageUrl(fromThumbnail thumbnailUrl: String?) -> String? {
+    resizedThumbnailUrl(thumbnailUrl, toStep: cardThumbnailStep)
+}
+
+private func resizedThumbnailUrl(_ thumbnailUrl: String?, toStep step: Int) -> String? {
     guard let thumbnailUrl,
           thumbnailUrl.contains("/thumb/"),
           let lastSlash = thumbnailUrl.lastIndex(of: "/")
@@ -24,7 +36,7 @@ func heroImageUrl(fromThumbnail thumbnailUrl: String?) -> String? {
     guard let width = filename.range(of: #"[0-9]+px-"#, options: .regularExpression) else {
         return nil
     }
-    return thumbnailUrl.replacingCharacters(in: width, with: "\(heroThumbnailStep)px-")
+    return thumbnailUrl.replacingCharacters(in: width, with: "\(step)px-")
 }
 
 /// Derive the file page URL from any upload.wikimedia.org image URL.
