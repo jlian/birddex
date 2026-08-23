@@ -27,15 +27,21 @@ struct HomeView: View {
                 .toolbarTitleDisplayMode(.inlineLarge)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { showSettings() } label: {
-                            AccountAvatarView(size: 40)
+                        // WHY HStack around a single button: the other tabs group the avatar
+                        // with a sort button, and that custom container drops the toolbar
+                        // button style's content insets. Without the same container here the
+                        // avatar sits further from the trailing edge than on every other tab.
+                        HStack(spacing: 5) {
+                            Button { showSettings() } label: {
+                                AccountAvatarView(size: 40)
+                            }
+                            .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
+                            .accessibilityValue(
+                                auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
+                                    ? "These sightings are only on this device"
+                                    : ""
+                            )
                         }
-                        .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
-                        .accessibilityValue(
-                            auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
-                                ? "These sightings are only on this device"
-                                : ""
-                        )
                         // WHY negative padding: shifts the avatar closer to the trailing edge
                         // to match Apple Music's profile button position. Without this, the
                         // system toolbar inset leaves too much gap on the right.
