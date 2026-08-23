@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var committedSpeciesEntry: DexEntry?
     @State private var actionDestination: OutingActionDestination?
+    @State private var outingPendingDeletion: Outing?
 
     var body: some View {
         NavigationStack {
@@ -250,6 +251,7 @@ struct HomeView: View {
                         }
                         .outingRowActions(
                             outing: outing,
+                            pendingDeletion: $outingPendingDeletion,
                             onView: {
                                 actionDestination = OutingActionDestination(
                                     outing: outing,
@@ -270,6 +272,7 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .listSectionSeparator(.hidden, edges: .top)
+        .outingDeletionConfirmation($outingPendingDeletion)
     }
 
     private func speciesContextMenu(for entry: DexEntry) -> UIMenu {

@@ -41,6 +41,7 @@ struct OutingActionDestination: Identifiable, Hashable {
 
 private struct OutingRowActionsModifier: ViewModifier {
     let outing: Outing
+    @Binding var pendingDeletion: Outing?
     let onView: () -> Void
     let onEditLocation: () -> Void
 
@@ -48,7 +49,6 @@ private struct OutingRowActionsModifier: ViewModifier {
     @Environment(DataStore.self) private var store
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
-    @State private var confirmsDeletion = false
     @State private var operationError: String?
 
     private var observations: [BirdObservation] {
@@ -74,7 +74,7 @@ private struct OutingRowActionsModifier: ViewModifier {
                     Label("Share Summary", systemImage: "text.bubble")
                 }
                 Button(role: .destructive) {
-                    confirmsDeletion = true
+                    pendingDeletion = outing
                 } label: {
                     Label("Delete Outing", systemImage: "trash")
                 }
@@ -99,7 +99,7 @@ private struct OutingRowActionsModifier: ViewModifier {
             }
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
-                    confirmsDeletion = true
+                    pendingDeletion = outing
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
@@ -107,14 +107,6 @@ private struct OutingRowActionsModifier: ViewModifier {
             }
             .sheet(item: $exportItem) { item in
                 ActivityView(item: item)
-            }
-            .alert("Delete this outing?", isPresented: $confirmsDeletion) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete Outing", role: .destructive) {
-                    Task { await deleteOuting() }
-                }
-            } message: {
-                Text("This will permanently delete this outing and all its observations.")
             }
             .alert("Could Not Complete Action", isPresented: operationErrorBinding) {
                 Button("OK", role: .cancel) { operationError = nil }
@@ -137,10 +129,51 @@ private struct OutingRowActionsModifier: ViewModifier {
         }
     }
 
+    private var operationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )
+    }
+}
+
+/// Hosts the outing delete confirmation above the list rather than on the row. An alert
+/// anchored to a row is torn down with the swipe container before it can present, so the
+/// confirmation appeared and vanished in the same frame.
+private struct OutingDeletionConfirmationModifier: ViewModifier {
+    @Binding var outing: Outing?
+
+    @Environment(DataStore.self) private var store
+    @State private var operationError: String?
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Delete this outing?", isPresented: isPresented, presenting: outing) { target in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete Outing", role: .destructive) {
+                    Task { await delete(target) }
+                }
+            } message: { _ in
+                Text("This will permanently delete this outing and all its observations.")
+            }
+            .alert("Could Not Complete Action", isPresented: operationErrorBinding) {
+                Button("OK", role: .cancel) { operationError = nil }
+            } message: {
+                Text(operationError ?? "Something went wrong. Try again.")
+            }
+    }
+
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { outing != nil },
+            set: { if !$0 { outing = nil } }
+        )
+    }
+
     @MainActor
-    private func deleteOuting() async {
+    private func delete(_ target: Outing) async {
         do {
-            try await store.deleteOuting(id: outing.id)
+            try await store.deleteOuting(id: target.id)
         } catch {
             operationError = AppError.map(error, fallback: "Could not delete outing. Try again.")?.message
         }
@@ -157,14 +190,20 @@ private struct OutingRowActionsModifier: ViewModifier {
 extension View {
     func outingRowActions(
         outing: Outing,
+        pendingDeletion: Binding<Outing?>,
         onView: @escaping () -> Void,
         onEditLocation: @escaping () -> Void
     ) -> some View {
         modifier(OutingRowActionsModifier(
             outing: outing,
+            pendingDeletion: pendingDeletion,
             onView: onView,
             onEditLocation: onEditLocation
         ))
+    }
+
+    func outingDeletionConfirmation(_ outing: Binding<Outing?>) -> some View {
+        modifier(OutingDeletionConfirmationModifier(outing: outing))
     }
 }
 

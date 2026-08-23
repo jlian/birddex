@@ -8,6 +8,7 @@ struct OutingsView: View {
     @State private var sortField: OutingSortField = .date
     @State private var sortAscending = false
     @State private var actionDestination: OutingActionDestination?
+    @State private var outingPendingDeletion: Outing?
 
     // MARK: - Sort Options
 
@@ -206,6 +207,7 @@ struct OutingsView: View {
             }
             .outingRowActions(
                 outing: outing,
+                pendingDeletion: $outingPendingDeletion,
                 onView: {
                     actionDestination = OutingActionDestination(
                         outing: outing,
@@ -223,6 +225,7 @@ struct OutingsView: View {
         .listStyle(.plain)
         .listSectionSeparator(.hidden, edges: .top)
         .scrollContentBackground(.hidden)
+        .outingDeletionConfirmation($outingPendingDeletion)
     }
 }
 

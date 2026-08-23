@@ -23,8 +23,11 @@ struct OutingDetailView: View {
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
     @State private var operationError: String?
+    /// Held so the view keeps rendering the outing between the delete landing in the store
+    /// and the dismiss animation finishing, instead of flashing "Outing not found".
+    @State private var deletedOuting: Outing?
 
-    private var outing: Outing? { store.outing(id: outingId) }
+    private var outing: Outing? { store.outing(id: outingId) ?? deletedOuting }
     private var confirmed: [BirdObservation] { store.confirmedObservations(outingId) }
     private var possible: [BirdObservation] { store.possibleObservations(outingId) }
 
@@ -58,9 +61,11 @@ struct OutingDetailView: View {
             Button("Delete Outing", role: .destructive) {
                 Task {
                     do {
+                        deletedOuting = outing
                         try await store.deleteOuting(id: outingId)
                         dismiss()
                     } catch {
+                        deletedOuting = nil
                         showError(error, fallback: "Could not delete outing. Try again.")
                     }
                 }
