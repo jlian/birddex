@@ -108,15 +108,6 @@ struct SignInView: View {
             // Foreground content
             ScrollView {
             VStack(spacing: 0) {
-                // Top bar
-                HStack {
-                    AppIconView()
-                        .frame(width: 44, height: 44)
-                    Spacer()
-                }
-                .padding(.horizontal, 28)
-                .padding(.top, 8)
-
                 Spacer()
 
                 // Big left-aligned title
