@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let appLog = Logger(subsystem: Config.bundleID, category: "App")
 
 enum SignupPromptStore {
     private static let prefix = "wingdex.signupPrompted."
@@ -307,63 +310,10 @@ struct MainTabView: View {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             do {
-                let needsAccount = arguments.contains("--ui-test-clear-data")
-                    || arguments.contains("--ui-test-seed-csv")
-                    || arguments.contains("--ui-test-open-settings")
-                if needsAccount {
-                    try await auth.ensureAnonymousSession()
-                    guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
-                    if store.activeAccountID != accountID {
-                        store.activate(accountID: accountID)
-                    }
-                    if !store.hasLoadedAll { await store.loadAll() }
-                    guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
-                }
+                try await prepareUITestData(arguments: arguments)
                 if arguments.contains("--ui-test-share-photo") {
                     try await stageUITestSharePhoto()
                     navigation.handleIncomingShare()
-                }
-                if arguments.contains("--ui-test-clear-data") {
-                    // Tests clear only the active account. Demo replacement was
-                    // removed because it could overwrite real anonymous data.
-                    try await store.clearAll()
-                }
-                if let seedFlag = arguments.firstIndex(of: "--ui-test-seed-csv"),
-                   arguments.index(after: seedFlag) < arguments.endIndex {
-                    try await auth.ensureAnonymousSession()
-                    guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
-                    if store.activeAccountID != accountID { store.activate(accountID: accountID) }
-                    let service = DataService(auth: auth, expectedAccountID: accountID)
-                    let outingID = "ui-test-seeded-outing-\(accountID)"
-                    _ = try await service.createOuting(Outing(
-                        id: outingID,
-                        userId: accountID,
-                        startTime: "2026-02-12T06:58:00-03:00",
-                        endTime: "2026-02-12T07:58:00-03:00",
-                        locationName: "Parque Ibirapuera, Sao Paulo",
-                        notes: "UI test seed",
-                        createdAt: "2026-02-12T06:58:00-03:00"
-                    ))
-                    _ = try await service.createObservations([
-                        BirdObservation(
-                            id: "ui-test-chalk-browed-\(accountID)",
-                            outingId: outingID,
-                            speciesName: "Chalk-browed Mockingbird (Mimus saturninus)",
-                            count: 1,
-                            certainty: .confirmed,
-                            notes: ""
-                        ),
-                        BirdObservation(
-                            id: "ui-test-eared-dove-\(accountID)",
-                            outingId: outingID,
-                            speciesName: "Eared Dove (Zenaida auriculata)",
-                            count: 1,
-                            certainty: .confirmed,
-                            notes: ""
-                        ),
-                    ])
-                    await store.loadAll()
-                    guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
                 }
                 if arguments.contains("--ui-test-open-settings") {
                     showingSettings = true
@@ -429,6 +379,83 @@ struct MainTabView: View {
         .environment(\.showHome) { navigation.route(to: .home) }
         .environment(\.showOutings) { navigation.route(to: .outings) }
     }
+
+    #if DEBUG
+    private func prepareUITestData(arguments: [String]) async throws {
+        let needsAccount = arguments.contains("--ui-test-clear-data")
+            || arguments.contains("--ui-test-seed-csv")
+            || arguments.contains("--ui-test-open-settings")
+        guard needsAccount else { return }
+
+        var lastError: Error = AuthError.notAuthenticated
+        for attempt in 1...3 {
+            var stage = "anonymous session"
+            do {
+                if attempt == 1,
+                   arguments.contains("--ui-test-transient-data-setup-failure") {
+                    stage = "injected transient failure"
+                    throw URLError(.timedOut)
+                }
+                try await auth.ensureAnonymousSession()
+                guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
+                if store.activeAccountID != accountID { store.activate(accountID: accountID) }
+
+                stage = "initial account load"
+                try await store.ensureLoaded()
+
+                if arguments.contains("--ui-test-clear-data")
+                    || arguments.contains("--ui-test-seed-csv") {
+                    stage = "account data clear"
+                    try await store.clearAll()
+                }
+
+                if let seedFlag = arguments.firstIndex(of: "--ui-test-seed-csv"),
+                   arguments.index(after: seedFlag) < arguments.endIndex {
+                    stage = "seed outing write"
+                    let service = DataService(auth: auth, expectedAccountID: accountID)
+                    let outingID = "ui-test-seeded-outing-\(accountID)"
+                    _ = try await service.createOuting(Outing(
+                        id: outingID,
+                        userId: accountID,
+                        startTime: "2026-02-12T06:58:00-03:00",
+                        endTime: "2026-02-12T07:58:00-03:00",
+                        locationName: "Parque Ibirapuera, Sao Paulo",
+                        notes: "UI test seed",
+                        createdAt: "2026-02-12T06:58:00-03:00"
+                    ))
+                    stage = "seed observation write"
+                    _ = try await service.createObservations([
+                        BirdObservation(
+                            id: "ui-test-chalk-browed-\(accountID)",
+                            outingId: outingID,
+                            speciesName: "Chalk-browed Mockingbird (Mimus saturninus)",
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        ),
+                        BirdObservation(
+                            id: "ui-test-eared-dove-\(accountID)",
+                            outingId: outingID,
+                            speciesName: "Eared Dove (Zenaida auriculata)",
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        ),
+                    ])
+                    stage = "seeded account reload"
+                    await store.loadAll()
+                    guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
+                }
+                return
+            } catch {
+                lastError = error
+                appLog.warning("UI test data setup failed during \(stage, privacy: .public), attempt \(attempt)")
+                if attempt < 3 { try? await Task.sleep(for: .seconds(attempt)) }
+            }
+        }
+        throw lastError
+    }
+    #endif
 
     private func importIncomingShareIfAvailable() async {
         guard !uiTestIgnoresPendingShare,

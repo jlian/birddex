@@ -589,7 +589,23 @@ struct OutingReviewView: View {
                 }
             }
             do {
-                let results = try await GeocodingService(auth: auth).search(query: query)
+                let results: [GeocodingResult]
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--ui-test-place-search-result") {
+                    results = [GeocodingResult(
+                        label: "Discovery Park",
+                        context: "Seattle, Washington",
+                        latitude: 47.6573,
+                        longitude: -122.4066,
+                        stateProvince: "Washington",
+                        countryCode: "US"
+                    )]
+                } else {
+                    results = try await GeocodingService(auth: auth).search(query: query)
+                }
+                #else
+                results = try await GeocodingService(auth: auth).search(query: query)
+                #endif
                 try Task.checkCancellation()
                 guard placeSearchGeneration == generation,
                       cluster?.id == clusterID,

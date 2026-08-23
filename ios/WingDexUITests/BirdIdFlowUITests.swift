@@ -381,9 +381,9 @@ final class BirdIdFlowUITests: XCTestCase {
                 XCTFail("Selected CI backend is not healthy. \(reason)")
                 return
             }
-            throw XCTSkip("Requires a healthy WingDex backend with Geoapify access. \(reason)")
+            throw XCTSkip("Requires a healthy WingDex backend. \(reason)")
         }
-        let app = launchApp()
+        let app = launchApp(extraArguments: ["--ui-test-place-search-result"])
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
@@ -547,7 +547,11 @@ final class BirdIdFlowUITests: XCTestCase {
 
     func testEmptyHomePassesAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--auto-sign-in", "--ui-test-clear-data"]
+        app.launchArguments = [
+            "--auto-sign-in",
+            "--ui-test-clear-data",
+            "--ui-test-transient-data-setup-failure",
+        ]
         app.launch()
         waitForDataSetup(in: app)
         XCTAssertTrue(app.staticTexts["Got bird pics?"].waitForExistence(timeout: 10))
