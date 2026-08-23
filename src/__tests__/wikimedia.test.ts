@@ -398,6 +398,8 @@ function commonsResponse(pages: Record<string, {
   title?: string
   index?: number
   thumburl?: string
+  descriptionurl?: string
+  mime?: string
   description?: string
   assessments?: string
 }>) {
@@ -408,6 +410,8 @@ function commonsResponse(pages: Record<string, {
       index: p.index ?? Number(id),
       imageinfo: [{
         thumburl: p.thumburl ?? `https://upload.wikimedia.org/thumb/${id}.jpg`,
+        descriptionurl: p.descriptionurl,
+        mime: p.mime ?? 'image/jpeg',
         extmetadata: {
           ImageDescription: { value: p.description ?? '' },
           Assessments: { value: p.assessments ?? '' },
@@ -549,5 +553,65 @@ describe('getWikimediaGallery', () => {
 
     const result = await getWikimediaGallery('HTML Bird Gallery11')
     expect(result[0].caption).toBe('A beautiful bird in flight')
+  })
+
+  it('drops results that are not JPEG photos', async () => {
+    mockFetch.mockImplementationOnce(() => Promise.resolve(commonsResponse({
+      '1': { title: 'File:Chick.png', index: 1, mime: 'image/png' },
+      '2': { title: 'File:Speaker icon.jpg', index: 2, mime: 'image/svg+xml' },
+      '3': { title: 'File:Real photo.jpg', index: 3 },
+    })))
+
+    const result = await getWikimediaGallery('Mime Bird Gallery12')
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('File:Real photo.jpg')
+  })
+
+  it('filters Spanish nest and chick titles', async () => {
+    mockFetch.mockImplementationOnce(() => Promise.resolve(commonsResponse({
+      '1': { title: 'File:Quiscalus mexicanus, nido urbano 02.jpg', index: 1 },
+      '2': { title: 'File:Polluelo de zanate.jpg', index: 2 },
+      '3': { title: 'File:Zanate mexicano en zona urbana.jpg', index: 3 },
+    })))
+
+    const result = await getWikimediaGallery('Spanish Bird Gallery13')
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('File:Zanate mexicano en zona urbana.jpg')
+  })
+
+  it('puts the Wikipedia lead image first', async () => {
+    mockFetch.mockImplementationOnce(() => Promise.resolve(commonsResponse({
+      '1': { title: 'File:Commons first.jpg', index: 1 },
+    })))
+    mockWikiResponse(wikiPageData({
+      thumbnail: { source: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Lead_bird.jpg/320px-Lead_bird.jpg' },
+    }))
+
+    const result = await getWikimediaGallery('Lead Bird Gallery14')
+    expect(result).toHaveLength(2)
+    expect(result[0].url).toContain('Lead_bird.jpg')
+    expect(result[0].descriptionUrl).toBe('https://commons.wikimedia.org/wiki/File:Lead_bird.jpg')
+    expect(result[1].title).toBe('File:Commons first.jpg')
+  })
+
+  it('absorbs the Commons copy of the lead image instead of duplicating it', async () => {
+    mockFetch.mockImplementationOnce(() => Promise.resolve(commonsResponse({
+      '1': { title: 'File:Other bird.jpg', index: 1 },
+      '2': {
+        title: 'File:Lead bird.jpg',
+        index: 2,
+        description: 'A male lead bird',
+        descriptionurl: 'https://commons.wikimedia.org/wiki/File:Lead_bird.jpg',
+      },
+    })))
+    mockWikiResponse(wikiPageData({
+      thumbnail: { source: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Lead_bird.jpg/320px-Lead_bird.jpg' },
+    }))
+
+    const result = await getWikimediaGallery('Dedupe Bird Gallery15')
+    expect(result).toHaveLength(2)
+    expect(result[0].url).toContain('Lead_bird.jpg')
+    expect(result[0].plumage).toBe('male')
+    expect(result[1].title).toBe('File:Other bird.jpg')
   })
 })

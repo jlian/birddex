@@ -170,7 +170,8 @@ struct PerPhotoConfirmView: View {
                 Spacer(minLength: 0)
 
                 VStack(spacing: 16) {
-                    // Top-aligned so a wrapped credit line cannot shift the photo it belongs to.
+                    // Top-aligned so a caption that wraps at large text sizes cannot shift the
+                    // photo it belongs to.
                     HStack(alignment: .top, spacing: 12) {
                         VStack(spacing: 6) {
                             aiCroppedUserPhoto(size: photoSize)
@@ -183,21 +184,22 @@ struct PerPhotoConfirmView: View {
                         VStack(spacing: 6) {
                             wikiSquareThumbnail(size: photoSize)
                             let credit = currentRefCredit
-                            Text(credit.label)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let text = credit.credit {
-                                Group {
-                                    if let url = credit.url {
-                                        Link(text, destination: url).underline()
-                                    } else {
-                                        Text(text)
-                                    }
+                            Group {
+                                if let url = credit.url {
+                                    Link(credit.label, destination: url).underline()
+                                } else {
+                                    Text(credit.label)
                                 }
-                                .font(.caption2)
-                                .foregroundStyle(Color.mutedText)
-                                .multilineTextAlignment(.center)
                             }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            // Reserved so swiping to an image with a different plumage tag
+                            // cannot change the column height and shift both photos.
+                            .lineLimit(2, reservesSpace: true)
+                            .accessibilityLabel(credit.url == nil
+                                ? credit.label
+                                : "\(credit.label). Photo credit and license on Wikimedia Commons")
                         }
                         .frame(width: photoSize)
                     }
@@ -283,15 +285,14 @@ struct PerPhotoConfirmView: View {
 
     private var allWikiURLs: [URL] { galleryItems.map(\.url) }
 
-    /// Caption for the current gallery image. The plumage label says what the photo
-    /// shows; the credit is what its license requires, so they stay on separate lines.
-    private var currentRefCredit: (label: String, credit: String?, url: URL?) {
+    /// Caption for the current gallery image. Attribution rides on the link to the Commons
+    /// file page, which CC 4.0 3(a)(2) accepts in place of an inline creator/license line.
+    private var currentRefCredit: (label: String, url: URL?) {
         let items = galleryItems
-        guard !items.isEmpty else { return ("Reference", nil, nil) }
+        guard !items.isEmpty else { return ("Reference", nil) }
         let item = items[min(max(galleryIndex, 0), items.count - 1)]
         let label = item.plumage.map { "Reference (\($0))" } ?? "Reference"
-        let credit = [item.artist, item.license].compactMap { $0 }.joined(separator: " / ")
-        return (label, credit.isEmpty ? nil : credit, item.descriptionUrl)
+        return (label, item.descriptionUrl)
     }
 
     private func wikiSquareThumbnail(size: CGFloat) -> some View {
@@ -506,11 +507,17 @@ struct PerPhotoConfirmView: View {
         guard !species.isEmpty else { galleryItems = []; galleryIndex = 0; return }
 
         let displayName = getDisplayName(species)
+        // Commons relevance ordering routinely opens on a nest or a female, so the taxonomy
+        // lead image goes first: it is the shot the species page already shows.
+        let leadThumb = getWikiThumbnailUrl(for: species)
+        let leadImageUrl = cardImageUrl(fromThumbnail: leadThumb) ?? leadThumb
         isLoadingWikiImage = true
         galleryItems = []
 
         // Single Wikimedia Commons search: returns thumbnails + descriptions in one call
-        galleryTask = Task { await performCommonsGalleryFetch(displayName: displayName) }
+        galleryTask = Task {
+            await performCommonsGalleryFetch(displayName: displayName, leadImageUrl: leadImageUrl)
+        }
     }
 
     private struct CommonsResponse: Codable {
@@ -524,34 +531,21 @@ struct PerPhotoConfirmView: View {
         struct ImageInfo: Codable {
             let thumburl: String?
             let descriptionurl: String?
+            let mime: String?
             let extmetadata: ExtMetadata?
         }
         struct ExtMetadata: Codable {
             let ImageDescription: MetaValue?
             let Assessments: MetaValue?
-            let Artist: MetaValue?
-            let LicenseShortName: MetaValue?
         }
         struct MetaValue: Codable { let value: String? }
     }
 
-    /// One reference photo plus the credit its license requires.
+    /// One reference photo plus the file page its license notice lives on.
     private struct GalleryItem {
         let url: URL
         let plumage: String?
-        let artist: String?
-        let license: String?
         let descriptionUrl: URL?
-    }
-
-    /// Commons returns Artist and license fields as HTML fragments.
-    private static func stripHTML(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let text = value
-            .replacingOccurrences(of: "<[^>]*>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? nil : text
     }
 
     private static let excludeRE = try! NSRegularExpression(
@@ -559,9 +553,43 @@ struct PerPhotoConfirmView: View {
         options: .caseInsensitive
     )
     private static let captionExcludeRE = try! NSRegularExpression(
-        pattern: "\\beggs?\\b|\\bnest\\b|\\bskeleton\\b|\\bspecimen\\b|\\btaxiderm",
+        // Spanish terms too: Commons captions the nest and chick shots that outrank the bird
+        // itself for several New World species.
+        pattern: "\\beggs?\\b|\\bnests?\\b|\\bskeleton\\b|\\bspecimen\\b|\\btaxiderm|\\bnido\\b|\\bnidada\\b|\\bpolluelos?\\b|\\bhuevos?\\b",
         options: .caseInsensitive
     )
+
+    /// Commons file name from an upload URL or a file page URL, normalised for comparison.
+    private static func commonsFileKey(_ urlString: String?) -> String? {
+        guard let urlString, let decoded = urlString.removingPercentEncoding else { return nil }
+        let name: String?
+        if let marker = decoded.range(of: "/wiki/File:") {
+            name = String(decoded[marker.upperBound...])
+        } else if decoded.contains("/thumb/") {
+            name = decoded.split(separator: "/").dropLast().last.map(String.init)
+        } else {
+            name = decoded.split(separator: "/").last.map(String.init)
+        }
+        return name?.replacingOccurrences(of: "_", with: " ").lowercased()
+    }
+
+    /// Put the lead image first, absorbing the Commons copy of the same file when the search
+    /// already returned it.
+    private static func promotingLead(_ leadImageUrl: String?, in items: [GalleryItem]) -> [GalleryItem] {
+        guard let leadImageUrl,
+              let leadURL = URL(string: leadImageUrl),
+              let leadKey = commonsFileKey(leadImageUrl)
+        else { return items }
+        let duplicate = items.first { commonsFileKey($0.descriptionUrl?.absoluteString) == leadKey }
+        let rest = items.filter { commonsFileKey($0.descriptionUrl?.absoluteString) != leadKey }
+        let lead = GalleryItem(
+            url: leadURL,
+            plumage: duplicate?.plumage,
+            descriptionUrl: duplicate?.descriptionUrl
+                ?? wikimediaFilePageUrl(fromImage: leadImageUrl).flatMap(URL.init(string:))
+        )
+        return [lead] + rest
+    }
 
     /// Parse plumage from caption + filename text (matches web logic).
     private func parseGalleryPlumage(_ text: String) -> String? {
@@ -576,10 +604,10 @@ struct PerPhotoConfirmView: View {
         return tags.isEmpty ? nil : tags.joined(separator: ", ")
     }
 
-    private func performCommonsGalleryFetch(displayName: String) async {
+    private func performCommonsGalleryFetch(displayName: String, leadImageUrl: String?) async {
         do {
             let query = "\"\(displayName)\"".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? displayName
-            let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl&iiurlwidth=500&format=json&origin=*"
+            let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl%7Cmime&iiurlwidth=500&format=json&origin=*"
             guard let url = URL(string: urlStr) else {
                 log.debug("Commons gallery: invalid URL: \(urlStr)")
                 await MainActor.run { isLoadingWikiImage = false }
@@ -611,18 +639,20 @@ struct PerPhotoConfirmView: View {
                 let title = entry.page.title ?? ""
                 let titleRange = NSRange(title.startIndex..., in: title)
                 if Self.excludeRE.firstMatch(in: title, range: titleRange) != nil { continue }
-                guard let thumbStr = entry.page.imageinfo?.first?.thumburl,
-                      let thumbURL = URL(string: thumbStr) else { continue }
-                let rawDesc = entry.page.imageinfo?.first?.extmetadata?.ImageDescription?.value ?? ""
-                let desc = rawDesc.replacingOccurrences(of: "<[^>]*>", with: "", options: String.CompareOptions.regularExpression)
-                let descRange = NSRange(desc.startIndex..., in: desc)
-                if Self.captionExcludeRE.firstMatch(in: desc, range: descRange) != nil { continue }
                 let info = entry.page.imageinfo?.first
+                // Commons bird photos are JPEG; the PNG and SVG hits are icons and diagrams.
+                guard info?.mime == "image/jpeg" else { continue }
+                guard let thumbStr = info?.thumburl,
+                      let thumbURL = URL(string: thumbStr) else { continue }
+                let rawDesc = info?.extmetadata?.ImageDescription?.value ?? ""
+                let desc = rawDesc.replacingOccurrences(of: "<[^>]*>", with: "", options: String.CompareOptions.regularExpression)
+                let subject = "\(desc) \(title)"
+                    .replacingOccurrences(of: "[_-]", with: " ", options: String.CompareOptions.regularExpression)
+                let subjectRange = NSRange(subject.startIndex..., in: subject)
+                if Self.captionExcludeRE.firstMatch(in: subject, range: subjectRange) != nil { continue }
                 items.append(GalleryItem(
                     url: thumbURL,
                     plumage: parseGalleryPlumage([desc, title].joined(separator: " ")),
-                    artist: Self.stripHTML(info?.extmetadata?.Artist?.value),
-                    license: Self.stripHTML(info?.extmetadata?.LicenseShortName?.value),
                     descriptionUrl: info?.descriptionurl.flatMap(URL.init(string:))
                 ))
                 if items.count >= 6 { break }
@@ -630,13 +660,16 @@ struct PerPhotoConfirmView: View {
             guard !Task.isCancelled else { return }
             log.debug("Commons gallery: \(items.count) URLs after filtering")
             await MainActor.run {
-                galleryItems = sortedByPlumage(items)
+                galleryItems = Self.promotingLead(leadImageUrl, in: sortedByPlumage(items))
                 isLoadingWikiImage = false
             }
         } catch is CancellationError { /* expected */ }
         catch {
             log.debug("Commons gallery fetch failed")
-            await MainActor.run { isLoadingWikiImage = false }
+            await MainActor.run {
+                galleryItems = Self.promotingLead(leadImageUrl, in: [])
+                isLoadingWikiImage = false
+            }
         }
     }
 }

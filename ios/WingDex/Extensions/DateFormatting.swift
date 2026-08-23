@@ -172,6 +172,7 @@ func getScientificName(_ speciesName: String) -> String? {
 private struct TaxonomyLookups: Sendable {
     var ebird: [String: String] = [:]
     var birdlife: [String: String] = [:]
+    var wikiThumb: [String: String] = [:]
     var order: [String: Int] = [:]
 }
 
@@ -215,6 +216,7 @@ private final class TaxonomyLookupStore {
         var lookups = TaxonomyLookups()
         lookups.ebird.reserveCapacity(rawEntries.count)
         lookups.birdlife.reserveCapacity(rawEntries.count)
+        lookups.wikiThumb.reserveCapacity(rawEntries.count)
         lookups.order.reserveCapacity(rawEntries.count)
 
         for (index, entry) in rawEntries.enumerated() {
@@ -224,6 +226,10 @@ private final class TaxonomyLookupStore {
 
             if entry.count > 2, let code = entry[2] as? String, !code.isEmpty {
                 lookups.ebird[key] = code
+            }
+            // taxonomy.json stores thumb paths relative to the Commons upload prefix.
+            if entry.count > 4, let thumbPath = entry[4] as? String, !thumbPath.isEmpty {
+                lookups.wikiThumb[key] = "https://upload.wikimedia.org/wikipedia/commons/" + thumbPath
             }
             if entry.count > 5, let id = entry[5] as? String, !id.isEmpty {
                 lookups.birdlife[key] = id
@@ -275,6 +281,15 @@ func getWikipediaURL(for wikiTitle: String?) -> URL? {
     guard let wikiTitle, !wikiTitle.isEmpty else { return nil }
     let encoded = wikiTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wikiTitle
     return URL(string: "https://en.wikipedia.org/wiki/\(encoded)")
+}
+
+/// The Wikipedia lead image for a stored species name, as bundled in taxonomy.json.
+@MainActor
+func getWikiThumbnailUrl(for speciesName: String) -> String? {
+    let commonName = getDisplayName(speciesName).trimmingCharacters(in: .whitespacesAndNewlines)
+    let store = TaxonomyLookupStore.shared
+    store.loadIfNeeded()
+    return store.lookups.wikiThumb[commonName.lowercased()]
 }
 
 /// Build the BirdLife DataZone factsheet URL for a stored species name.

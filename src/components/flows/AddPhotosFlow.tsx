@@ -989,6 +989,7 @@ function PerPhotoConfirm({
   const displayName = getDisplayName(selectedSpecies)
   const scientificMatch = selectedSpecies.match(/\(([^)]+)\)/)
   const scientificName = scientificMatch ? scientificMatch[1] : ''
+  const refLabel = refImage?.plumage ? `Reference (${refImage.plumage})` : 'Reference'
 
   const plumageIcon = (p: string): string | null => {
     const l = p.toLowerCase()
@@ -1033,19 +1034,21 @@ function PerPhotoConfirm({
             loading={galleryLoading}
             onImageChange={setRefImage}
           />
-          {/* Most Commons photos are CC BY or CC BY-SA, so the creator has to be named. */}
-          <p className="text-xs text-muted-foreground text-center">
-            {refImage?.plumage ? `Reference (${refImage.plumage})` : 'Reference'}
-          </p>
-          {refImage?.artist && (
+          {/* Attribution rides on the file-page link, which CC 4.0 3(a)(2) accepts in place
+              of an inline creator/license line. Two lines are reserved so swiping to an image
+              with a different plumage tag cannot shift the photos. */}
+          {refImage?.descriptionUrl ? (
             <a
               href={refImage.descriptionUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[10px] text-muted-foreground/60 text-center underline text-balance"
+              aria-label={`${refLabel}. Photo credit and license on Wikimedia Commons`}
+              className="text-xs text-muted-foreground text-center underline line-clamp-2 min-h-8"
             >
-              {[refImage.artist, refImage.license].filter(Boolean).join(' / ')}
+              {refLabel}
             </a>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center line-clamp-2 min-h-8">{refLabel}</p>
           )}
         </div>
       </div>
