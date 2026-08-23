@@ -278,7 +278,7 @@ final class AuthService: @unchecked Sendable {
         }
 
         let sourceToken = identity == .anonymous ? try validToken() : nil
-        let mergeToken = try await prepareAccountMerge(authMethod: "apple")
+        try await prepareAccountMerge(authMethod: "apple")
         let generation = beginAuthentication()
         let idToken: [String: Any] = ["token": identityToken, "nonce": nonce]
 
@@ -706,7 +706,7 @@ final class AuthService: @unchecked Sendable {
             }
             sourceSignedToken = signedSessionToken
         }
-        let mergeToken = try await prepareAccountMerge(authMethod: "passkey")
+        try await prepareAccountMerge(authMethod: "passkey")
         let generation = beginAuthentication()
         log.info("Starting passkey sign-in")
         do {
@@ -749,7 +749,7 @@ final class AuthService: @unchecked Sendable {
                 throw AuthError.notAuthenticated
             }
         }
-        let mergeToken = try await prepareAccountMerge(authMethod: "passkey")
+        try await prepareAccountMerge(authMethod: "passkey")
         let context = try Self.passkeyRegistrationContext(
             identity: identity,
             userID: userId,
@@ -907,6 +907,10 @@ final class AuthService: @unchecked Sendable {
         return try validToken()
     }
 
+    /// Stage a server-side merge of the current anonymous account. Only the web OAuth flow
+    /// consumes the returned token; native flows carry the session bearer and let
+    /// `resumePendingAccountMerge` finish the job.
+    @discardableResult
     private func prepareAccountMerge(authMethod: String) async throws -> String? {
         guard identity == .anonymous else { return nil }
         let token = try validToken()
