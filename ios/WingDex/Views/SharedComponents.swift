@@ -47,6 +47,7 @@ private struct OutingRowActionsModifier: ViewModifier {
 
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
     @State private var operationError: String?
@@ -124,6 +125,7 @@ private struct OutingRowActionsModifier: ViewModifier {
         do {
             let data = try await store.exportOutingCSV(outingId: outing.id)
             exportItem = try ExportFileFactory.outing(data: data, outing: outing)
+            toasts.show("Outing exported in eBird Record CSV format")
         } catch {
             operationError = AppError.map(error, fallback: "Could not export outing. Try again.")?.message
         }

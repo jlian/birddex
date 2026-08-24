@@ -390,6 +390,7 @@ struct SettingsView: View {
             let service = DataService(auth: auth)
             let csvData = try await service.exportSightingsCSV()
             exportItem = try ExportFileFactory.sightings(data: csvData)
+            toasts.show("Sightings CSV exported")
         } catch {
             exportError = AppError.map(error, fallback: "Could not export sightings. Try again.")
         }

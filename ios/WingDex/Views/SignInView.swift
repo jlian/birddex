@@ -34,6 +34,7 @@ private let signInDarkenDark: Double = 0.7
 /// Full-screen sign-in view.
 struct SignInView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(ToastCenter.self) private var toasts
     @Environment(DataStore.self) private var store
 
     @Environment(\.colorScheme) private var colorScheme
@@ -236,7 +237,7 @@ struct SignInView: View {
                         .accessibilityIdentifier("auth.passkeyLogin")
 
                         Button {
-                            signIn { try await auth.signUpWithPasskey() }
+                            signIn(successMessage: "Signed up with passkey") { try await auth.signUpWithPasskey() }
                         } label: {
                             Text("Sign up")
                                 .font(.body.weight(.medium))
@@ -358,12 +359,16 @@ struct SignInView: View {
         signIn(action: action)
     }
 
-    private func signIn(action: @escaping () async throws -> Void) {
+    private func signIn(
+        successMessage: String = "Signed in",
+        action: @escaping () async throws -> Void
+    ) {
         isSigningIn = true
         errorMessage = nil
         Task {
             do {
                 try await action()
+                toasts.show(successMessage)
             } catch {
                 errorMessage = AppError.map(error, fallback: "Authentication failed. Try again.")?.message
                 log.debug("Sign-in attempt failed")
@@ -432,6 +437,7 @@ private struct SignInCollage: View {
     SignInView()
         .environment(AuthService())
         .environment(previewStore(empty: true))
+        .environment(ToastCenter())
         .preferredColorScheme(.light)
 }
 
@@ -439,6 +445,7 @@ private struct SignInCollage: View {
     SignInView()
         .environment(AuthService())
         .environment(previewStore(empty: true))
+        .environment(ToastCenter())
         .preferredColorScheme(.dark)
 }
 #endif

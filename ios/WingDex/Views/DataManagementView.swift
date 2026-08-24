@@ -4,6 +4,7 @@ import SwiftUI
 /// Reached via NavigationLink from SettingsView.
 struct DataManagementView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(ToastCenter.self) private var toasts
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
@@ -92,6 +93,7 @@ struct DataManagementView: View {
                 Task {
                     do {
                         try await store.clearAll()
+                        toasts.show("All data deleted")
                     } catch {
                         deleteError = AppError.map(error, fallback: "Could not delete your data. Try again.")
                     }
@@ -117,6 +119,7 @@ struct DataManagementView: View {
                 showingManualAppleRevocation = true
             } else {
                 await auth.signOut()
+                toasts.show("Account deleted")
             }
         } catch {
             deleteError = AppError.map(error, fallback: "Could not delete your account. Try again.")
@@ -131,6 +134,7 @@ struct DataManagementView: View {
         DataManagementView()
             .environment(AuthService())
             .environment(previewStore())
+            .environment(ToastCenter())
     }
 }
 #endif

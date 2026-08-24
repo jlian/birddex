@@ -421,6 +421,7 @@ struct SpeciesDetailView: View {
         NavigationStack {
             SpeciesDetailView(speciesName: PreviewData.sampleSpecies)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
     .preferredColorScheme(.light)
@@ -431,6 +432,7 @@ struct SpeciesDetailView: View {
         NavigationStack {
             SpeciesDetailView(speciesName: PreviewData.sampleSpecies)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
     .preferredColorScheme(.dark)

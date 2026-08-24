@@ -687,6 +687,7 @@ struct OutingDetailView: View {
         do {
             let csvData = try await store.exportOutingCSV(outingId: outing.id)
             exportItem = try ExportFileFactory.outing(data: csvData, outing: outing)
+            toasts.show("Outing exported in eBird Record CSV format")
         } catch {
             showError(error, fallback: "Could not export outing. Try again.")
         }
