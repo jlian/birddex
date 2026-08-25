@@ -11,6 +11,10 @@ import XCTest
 /// the app bundle, so they also verify the asset pipeline in
 /// ios/scripts/sync-birdid-assets.sh actually put them there.
 final class BirdIdEngineTests: XCTestCase {
+    /// Species rows in src/lib/taxonomy.json. The shipped classifier holds
+    /// this many rows PLUS one trailing bird/not-bird probe row.
+    static let speciesRows = 11167
+
     private func makeJPEG(width: Int, height: Int) throws -> Data {
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         for y in 0..<height {
@@ -49,25 +53,107 @@ final class BirdIdEngineTests: XCTestCase {
                         "prior missing; run ios/scripts/sync-birdid-assets.sh")
     }
 
-    func testClassifierDecodesTo11167RowsOf768() throws {
+    func testClassifierDecodesToTaxonomyRowsPlusTheProbe() throws {
         let url = try XCTUnwrap(Bundle.main.url(forResource: "text_classifier_int8",
                                                 withExtension: "bin"))
         let (rows, n) = try BirdIdEngine.decodeInt8Rows(try Data(contentsOf: url), dim: 768)
-        XCTAssertEqual(n, 11167)
-        XCTAssertEqual(rows.count, 11167 * 768)
 
-        // Rows are L2-normalised before quantisation, so the dequantised norm
-        // should land near 1. A byte-order or scale-offset mistake would not.
-        for s in [0, 5000, 11166] {
+        // The shipped file is 11,167 SPECIES rows followed by ONE bird/not-bird
+        // probe row, so it decodes to 11,168. This used to assert 11,167 and
+        // failed by construction the moment the probe was appended.
+        XCTAssertEqual(n, BirdIdEngineTests.speciesRows + 1)
+        XCTAssertEqual(rows.count, (BirdIdEngineTests.speciesRows + 1) * 768)
+
+        // Species rows are L2-normalised before quantisation, so the
+        // dequantised norm should land near 1. A byte-order or scale-offset
+        // mistake would not.
+        for s in [0, 5000, BirdIdEngineTests.speciesRows - 1] {
             let row = rows[(s * 768)..<((s + 1) * 768)]
             let norm = row.reduce(0) { $0 + Double($1 * $1) }.squareRoot()
             XCTAssertEqual(norm, 1.0, accuracy: 0.02, "row \(s) norm")
         }
+
+        // The LAST row is NOT a species. It is a logistic coefficient vector,
+        // whose magnitude is part of the decision boundary, so it must NOT come
+        // back unit-norm. Checking it separately is what distinguishes "the
+        // probe is present" from "a 11,168th species row got appended".
+        let probe = rows[(BirdIdEngineTests.speciesRows * 768)...]
+        let probeNorm = probe.reduce(0) { $0 + Double($1 * $1) }.squareRoot()
+        XCTAssertGreaterThan(probeNorm, 2.0, "probe row must not be unit-norm")
+        let probeMaxAbs = probe.reduce(0.0) { max($0, Double(abs($1))) }
+        // max|w| / 127 was the fitted scale 0.04933, so max|w| is about 6.27.
+        XCTAssertGreaterThan(probeMaxAbs, 6.0)
+        XCTAssertLessThan(probeMaxAbs, 7.0)
+    }
+
+    /// Behavioural golden for the bird/not-bird probe.
+    ///
+    /// UNVERIFIED BY COMPILATION. These numbers were produced on Linux by
+    /// ml/distill/ios_probe_golden.py and this file has NOT been built by a
+    /// Swift toolchain. Run that script if a value here is ever doubted; it
+    /// reads the same shipped bytes and the same shipped constants.
+    ///
+    /// WHY A GOLDEN AND NOT MORE CONSTANT COMPARISONS. The other tests here
+    /// compare four scalars (bias, plattA, plattB, threshold) against the web
+    /// adapter, which proves the constants were copied correctly and nothing
+    /// else. The accuracy tests only check species ORDER, and the probe is a
+    /// POSITIVE SCALAR multiplier applied after ranking, so by construction it
+    /// cannot reorder anything. A missing normalisation, a swapped Platt pair,
+    /// a probe row sliced off the wrong end, or a dot product over the wrong
+    /// length would therefore leave every other test in this file green while
+    /// the shipped gate returned garbage. This is the only test that would go
+    /// red.
+    ///
+    /// The embedding is stated as a FORMULA, e[i] = sin(i + 1) + s * w[i], so
+    /// the test needs no 768-float table and both cases differ only in s. The
+    /// sin term is an arbitrary direction unrelated to the probe.
+    ///
+    /// s is picked so NEITHER case saturates. At s = +0.20 the raw probability
+    /// is 1.0 to Double precision, and a golden there would still pass with
+    /// plattA set to zero. At -0.05 and -0.02 every constant is load-bearing,
+    /// and the two land on OPPOSITE sides of the shipped threshold, which is
+    /// what catches a sign error in the Platt map.
+    func testBirdProbabilityMatchesThePythonGolden() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: text_classifier_int8,
+                                                withExtension: bin))
+        let (rows, n) = try BirdIdEngine.decodeInt8Rows(try Data(contentsOf: url), dim: 768)
+        // The probe is the LAST row, which is exactly the slice ensureLoaded
+        // hands to the engine.
+        let probeW = Array(rows[((n - 1) * 768)...])
+        XCTAssertEqual(probeW.count, 768)
+
+        func embedding(s: Float) -> [Float] {
+            (0..<768).map { Float(sin(Double(/bin/bash + 1))) + s * probeW[/bin/bash] }
+        }
+
+        let thr = BirdIdEngine.birdProbeThreshold
+
+        // Tolerance is 1e-6, not tighter. The Swift path accumulates the dot
+        // product and the squared norm in Float via vDSP while the Python
+        // reference uses Double; the measured gap is 1.6e-7. A tolerance below
+        // that would fail on a correct implementation.
+        let below = BirdIdEngine.birdProbability(embedding(s: -0.05), probeW: probeW)
+        XCTAssertEqual(below, 0.2706431589, accuracy: 1e-6)
+        XCTAssertLessThan(below, thr, s = -0.05 must abstain)
+
+        let above = BirdIdEngine.birdProbability(embedding(s: -0.02), probeW: probeW)
+        XCTAssertEqual(above, 0.9510711321, accuracy: 1e-6)
+        XCTAssertGreaterThan(above, thr, s = -0.02 must pass the gate)
+
+        // The gate has to actually separate them, not merely rank them.
+        XCTAssertTrue(below < thr && thr < above,
+                      the golden pair must straddle the shipped threshold)
+
+        // Scaling the embedding cannot change the answer: birdProbability
+        // divides by the norm. This is what a dropped normalisation fails.
+        let scaled = embedding(s: -0.02).map { /bin/bash * 7.5 }
+        XCTAssertEqual(BirdIdEngine.birdProbability(scaled, probeW: probeW),
+                       above, accuracy: 1e-6)
     }
 
     func testTaxonomyNamesLineUpWithTheClassifier() throws {
         let names = try BirdIdEngine.loadTaxonomyNames()
-        XCTAssertEqual(names.count, 11167)
+        XCTAssertEqual(names.count, BirdIdEngineTests.speciesRows)
         XCTAssertEqual(names[0].common, "Common Ostrich")
         XCTAssertEqual(names[0].scientific, "Struthio camelus")
         XCTAssertFalse(names.contains { $0.common.isEmpty || $0.scientific.isEmpty })

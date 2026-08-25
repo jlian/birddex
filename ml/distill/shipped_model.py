@@ -64,6 +64,20 @@ SHIPPED_ONNX = os.path.join(REPO_ROOT, "public", "models",
 # Prefix on every provenance key written into ONNX metadata_props.
 META_PREFIX = "wingdex."
 
+# The provenance keys every exported artifact must carry. Declared as a static
+# list so a read-only inspection can check completeness WITHOUT hashing the
+# checkpoint. SHIPPED_CHECKPOINT lives under the git-ignored ml/distill/runs/
+# and is absent from a clean checkout, so calling provenance() just to learn
+# the key names made inspecting the TRACKED ONNX crash on a fresh clone.
+PROVENANCE_KEYS = tuple(META_PREFIX + k for k in (
+    "preprocess_crop",
+    "preprocess_resize",
+    "source_checkpoint",
+    "source_checkpoint_sha256",
+    "taxonomy_sha256",
+    "wise_alpha",
+))
+
 
 def _sha256(path):
     import hashlib
@@ -139,6 +153,7 @@ def write_provenance(model, props):
 
 
 if __name__ == "__main__":
+    print("PROVENANCE_KEYS      " + str(len(PROVENANCE_KEYS)))
     print("SHIPPED_CHECKPOINT   " + SHIPPED_CHECKPOINT)
     print("exists               " + str(os.path.exists(SHIPPED_CHECKPOINT)))
     print("SHIPPED_WISE_ALPHA   " + ("%.2f" % SHIPPED_WISE_ALPHA))
