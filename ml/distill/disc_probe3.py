@@ -16,6 +16,13 @@ measured with runs/ft_tiny39_fresh/wise_a0.90.pt, which is WingCLIP-0.1's
 best alpha and NOT the model that ships. The default is now the pinned
 shipped checkpoint (shipped_model.SHIPPED_CHECKPOINT, alpha 0.60). Treat
 any earlier output of this script as describing a different model.
+
+The embedding CACHES moved with it. The positive (bird) and negative
+(hardneg, Imagenette) sets previously loaded the unsuffixed a0.90
+caches while the degraded embeddings were computed at alpha 0.60, so
+the probe was fitted in one space and applied in another. All three
+now default to their _a060 counterparts and are flags, so the
+checkpoint and the caches can be kept consistent.
 """
 import argparse
 import io
@@ -64,6 +71,19 @@ def main():
                     default='/mnt/nas/WingDex-Distill/datasets/calib-11k-500px')
     ap.add_argument('--limit', type=int, default=1500)
     ap.add_argument('--out', default='/home/jlian/disc_probe3.json')
+    # The POSITIVE and NEGATIVE caches must come from the SAME checkpoint
+    # as --checkpoint. Mixing them trains the decision boundary in one
+    # model's embedding space and applies it in another, which reads as
+    # quantisation/degradation drift but is really an alpha difference.
+    ap.add_argument('--bird-emb', default='/home/jlian/bird_emb_a060.npz',
+                    help='validation-bird embeddings, alpha 0.60')
+    ap.add_argument('--hardneg-emb',
+                    default='/home/jlian/hardneg_emb_a060.npz',
+                    help='hard-negative embeddings, alpha 0.60')
+    ap.add_argument('--imagenette-emb',
+                    default='/home/jlian/imagenette_emb_a060.npz',
+                    help='Imagenette embeddings, alpha 0.60')
+
     args = ap.parse_args()
 
     df = pd.read_parquet('calib_cands_tiny39_a060.parquet')
@@ -133,13 +153,13 @@ def main():
         ' per mode, ' + str(len(modes)) + ' modes')
 
     # classifier trained on the protocol training split
-    bd = np.load('/home/jlian/bird_emb.npz')
+    bd = np.load(args.bird_emb)
     b_emb = bd['emb'].astype(np.float32)
     b_key = np.array([int(x) for x in bd['key']])
     tr_pid = set(int(p) for p in df['photo_id'].values[perm[:int(n * 0.7)]])
     b_tr = b_emb[np.array([int(p) in tr_pid for p in b_key])]
-    hn = np.load('/home/jlian/hardneg_emb.npz')['emb'].astype(np.float32)
-    im_e = np.load('/home/jlian/imagenette_emb.npz')['emb'].astype(np.float32)
+    hn = np.load(args.hardneg_emb)['emb'].astype(np.float32)
+    im_e = np.load(args.imagenette_emb)['emb'].astype(np.float32)
     hn_tr, hn_te = hn[:len(hn) // 2], hn[len(hn) // 2:]
     im_tr = im_e[:len(im_e) // 2]
 
