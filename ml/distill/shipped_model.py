@@ -88,9 +88,27 @@ def provenance(checkpoint=None, wise_alpha=None, taxonomy=None):
     """Build the metadata_props mapping written onto an exported ONNX.
 
     Every value is a string, because ONNX metadata_props are string pairs.
+
+    Raises ValueError when `checkpoint` is not the pinned one and `wise_alpha`
+    is omitted, rather than silently recording the pinned alpha against a
+    different checkpoint's hash.
     """
     ck = checkpoint or SHIPPED_CHECKPOINT
-    alpha = SHIPPED_WISE_ALPHA if wise_alpha is None else wise_alpha
+    # SHIPPED_WISE_ALPHA describes the PINNED checkpoint and nothing else.
+    # Defaulting to it for some other checkpoint would stamp 0.60 onto that
+    # file's sha256, so the provenance record would name a real artifact and
+    # the wrong alpha, which is worse than no record at all. An explicit
+    # wise_alpha is therefore REQUIRED whenever the checkpoint is not the pin.
+    if wise_alpha is None:
+        if os.path.abspath(ck) != os.path.abspath(SHIPPED_CHECKPOINT):
+            raise ValueError(
+                "wise_alpha is required for a checkpoint that is not the "
+                "pinned SHIPPED_CHECKPOINT. Got " + str(ck) + ". Pass the "
+                "alpha this checkpoint was blended at; SHIPPED_WISE_ALPHA "
+                "describes only the pin.")
+        alpha = SHIPPED_WISE_ALPHA
+    else:
+        alpha = wise_alpha
     tx = taxonomy or SHIPPED_TAXONOMY
     return {
         META_PREFIX + "source_checkpoint": os.path.relpath(ck, REPO_ROOT),
