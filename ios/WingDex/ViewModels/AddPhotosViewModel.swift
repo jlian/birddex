@@ -568,7 +568,7 @@ final class AddPhotosViewModel {
             )
             guard isCurrentSession(sessionID) else { return }
 
-            let candidates = results.map {
+            let mapped = results.map {
                 IdentifiedCandidate(
                     species: "\($0.commonName) (\($0.scientificName))",
                     confidence: $0.confidence,
@@ -581,15 +581,33 @@ final class AddPhotosViewModel {
                 )
             }
 
-            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)")
-            rangeAdjusted = results.contains { $0.logP != nil }
+            // ABSTENTION. Below the probe threshold this is very likely not a
+            // bird, so the candidates are DROPPED and the flow falls through to
+            // the no-candidates empty state. Mirrors identifyBirdLocally in
+            // src/lib/bird-id-local-adapter.ts, so both platforms abstain on
+            // exactly the same photos.
+            //
+            // The ranked species are discarded rather than shown at a low
+            // confidence: at P_cal 0.37 the top species is still a
+            // confident-looking guess at what KIND of bird it would be if it
+            // were one, and dogs come back as African Penguin. Offering that
+            // list would invite the user to pick from it.
+            let pBird = results.first?.pBird
+            let abstained = pBird.map { $0 < BirdIdEngine.birdProbeThreshold } ?? false
+            let candidates = abstained ? [] : mapped
+
+            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)"
+                     + (abstained ? " (abstained on the bird probe)" : ""))
+            rangeAdjusted = !abstained && results.contains { $0.logP != nil }
             currentCandidates = candidates
 
-            // The classifier always returns candidates, so an empty list can
-            // never mean "no bird". Low confidence is the only signal, and
-            // cropping an already-cropped photo would loop forever because
-            // confidence tracks SPECIES AMBIGUITY, not framing.
-            if !isCropped, shouldPromptForCrop(candidates) {
+            // An abstention already routes to the empty state, which offers
+            // Crop & Retry as its primary action. Prompting for a crop here as
+            // well would send it to the manual-crop step instead and the empty
+            // state would never be seen. Otherwise low confidence is the only
+            // signal, and cropping an already-cropped photo would loop forever
+            // because confidence tracks SPECIES AMBIGUITY, not framing.
+            if !isCropped, !abstained, shouldPromptForCrop(candidates) {
                 cropPromptContext = .lowConfidence
                 currentStep = .manualCrop
             } else {

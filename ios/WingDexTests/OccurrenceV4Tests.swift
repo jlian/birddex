@@ -108,6 +108,20 @@ final class OccurrenceV4Tests: XCTestCase {
     private static let month = 6
     private static let nCM: UInt32 = 1
 
+    /// Shared calibration for every rank() call in this file.
+    ///
+    /// T and beta are DELIBERATELY not the shipped values: these tests
+    /// assert logP, which rank() computes before either is applied, so
+    /// round numbers keep the arithmetic readable. The probe is required
+    /// by the type and is set to an identity-ish pass-through, because
+    /// nothing here exercises the bird/not-bird gate; BirdIdEngine owns
+    /// that and BirdIdProbeTests covers it.
+    private static let calibration = BirdRanker.Calibration(
+        temperature: 0.05,
+        beta: 0.1,
+        probe: BirdRanker.BirdProbe(bias: 0, plattA: 1, plattB: 0, threshold: 0))
+
+
     /// Monthly: species 7 only, with the full mass (q = 0 means logP = 0).
     private static let monthlyEntries: [(idx: Int, q: UInt8)] = [(7, 0)]
     /// Pooled: four species, one of which (7) is the monthly one.
@@ -197,7 +211,7 @@ final class OccurrenceV4Tests: XCTestCase {
         let loc = Self.cellCentre(row: Self.row, col: Self.col)
         let scored = BirdRanker.rank(
             [.init(idx: 7, sim: 0.5), .init(idx: 11, sim: 0.5), .init(idx: 999, sim: 0.5)],
-            calibration: .init(temperature: 0.05, beta: 0.1),
+            calibration: Self.calibration,
             occurrence: occ, location: loc, month: Self.month)
         let byIdx = Dictionary(uniqueKeysWithValues: scored.map { ($0.idx, $0.logP) })
         XCTAssertEqual(try XCTUnwrap(byIdx[7] ?? nil),
@@ -246,7 +260,7 @@ final class OccurrenceV4Tests: XCTestCase {
              .init(idx: 3, sim: 0.5),    // pooled only
              .init(idx: 19, sim: 0.5),   // pooled only, smaller mass
              .init(idx: 999, sim: 0.5)], // in neither
-            calibration: .init(temperature: 0.05, beta: 0.1),
+            calibration: Self.calibration,
             occurrence: occ, location: loc, month: Self.month)
         let byIdx = Dictionary(uniqueKeysWithValues: scored.map { ($0.idx, $0.logP) })
 
@@ -286,7 +300,7 @@ final class OccurrenceV4Tests: XCTestCase {
         let occ = try OccurrenceBlob(raw: blob)
         let loc = Self.cellCentre(row: Self.row, col: Self.col)
         let scored = BirdRanker.rank([.init(idx: 7, sim: 0.5)],
-                                     calibration: .init(temperature: 0.05, beta: 0.1),
+                                     calibration: Self.calibration,
                                      occurrence: occ, location: loc, month: Self.month)
         let stored = try XCTUnwrap(
             occ.cellPriors(row: Self.row, col: Self.col, month: Self.month)?[7])
@@ -300,7 +314,7 @@ final class OccurrenceV4Tests: XCTestCase {
         let occ = try OccurrenceBlob(raw: Self.v4Blob())
         let loc = Self.cellCentre(row: Self.row, col: Self.col)
         let scored = BirdRanker.rank([.init(idx: 3, sim: 0.5)],
-                                     calibration: .init(temperature: 0.05, beta: 0.1),
+                                     calibration: Self.calibration,
                                      occurrence: occ, location: loc, month: nil)
         XCTAssertNil(scored[0].logP, "no month must mean no prior, not the pooled one")
         XCTAssertEqual(scored[0].score, 0.5 / 0.05, accuracy: 1e-12)
@@ -312,7 +326,7 @@ final class OccurrenceV4Tests: XCTestCase {
         let loc = Self.cellCentre(row: Self.row, col: Self.col)
         // Month 3 has no slice in the fixture, though the cell does have data.
         let scored = BirdRanker.rank([.init(idx: 3, sim: 0.5)],
-                                     calibration: .init(temperature: 0.05, beta: 0.1),
+                                     calibration: Self.calibration,
                                      occurrence: occ, location: loc, month: 3)
         XCTAssertNil(scored[0].logP)
     }
@@ -320,7 +334,7 @@ final class OccurrenceV4Tests: XCTestCase {
     func testMissingLocationDegradesToVisionOnly() throws {
         let occ = try OccurrenceBlob(raw: Self.v4Blob())
         let scored = BirdRanker.rank([.init(idx: 7, sim: 0.5)],
-                                     calibration: .init(temperature: 0.05, beta: 0.1),
+                                     calibration: Self.calibration,
                                      occurrence: occ, location: nil, month: Self.month)
         XCTAssertNil(scored[0].logP)
     }
@@ -328,7 +342,7 @@ final class OccurrenceV4Tests: XCTestCase {
     func testNonFiniteLocationDegradesToVisionOnly() throws {
         let occ = try OccurrenceBlob(raw: Self.v4Blob())
         let scored = BirdRanker.rank([.init(idx: 7, sim: 0.5)],
-                                     calibration: .init(temperature: 0.05, beta: 0.1),
+                                     calibration: Self.calibration,
                                      occurrence: occ,
                                      location: (lat: .nan, lon: 0), month: Self.month)
         XCTAssertNil(scored[0].logP, "a NaN location must not resolve to a cell")
