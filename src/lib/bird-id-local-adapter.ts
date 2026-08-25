@@ -89,7 +89,8 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
 export const MODEL_VERSION = "62a76a30"
 
 /**
- * The four served assets, 67.53 MiB total. Versioned so a new model can never
+ * The four served assets, 56.39 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
+ * new model can never
  * be served from a stale immutable cache entry: the prior carries its CONTENT
  * HASH in the file name, and the three model files carry MODEL_VERSION as a
  * query string that changes the Cache API key. Taxonomy is bundled rather than
@@ -130,6 +131,13 @@ export const MODEL_ASSET_URLS = [
  * 5.87 MiB (+10.4 percent of the total download). That pays for the pooled
  * per-cell slice and the n_cm table, which are what let the backoff strength
  * live on the client instead of being frozen into the asset.
+ *
+ * TWO TOTALS, NEVER INTERCHANGEABLE. This constant is 59,131,045 bytes =
+ * 56.39 MiB and is the only one that describes a download. MODEL_DECODED_BYTES
+ * below is 70,797,545 = 67.52 MiB and describes bytes seen by the fetch reader
+ * AFTER transport decoding. Quoting the decoded figure as a download size is
+ * the specific error that made an earlier gate claim 72 MB for a 53 MB
+ * transfer. Neither total is 61.66 MiB; that figure matches nothing here.
  */
 export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_621_696 + 22_623_826
 
@@ -140,6 +148,9 @@ export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_621_696 + 22_623_826
  * is already a .gz file served without Content-Encoding, so it stays compressed.
  * This progress total is deliberately not shown to the user: quoting decoded
  * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
+ *
+ * 70,797,545 bytes = 67.52 MiB. This is NOT the served or downloaded size.
+ * Use MODEL_BYTES (56.39 MiB) for anything user-facing or for release notes.
  */
 export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_621_696 + 22_623_826
 
@@ -272,7 +283,7 @@ export function modelReady(): Promise<boolean> {
 /**
  * Download the model without identifying anything.
  *
- * Exists so the UI can pull 61.66 MiB behind a progress bar at a moment the
+ * Exists so the UI can pull 56.39 MiB behind a progress bar at a moment the
  * user chose, instead of discovering it mid-identification. Calling it twice
  * is safe: the second call resolves off the cache.
  */
@@ -284,7 +295,7 @@ export function preloadModel(
 }
 
 /**
- * Load the engine once per session. The assets are 61.66 MiB, so this is
+ * Load the engine once per session. The assets are 56.39 MiB, so this is
  * called on first identify rather than at page load, and the browser cache
  * makes every later session free.
  */
