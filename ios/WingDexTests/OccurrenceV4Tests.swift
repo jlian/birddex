@@ -3,12 +3,24 @@ import XCTest
 
 /// WDOP v4 backoff, checked against a hand-built blob.
 ///
-/// The v3 parity vectors in BirdIDParityTests come from the 23 MiB shipped
-/// artifact. v4 has no shipped artifact yet, and adding a 33 MiB fixture to the
-/// repo to test a byte layout is the wrong trade, so these build the blob in
-/// memory. That also makes every quantity exact and known, which the real blob
-/// cannot: n_cm and the pooled distribution are chosen here, so the expected
-/// logP is computed from the closed form rather than copied from an oracle.
+/// BirdIDParityTests already reads the shipped v4 artifact
+/// (public/priors/occurrence.4f5c1a15.bin.gz), so end-to-end parity against
+/// the bytes the app ships is covered there. These tests deliberately do NOT
+/// use that file, for three reasons.
+///
+/// 1. Every quantity is known in closed form. n_cm, the monthly counts and the
+///    pooled distribution are chosen here, so the expected logP is DERIVED from
+///    the backoff formula rather than copied out of an oracle. A test that
+///    reads its expectation from the same artifact it is validating cannot
+///    catch a formula error in both implementations at once.
+/// 2. The byte layout is hand-checkable. A slice built in a few lines can be
+///    read by eye, so a failure points at a specific field (a totals-table
+///    offset, a sentinel index entry, a varint delta) instead of at 33 MiB.
+/// 3. It exercises cases the shipped blob cannot supply on demand: a cell
+///    whose month 3 slice is absent while the cell itself has data, a
+///    single-observation cell where backoff has to bite hardest, and a blob
+///    truncated inside the totals table, which must throw rather than decode
+///    the payload at a shifted offset.
 ///
 /// The numbers were cross-checked against the TypeScript in src/lib/rank.ts
 /// running on the real v4 blob; agreement was exact (worst |delta| 0.0 over 18

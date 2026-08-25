@@ -188,11 +188,12 @@ def main():
                          "retuning k must not require a rebuild. The flag "
                          "exists so a build can document the k it was intended "
                          "for. A non-zero k requires --v4, because a v3 blob "
-                         "cannot express backoff at all. DEFAULTS TO THE "
-                         "VALUE READ FROM --rank-ts, because a hand-typed k "
-                         "is provenance that can be wrong: the v4 blob "
-                         "shipped with 1.0 recorded while both rankers ran "
-                         "0.3.")
+                         "cannot express backoff at all. UNDER --v4 IT "
+                         "DEFAULTS TO THE VALUE READ FROM --rank-ts, because "
+                         "a hand-typed k is provenance that can be wrong: the "
+                         "v4 blob shipped with 1.0 recorded while both rankers "
+                         "ran 0.3. Without --v4 it defaults to 0.0, the only "
+                         "value a v3 blob can honestly claim.")
     ap.add_argument("--rank-ts",
                     default=os.path.join(REPO_ROOT, "src", "lib", "rank.ts"),
                     help="Single source of truth for the client k. "
@@ -203,8 +204,14 @@ def main():
     args = ap.parse_args()
 
     if args.k is None:
-        args.k = read_client_k(args.rank_ts)
-        log("client k read from " + args.rank_ts + ": " + repr(args.k))
+        if args.v4:
+            args.k = read_client_k(args.rank_ts)
+            log("client k read from " + args.rank_ts + ": " + repr(args.k))
+        else:
+            # v3 cannot express backoff at all, so its only coherent default
+            # is no backoff. Reading the client constant here would make every
+            # plain v3 build trip the guard below, which broke mincount_sweep.
+            args.k = 0.0
 
     if args.k != 0.0 and not args.v4:
         raise SystemExit("--k is meaningless without --v4: a v3 blob stores "
