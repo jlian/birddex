@@ -28,6 +28,12 @@ hide exactly that.
 
 Preprocessing is the timm transform off the pinned checkpoint. The checkpoint
 supplies ONLY that transform; no weight used here comes from PyTorch.
+
+EVERY INPUT THAT SHAPES THE OUTPUT IS SHIPPED OR IS A FLAG. --named used to be
+required and defaulted to an untracked workstation file, so the committed
+fixture could not be regenerated anywhere else. It is optional now: it drives a
+printed delta report against the old fp32 shortlist and nothing that is written.
+The photo lat/lon/month are plain flags carrying the EXIF values.
 """
 import argparse
 import json
@@ -77,8 +83,21 @@ def main():
                                          'text_classifier_int8.bin'),
                     help='the SHIPPED int8 text rows the browser decodes')
     ap.add_argument('--distill-root', default=HERE)
-    ap.add_argument('--named', default='/home/jlian/vulture_named.json',
-                    help='previous PyTorch shortlist, for the delta report')
+    # OPTIONAL. This is a workstation scratch file holding the OLD fp32
+    # PyTorch shortlist. It contributes nothing to the emitted fixture except
+    # a printed delta report, so requiring it made the committed fixture
+    # unreproducible on any other checkout even with every shipped input
+    # present. Absent, the comparison is skipped and everything else is
+    # byte-identical.
+    ap.add_argument('--named', default=None,
+                    help='OPTIONAL previous PyTorch shortlist, for the delta '
+                         'report only. Omit it and the report is skipped.')
+    # The photo EXIF. These used to be read out of --named when it happened to
+    # carry them, with these same literals as the fallback, so they are stated
+    # as flags rather than hidden behind an untracked file.
+    ap.add_argument('--lat', type=float, default=14.752512)
+    ap.add_argument('--lon', type=float, default=-91.165575)
+    ap.add_argument('--month', type=int, default=8)
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
 
@@ -117,19 +136,22 @@ def main():
     idx = [int(i) for i in order]
     sim = [float(sims[i]) for i in order]
 
-    prev = json.load(open(args.named))
-    pidx = [int(i) for i in prev['cand_idx']]
-    psim = np.array(prev['cand_sim'], dtype=np.float64)
-    print('previous (fp32 PyTorch) top-1 idx ' + str(pidx[0]) +
-          ' sim ' + ('%.6f' % psim[0]))
-    print('new      (int8 ONNX)    top-1 idx ' + str(idx[0]) +
+    print('new (int8 ONNX) top-1 idx ' + str(idx[0]) +
           ' sim ' + ('%.6f' % sim[0]))
-    print('shortlist order identical: ' + str(pidx == idx))
-    print('set identical: ' + str(set(pidx) == set(idx)))
-    common = [i for i in idx if i in set(pidx)]
-    print('overlap ' + str(len(common)) + '/' + str(TOPK))
-    d = np.abs(np.array([sims[i] for i in pidx]) - psim).max()
-    print('max |sim_onnx - sim_pytorch| on the OLD 25: ' + ('%.6f' % d))
+    if args.named:
+        prev = json.load(open(args.named))
+        pidx = [int(i) for i in prev['cand_idx']]
+        psim = np.array(prev['cand_sim'], dtype=np.float64)
+        print('previous (fp32 PyTorch) top-1 idx ' + str(pidx[0]) +
+              ' sim ' + ('%.6f' % psim[0]))
+        print('shortlist order identical: ' + str(pidx == idx))
+        print('set identical: ' + str(set(pidx) == set(idx)))
+        common = [i for i in idx if i in set(pidx)]
+        print('overlap ' + str(len(common)) + '/' + str(TOPK))
+        d = np.abs(np.array([sims[i] for i in pidx]) - psim).max()
+        print('max |sim_onnx - sim_pytorch| on the OLD 25: ' + ('%.6f' % d))
+    else:
+        print('no --named baseline given, delta report skipped')
 
     out = {
         'note': ('Real 25-candidate shortlist for the Guatemala vulture, '
@@ -143,9 +165,9 @@ def main():
                  'against fp32 build_text() rows, both of which pinned '
                  'similarities the browser never produces. lat/lon/month are '
                  'the photo EXIF.'),
-        'lat': prev['lat'] if 'lat' in prev else 14.752512,
-        'lon': prev['lon'] if 'lon' in prev else -91.165575,
-        'month': prev['month'] if 'month' in prev else 8,
+        'lat': args.lat,
+        'lon': args.lon,
+        'month': args.month,
         'cand_idx': idx,
         'cand_sim': sim,
     }
