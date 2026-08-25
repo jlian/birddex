@@ -21,16 +21,9 @@
  *                  under BIRD_PROBE.threshold. The AddPhotosFlow empty state is
  *                  therefore REACHABLE on this path.
  *
- *                  An earlier revision cut the probe after a parity check
- *                  appeared to show its threshold did not survive the int8
- *                  ONNX encoder. That check was CONFOUNDED: it scored a
- *                  PyTorch student from wise_a0.90.pt against an int8 export of
- *                  wise_a0.60.pt, so most of the measured "quantization drift"
- *                  was an alpha difference between two different models.
- *                  Re-measured with alpha held fixed, threshold transfer
- *                  between fp32 and int8 moves the bird flag rate by at most
- *                  0.18 pp. The probe that ships is fitted in the int8 space
- *                  regardless, so no transfer is required.
+ *                  The probe is fitted in the shipped int8 embedding space.
+ *                  With alpha fixed at 0.60, fp32-to-int8 threshold transfer
+ *                  moves the bird flag rate by at most 0.18 pp.
  *
  * CONFIDENCE. `confidence` is the post-rerank softmax, which is what the gate
  * should read. Measured on the 3,322-photo validation split: at 0.7 it keeps
@@ -228,8 +221,8 @@ export const BIRD_PROBE = {
  * (0.007545354776084423 / 0.5435083508491516) was the k = 0 month fit at
  * floor 1e-12 and MUST NOT be used with backoff enabled.
  *
- * Measured on the 3,321-photo validation split: species top-1 95.66 percent,
- * unchanged from the previous shipped configuration.
+ * Measured on the validation split through the shipped a0.60/int8/248 path:
+ * species top-1 is 94.27 percent.
  */
 export const MODEL_ASSETS: EngineAssets = {
   modelUrl: MODEL_ASSET_URLS[0],

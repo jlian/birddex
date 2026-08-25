@@ -15,7 +15,7 @@
 #
 # iOS reads the prior UNCOMPRESSED. Apple's Compression framework does raw
 # deflate, not gzip, so decoding the .gz on device would mean hand-parsing gzip
-# headers or linking zlib. Raw is 23.0 MiB against 15.7 MiB gzipped, and the
+# headers or linking zlib. Raw is 23.0 MiB against 21.58 MiB gzipped, and the
 # IPA is compressed for delivery anyway.
 set -euo pipefail
 

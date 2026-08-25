@@ -571,7 +571,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
     setCurrentCandidates([])
     setRangeAdjusted(false)
 
-    // The model is 61.66 MiB. Ask before the FIRST identification, never at
+    // The model download is 56.39 MiB. Ask before the FIRST identification, never at
     // page load, and never silently in the middle of one. modelReady() is a
     // cache lookup, so on every later session this is a no-op and the user
     // goes straight to identifying.

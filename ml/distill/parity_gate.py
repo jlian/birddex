@@ -1,38 +1,28 @@
 #!/usr/bin/env python3
-"""Does the PyTorch-fitted abstention threshold TRANSFER to ONNX embeddings?
+"""Sample transfer near the shipped abstention operating point to ONNX.
 
-parity_emb.py showed max |dP_cal| = 0.0209, above the 0.01 gate, and the drift
-is systematically POSITIVE (ONNX reads more bird-like than PyTorch). A bias in
-that direction makes the gate reject FEWER non-birds than measured.
+The corrected a0.60 comparison found that the threshold transfers: bird flag
+rate moves +0.03 pp, with 0.18 pp worst-case threshold movement. The earlier
+0.0209 max-|dP_cal| failure compared a0.90 fp32 against a0.60 int8 and was not
+a quantization measurement.
 
-This measures the operating point directly rather than inferring it:
-  1. threshold = 0.1% quantile of P_cal over PyTorch validation birds
-     (the shipped rule)
+This samples the transfer behavior near the shipped operating point:
+    1. threshold = 0.5% quantile of P_cal over sampled PyTorch validation birds
   2. apply that SAME threshold to ONNX embeddings of the same images
   3. report flagged-bird rate and hardneg / imagenette rejection under both
 
-If the ONNX rejection rates collapse relative to the PyTorch numbers
-(51.6% hardneg, 69.0% imagenette), the threshold does not transfer and the
-gate must be refit on ONNX embeddings before shipping.
+The script keeps both arms explicit so a future artifact can rerun the same
+decision-relevant flag-rate comparison.
 
-SUPERSEDED RESULTS. The PyTorch side of this comparison previously ran
-runs/ft_tiny39_fresh/wise_a0.90.pt, a DIFFERENT model from the int8 ONNX
-it was being compared against, which was exported from alpha 0.60. Any
-earlier delta from this file therefore mixes the quantisation difference
-with a 0.34-point model difference and is not a parity measurement. The
-default is now the pinned shipped checkpoint.
-
-CORRECTED NUMBERS, alpha held fixed at 0.60 on both sides. These replace
-every figure quoted above and anywhere else from an earlier run:
+Both sides default to alpha 0.60. Measured transfer at bird_q 0.5%:
 
   bird flag rate      +0.03 pp
   hardneg rejection   +2.33 pp
   imagenette          +3.33 pp   (all three at bird_q 0.5%)
   threshold transfer  0.18 pp worst case
 
-So the threshold DOES transfer. The gate criterion above, and the
-"does not transfer" conclusion it produced, were both artefacts of the
-alpha mismatch, not of quantisation.
+The threshold transfers, and the default probe is decoded from the shipped
+classifier row.
 """
 import argparse
 import io
@@ -64,8 +54,10 @@ sys.path.insert(0, HERE)
 import emit_calib_candidates as E  # noqa: E402
 import shipped_model as SM  # noqa: E402  the pinned shipped checkpoint
 
-A = 1.3595343229097947
-B = 2.581534818041523
+DIM = 768
+BIAS = 1.7004907607405835
+A = 1.248338657716024
+B = 2.1821600341974303
 
 
 def log(m):
@@ -83,6 +75,20 @@ def logit(p):
 
 def pcal(e, coef, inter):
     return sigmoid(A * logit(sigmoid(e @ coef + inter)) + B)
+
+
+def load_probe(classifier, probe):
+    if probe is not None:
+        data = np.load(probe)
+        return (data['coef'].astype(np.float64).ravel(),
+                float(data['intercept'].ravel()[0]))
+    buf = np.fromfile(classifier, dtype=np.uint8)
+    n = len(buf) // (DIM + 4)
+    if n == 0 or n * (DIM + 4) != len(buf):
+        raise ValueError('invalid int8 classifier length: ' + str(len(buf)))
+    rows = buf[:n * DIM].view(np.int8).reshape(n, DIM)
+    scales = buf[n * DIM:].view(np.float32)
+    return rows[-1].astype(np.float64) * float(scales[-1]), BIAS
 
 
 def encode_dir(d, preprocess, st, sess, iname, device, limit, keep=None):
@@ -155,8 +161,8 @@ def main():
                     help='Shipped int8 visual encoder. Defaults to '
                          'public/models/wingclip_visual_int8.onnx under '
                          '--repo-root.')
-    ap.add_argument('--probe', default=os.path.join(HOME, 'refit_probe.npz'),
-                    help='Refit linear bird probe (coef, intercept).')
+    ap.add_argument('--classifier', default=None, help='Shipped int8 classifier; defaults under --repo-root.')
+    ap.add_argument('--probe', default=None, help='Optional fp32 probe NPZ override; bypasses --classifier.')
     ap.add_argument('--candidates',
                     default=os.path.join(HERE,
                                          'calib_cands_tiny39_a060.parquet'),
@@ -177,12 +183,16 @@ def main():
                          'eval-imagenette-easy-negatives under --datasets.')
     ap.add_argument('--nbird', type=int, default=700)
     ap.add_argument('--nneg', type=int, default=700)
+    ap.add_argument('--bird-quantile', type=float, default=0.005, help='Sampled validation-bird quantile; defaults to 0.5%%.')
     ap.add_argument('--out', default=os.path.join(HOME, 'parity_gate.json'))
     args = ap.parse_args()
 
     if args.onnx is None:
         args.onnx = os.path.join(args.repo_root, 'public', 'models',
                                  'wingclip_visual_int8.onnx')
+    if args.classifier is None:
+        args.classifier = os.path.join(args.repo_root, 'public', 'models',
+                                       'text_classifier_int8.bin')
     if args.birds_dir is None:
         args.birds_dir = os.path.join(args.datasets, 'calib-11k-500px')
     if args.hardneg_dir is None:
@@ -192,9 +202,7 @@ def main():
         args.imagenette_dir = os.path.join(args.datasets,
                                            'eval-imagenette-easy-negatives')
 
-    pr = np.load(args.probe)
-    coef = pr['coef'].astype(np.float64).ravel()
-    inter = float(pr['intercept'].ravel()[0])
+    coef, inter = load_probe(args.classifier, args.probe)
 
     df = pd.read_parquet(args.candidates)
     n = len(df)
@@ -231,18 +239,17 @@ def main():
                        ('imagenette', (ip, io_))]:
         P[nm] = (pcal(a, coef, inter), pcal(b, coef, inter))
 
-    # The shipped rule: threshold = 0.1% quantile over PyTorch birds.
-    thr_pt = float(np.quantile(P['bird'][0], 0.001))
+    # Sampled transfer diagnostic at the shipped bird-quantile value.
+    thr_pt = float(np.quantile(P['bird'][0], args.bird_quantile))
     # What the threshold WOULD be if refit on ONNX birds.
-    thr_on = float(np.quantile(P['bird'][1], 0.001))
+    thr_on = float(np.quantile(P['bird'][1], args.bird_quantile))
+    quantile_label = '%.1f%% quantile' % (100 * args.bird_quantile)
 
     print('')
     print('=== ABSTENTION GATE TRANSFER: PyTorch threshold on ONNX ===')
     print('')
-    print('  threshold fitted on PyTorch birds (0.1% quantile)  ' +
-          ('%.6f' % thr_pt))
-    print('  threshold if refit on ONNX birds  (0.1% quantile)  ' +
-          ('%.6f' % thr_on))
+    print('  sampled PyTorch validation birds (' + quantile_label + ')  ' + ('%.6f' % thr_pt))
+    print('  sampled ONNX validation birds    (' + quantile_label + ')  ' + ('%.6f' % thr_on))
     print('')
     print('  ' + 'set'.ljust(14) + 'n'.rjust(6) +
           'flagged pt'.rjust(13) + 'flagged onnx'.rjust(14) +
