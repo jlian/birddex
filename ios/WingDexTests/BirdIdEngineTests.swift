@@ -114,8 +114,8 @@ final class BirdIdEngineTests: XCTestCase {
     /// and the two land on OPPOSITE sides of the shipped threshold, which is
     /// what catches a sign error in the Platt map.
     func testBirdProbabilityMatchesThePythonGolden() throws {
-        let url = try XCTUnwrap(Bundle.main.url(forResource: text_classifier_int8,
-                                                withExtension: bin))
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "text_classifier_int8",
+                                                withExtension: "bin"))
         let (rows, n) = try BirdIdEngine.decodeInt8Rows(try Data(contentsOf: url), dim: 768)
         // The probe is the LAST row, which is exactly the slice ensureLoaded
         // hands to the engine.
@@ -123,7 +123,7 @@ final class BirdIdEngineTests: XCTestCase {
         XCTAssertEqual(probeW.count, 768)
 
         func embedding(s: Float) -> [Float] {
-            (0..<768).map { Float(sin(Double(/bin/bash + 1))) + s * probeW[/bin/bash] }
+            (0..<768).map { Float(sin(Double($0 + 1))) + s * probeW[$0] }
         }
 
         let thr = BirdIdEngine.birdProbeThreshold
@@ -134,19 +134,19 @@ final class BirdIdEngineTests: XCTestCase {
         // that would fail on a correct implementation.
         let below = BirdIdEngine.birdProbability(embedding(s: -0.05), probeW: probeW)
         XCTAssertEqual(below, 0.2706431589, accuracy: 1e-6)
-        XCTAssertLessThan(below, thr, s = -0.05 must abstain)
+        XCTAssertLessThan(below, thr, "s = -0.05 must abstain")
 
         let above = BirdIdEngine.birdProbability(embedding(s: -0.02), probeW: probeW)
         XCTAssertEqual(above, 0.9510711321, accuracy: 1e-6)
-        XCTAssertGreaterThan(above, thr, s = -0.02 must pass the gate)
+        XCTAssertGreaterThan(above, thr, "s = -0.02 must pass the gate")
 
         // The gate has to actually separate them, not merely rank them.
         XCTAssertTrue(below < thr && thr < above,
-                      the golden pair must straddle the shipped threshold)
+                  "the golden pair must straddle the shipped threshold")
 
         // Scaling the embedding cannot change the answer: birdProbability
         // divides by the norm. This is what a dropped normalisation fails.
-        let scaled = embedding(s: -0.02).map { /bin/bash * 7.5 }
+        let scaled = embedding(s: -0.02).map { $0 * 7.5 }
         XCTAssertEqual(BirdIdEngine.birdProbability(scaled, probeW: probeW),
                        above, accuracy: 1e-6)
     }
