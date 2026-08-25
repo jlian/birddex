@@ -40,15 +40,30 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--onnx", default=S.SHIPPED_ONNX,
                     help="ONNX file to inspect; defaults to the shipped one")
-    ap.add_argument("--checkpoint", default=S.SHIPPED_CHECKPOINT,
-                    help="checkpoint to attribute when stamping")
+    ap.add_argument("--checkpoint", default=None,
+                    help="checkpoint to attribute when stamping; defaults "
+                         "to the shipped checkpoint only for the shipped ONNX")
     ap.add_argument("--wise-alpha", type=float, default=None,
                     help="override the pinned alpha when stamping")
+    ap.add_argument("--taxonomy", default=None,
+                    help="taxonomy used to build the classifier; required "
+                         "for a non-pinned checkpoint when stamping")
+    ap.add_argument("--preprocess-resize", type=int, default=None,
+                    help="preprocess resize to record; required for a "
+                         "non-pinned checkpoint when stamping")
+    ap.add_argument("--preprocess-crop", type=int, default=None,
+                    help="preprocess crop to record; required for a "
+                         "non-pinned checkpoint when stamping")
     ap.add_argument("--stamp", action="store_true",
                     help="write provenance props onto the file in place")
     ap.add_argument("--expect-resize", type=int, default=S.SHIPPED_RESIZE)
     ap.add_argument("--expect-crop", type=int, default=S.SHIPPED_CROP)
     args = ap.parse_args()
+
+    is_shipped_onnx = (os.path.abspath(args.onnx) ==
+                       os.path.abspath(S.SHIPPED_ONNX))
+    if args.stamp and not is_shipped_onnx and args.checkpoint is None:
+        ap.error("--checkpoint is required when stamping a non-shipped ONNX")
 
     if not os.path.exists(args.onnx):
         print("MISSING: " + args.onnx)
@@ -56,7 +71,12 @@ def main():
 
     if args.stamp:
         import onnx
-        props = S.provenance(args.checkpoint, args.wise_alpha)
+        props = S.provenance(
+            checkpoint=args.checkpoint or S.SHIPPED_CHECKPOINT,
+            wise_alpha=args.wise_alpha,
+            taxonomy=args.taxonomy,
+            preprocess_resize=args.preprocess_resize,
+            preprocess_crop=args.preprocess_crop)
         # load_external_data must be True here, or the weights are not in
         # memory and the re-save writes an empty .data file.
         m = onnx.load(args.onnx)

@@ -40,12 +40,26 @@ def main():
                     help="WiSE-FT blend weight to record in the ONNX "
                          "provenance; defaults to the pinned shipped "
                          "value in shipped_model.py")
+    ap.add_argument("--preprocess-resize", type=int, default=None,
+                    help="preprocess resize to record; required for a "
+                         "non-pinned checkpoint")
+    ap.add_argument("--preprocess-crop", type=int, default=None,
+                    help="preprocess crop to record; required for a "
+                         "non-pinned checkpoint")
     args = ap.parse_args()
 
-    os.makedirs(args.out_dir, exist_ok=True)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
 
     sys.path.insert(0, args.distill_dir)
+    import shipped_model as SM
+    props = SM.provenance(
+        checkpoint=args.checkpoint,
+        wise_alpha=args.wise_alpha,
+        taxonomy=args.taxonomy,
+        preprocess_resize=args.preprocess_resize,
+        preprocess_crop=args.preprocess_crop)
+
+    os.makedirs(args.out_dir, exist_ok=True)
     from train_student import Student
     ckpt = torch.load(args.checkpoint, map_location="cpu")
     ca = ckpt.get("args", {})
@@ -112,7 +126,6 @@ def main():
     # client must satisfy: see CLIP_RESIZE / CLIP_CROP in
     # src/lib/clip-preprocess.ts. Read it back with check_provenance.py.
     import onnx
-    import shipped_model as SM
     # Do NOT read alpha from ckpt["args"]. That dict holds the flags of
     # the command that made the checkpoint and nothing updates it later:
     # wise_a0.90.pt reports alpha 0.5. See "Read the weights, not args"
@@ -126,8 +139,6 @@ def main():
         log("       which is NOT the pinned shipped checkpoint")
         log("       " + SM.SHIPPED_CHECKPOINT)
         log("       Pass --wise-alpha to state the real blend weight.")
-    props = SM.provenance(args.checkpoint, args.wise_alpha,
-                          args.taxonomy)
     om = onnx.load(onnx_path)
     SM.write_provenance(om, props)
     onnx.save(om, onnx_path)

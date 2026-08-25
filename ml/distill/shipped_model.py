@@ -98,23 +98,25 @@ def checkpoint_sha256(path=None):
     return _sha256(path or SHIPPED_CHECKPOINT)
 
 
-def provenance(checkpoint=None, wise_alpha=None, taxonomy=None):
+def provenance(checkpoint=None, wise_alpha=None, taxonomy=None,
+               preprocess_resize=None, preprocess_crop=None):
     """Build the metadata_props mapping written onto an exported ONNX.
 
     Every value is a string, because ONNX metadata_props are string pairs.
 
-    Raises ValueError when `checkpoint` is not the pinned one and `wise_alpha`
-    is omitted, rather than silently recording the pinned alpha against a
-    different checkpoint's hash.
+    Raises ValueError when `checkpoint` is not the pinned one and its alpha,
+    taxonomy, or preprocessing is omitted, rather than silently recording
+    metadata from the pinned model against a different checkpoint's hash.
     """
     ck = checkpoint or SHIPPED_CHECKPOINT
+    is_pinned = os.path.abspath(ck) == os.path.abspath(SHIPPED_CHECKPOINT)
     # SHIPPED_WISE_ALPHA describes the PINNED checkpoint and nothing else.
     # Defaulting to it for some other checkpoint would stamp 0.60 onto that
     # file's sha256, so the provenance record would name a real artifact and
     # the wrong alpha, which is worse than no record at all. An explicit
     # wise_alpha is therefore REQUIRED whenever the checkpoint is not the pin.
     if wise_alpha is None:
-        if os.path.abspath(ck) != os.path.abspath(SHIPPED_CHECKPOINT):
+        if not is_pinned:
             raise ValueError(
                 "wise_alpha is required for a checkpoint that is not the "
                 "pinned SHIPPED_CHECKPOINT. Got " + str(ck) + ". Pass the "
@@ -123,13 +125,29 @@ def provenance(checkpoint=None, wise_alpha=None, taxonomy=None):
         alpha = SHIPPED_WISE_ALPHA
     else:
         alpha = wise_alpha
+
+    if not is_pinned:
+        missing = []
+        if taxonomy is None:
+            missing.append("taxonomy")
+        if preprocess_resize is None:
+            missing.append("preprocess_resize")
+        if preprocess_crop is None:
+            missing.append("preprocess_crop")
+        if missing:
+            raise ValueError(
+                ", ".join(missing) + " required for a checkpoint that is "
+                "not the pinned SHIPPED_CHECKPOINT")
+
     tx = taxonomy or SHIPPED_TAXONOMY
+    resize = SHIPPED_RESIZE if preprocess_resize is None else preprocess_resize
+    crop = SHIPPED_CROP if preprocess_crop is None else preprocess_crop
     return {
         META_PREFIX + "source_checkpoint": os.path.relpath(ck, REPO_ROOT),
         META_PREFIX + "source_checkpoint_sha256": checkpoint_sha256(ck),
         META_PREFIX + "wise_alpha": "%.2f" % alpha,
-        META_PREFIX + "preprocess_resize": str(SHIPPED_RESIZE),
-        META_PREFIX + "preprocess_crop": str(SHIPPED_CROP),
+        META_PREFIX + "preprocess_resize": str(resize),
+        META_PREFIX + "preprocess_crop": str(crop),
         META_PREFIX + "taxonomy_sha256": taxonomy_sha256(tx),
     }
 
