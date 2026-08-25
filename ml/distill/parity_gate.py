@@ -21,6 +21,18 @@ it was being compared against, which was exported from alpha 0.60. Any
 earlier delta from this file therefore mixes the quantisation difference
 with a 0.34-point model difference and is not a parity measurement. The
 default is now the pinned shipped checkpoint.
+
+CORRECTED NUMBERS, alpha held fixed at 0.60 on both sides. These replace
+every figure quoted above and anywhere else from an earlier run:
+
+  bird flag rate      +0.03 pp
+  hardneg rejection   +2.33 pp
+  imagenette          +3.33 pp   (all three at bird_q 0.5%)
+  threshold transfer  0.18 pp worst case
+
+So the threshold DOES transfer. The gate criterion above, and the
+"does not transfer" conclusion it produced, were both artefacts of the
+alpha mismatch, not of quantisation.
 """
 import argparse
 import io
