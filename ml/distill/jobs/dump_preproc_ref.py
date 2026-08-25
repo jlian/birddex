@@ -13,13 +13,22 @@ For stage 1 we dump the decoded RGB source pixels alongside the final tensor,
 so JS starts from identical input and any difference is attributable to the
 resampling, not the decoder.
 
-open_clip's transform is Resize(224, BICUBIC) then CenterCrop(224). Resize
-takes the SHORTER side to 224 and keeps aspect ratio. Squashing straight into
-224x224 is a different image and silently costs accuracy.
+The transform is Resize(248, BICUBIC) then CenterCrop(224). Resize takes the
+SHORTER side to 248 and keeps aspect ratio. Squashing straight into 224x224 is
+a different image and silently costs accuracy.
+
+248, not 224. This file used to build the reference from GENERIC open_clip
+ViT-B-16, which is 224 -> 224 and makes the crop a no-op. The shipped
+checkpoint is timm:vit_medium_patch16_clip_224.tinyclip_yfcc15m, whose timm
+pretrained_cfg is 248 -> 224. Referencing the wrong transform is how the client
+came to feed a ~11% wider field of view than the model was trained on while
+every parity test stayed green. The transform is now READ OFF THE CHECKPOINT
+rather than reconstructed, so it cannot drift again.
 """
 import argparse
 import json
 import os
+import sys
 
 import numpy as np
 from PIL import Image
@@ -34,6 +43,9 @@ def main():
     ap.add_argument("--nabirds", default="nabirds")
     ap.add_argument("--n", type=int, default=24)
     ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--checkpoint",
+                    default="runs/ft_tiny39_fresh/wise_a0.60.pt",
+                    help="shipped checkpoint; its timm transform is the reference")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -48,8 +60,16 @@ def main():
     picks = relpath[::step][:args.n]
     log("photos: %d" % len(picks))
 
-    import open_clip
-    _, _, pre = open_clip.create_model_and_transforms("ViT-B-16", pretrained=None)
+    # Read the transform off the SHIPPED checkpoint. Do not reconstruct it.
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    import torch
+    from train_student import Student
+    ck = torch.load(args.checkpoint, map_location="cpu")
+    ca = ck.get("args", {})
+    pre = Student(ca.get("arch", "ViT-B-16"),
+                  ca.get("pretrained", "laion2b_s34b_b88k")).preprocess
+    log("transform from %s:" % args.checkpoint)
+    log(str(pre))
 
     MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float64)
     STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float64)
@@ -83,6 +103,7 @@ def main():
     for k, v in refs.items():
         v.astype(np.float32).tofile(os.path.join(args.out_dir, k + ".f32.bin"))
     json.dump({"mean": MEAN.tolist(), "std": STD.tolist(),
+               "resize": 248, "crop": 224,
                "size": 224, "interpolation": "bicubic",
                "photos": meta},
               open(os.path.join(args.out_dir, "meta.json"), "w"), indent=2)

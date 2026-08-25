@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { preprocess, resizeShorterSide, centerCrop, CLIP_MEAN, CLIP_STD } from '@/lib/clip-preprocess'
+import { preprocess, resizeShorterSide, centerCrop, CLIP_MEAN, CLIP_STD, CLIP_RESIZE, CLIP_CROP } from '@/lib/clip-preprocess'
 
 /**
  * CLIP preprocessing geometry.
@@ -11,6 +11,7 @@ import { preprocess, resizeShorterSide, centerCrop, CLIP_MEAN, CLIP_STD } from '
  *   1. Resize FLOORS. 1024x683 goes to 335 wide, not 336.
  *   2. CenterCrop ROUNDS, the opposite rule from Resize.
  *   3. Python round() is BANKERS rounding, so 52.5 goes to 52, not 53.
+ *   4. Resize target 248, crop 224. They are NOT the same number.
  *
  * Worst tensor error against PIL was 2.596 before the fixes and 3.0e-2 after.
  * Nothing here would have failed on the buggy code by throwing; the numbers
@@ -160,3 +161,72 @@ describe('RGBA input', () => {
   })
 })
 
+/**
+ * The resize target and the crop size must stay DIFFERENT.
+ *
+ * This is the fourth one-way-to-lose-accuracy-silently bug in this file, and
+ * the most expensive: resize and crop were a single CLIP_SIZE = 224 constant,
+ * which made the centre crop a NO-OP and fed the model the full frame instead
+ * of the centre ~90% it was trained on. Nothing threw and every existing test
+ * here still passed, because they all pin geometry at whatever size they are
+ * handed rather than the size the SHIPPED CHECKPOINT asks for.
+ *
+ * The checkpoint is timm:vit_medium_patch16_clip_224.tinyclip_yfcc15m and its
+ * timm pretrained_cfg is Resize(248, bicubic) -> CenterCrop(224). Measured cost
+ * of getting this wrong, on the validation half with the shipped scoring path:
+ * int8 93.78% at 224 against 94.27% at 248, fp32 93.76% against 94.82%,
+ * McNemar p = 0.0005, worst-case embedding cosine 0.79.
+ *
+ * So this pins the CONSTANTS and pins that the crop actually crops.
+ */
+describe('resize/crop targets match the shipped checkpoint', () => {
+  it('resizes to 248 and crops to 224, which are not equal', () => {
+    expect(CLIP_RESIZE).toBe(248)
+    expect(CLIP_CROP).toBe(224)
+    expect(CLIP_RESIZE).not.toBe(CLIP_CROP)
+  })
+
+  it('leaves the tensor at 224, because the ONNX input is fixed', () => {
+    // Only the RESIZE target moved. A 248 tensor would fail at session.run
+    // with a shape error, which is the one failure mode this bug did NOT have.
+    expect(preprocess(solid(640, 480)).length).toBe(3 * CLIP_CROP * CLIP_CROP)
+  })
+
+  it('actually crops: a square image loses its border, not nothing', () => {
+    // A square goes 248x248 at the resize, so the crop must discard a
+    // (248-224)/2 = 12px margin. With the old shared constant the resize
+    // produced 224x224 and the crop discarded nothing at all.
+    const r = resizeShorterSide(solid(500, 500), CLIP_RESIZE)
+    expect(r.width).toBe(248)
+    expect(r.height).toBe(248)
+    const c = centerCrop(r.data, r.width, r.height, CLIP_CROP)
+    expect(c.length).toBe(CLIP_CROP * CLIP_CROP * 3)
+    expect(c.length).toBeLessThan(r.data.length)
+  })
+
+  it('sees a narrower field of view than a 224 resize would', () => {
+    // The point of the fix, stated as a picture rather than a constant.
+    // Mark a 1px frame around the border of a square image. At 248 -> 224 the
+    // border is cropped away; at 224 -> 224 it survives, because the crop is a
+    // no-op. Comparing the two transforms is what makes this a real assertion
+    // instead of a restatement of CLIP_RESIZE.
+    const n = 496
+    const img = { data: new Uint8Array(n * n * 3), width: n, height: n }
+    for (let i = 0; i < n * n; i++) {
+      const x = i % n
+      const y = (i - x) / n
+      // A thick border, so resampling cannot smear it away entirely.
+      const edge = x < 24 || y < 24 || x >= n - 24 || y >= n - 24
+      const v = edge ? 255 : 0
+      img.data[i * 3] = v
+      img.data[i * 3 + 1] = v
+      img.data[i * 3 + 2] = v
+    }
+    const wide = preprocess(img, CLIP_CROP, CLIP_CROP)   // the old, buggy path
+    const narrow = preprocess(img, CLIP_RESIZE, CLIP_CROP) // what ships now
+    const corner = (t: Float32Array) => t[0]
+    // The buggy path keeps the white border in the corner pixel; the correct
+    // one has cropped past it.
+    expect(corner(wide)).toBeGreaterThan(corner(narrow))
+  })
+})

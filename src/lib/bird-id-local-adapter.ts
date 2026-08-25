@@ -289,9 +289,17 @@ async function decodeScaled(dataUrl: string): Promise<ImageBitmap | HTMLImageEle
 
 /**
  * Longest side we ask the decoder for. The model sees 224x224 after a resize
- * to 224 on the SHORTER side, so anything above ~500 is detail the tensor
- * throws away. 500 also matches the size the model was trained and calibrated
- * on: the iNat corpus is "medium", 500px on the long side.
+ * to 248 on the SHORTER side (see clip-preprocess.ts: the checkpoint's timm
+ * config is 248 -> 224, not 224 -> 224), so anything above ~500 is detail the
+ * tensor throws away. 500 also matches the size the model was trained and
+ * calibrated on: the iNat corpus is "medium", 500px on the long side.
+ *
+ * Deliberately UNCHANGED by the 224 -> 248 resize fix. 500 is a LONG-side cap
+ * and the resize target is a SHORT-side target, so the cap only starts
+ * discarding useful detail once the aspect ratio exceeds 500/248 = 2.02,
+ * against 500/224 = 2.23 before. Both are past the point where a bird photo is
+ * mostly sky, and the training-corpus argument for 500 is the stronger one
+ * anyway.
  */
 const DECODE_CAP = 500
 

@@ -1,15 +1,30 @@
 import Foundation
 
-/// CLIP preprocessing that matches open_clip / PIL exactly.
+/// CLIP preprocessing that matches the SHIPPED CHECKPOINT'S timm transform,
+/// resampled exactly as PIL does it.
 ///
-/// Port of src/lib/clip-preprocess.ts. Resize the SHORTER side to 224 with PIL
-/// bicubic, center crop, then normalize.
+/// Port of src/lib/clip-preprocess.ts. Resize the SHORTER side to 248 with PIL
+/// bicubic, center crop to 224, then normalize.
+///
+/// DO NOT "correct" the 248 back to 224. Generic open_clip really is
+/// 224 -> 224, so 224 looks right if you read the open_clip docs. This
+/// checkpoint is NOT generic open_clip: it is
+/// timm:vit_medium_patch16_clip_224.tinyclip_yfcc15m, whose timm
+/// pretrained_cfg is Resize(248, bicubic) -> CenterCrop(224), so the model
+/// sees the centre ~90% of the frame. Resizing to 224 and then cropping 224
+/// makes the crop a NO-OP and feeds a ~11% wider field of view than the model
+/// was trained on. Measured on the validation half with the shipped scoring
+/// path: int8 93.78% at 224 against 94.27% at 248, fp32 93.76% against 94.82%,
+/// McNemar p = 0.0005. The offline calibration was always fitted in 248 space,
+/// so this needs no refit.
+///
+/// The CoreML input stays [1, 3, 224, 224]. Only the RESIZE target moved.
 ///
 /// The resampling is implemented here rather than delegated to Core Graphics
 /// for the same reason the web port does not use canvas: vImage and CIImage
 /// use their own kernels, and PIL STRETCHES the bicubic kernel when
 /// downscaling so it averages over every source pixel. A fixed 4-tap kernel
-/// going from 500px to 224px would alias. The tensor would drift with nothing
+/// going from 500px to 248px would alias. The tensor would drift with nothing
 /// failing, so this is parity-tested against the PIL reference fixtures.
 ///
 /// Three one-pixel traps are load-bearing and each is commented at its site:
@@ -18,7 +33,15 @@ import Foundation
 enum CLIPPreprocess {
     static let mean: [Double] = [0.48145466, 0.4578275, 0.40821073]
     static let std: [Double] = [0.26862954, 0.26130258, 0.27577711]
-    static let size = 224
+    /// Shorter-side resize target, from the checkpoint's timm pretrained_cfg.
+    /// Deliberately NOT equal to `crop`; see the type docstring.
+    static let resize = 248
+    /// Center-crop size, and the model's tensor size. Fixed by the CoreML input.
+    static let crop = 224
+    // NOTE: the old single `size = 224` constant is GONE on purpose. It was
+    // used for both the resize and the crop, which is exactly the bug. There
+    // are no remaining references, so removing it makes a stale caller a
+    // compile error instead of a silent no-op crop.
 
     struct RGB {
         let data: [UInt8]
@@ -138,8 +161,8 @@ enum CLIPPreprocess {
 
     /// Output dimensions for a shorter-side resize.
     ///
-    /// torchvision Resize uses FLOOR, not round. For 1024x683 that is
-    /// 1024*224/683 = 335.86 -> 335, where round gives 336. A one-pixel
+    /// torchvision Resize uses FLOOR, not round. For 1024x683 at size 224 that
+    /// is 1024*224/683 = 335.86 -> 335, where round gives 336. A one-pixel
     /// difference shifts every subsequent pixel and silently wrecks parity.
     static func outputSize(width w: Int, height h: Int, size: Int) -> (width: Int, height: Int) {
         if w <= h {
@@ -186,10 +209,19 @@ enum CLIPPreprocess {
     }
 
     /// Full CLIP preprocess: resize, crop, scale to 0..1, normalize, to CHW.
-    /// Returns 3 * size * size floats.
-    static func preprocess(_ img: RGB, size: Int = CLIPPreprocess.size) -> [Float] {
-        let r = resizeShorterSide(img, size: size)
-        let c = centerCrop(r.data, width: r.width, height: r.height, size: size)
+    /// Returns 3 * crop * crop floats.
+    ///
+    /// `resize` and `crop` are SEPARATE parameters on purpose. They used to be
+    /// one constant, which silently made the crop a no-op; see the type
+    /// docstring.
+    static func preprocess(
+        _ img: RGB,
+        resize: Int = CLIPPreprocess.resize,
+        crop: Int = CLIPPreprocess.crop
+    ) -> [Float] {
+        let size = crop
+        let r = resizeShorterSide(img, size: resize)
+        let c = centerCrop(r.data, width: r.width, height: r.height, size: crop)
         var out = [Float](repeating: 0, count: 3 * size * size)
         let plane = size * size
         for ch in 0..<3 {

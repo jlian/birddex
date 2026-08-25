@@ -140,6 +140,9 @@ export class BirdIdEngine {
   ): Promise<IdentifyResult[]> {
     if (!this.session || !this.text) throw new Error("call init() first")
 
+    // preprocess() resizes the SHORTER side to 248 then centre-crops 224.
+    // The tensor stays 224: the ONNX input is fixed at [1, 3, 224, 224], and
+    // only the resize target changed. See clip-preprocess.ts.
     const px = preprocess(img)
     const input = new ort.Tensor("float32", px, [1, 3, 224, 224])
     const inputName = this.session.inputNames[0]

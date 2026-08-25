@@ -1,7 +1,7 @@
 /** Which stage breaks parity: the resize, or the crop? */
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { resizeShorterSide, centerCrop } from './clip-preprocess.ts'
+import { resizeShorterSide, CLIP_RESIZE } from '../../../src/lib/clip-preprocess.ts'
 
 const DIR = process.argv[2]
 const meta = JSON.parse(readFileSync(join(DIR, "meta.json"), "utf8"))
@@ -22,7 +22,10 @@ for (const ph of meta.photos) {
   const wantH = readU8(join(DIR, "hz_" + tag + ".u8.bin"))
   const dims = rmeta[String(ph.i)]
 
-  const r = resizeShorterSide({ data: src, width: ph.w, height: ph.h }, 224)
+  // CLIP_RESIZE, not a literal. The rs_*/hz_* fixtures are generated at the
+  // checkpoint's resize target (248), and hardcoding 224 here is the bug this
+  // harness exists to catch.
+  const r = resizeShorterSide({ data: src, width: ph.w, height: ph.h }, CLIP_RESIZE)
 
   if (r.width !== dims.nw || r.height !== dims.nh) {
     console.log(`  [${tag}] DIM MISMATCH js ${r.width}x${r.height} vs pil ${dims.nw}x${dims.nh}`)
