@@ -32,6 +32,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import emit_calib_candidates as E  # noqa: E402
 import shipped_model as SM  # noqa: E402
 
+# ml/distill, resolved from THIS FILE. load_student() reads its model sources
+# relative to this directory, so an author-specific absolute path made a
+# default invocation fail on every other checkout even with valid corpus args.
+# Same fix, same shape, as parity_emb.py and parity_gate.py.
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 
 def log(m):
     print('[' + time.strftime('%H:%M:%S') + '] ' + str(m), flush=True)
@@ -65,12 +71,15 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--tag', required=True)
     ap.add_argument('--batch', type=int, default=64)
-    ap.add_argument('--distill-dir', default='/home/jlian/wingdex/ml/distill')
+    ap.add_argument('--distill-root', '--distill-dir', dest='distill_root',
+                    default=HERE,
+                    help='ml/distill, passed to E.load_student for its '
+                         'relative model sources.')
     args = ap.parse_args()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     log('checkpoint ' + args.checkpoint)
-    st, preprocess = E.load_student(args.checkpoint, args.distill_dir, device)
+    st, preprocess = E.load_student(args.checkpoint, args.distill_root, device)
     log('preprocess ' + str(preprocess).replace('\n', ' '))
 
     embs = []
