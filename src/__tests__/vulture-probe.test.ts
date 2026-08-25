@@ -11,10 +11,12 @@
  * Real 25-candidate shortlist, real cell, real shipped blob and calibration.
  * Numbers here are the WEB path; iOS is pinned separately against the golden.
  *
- * The shortlist is emitted through the SHIPPED int8 ONNX encoder, not the fp32
- * PyTorch student. Quantisation is not cosmetic here: it reorders the top-25
- * (19 of 25 candidates in common, max |dsim| 0.044), so a PyTorch-derived
- * fixture pins similarities the browser never produces.
+ * The shortlist is emitted through the SHIPPED path on BOTH sides of the dot
+ * product: the int8 ONNX encoder for the image, and the dequantised int8 text
+ * rows the browser decodes out of text_classifier_int8.bin for the species.
+ * Quantisation is not cosmetic. Against the fp32 PyTorch student it reorders
+ * the top-25 (19 of 25 in common, max |dsim| 0.044); fixing the text side on
+ * top of that swapped one more member (max |dsim| 0.00037 on the rest).
  */
 import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
@@ -63,21 +65,25 @@ describe('Guatemala vulture', () => {
 
   it('displays a confidence near 61 percent, not a saturated one', () => {
     // This asserts the DISPLAYED value, which is what the user reads:
-    //   pBird * P(species | bird) = 0.9878 * 0.6206 = 0.6131
+    //   pBird * P(species | bird) = 0.9878 * 0.6163 = 0.6088
     // scoresToProbs returns only the species term, so asserting it alone
     // would leave the shipped probe multiplier untested on this photo.
     //
     // Every number here is the SHIPPED path: the int8 ONNX shortlist in the
     // fixture, floor 3e-5, k 0.3, T 0.007435, beta 1.1634, and the probe from
     // BIRD_PROBE. An earlier revision asserted 0.5795, which was the species
-    // term under an fp32 PyTorch shortlist the browser never computes.
+    // term under an fp32 PyTorch shortlist the browser never computes. It then
+    // read 0.6131, which used the ONNX encoder but still scored against fp32
+    // build_text() rows rather than the dequantised int8 text rows the browser
+    // decodes. Fixing the TEXT side too swapped one shortlist member
+    // (942 out, 2821 in) and moved this to 0.6088.
     //
     // The upper bound is the point of the change: at the old floor this read
     // 0.999999, and anything above 0.9 means the floor regressed.
     const displayed = fix.p_bird * probs[0]
     expect(displayed).toBeGreaterThan(0.5)
     expect(displayed).toBeLessThan(0.65)
-    expect(displayed).toBeCloseTo(0.6131, 3)
+    expect(displayed).toBeCloseTo(0.6088, 3)
     // The probe only scales, so it cannot have moved the winner.
     expect(fix.p_bird).toBeGreaterThan(MODEL_ASSETS.calibration.probe.threshold)
   })
