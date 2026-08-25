@@ -29,8 +29,20 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-sys.path.insert(0, '/home/jlian/wingdex/ml/distill')
-import emit_calib_candidates as E
+# Paths this script reads, resolved from THIS FILE rather than hardcoded.
+#
+# The script is committed evidence for a measurement, so it has to be
+# re-runnable by a reviewer, not only on the workstation it was written on.
+# Every external input is a flag with the original value as its default, so
+# the invocation that produced the reported numbers still works verbatim.
+HERE = os.path.dirname(os.path.abspath(__file__))          # ml/distill
+REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
+HOME = os.path.expanduser('~')
+
+# emit_calib_candidates lives beside this file. Importing it by a hardcoded
+# sys.path entry made the script unrunnable from any other checkout.
+sys.path.insert(0, HERE)
+import emit_calib_candidates as E  # noqa: E402
 
 
 def log(m):
@@ -48,30 +60,61 @@ def logit(p):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--shards',
-                    default='/mnt/nas/WingDex-Distill/datasets/calib-11k-500px')
+    ap.add_argument('--datasets',
+                    default='/mnt/nas/WingDex-Distill/datasets',
+                    help='Root holding the shard directories.')
+    ap.add_argument('--shards', default=None,
+                    help='Validation-bird shard dir. Defaults to '
+                         'calib-11k-500px under --datasets.')
+    ap.add_argument('--repo-root', default=REPO_ROOT,
+                    help='WingDex checkout. Only the shipped ONNX is read '
+                         'from it.')
+    ap.add_argument('--distill-root', default=HERE,
+                    help='ml/distill, passed to E.load_student for its '
+                         'relative model sources.')
     ap.add_argument('--checkpoint',
-                    default='/home/jlian/wingdex/ml/distill/runs/'
-                            'ft_tiny39_fresh/wise_a0.90.pt')
-    ap.add_argument('--onnx',
-                    default='/home/jlian/wingdex/public/models/'
-                            'wingclip_visual_int8.onnx')
+                    default=os.path.join(HERE, 'runs', 'ft_tiny39_fresh',
+                                         'wise_a0.90.pt'),
+                    help='PyTorch student. The fp32 side of the comparison.')
+    ap.add_argument('--onnx', default=None,
+                    help='Shipped int8 visual encoder. Defaults to '
+                         'public/models/wingclip_visual_int8.onnx under '
+                         '--repo-root.')
+    ap.add_argument('--probe', default=os.path.join(HOME, 'refit_probe.npz'),
+                    help='Refit linear bird probe (coef, intercept).')
+    ap.add_argument('--candidates',
+                    default=os.path.join(HERE,
+                                         'calib_cands_tiny39_a060.parquet'),
+                    help='Candidate parquet. Its row order plus seed 0 define '
+                         'the 70/30 split every measured number used, so '
+                         'changing it changes the validation set.')
+    ap.add_argument('--bird-emb', default=os.path.join(HOME, 'bird_emb.npz'),
+                    help='Precomputed PyTorch bird embeddings, used only to '
+                         'spread the sample across the P(bird) range.')
+    ap.add_argument('--vulture', default=os.path.join(HOME,
+                                                      'vulture_crop.png'),
+                    help='The Guatemala vulture, the headline number.')
     ap.add_argument('--n', type=int, default=24)
-    ap.add_argument('--out', default='/home/jlian/parity_emb.json')
+    ap.add_argument('--out', default=os.path.join(HOME, 'parity_emb.json'))
     args = ap.parse_args()
+
+    if args.shards is None:
+        args.shards = os.path.join(args.datasets, 'calib-11k-500px')
+    if args.onnx is None:
+        args.onnx = os.path.join(args.repo_root, 'public', 'models',
+                                 'wingclip_visual_int8.onnx')
 
     A = 1.3595343229097947
     B = 2.581534818041523
 
-    pr = np.load('/home/jlian/refit_probe.npz')
+    pr = np.load(args.probe)
     coef = pr['coef'].astype(np.float64).ravel()
     inter = float(pr['intercept'].ravel()[0])
     log('probe loaded: coef ' + str(coef.shape) + ' intercept ' +
         ('%.6f' % inter))
 
     # Validation split, same protocol as every measured number.
-    df = pd.read_parquet('/home/jlian/wingdex/ml/distill/'
-                         'calib_cands_tiny39_a060.parquet')
+    df = pd.read_parquet(args.candidates)
     n = len(df)
     g = torch.Generator()
     g.manual_seed(0)
@@ -80,7 +123,7 @@ def main():
     log('val split: ' + str(len(val_pid)) + ' photos')
 
     # Rank val photos by PyTorch P(bird) so the sample spans the range.
-    bd = np.load('/home/jlian/bird_emb.npz')
+    bd = np.load(args.bird_emb)
     b_emb = bd['emb'].astype(np.float64)
     b_key = np.array([int(x) for x in bd['key']])
     vset = set(val_pid)
@@ -96,8 +139,8 @@ def main():
         ('%.4f' % max(want.values())))
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    st, preprocess = E.load_student(args.checkpoint,
-                                    '/home/jlian/wingdex/ml/distill', device)
+    st, preprocess = E.load_student(args.checkpoint, args.distill_root,
+                                    device)
     log('student loaded on ' + device)
 
     import onnxruntime as ort
@@ -110,7 +153,7 @@ def main():
     labels = []
 
     # The Guatemala vulture, the headline number.
-    vim = Image.open('/home/jlian/vulture_crop.png').convert('RGB')
+    vim = Image.open(args.vulture).convert('RGB')
     tensors.append(preprocess(vim))
     labels.append('vulture')
 

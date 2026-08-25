@@ -29,8 +29,20 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-sys.path.insert(0, '/home/jlian/wingdex/ml/distill')
-import emit_calib_candidates as E
+# Paths this script reads, resolved from THIS FILE rather than hardcoded.
+#
+# The script is committed evidence for a measurement, so it has to be
+# re-runnable by a reviewer, not only on the workstation it was written on.
+# Every external input is a flag with the original value as its default, so
+# the invocation that produced the reported numbers still works verbatim.
+HERE = os.path.dirname(os.path.abspath(__file__))          # ml/distill
+REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
+HOME = os.path.expanduser('~')
+
+# emit_calib_candidates lives beside this file. Importing it by a hardcoded
+# sys.path entry made the script unrunnable from any other checkout.
+sys.path.insert(0, HERE)
+import emit_calib_candidates as E  # noqa: E402
 
 A = 1.3595343229097947
 B = 2.581534818041523
@@ -109,23 +121,63 @@ def encode_dir(d, preprocess, st, sess, iname, device, limit, keep=None):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument('--repo-root', default=REPO_ROOT,
+                    help='WingDex checkout. Only the shipped ONNX is read '
+                         'from it.')
+    ap.add_argument('--distill-root', default=HERE,
+                    help='ml/distill, passed to E.load_student for its '
+                         'relative model sources.')
     ap.add_argument('--checkpoint',
-                    default='/home/jlian/wingdex/ml/distill/runs/'
-                            'ft_tiny39_fresh/wise_a0.90.pt')
-    ap.add_argument('--onnx',
-                    default='/home/jlian/wingdex/public/models/'
-                            'wingclip_visual_int8.onnx')
+                    default=os.path.join(HERE, 'runs', 'ft_tiny39_fresh',
+                                         'wise_a0.90.pt'),
+                    help='PyTorch student. The threshold is fitted on its '
+                         'embeddings.')
+    ap.add_argument('--onnx', default=None,
+                    help='Shipped int8 visual encoder. Defaults to '
+                         'public/models/wingclip_visual_int8.onnx under '
+                         '--repo-root.')
+    ap.add_argument('--probe', default=os.path.join(HOME, 'refit_probe.npz'),
+                    help='Refit linear bird probe (coef, intercept).')
+    ap.add_argument('--candidates',
+                    default=os.path.join(HERE,
+                                         'calib_cands_tiny39_a060.parquet'),
+                    help='Candidate parquet. Its row order plus seed 0 define '
+                         'the 70/30 split every measured number used, so '
+                         'changing it changes the validation set.')
+    ap.add_argument('--datasets',
+                    default='/mnt/nas/WingDex-Distill/datasets',
+                    help='Root holding the three shard dirs below.')
+    ap.add_argument('--birds-dir', default=None,
+                    help='Validation birds. Default calib-11k-500px under '
+                         '--datasets.')
+    ap.add_argument('--hardneg-dir', default=None,
+                    help='Hard negatives. Default '
+                         'eval-hard-negatives-nonbird under --datasets.')
+    ap.add_argument('--imagenette-dir', default=None,
+                    help='Easy negatives. Default '
+                         'eval-imagenette-easy-negatives under --datasets.')
     ap.add_argument('--nbird', type=int, default=700)
     ap.add_argument('--nneg', type=int, default=700)
-    ap.add_argument('--out', default='/home/jlian/parity_gate.json')
+    ap.add_argument('--out', default=os.path.join(HOME, 'parity_gate.json'))
     args = ap.parse_args()
 
-    pr = np.load('/home/jlian/refit_probe.npz')
+    if args.onnx is None:
+        args.onnx = os.path.join(args.repo_root, 'public', 'models',
+                                 'wingclip_visual_int8.onnx')
+    if args.birds_dir is None:
+        args.birds_dir = os.path.join(args.datasets, 'calib-11k-500px')
+    if args.hardneg_dir is None:
+        args.hardneg_dir = os.path.join(args.datasets,
+                                        'eval-hard-negatives-nonbird')
+    if args.imagenette_dir is None:
+        args.imagenette_dir = os.path.join(args.datasets,
+                                           'eval-imagenette-easy-negatives')
+
+    pr = np.load(args.probe)
     coef = pr['coef'].astype(np.float64).ravel()
     inter = float(pr['intercept'].ravel()[0])
 
-    df = pd.read_parquet('/home/jlian/wingdex/ml/distill/'
-                         'calib_cands_tiny39_a060.parquet')
+    df = pd.read_parquet(args.candidates)
     n = len(df)
     g = torch.Generator()
     g.manual_seed(0)
@@ -135,23 +187,22 @@ def main():
     log('val split ' + str(len(val_pid)))
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    st, preprocess = E.load_student(args.checkpoint,
-                                    '/home/jlian/wingdex/ml/distill', device)
+    st, preprocess = E.load_student(args.checkpoint, args.distill_root,
+                                    device)
     import onnxruntime as ort
     sess = ort.InferenceSession(args.onnx,
                                 providers=['CPUExecutionProvider'])
     iname = sess.get_inputs()[0].name
     log('models loaded on ' + device)
 
-    DS = '/mnt/nas/WingDex-Distill/datasets/'
     log('encoding validation birds')
-    bp, bo, _ = encode_dir(DS + 'calib-11k-500px', preprocess, st, sess,
+    bp, bo, _ = encode_dir(args.birds_dir, preprocess, st, sess,
                            iname, device, args.nbird, keep=val_pid)
     log('encoding hard negatives')
-    hp, ho, _ = encode_dir(DS + 'eval-hard-negatives-nonbird', preprocess,
+    hp, ho, _ = encode_dir(args.hardneg_dir, preprocess,
                            st, sess, iname, device, args.nneg)
     log('encoding imagenette')
-    ip, io_, _ = encode_dir(DS + 'eval-imagenette-easy-negatives', preprocess,
+    ip, io_, _ = encode_dir(args.imagenette_dir, preprocess,
                             st, sess, iname, device, args.nneg)
     log('encoded  birds ' + str(len(bp)) + '  hardneg ' + str(len(hp)) +
         '  imagenette ' + str(len(ip)))

@@ -31,17 +31,36 @@ if [[ ! -f "$CLASSIFIER" ]]; then
   exit 1
 fi
 
-# Exactly one prior, matched by the content hash in its name. Two would mean an
-# old blob was left behind and the wrong one could be picked up silently.
-shopt -s nullglob
-PRIORS=("$REPO_ROOT"/public/priors/occurrence.*.bin.gz)
-shopt -u nullglob
-if [[ ${#PRIORS[@]} -ne 1 ]]; then
-  echo "error: expected exactly 1 occurrence prior, found ${#PRIORS[@]}" >&2
-  printf '  %s\n' "${PRIORS[@]}" >&2
+# The prior the app SHIPS, named by the content hash of its bytes.
+#
+# This used to assert exactly one occurrence.*.bin.gz existed, on the reasoning
+# that a second file meant a stale blob was left behind and the wrong one could
+# be picked up silently. That reasoning is still right, but the glob was the
+# wrong instrument: public/priors now legitimately holds TWO blobs, the shipped
+# v4 and the v3 that src/__tests__/occurrence-v3-compat.test.ts reads to prove
+# the v4 reader still parses the format still cached in the wild. The glob made
+# an Xcode build fail before a single v4 test ran.
+#
+# Selecting the EXACT shipped filename keeps the original guard and makes it
+# stronger: an extra blob is now simply ignored, and a missing or renamed
+# shipped blob is a hard error instead of a silent substitution. The name is
+# read from MODEL_ASSET_URLS in the web adapter rather than repeated here, so
+# regenerating the prior updates one place and iOS follows.
+ADAPTER="$REPO_ROOT/src/lib/bird-id-local-adapter.ts"
+PRIOR_NAME="$(grep -o '/priors/occurrence\.[0-9a-f]*\.bin\.gz' "$ADAPTER" | head -1)"
+PRIOR_NAME="${PRIOR_NAME#/priors/}"
+if [[ -z "$PRIOR_NAME" ]]; then
+  echo "error: no /priors/occurrence.<hash>.bin.gz in $ADAPTER" >&2
+  echo "  the shipped prior is named by MODEL_ASSET_URLS; iOS reads it there" >&2
   exit 1
 fi
-PRIOR="${PRIORS[0]}"
+PRIOR="$REPO_ROOT/public/priors/$PRIOR_NAME"
+if [[ ! -f "$PRIOR" ]]; then
+  echo "error: missing shipped prior $PRIOR" >&2
+  echo "  MODEL_ASSET_URLS names $PRIOR_NAME but public/priors has:" >&2
+  ls -1 "$REPO_ROOT/public/priors" >&2
+  exit 1
+fi
 
 # Rewrite only when the bytes actually differ. mtime is not enough: a preserved
 # or restored workspace can leave a stale generated file with a newer timestamp
