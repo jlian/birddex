@@ -178,7 +178,7 @@ targets:
     sources:
       - path: WingDexTests
         # Parity fixtures are read from disk via #filePath, never from the test
-        # bundle. Letting xcodegen sweep them in makes the 23 MiB prior a test
+        # bundle. Letting xcodegen sweep them in makes the 33 MiB prior a test
         # resource, which rewrites the Resources build phases and drops
         # Assets.xcassets from the app target, breaking the AppIcon lookup.
         excludes:

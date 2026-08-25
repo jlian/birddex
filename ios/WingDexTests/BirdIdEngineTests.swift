@@ -7,7 +7,7 @@ import XCTest
 
 /// End-to-end checks for the bundled engine.
 ///
-/// These load the real 37 MiB Core ML model and the real 23 MiB prior out of
+/// These load the real 37 MiB Core ML model and the real 33 MiB prior out of
 /// the app bundle, so they also verify the asset pipeline in
 /// ios/scripts/sync-birdid-assets.sh actually put them there.
 final class BirdIdEngineTests: XCTestCase {
