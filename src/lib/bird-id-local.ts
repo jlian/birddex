@@ -96,7 +96,7 @@ export class BirdIdEngine {
     if (this.session) return
     const a = this.assets
 
-    // Cache-first and SEQUENTIAL. 61.66 MiB in four parallel streams competes
+    // Cache-first and SEQUENTIAL. 56.39 MiB in four parallel streams competes
     // for bandwidth on a phone and makes progress reporting meaningless.
     const urls = [a.modelUrl, a.modelDataUrl, a.textClassifierUrl, a.occurrenceUrl]
     const bufs = await preloadAssets(urls, this.onProgress, this.totalBytes)

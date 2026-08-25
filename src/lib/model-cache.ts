@@ -1,5 +1,6 @@
 /**
- * Persistent caching for the 61.66 MiB of model assets.
+ * Persistent caching for the 56.39 MiB of model assets (MODEL_BYTES; the
+ * decoded total is 67.52 MiB and is not a transfer size).
  *
  * Uses the Cache API directly rather than a service worker. main.tsx
  * deliberately unregisters service workers, so adding one back would fight an
