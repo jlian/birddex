@@ -37,8 +37,15 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shipped_model as SM  # noqa: E402
 
-ONNX = '/home/jlian/wingdex/public/models/wingclip_visual_int8.onnx'
+# Resolved from THIS FILE, so the script runs from any checkout rather than
+# only the workstation it was written on. --onnx/--checkpoint/--distill-root
+# override them, and the overrides are passed to every worker process
+# through Pool(initargs); module-level constants would NOT survive a spawn
+# start method and would silently revert to these defaults.
+HERE = os.path.dirname(os.path.abspath(__file__))          # ml/distill
+ONNX = SM.SHIPPED_ONNX
 CKPT = SM.SHIPPED_CHECKPOINT
+
 
 _G = {}
 
@@ -47,18 +54,18 @@ def log(m):
     print('[' + time.strftime('%H:%M:%S') + '] ' + str(m), flush=True)
 
 
-def init_worker():
+def init_worker(onnx_path, ckpt_path, distill_root):
     import onnxruntime as ort
     import torch
     torch.set_num_threads(1)
-    sys.path.insert(0, '/home/jlian/wingdex/ml/distill')
+    sys.path.insert(0, distill_root)
     import emit_calib_candidates as E
-    _st, pp = E.load_student(CKPT, '/home/jlian/wingdex/ml/distill', 'cpu')
+    _st, pp = E.load_student(ckpt_path, distill_root, 'cpu')
     del _st
     so = ort.SessionOptions()
     so.intra_op_num_threads = 1
     so.inter_op_num_threads = 1
-    sess = ort.InferenceSession(ONNX, so,
+    sess = ort.InferenceSession(onnx_path, so,
                                 providers=['CPUExecutionProvider'])
     _G['pp'] = pp
     _G['sess'] = sess
@@ -126,13 +133,22 @@ def main():
     ap.add_argument('--procs', type=int, default=14)
     ap.add_argument('--batch', type=int, default=16)
     ap.add_argument('--limit', type=int, default=0)
+    ap.add_argument('--onnx', default=ONNX,
+                    help='shipped int8 visual encoder')
+    ap.add_argument('--checkpoint', default=CKPT,
+                    help='supplies the timm preprocess transform only')
+    ap.add_argument('--distill-root', default=HERE,
+                    help='ml/distill, for emit_calib_candidates')
+
     args = ap.parse_args()
 
     dirs = args.dirs.split(',')
     t0 = time.time()
     allk = []
     alle = []
-    with mp.Pool(args.procs, initializer=init_worker) as pool:
+    with mp.Pool(args.procs, initializer=init_worker,
+                 initargs=(args.onnx, args.checkpoint,
+                           args.distill_root)) as pool:
         for ok, e in pool.imap(run_batch,
                                iter_jobs(dirs, args.batch, args.limit),
                                chunksize=1):

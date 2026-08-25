@@ -117,14 +117,15 @@ def main():
     # the command that made the checkpoint and nothing updates it later:
     # wise_a0.90.pt reports alpha 0.5. See "Read the weights, not args"
     # in ml/README.md. Take it from --wise-alpha, or from the pin.
-    if os.path.abspath(args.checkpoint) != SM.SHIPPED_CHECKPOINT \
-            and args.wise_alpha is None:
-        log("WARNING: exporting " + args.checkpoint)
-        log("         which is NOT the pinned shipped checkpoint")
-        log("         " + SM.SHIPPED_CHECKPOINT)
-        log("         Provenance will record the PINNED alpha "
-            + ("%.2f" % SM.SHIPPED_WISE_ALPHA) + ", which may be wrong.")
-        log("         Pass --wise-alpha to state the real blend weight.")
+    # provenance() now REFUSES this rather than recording the pinned alpha
+    # against a different checkpoint's hash. Logged first so the failure names
+    # the file, not just the exception.
+    if os.path.abspath(args.checkpoint) != os.path.abspath(
+            SM.SHIPPED_CHECKPOINT) and args.wise_alpha is None:
+        log("ERROR: exporting " + args.checkpoint)
+        log("       which is NOT the pinned shipped checkpoint")
+        log("       " + SM.SHIPPED_CHECKPOINT)
+        log("       Pass --wise-alpha to state the real blend weight.")
     props = SM.provenance(args.checkpoint, args.wise_alpha,
                           args.taxonomy)
     om = onnx.load(onnx_path)
