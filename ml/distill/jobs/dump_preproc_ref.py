@@ -24,6 +24,22 @@ pretrained_cfg is 248 -> 224. Referencing the wrong transform is how the client
 came to feed a ~11% wider field of view than the model was trained on while
 every parity test stayed green. The transform is now READ OFF THE CHECKPOINT
 rather than reconstructed, so it cannot drift again.
+
+meta.json IS DERIVED FROM THAT SAME TRANSFORM OBJECT. resize, crop,
+interpolation, mean and std used to be written as literals while the tensors
+came from --checkpoint. Overriding the checkpoint with one whose timm transform
+differs therefore produced tensors and a meta.json that silently contradicted
+each other, which makes a parity diagnostic worse than useless: it reports a
+mismatch against geometry the reference was never built at. Every field is now
+read out of `pre`, so meta.json describes the tensors that were actually
+written, whatever checkpoint was passed.
+
+The shipped pin is cross-checked as well. When --checkpoint is
+SHIPPED_CHECKPOINT, the derived resize/crop must equal SHIPPED_RESIZE and
+SHIPPED_CROP, which are the same numbers the shipped ONNX carries in
+metadata_props as wingdex.preprocess_resize / wingdex.preprocess_crop. A
+mismatch there means the pin and the client constants have diverged, and it is
+an error rather than a warning.
 """
 import argparse
 import json
@@ -42,6 +58,59 @@ import shipped_model as SM  # noqa: E402  the pinned shipped checkpoint
 
 def log(m):
     print(m, flush=True)
+
+
+def _one(pre, name):
+    """Return the single transform of class `name` in a Compose.
+
+    Zero matches, or more than one, means the transform is not the shape this
+    reference assumes, so guessing would be exactly the silent contradiction
+    this function exists to remove.
+    """
+    hits = [t for t in pre.transforms if type(t).__name__ == name]
+    if len(hits) != 1:
+        raise SystemExit(
+            "expected exactly one %s in the checkpoint transform, found %d. "
+            "The transform is: %s" % (name, len(hits), str(pre)))
+    return hits[0]
+
+
+def _side(size):
+    """Normalise a torchvision size to one int.
+
+    Resize takes an int (shorter side) or a sequence. CenterCrop reports
+    (h, w). A non-square crop has no single number, so it is rejected instead
+    of being silently halved.
+    """
+    if isinstance(size, int):
+        return size
+    vals = [int(v) for v in size]
+    if len(set(vals)) != 1:
+        raise SystemExit("non-square size %s is not supported here"
+                         % (str(size),))
+    return vals[0]
+
+
+def describe_transform(pre):
+    """Read resize/crop/interpolation/mean/std OFF the transform object.
+
+    Nothing here is a literal. meta.json must describe the tensors that were
+    actually written, so that overriding --checkpoint with a model whose timm
+    transform differs cannot leave the two contradicting each other.
+    """
+    rs = _one(pre, "Resize")
+    cc = _one(pre, "CenterCrop")
+    nm = _one(pre, "Normalize")
+    interp = getattr(rs.interpolation, "value", None) or str(rs.interpolation)
+    crop = _side(cc.size)
+    return {
+        "resize": _side(rs.size),
+        "crop": crop,
+        "size": crop,
+        "interpolation": str(interp),
+        "mean": [float(v) for v in nm.mean],
+        "std": [float(v) for v in nm.std],
+    }
 
 
 def main():
@@ -80,8 +149,25 @@ def main():
     log("transform from %s:" % args.checkpoint)
     log(str(pre))
 
-    MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float64)
-    STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float64)
+    spec = describe_transform(pre)
+    log("derived: resize %d, crop %d, %s"
+        % (spec["resize"], spec["crop"], spec["interpolation"]))
+
+    # Cross-check ONLY against the pin. A deliberate override is allowed to
+    # differ; it just has to be described honestly in meta.json, which is the
+    # whole point of deriving these.
+    if os.path.abspath(args.checkpoint) == os.path.abspath(
+            SM.SHIPPED_CHECKPOINT):
+        if (spec["resize"], spec["crop"]) != (SM.SHIPPED_RESIZE,
+                                              SM.SHIPPED_CROP):
+            raise SystemExit(
+                "the pinned checkpoint's transform is resize %d / crop %d but "
+                "shipped_model.py declares %d / %d. Those constants are what "
+                "the client ports and what the shipped ONNX records in "
+                "metadata_props, so this divergence would ship a client fed a "
+                "different picture from the model."
+                % (spec["resize"], spec["crop"],
+                   SM.SHIPPED_RESIZE, SM.SHIPPED_CROP))
 
     meta = []
     srcs = {}
@@ -111,11 +197,12 @@ def main():
         v.tofile(os.path.join(args.out_dir, k + ".u8.bin"))
     for k, v in refs.items():
         v.astype(np.float32).tofile(os.path.join(args.out_dir, k + ".f32.bin"))
-    json.dump({"mean": MEAN.tolist(), "std": STD.tolist(),
-               "resize": 248, "crop": 224,
-               "size": 224, "interpolation": "bicubic",
-               "photos": meta},
-              open(os.path.join(args.out_dir, "meta.json"), "w"), indent=2)
+    out = dict(spec)
+    out["checkpoint"] = os.path.relpath(os.path.abspath(args.checkpoint),
+                                        SM.REPO_ROOT)
+    out["photos"] = meta
+    json.dump(out, open(os.path.join(args.out_dir, "meta.json"), "w"),
+              indent=2)
 
     log("")
     log("wrote %d src/ref .bin pairs + meta.json to %s" % (len(srcs), args.out_dir))
