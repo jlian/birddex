@@ -8,7 +8,8 @@
  * Assets, all served from public/:
  *   models/wingclip_visual_int8.onnx    13.72 MiB graph
  *   models/wingclip_visual_int8.data    24.00 MiB weights, external data
- *   models/text_classifier_int8.bin     11167 x 768 int8 + per-row fp32 scales
+ *   models/text_classifier_int8.bin     11168 x 768 int8 + per-row fp32 scales
+ *                                       (11167 species, then the bird probe)
  *   priors/occurrence.<hash>.bin.gz     15.71 MiB v3 geographic prior
  *
  * The .data file is referenced by the `location` string inside the graph, and
@@ -39,9 +40,22 @@ export type IdentifyResult = {
   commonName: string
   scientificName: string
   taxonIdx: number
+  /**
+   * Displayed confidence: P_cal * P(species | bird).
+   *
+   * The probe multiplier is the SAME positive scalar on every candidate of one
+   * photo, so it cannot reorder them. See the order assertion in
+   * bird-id-probe.test.ts, which measures that rather than assuming it.
+   */
   confidence: number
   /** Null when no geographic prior applied, so the caller can say so. */
   logP: number | null
+  /**
+   * Calibrated P(bird) for the whole photo. Identical across the candidates of
+   * one identify() call; carried per result only because that is the shape the
+   * caller already consumes.
+   */
+  pBird: number
 }
 
 export type EngineAssets = {
@@ -59,6 +73,8 @@ const EMBED_DIM = 768
 export class BirdIdEngine {
   private session: ort.InferenceSession | null = null
   private text: Float32Array | null = null
+  /** Last row of the classifier: the 768-d bird/not-bird probe weights. */
+  private probeW: Float32Array | null = null
   private nSpecies = 0
   private occ: OccBlob | null = null
   private readonly assets: EngineAssets
@@ -110,16 +126,29 @@ export class BirdIdEngine {
     // images: 8.22 MiB at 86.96 top-1 against fp32 32.72 MiB at 86.91. A
     // single global scale scored 86.88, because one scale cannot cover 11,167
     // unrelated species embeddings. Round-trip row cosine is 0.999866 worst.
-    this.text = decodeInt8Rows(new Uint8Array(textBuf), EMBED_DIM)
-    this.nSpecies = this.text.length / EMBED_DIM
-    if (!Number.isInteger(this.nSpecies)) {
-      throw new Error("text classifier length " + this.text.length +
+    const rows = decodeInt8Rows(new Uint8Array(textBuf), EMBED_DIM)
+    const nRows = rows.length / EMBED_DIM
+    if (!Number.isInteger(nRows)) {
+      throw new Error("text classifier length " + rows.length +
                       " is not a multiple of " + EMBED_DIM)
     }
+
+    // The LAST row is the bird/not-bird probe, not a species. Splitting it off
+    // here keeps the similarity loop below exactly as wide as the taxonomy, so
+    // the probe can never appear as a candidate.
+    //
+    // The count check is what catches a stale cached classifier: an older
+    // 11167-row file decodes fine and would otherwise silently hand its last
+    // SPECIES row to the probe. That is why MODEL_VERSION moved with these
+    // bytes.
+    this.nSpecies = nRows - 1
     if (this.nSpecies !== a.taxonomy.length) {
       throw new Error("text classifier has " + this.nSpecies +
-                      " species but taxonomy has " + a.taxonomy.length)
+                      " species rows plus a probe row but taxonomy has " +
+                      a.taxonomy.length)
     }
+    this.text = rows.subarray(0, this.nSpecies * EMBED_DIM)
+    this.probeW = rows.subarray(this.nSpecies * EMBED_DIM)
 
     // Servers disagree about whether a .gz asset is a gzip body or a gzip-encoded
     // one, so the bytes arrive raw or already decoded depending on the host.
@@ -138,7 +167,9 @@ export class BirdIdEngine {
     month?: number,
     topK = 5,
   ): Promise<IdentifyResult[]> {
-    if (!this.session || !this.text) throw new Error("call init() first")
+    if (!this.session || !this.text || !this.probeW) {
+      throw new Error("call init() first")
+    }
 
     // preprocess() resizes the SHORTER side to 248 then centre-crops 224.
     // The tensor stays 224: the ONNX input is fixed at [1, 3, 224, 224], and
@@ -154,6 +185,19 @@ export class BirdIdEngine {
     let norm = 0
     for (let i = 0; i < EMBED_DIM; i++) norm += emb[i] * emb[i]
     norm = Math.sqrt(norm) || 1
+
+    // Bird/not-bird probe on the SAME normalised embedding the species
+    // similarity uses. P_raw = sigmoid(w . e + bias), then a Platt map onto a
+    // calibrated P(bird). This is deliberately OUTSIDE the species softmax: a
+    // "not a bird" class inside it would compete with the species and change
+    // which one wins, whereas a multiplier applied afterwards scales all of
+    // them equally and preserves the ranking.
+    const probe = this.assets.calibration.probe
+    const pw = this.probeW
+    let dot = 0
+    for (let i = 0; i < EMBED_DIM; i++) dot += pw[i] * emb[i]
+    const pRaw = sigmoid(dot / norm + probe.bias)
+    const pBird = sigmoid(probe.plattA * logit(pRaw) + probe.plattB)
 
     // Full 11167-way similarity, then keep the top 25 for reranking.
     // Four accumulators so the JIT does not serialise on a single one.
@@ -197,15 +241,37 @@ export class BirdIdEngine {
       commonName: String(this.assets.taxonomy[s.idx][0]),
       scientificName: String(this.assets.taxonomy[s.idx][1]),
       taxonIdx: s.idx,
-      confidence: probs[i],
+      // P_cal * P(species | bird). probs[] is already the ranked softmax, so
+      // this only rescales it; `scored` fixed the order before pBird was ever
+      // multiplied in.
+      confidence: pBird * probs[i],
       logP: s.logP,
+      pBird,
     }))
   }
 }
 
+function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x))
+}
+
 /**
- * Decode the int8 classifier: an int8 matrix followed by fp32 per-row scales.
- * Row s is q[s] * scale[s].
+ * Inverse of sigmoid, clamped.
+ *
+ * The probe saturates on obvious birds, and Float32 rounds those to exactly 1,
+ * where an unclamped logit is +Infinity and the Platt map returns NaN. EPS
+ * matches the 1e-7 clip the Platt pair was fitted under, so the clamp is part
+ * of the fitted function rather than a patch over it.
+ */
+function logit(p: number): number {
+  const EPS = 1e-7
+  const c = p < EPS ? EPS : p > 1 - EPS ? 1 - EPS : p
+  return Math.log(c / (1 - c))
+}
+
+/**
+ * Decode the int8 rows: an int8 matrix followed by fp32 per-row scales.
+ * Row s is q[s] * scale[s]. The last row is the probe, not a species.
  */
 function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
   // n*dim int8 bytes + n*4 scale bytes = buf.length, so n = len / (dim + 4).

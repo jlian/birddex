@@ -171,9 +171,23 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
         photoMonth,
       )
 
-      // Low confidence replaces the empty-candidate test. A classifier always
-      // returns 25 ranked species, so candidates.length is never 0 and that
-      // branch would be dead code. multipleBirds is gone with the GPT path.
+      // ABSTENTION FIRST. The bird/not-bird probe is the one thing that can
+      // empty the candidate list, and it means "this is probably not a bird"
+      // rather than "this bird is ambiguous". Those need different screens, so
+      // it is tested before the low-confidence crop prompt: the empty state
+      // already leads with Crop & Retry, which is the right action when the
+      // bird is simply too small in frame.
+      if (fastResult.candidates.length === 0) {
+        debug('bird-id', 'Below the bird probe threshold; abstaining')
+        setCurrentCandidates([])
+        setRangeAdjusted(false)
+        setStep('photo-confirm')
+        return;
+      }
+
+      // Low confidence, which is a DIFFERENT question from the one above: this
+      // is a bird, but which one is unclear. multipleBirds is gone with the
+      // GPT path.
       if (!imageUrl && shouldPromptForCrop(fastResult, false)) {
         debug('bird-id', 'Low confidence; requesting crop')
         // Keep the candidates rather than blanking them. The model always has

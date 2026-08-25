@@ -54,7 +54,17 @@ final class BirdIDParityTests: XCTestCase {
             let scored: [ScoredRow]
             let probs: [Double]
         }
-        struct Calibration: Decodable { let temperature: Double; let beta: Double }
+        struct Probe: Decodable {
+            let bias: Double
+            let plattA: Double
+            let plattB: Double
+            let threshold: Double
+        }
+        struct Calibration: Decodable {
+            let temperature: Double
+            let beta: Double
+            let probe: Probe
+        }
 
         let taxonomySha16: String
         let calibration: Calibration
@@ -224,8 +234,16 @@ final class BirdIDParityTests: XCTestCase {
     func testRankingMatchesWeb() throws {
         let g = try Self.loadGolden()
         let occ = try Self.loadBlob(g)
-        let cal = BirdRanker.Calibration(temperature: g.calibration.temperature,
-                                         beta: g.calibration.beta)
+        // The probe is carried through from the golden, but rank() never reads
+        // it: the ranking below must be identical with or without it, which is
+        // the point of applying P_cal outside the species softmax.
+        let cal = BirdRanker.Calibration(
+            temperature: g.calibration.temperature,
+            beta: g.calibration.beta,
+            probe: BirdRanker.BirdProbe(bias: g.calibration.probe.bias,
+                                        plattA: g.calibration.probe.plattA,
+                                        plattB: g.calibration.probe.plattB,
+                                        threshold: g.calibration.probe.threshold))
         let cands = g.candidates.map { BirdRanker.Candidate(idx: $0.idx, sim: $0.sim) }
 
         for c in g.ranking {
