@@ -14,8 +14,15 @@
  *                  better than a threshold does.
  *   empty results  The server returned zero candidates for "no bird". A
  *                  classifier ALWAYS returns 25 ranked species, so an empty
- *                  list can never mean "no bird found". Callers must switch to
- *                  the confidence gate below.
+ *                  list can never mean "no bird found". The AddPhotosFlow
+ *                  empty state is therefore still UNREACHABLE on this path.
+ *                  Reaching it needs an explicit abstention signal, not an
+ *                  empty list. A discriminative bird/not-bird probe was built
+ *                  and measured for exactly this, but it is NOT shipped: its
+ *                  threshold was fitted on PyTorch embeddings and does not
+ *                  transfer to the int8 ONNX encoder this file loads. See the
+ *                  parity note in the pull request; do not wire a gate to that
+ *                  empty state until the probe is refitted on ONNX outputs.
  *
  * CONFIDENCE. `confidence` is the post-rerank softmax, which is what the gate
  * should read. Measured on the 3,322-photo validation split: at 0.7 it keeps
@@ -68,18 +75,24 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
 export const MODEL_VERSION = "cb8f129a"
 
 /**
- * The four served assets, 61.66 MiB total. Versioned so a new model can never
+ * The four served assets, 67.53 MiB total. Versioned so a new model can never
  * be served from a stale immutable cache entry: the prior carries its CONTENT
  * HASH in the file name, and the three model files carry MODEL_VERSION as a
  * query string that changes the Cache API key. Taxonomy is bundled rather than
  * fetched: it is already in the app, and the prior blob carries a hash of it so
  * a mismatch throws instead of silently mis-keying every species.
+ *
+ * MODEL_VERSION is deliberately NOT bumped for the v4 prior. It is defined as
+ * the combined hash of the three MODEL files, and those bytes are unchanged;
+ * the prior moved to a new content-hashed file name, which already gives it a
+ * fresh cache key. Bumping it here would evict 52 MiB of correctly cached
+ * model data to deliver an identical model.
  */
 export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
   `/models/wingclip_visual_int8.data?v=${MODEL_VERSION}`,
   `/models/text_classifier_int8.bin?v=${MODEL_VERSION}`,
-  "/priors/occurrence.1fb61779.bin.gz",
+  "/priors/occurrence.4f5c1a15.bin.gz",
 ]
 
 /**
@@ -90,8 +103,13 @@ export const MODEL_ASSET_URLS = [
  * already gzipped on disk, so the real download is well under what `ls` shows.
  * The earlier figure counted only the prior's compression and overstated this
  * by 22 percent. Production may negotiate brotli and send less again.
+ *
+ * The v4 prior is 21.58 MiB against v3's 15.71 MiB, so the bundle grows by
+ * 5.87 MiB (+10.4 percent of the total download). That pays for the pooled
+ * per-cell slice and the n_cm table, which are what let the backoff strength
+ * live on the client instead of being frozen into the asset.
  */
-export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 16_478_112
+export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 22_623_826
 
 /**
  * Bytes exposed to the fetch reader across the four assets.
@@ -101,15 +119,24 @@ export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 16_478_112
  * This progress total is deliberately not shown to the user: quoting decoded
  * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
  */
-export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 16_478_112
+export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 22_623_826
 
 /**
  * The full asset bundle the engine needs.
  *
  * Calibration is inlined rather than fetched. It is 200 bytes, it MUST match
  * the model and the blob version, and shipping it as a fifth request is one
- * more thing to get out of sync. temperature and beta are the k=0 month fit,
- * which scored 94.94 percent absolute top-1 on the held-out split.
+ * more thing to get out of sync.
+ *
+ * temperature and beta are REFITTED for the v4 blob at OCC_FLOOR = 3e-5 and
+ * OCC_BACKOFF_K = 0.3. They are not transferable across either constant: T
+ * sets the scale on which similarity trades against the prior, and both the
+ * floor and k change the scale of logP. The previous pair
+ * (0.007545354776084423 / 0.5435083508491516) was the k = 0 month fit at
+ * floor 1e-12 and MUST NOT be used with backoff enabled.
+ *
+ * Measured on the 3,321-photo validation split: species top-1 95.66 percent,
+ * unchanged from the previous shipped configuration.
  */
 export const MODEL_ASSETS: EngineAssets = {
   modelUrl: MODEL_ASSET_URLS[0],
@@ -118,7 +145,7 @@ export const MODEL_ASSETS: EngineAssets = {
   occurrenceUrl: MODEL_ASSET_URLS[3],
   taxonomy: taxonomy as EngineAssets["taxonomy"],
   taxonomySha16: "04951673b96b11bf",
-  calibration: { temperature: 0.007545354776084423, beta: 0.5435083508491516 },
+  calibration: { temperature: 0.007435, beta: 1.1634 },
 }
 
 /**

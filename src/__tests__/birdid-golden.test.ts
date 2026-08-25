@@ -19,19 +19,30 @@ import { describe, expect, it } from 'vitest'
 import { lonLatToEqualEarth, xyToCell } from '../lib/equal-earth'
 import { parseOccurrence, occCell } from '../lib/occurrence'
 import { rankCandidates, scoresToProbs, type Candidate } from '../lib/rank'
-import { MODEL_ASSETS } from '../lib/bird-id-local-adapter'
+import { MODEL_ASSETS, MODEL_ASSET_URLS } from '../lib/bird-id-local-adapter'
 
 const FIXTURES = resolve(__dirname, '../../ios/WingDexTests/Fixtures')
 const GOLDEN = resolve(FIXTURES, 'birdid-golden.json')
 /**
  * iOS reads the prior UNCOMPRESSED. Apple's Compression framework does raw
  * deflate, not gzip, so decoding the shipped .gz on device would mean
- * hand-parsing gzip headers or linking zlib. Raw costs 23.0 MiB against 15.7
- * MiB gzipped, and the IPA is compressed for delivery anyway, so the 7.3 MiB
- * buys away a whole dependency. This writes the copy the Swift tests read.
+ * hand-parsing gzip headers or linking zlib. Raw costs 33.0 MiB against 21.6
+ * MiB gzipped for v4, and the IPA is compressed for delivery anyway, so the
+ * difference buys away a whole dependency. This writes the copy the Swift
+ * tests read.
  */
 const RAW_OUT = resolve(FIXTURES, 'occurrence.bin')
-const BLOB = resolve(__dirname, '../../public/priors/occurrence.1fb61779.bin.gz')
+/**
+ * DERIVED from the shipped asset list, never hardcoded. The golden exists to
+ * catch drift between the web ranker and the Swift port, so pinning it to a
+ * blob the app no longer serves would keep the test green while shipping
+ * something it never checked.
+ */
+const BLOB = resolve(
+  __dirname,
+  '../../public',
+  (MODEL_ASSET_URLS.find(u => u.startsWith('/priors/')) as string).slice(1),
+)
 
 /** Chosen to cover populated land cells, both hemispheres, and off-grid input. */
 const POINTS: Array<{ name: string; lat: number; lon: number }> = [

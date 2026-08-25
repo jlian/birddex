@@ -26,9 +26,15 @@
  * predictive likelihood is -inf: the held-out sighting is the only one, and
  * removing it makes the model assign the observed event probability zero. A
  * fit that lands at zero is reporting that the training data has no held-out
- * mass to explain, not that shrinkage is unwarranted. k = 1 is a single
- * pseudo-count, the standard weakest-informative choice, and it is what rescues
- * the sparse-cell case where n_cm is in the single digits.
+ * mass to explain, not that shrinkage is unwarranted. A single pseudo-count is
+ * the standard weakest-informative choice, and it is what rescues the
+ * sparse-cell case where n_cm is in the single digits.
+ *
+ * SHIPPED VALUE IS 0.3, not the 1.0 the leave-one-out fit prefers. k trades
+ * against OCC_FLOOR: a full pseudo-count combined with the raised floor pulls
+ * thin cells too far toward the pooled distribution. At k = 0.3 with
+ * floor = 3e-5 the validation top-1 is 95.66 percent, identical to k = 1 at
+ * the old floor, and the displayed probabilities stop saturating.
  *
  * T and beta are FITTED per model. T sets the scale on which similarity trades
  * against the geographic prior, so reusing another model's T silently
@@ -48,8 +54,25 @@
 import { lonLatToEqualEarth, xyToCell } from './equal-earth'
 import { occCell, occCellPooled, occTotal, type OccBlob } from './occurrence'
 
-/** Absent-from-cell floor. The shipped temperature and beta were fitted at 1e-12. */
-export const OCC_FLOOR = Math.log(1e-12)
+/**
+ * Absent-from-cell floor, as a log probability.
+ *
+ * RAISED from 1e-12 to 3e-5, together with OCC_BACKOFF_K dropping to 0.3.
+ * The two MUST move together, and T and beta were refitted at this pair.
+ *
+ * WHY 1e-12 IS WRONG ONCE BACKOFF EXISTS. At that floor the gap between a
+ * species the pooled slice rescues and one that stays on the floor is about
+ * 13.7 logits, while a realistic similarity gap is around 1.11. The prior
+ * therefore decides the ranking outright and the displayed probability
+ * saturates: John's Guatemala vulture read 99.9999 percent, which is a
+ * confident number the evidence does not support.
+ *
+ * At 3e-5 with k = 0.3 that gap is survivable, the vulture displays 57.0
+ * percent, and species top-1 on the 3,321-photo validation split is UNCHANGED
+ * at 95.66 percent. The floor buys calibration, not accuracy, which is exactly
+ * what it should do.
+ */
+export const OCC_FLOOR = Math.log(3e-5)
 
 /**
  * Dirichlet-multinomial backoff strength, in pseudo-counts. Applied ONLY to a
@@ -60,7 +83,7 @@ export const OCC_FLOOR = Math.log(1e-12)
  * it into a cached, immutable asset and make every retune a full rebuild and
  * re-download. Changing it requires refitting T and beta.
  */
-export const OCC_BACKOFF_K = 1
+export const OCC_BACKOFF_K = 0.3
 
 export type Calibration = {
   temperature: number

@@ -26,8 +26,17 @@ import Foundation
 /// Cells with no occurrence data fall back to vision-only ranking, which is a
 /// graceful degradation rather than a confident wrong answer.
 enum BirdRanker {
-    /// Absent-from-cell floor. The shipped temperature and beta were fitted at 1e-12.
-    static let occFloor = log(1e-12)
+    /// Absent-from-cell floor, as a log probability.
+    ///
+    /// RAISED from 1e-12 to 3e-5, together with occBackoffK dropping to 0.3.
+    /// The two MUST move together, and T and beta were refitted at this pair.
+    ///
+    /// At 1e-12 the gap between a species the pooled slice rescues and one that
+    /// stays on the floor is about 13.7 logits, against a realistic similarity
+    /// gap of 1.11, so the prior decides the ranking outright and the displayed
+    /// probability saturates. At 3e-5 with k = 0.3 species top-1 on the
+    /// 3,321-photo validation split is unchanged at 95.66 percent.
+    static let occFloor = log(3e-5)
 
     /// Dirichlet-multinomial backoff strength, in pseudo-counts. Applied ONLY to
     /// a v4 blob, which carries the pooled slice and n_cm needed to compute it;
@@ -35,13 +44,17 @@ enum BirdRanker {
     ///
     /// WHY k IS NOT ZERO. On 47.9M occurrence observations a majority of
     /// (species, cell, month) triples are singletons, so at k = 0 the
-    /// leave-one-out predictive likelihood is -inf. k = 1 is a single
-    /// pseudo-count, the standard weakest-informative choice.
+    /// leave-one-out predictive likelihood is -inf. A single pseudo-count is
+    /// the standard weakest-informative choice.
+    ///
+    /// SHIPPED VALUE IS 0.3, not the 1.0 the leave-one-out fit prefers. k trades
+    /// against occFloor: a full pseudo-count combined with the raised floor
+    /// pulls thin cells too far toward the pooled distribution.
     ///
     /// This is a CLIENT constant on purpose. Baking it into the blob would
     /// freeze it into a cached, immutable asset and make every retune a full
     /// rebuild and re-download. Changing it requires refitting T and beta.
-    static let occBackoffK: Double = 1
+    static let occBackoffK: Double = 0.3
 
     struct Calibration: Sendable, Equatable {
         let temperature: Double
