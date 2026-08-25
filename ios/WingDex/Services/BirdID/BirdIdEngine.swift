@@ -43,9 +43,12 @@ actor BirdIdEngine {
     /// Must match MODEL_ASSETS in src/lib/bird-id-local-adapter.ts. Pinned
     /// against the shared golden fixture in BirdIDParityTests, because a silent
     /// drift here re-weights the prior against similarity on every photo.
+    ///
+    /// REFITTED for the v4 blob at occFloor = 3e-5 and occBackoffK = 0.3.
+    /// Not transferable across either constant.
     static let calibration = BirdRanker.Calibration(
-        temperature: 0.007545354776084423,
-        beta: 0.5435083508491516
+        temperature: 0.007435,
+        beta: 1.1634
     )
     static let taxonomySha16 = "04951673b96b11bf"
 
