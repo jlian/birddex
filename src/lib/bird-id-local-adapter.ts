@@ -481,7 +481,7 @@ export async function identifyBirdLocally(
   // pBird is left on the result either way so a caller can tell an abstention
   // apart from a genuinely empty upstream response.
   const pBird = results.length > 0 ? results[0].pBird : null
-  if (pBird !== null && pBird < BIRD_PROBE.threshold) {
+  if (pBird !== null && pBird < assets.calibration.probe.threshold) {
     return { candidates: [], rangeAdjusted: false, pBird }
   }
   return { ...mapped, pBird }
