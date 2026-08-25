@@ -150,7 +150,10 @@ describe('the abstention gate', () => {
   // tests the JavaScript operator: it stayed green whether the branch in
   // identifyBirdLocally was present, deleted or inverted. Only the engine and
   // the canvas decode are stubbed; the gate itself is the shipped code.
-  const identifyWith = async (pBird: number) => {
+  const identifyWith = async (
+    pBird: number,
+    threshold: number = BIRD_PROBE.threshold,
+  ) => {
     const rows = [
       { commonName: 'Chukar', scientificName: 'Alectoris chukar',
         taxonIdx: 4211, confidence: 0.9, logP: -1.5, pBird },
@@ -171,7 +174,14 @@ describe('the abstention gate', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
 
-    return identifyBirdLocally({} as never, 'data:image/jpeg;base64,AAAA')
+    const assets = {
+      ...MODEL_ASSETS,
+      calibration: {
+        ...MODEL_ASSETS.calibration,
+        probe: { ...MODEL_ASSETS.calibration.probe, threshold },
+      },
+    }
+    return identifyBirdLocally(assets, 'data:image/jpeg;base64,AAAA')
   }
 
   it('EMPTIES the candidates below the threshold', async () => {
@@ -194,6 +204,13 @@ describe('the abstention gate', () => {
     const r = await identifyWith(0.99)
     expect(r.candidates.length).toBe(2)
     expect(r.rangeAdjusted).toBe(true)
+  })
+
+  it('uses the threshold from the supplied asset calibration', async () => {
+    const customThreshold = BIRD_PROBE.threshold + 0.1
+    const r = await identifyWith(BIRD_PROBE.threshold + 0.05, customThreshold)
+    expect(r.candidates).toEqual([])
+    expect(r.pBird).toBe(BIRD_PROBE.threshold + 0.05)
   })
 
   it('does not ask for a crop on an abstention, which owns that action', () => {
