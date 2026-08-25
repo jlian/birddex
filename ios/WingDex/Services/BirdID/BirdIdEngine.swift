@@ -7,7 +7,11 @@ import Foundation
 ///
 /// The iOS counterpart of src/lib/bird-id-local.ts. Everything is bundled, so
 /// there is no download step and no cache: 37 MiB Core ML tower, 8.2 MiB text
-/// classifier, 23 MiB occurrence prior.
+/// classifier, 33 MiB occurrence prior.
+///
+/// The prior is the v4 blob, bundled UNCOMPRESSED by
+/// ios/scripts/sync-birdid-assets.sh: 34,576,516 bytes = 32.97 MiB, from a
+/// 21.58 MiB .gz. The 23 MiB quoted here before was the v3 blob.
 ///
 /// Classification is a cosine similarity against a frozen 11,167 x 768 matrix
 /// of BioCLIP-2 text embeddings, so the text encoder never runs on device.
