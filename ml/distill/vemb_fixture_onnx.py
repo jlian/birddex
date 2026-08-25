@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
-"""Emit the Guatemala vulture shortlist fixture from the SHIPPED int8 ONNX.
+"""Emit the Guatemala vulture shortlist fixture from the SHIPPED path.
 
 WHY THIS EXISTS. src/__tests__/fixtures/vulture-shortlist.json was emitted by
 vemb.py, which runs the fp32 PyTorch student. The browser runs the int8 ONNX
 graph, so the fixture pinned similarities the shipped path never produces and
 the test around it could stay green while the shipped encoder drifted.
 
-The top-25 is recomputed here rather than re-scored on the cached indices,
-because quantisation can reorder the shortlist and copying the PyTorch index
-list would hide exactly that.
+BOTH SIDES OF THE DOT PRODUCT ARE NOW THE SHIPPED ONES. An earlier revision of
+this file fixed only the image side: the embedding came from the ONNX session
+but the TEXT side still came from build_text(), which rebuilds fp32 embeddings
+from the taxonomy. The browser never sees those. It decodes
+public/models/text_classifier_int8.bin (int8 rows plus fp32 per-row scales),
+dequantises, and dots the result. So the text rows are read out of that file
+here, exactly as src/lib/bird-id-local.ts decodeInt8Rows does it.
 
-Preprocessing is the SAME timm transform as the PyTorch path, so this isolates
-the encoder. The checkpoint supplies ONLY that transform; every weight used to
-produce the embedding comes from the ONNX InferenceSession.
+The dequantised rows are used AS DECODED, not re-normalised. They were
+L2-normalised before quantisation, so their norms land near but not exactly at
+1, and the browser does not renormalise either. Renormalising here would
+reintroduce a difference from the shipped path in the opposite direction.
+
+The LAST row of that file is the bird/not-bird probe, not a species, so only
+the first taxonomy-length rows take part in the similarity.
+
+The top-25 is recomputed rather than re-scored on the cached indices, because
+quantisation can reorder the shortlist and copying the old index list would
+hide exactly that.
+
+Preprocessing is the timm transform off the pinned checkpoint. The checkpoint
+supplies ONLY that transform; no weight used here comes from PyTorch.
 """
 import argparse
 import json
@@ -30,6 +45,24 @@ import emit_calib_candidates as E  # noqa: E402
 import shipped_model as SM  # noqa: E402  the pinned shipped checkpoint
 
 TOPK = 25
+EMBED_DIM = 768
+
+
+def decode_int8_rows(path, dim):
+    """Decode the shipped classifier the way src/lib/bird-id-local.ts does.
+
+    Layout is n*dim int8 bytes followed by n fp32 per-row scales, so
+    n = len / (dim + 4) and row s is q[s] * scale[s]. Returns the FULL matrix,
+    probe row included; the caller drops the last row.
+    """
+    buf = np.fromfile(path, dtype=np.uint8)
+    n = len(buf) // (dim + 4)
+    if n < 1 or n * (dim + 4) != len(buf):
+        raise SystemExit('classifier is ' + str(len(buf)) + ' bytes, not a '
+                         'whole number of ' + str(dim + 4) + '-byte rows')
+    q = buf[:n * dim].view(np.int8).reshape(n, dim).astype(np.float64)
+    scales = buf[n * dim:].view(np.float32).astype(np.float64)
+    return q * scales[:, None]
 
 
 def main():
@@ -39,6 +72,10 @@ def main():
                     help='supplies the timm preprocess transform only')
     ap.add_argument('--onnx', default=SM.SHIPPED_ONNX)
     ap.add_argument('--taxonomy', default=SM.SHIPPED_TAXONOMY)
+    ap.add_argument('--classifier',
+                    default=os.path.join(SM.REPO_ROOT, 'public', 'models',
+                                         'text_classifier_int8.bin'),
+                    help='the SHIPPED int8 text rows the browser decodes')
     ap.add_argument('--distill-root', default=HERE)
     ap.add_argument('--named', default='/home/jlian/vulture_named.json',
                     help='previous PyTorch shortlist, for the delta report')
@@ -46,7 +83,6 @@ def main():
     args = ap.parse_args()
 
     import onnxruntime as ort
-    import torch
 
     _st, pp = E.load_student(args.checkpoint, args.distill_root, 'cpu')
     del _st
@@ -59,9 +95,22 @@ def main():
     e = sess.run(None, {iname: x})[0].astype(np.float64)
     e = e / np.linalg.norm(e, axis=1, keepdims=True)
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    tf, _ = E.build_text(args.taxonomy, device)
-    tfn = tf.cpu().numpy().astype(np.float64)
+    # The SHIPPED text side. Not build_text(): that rebuilds fp32 embeddings
+    # the browser never loads. The last row is the probe, so the species matrix
+    # is everything before it, and it must be exactly taxonomy-length.
+    rows = decode_int8_rows(args.classifier, EMBED_DIM)
+    n_species = len(rows) - 1
+    n_taxa = len(json.load(open(args.taxonomy)))
+    if n_species != n_taxa:
+        raise SystemExit('classifier has ' + str(n_species) + ' species rows '
+                         'but the taxonomy has ' + str(n_taxa))
+    tfn = rows[:n_species]
+    print('text rows from ' + args.classifier)
+    print('  ' + str(n_species) + ' species rows + 1 probe row')
+    print('  dequantised row norm min/max ' +
+          ('%.6f' % np.linalg.norm(tfn, axis=1).min()) + ' / ' +
+          ('%.6f' % np.linalg.norm(tfn, axis=1).max()) +
+          '  (used AS DECODED, the client does not renormalise)')
     sims = (e @ tfn.T)[0]
 
     order = np.argsort(-sims)[:TOPK]
@@ -85,12 +134,15 @@ def main():
     out = {
         'note': ('Real 25-candidate shortlist for the Guatemala vulture, '
                  'emitted by ml/distill/vemb_fixture_onnx.py through the '
-                 'SHIPPED int8 ONNX visual encoder '
-                 '(public/models/wingclip_visual_int8.onnx), which is what '
-                 'the browser runs. An earlier revision of this file came '
-                 'from the fp32 PyTorch student via vemb.py and therefore '
-                 'pinned similarities the shipped path never produces. '
-                 'lat/lon/month are the photo EXIF.'),
+                 'SHIPPED path on BOTH sides of the dot product: the int8 '
+                 'ONNX visual encoder '
+                 '(public/models/wingclip_visual_int8.onnx) and the '
+                 'dequantised int8 text rows the browser decodes out of '
+                 'public/models/text_classifier_int8.bin. Earlier revisions '
+                 'used the fp32 PyTorch student, and then the ONNX encoder '
+                 'against fp32 build_text() rows, both of which pinned '
+                 'similarities the browser never produces. lat/lon/month are '
+                 'the photo EXIF.'),
         'lat': prev['lat'] if 'lat' in prev else 14.752512,
         'lon': prev['lon'] if 'lon' in prev else -91.165575,
         'month': prev['month'] if 'month' in prev else 8,
