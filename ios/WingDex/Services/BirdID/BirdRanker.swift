@@ -34,8 +34,8 @@ enum BirdRanker {
     /// At 1e-12 the gap between a species the pooled slice rescues and one that
     /// stays on the floor is about 13.7 logits, against a realistic similarity
     /// gap of 1.11, so the prior decides the ranking outright and the displayed
-    /// probability saturates. At 3e-5 with k = 0.3 species top-1 on the
-    /// 3,321-photo validation split is unchanged at 95.66 percent.
+    /// probability saturates. At 3e-5 with k = 0.3 the shipped
+    /// a0.60/int8/248 path reaches 94.27 percent top-1 on the validation split.
     static let occFloor = log(3e-5)
 
     /// Dirichlet-multinomial backoff strength, in pseudo-counts. Applied ONLY to

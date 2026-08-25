@@ -12,8 +12,8 @@
  *
  * v2 keys the index by cell and stores P(species|cell).
  * v3 keys it by (cell << 4) | (month - 1) and stores P(species|cell,month),
- * which is worth +1.2 points of top-1 accuracy. The month axis multiplies the
- * slice count but the blob still gzips to 15.7 MiB, inside the 25 MiB cap.
+ * which is worth +1.2 points of top-1 accuracy. That historical v3 blob was
+ * 15.71 MiB gzipped; the current v4 blob is 21.58 MiB, inside the 25 MiB cap.
  * v4 adds two things v3 discarded, so the client can apply backoff:
  *   - a POOLED slice per cell holding P(species|cell), under the reserved
  *     month code 12 (months use 0..11, so 12..15 are free);

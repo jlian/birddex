@@ -156,7 +156,7 @@ project.
 | E4 | Set the absent-species floor | What probability to assign a species with no record in the cell. 87.2% of candidate slots have no record, so this value dominates | ✅ | log(1e-9) ≈ -20.7 is optimal and the curve plateaus there. A soft floor is catastrophic: at -2 or -4 the optimizer drives beta to 0 and abandons geography entirely. Absence must count as strong evidence. |
 | E5 | Validate in the shipping JS pipeline | All prior agreement between the Python reference and the shipping code was on n=23, which proves nothing | ✅ | 11,070 photos through `pipeline-experiment.mjs`: 89 top-1 / 94 top-5, agreeing with the 88.29 Python reference. |
 | E6 | Stress-test the prior | A geographic prior can memorize the training regions. It also goes stale as birds move | ✅ | Transfer penalty on unseen geography is only 0.87 pts, so it generalizes. A 2-year-stale prior costs 2.88 pts (~2.04 genuine drift, ~0.84 density), so freshness matters ~2.4x more than volume. Refresh quarterly. ⚠️ `temporal_holdout.py` prints an auto-verdict saying "yearly refresh is plenty" that compares the DENSITY delta, not the staleness delta. Ignore that verdict. The staleness number is the pre-2024 row. |
-| E7 | Build the shippable prior blob | One binary sliced client-side, rather than per-cell CDN objects or map tiles | ✅ | The shipping month-aware prior is 15.71 MiB gzipped. It keeps one worldwide blob and 5-bit counts. The pooled precursor was 5.41 MiB and lost 0.03 points to quantization. The BirdLife layer it replaces is 260 MiB. |
+| E7 | Build the shippable prior blob | One binary sliced client-side, rather than per-cell CDN objects or map tiles | ✅ | The historical v3 month-aware prior was 15.71 MiB gzipped. The current v4 prior is 21.58 MiB. Both keep one worldwide blob; v4 adds the pooled slice and n_cm table needed for client-side backoff. The pooled precursor was 5.41 MiB and lost 0.03 points to quantization. The BirdLife layer it replaces is 260 MiB. |
 | E8 | Test external sources where iNat is sparse | Every calibration photo IS an iNat observation, so its cell is covered by construction | ❓ | Unmeasured, and this eval set structurally cannot answer it. The [E3](#phase-e-integrate-and-fix-the-ranker) conclusions hold only for photos taken where iNat users go. Needs a different eval set to close. |
 
 ## Phase F: Shrink the model to clear the size gate
@@ -209,10 +209,10 @@ binary, cut on the client, keeps the file count low. Cloudflare Workers permits
 | G23 | Score the BROWSER decoder over the full held-out split | The 95.09 on the model card was measured through the PYTHON pipeline, where the cap is PIL `Image.draft()` (libjpeg shrink-on-load). The shipping browser path is `createImageBitmap` with `resizeWidth`, which reaches a scaled decode through Skia instead, so the accuracy number and the shipped decoder have never met. Two arms already measured, neither closes this: `e2e/scaled-decode.spec.ts` compares Skia against a full decode on ONE photo (max=141, mean=3.92, cosine=0.99905), and the 3,322-photo run held at 95.09 using `draft()`, not Skia | ⬜ | **Queued.** Drive Playwright over the 3,322 held-out photos, dump each 224x224 tensor, and score with `score_orig.py` against the same reference so only the decoder changes. Expect a pass: cosine 0.99905 on the worst-case 25.6 MP photo is far tighter than the perturbation that already left top-1 intact. Worth running anyway, because it is the only arm that tests the decoder users actually run. Note this covers CHROMIUM only; Safari ignores the resize options entirely and takes the full-decode path, so it inherits the original numbers and needs no separate run |
 | G24 | Check the CLIENT preprocessing against the CHECKPOINT'S transform | Every parity effort so far compared the TypeScript port against a PIL reference built from **generic open_clip ViT-B-16**, which is Resize(224) then CenterCrop(224). Nobody checked that against the transform the SHIPPED checkpoint actually asks for. A 224 resize followed by a 224 crop makes the crop a no-op, so the geometry tests can all pass while the model is fed a different picture from the one it was trained on | ✅ | **The client fed the model a ~11% wider field of view than it was trained on, and had done since the first web build.** `timm` `pretrained_cfg` for `vit_medium_patch16_clip_224.tinyclip_yfcc15m` is **Resize(248, bicubic) → CenterCrop(224)**, the centre ~90% of the frame. `src/lib/clip-preprocess.ts` used a single `CLIP_SIZE = 224` for BOTH steps. Measured on the validation half through the shipped scoring path (OCC_FLOOR log(3e-5), k 0.3, T 0.007435, beta 1.1634, v4 blob): **int8 93.78 → 94.27 (+0.49)**, fp32 93.76 → 94.82 (+1.06). McNemar on the fp32 arm is 65 fixed against 30 broken, **p = 0.0005**. Worst-case embedding cosine between the two transforms is **0.79** and top-1 flips on about **4.8%** of photos; for scale, [G23](#phase-g-ship) treats a decoder cosine of 0.99905 as negligible, so this is a different picture, not numerical noise. **No refit was needed**: the offline harness gets its transform from `Student.preprocess`, so it has ALWAYS run at 248 and `T`, `beta`, `OCC_FLOOR` and `k` were all fitted in 248 space. The fix moves the client INTO alignment with its own calibration. Resize and crop are now separate constants in both the TS and the Swift port, and `jobs/dump_preproc_ref.py` now READS the transform off the checkpoint instead of rebuilding it from open_clip, which is what let the two drift silently. |
 | G19 | Retire the BirdLife half of `range-adjust.js` | The file is two modules wearing one name, and only half survives the cutover | ✅ | Completed with the GPT cutover. The BirdLife trust and range helpers are deleted. Equal Earth projection and grid geometry now live in `src/lib/equal-earth.ts`. The occurrence ranker imports that data-neutral module. |
-| G18 | Ship the iOS Core ML path | The web path is settled. iOS converts from torch directly, skips ONNX, and has no 25 MiB per-file cap | ✅ | iOS now bundles a 37 MiB Core ML tower, 8.2 MiB classifier and 23 MiB occurrence prior. `BirdIdEngine` runs decode, CLIP preprocessing, embedding, cosine classification and occurrence reranking offline. It uses all Core ML compute units. Tests verify the bundled assets, 11,167 classifier rows, calibration and vision-only fallback. |
-| G17 | Measure quantisation on the TEXT CLASSIFIER | [F1](#phase-f-shrink-the-model-to-clear-the-size-gate) and [F10](#phase-f-shrink-the-model-to-clear-the-size-gate) both measured the VISUAL TOWER only. The classifier was never in scope, and fp16 was chosen under size pressure rather than on evidence | ✅ | **int8 per-row costs nothing measurable and saves 8.14 MiB.** Real top-1 over all 24,633 NABirds images: fp32 32.72 MiB **86.91**, fp16 16.36 MiB **86.91**, int8-global 8.18 MiB **86.88**, int8-perrow 8.22 MiB **86.96**. Per-row agreement with fp32 is 99.75%, against 99.46% for one global scale. The current web payload is 61.66 MiB with the 15.71 MiB monthly prior. Embeddings come from the fp32 tower once and are reused for every variant, so the comparison isolates the classifier. |
+| G18 | Ship the iOS Core ML path | The web path is settled. iOS converts from torch directly, skips ONNX, and has no 25 MiB per-file cap | ✅ | iOS now bundles a 37 MiB Core ML tower, 8.2 MiB classifier and 23 MiB occurrence prior. `BirdIdEngine` runs decode, CLIP preprocessing, embedding, cosine classification and occurrence reranking offline. It uses all Core ML compute units. Tests verify the bundled assets, 11,167 species rows plus one probe row, calibration and vision-only fallback. |
+| G17 | Measure quantisation on the TEXT CLASSIFIER | [F1](#phase-f-shrink-the-model-to-clear-the-size-gate) and [F10](#phase-f-shrink-the-model-to-clear-the-size-gate) both measured the VISUAL TOWER only. The classifier was never in scope, and fp16 was chosen under size pressure rather than on evidence | ✅ | **int8 per-row costs nothing measurable and saves 8.14 MiB.** Real top-1 over all 24,633 NABirds images: fp32 32.72 MiB **86.91**, fp16 16.36 MiB **86.91**, int8-global 8.18 MiB **86.88**, int8-perrow 8.22 MiB **86.96**. Per-row agreement with fp32 is 99.75%, against 99.46% for one global scale. The current web download is 56.39 MiB with the 21.58 MiB v4 prior; fetch readers see 67.52 MiB after transport decoding. Embeddings come from the fp32 tower once and are reused for every variant, so the comparison isolates the classifier. |
 | G14 | Fold the text classifier into the ONNX graph | The client multiplies a constant 11167x768 matrix in scalar JS, and the cost on a phone was unmeasured | ❌ | **Rejected after measuring.** On a Cortex-A76, a fair mid-range phone proxy: naive loop 23.51 ms, 4-way unrolled 16.22 ms, full sort 5.90 ms, partial top-K 0.16 ms. Against 318 ms/image for the tower on WASM, the whole selection step was **29 ms, about 8% of inference**. Folding the matmul into the graph saves roughly 13 ms and costs the 25 MiB per-file fight plus sharding, because the classifier adds about 16 MiB to a `.data` file already at 24.00 MiB. Took the two local wins instead: partial top-K and a 4-way unrolled dot product, together 29.41 to 16.38 ms. Verified bit-identical, max difference **0.000e+0** with identical candidate sets and order across 24 photos, since unrolling changes floating-point associativity and can reorder candidates within an ulp. |
-| G15 | Decide where the Bayesian rerank runs | Server-side reranking lets calibration change without a client redownload | ❌ | **Rejected. Client keeps everything.** The work being offloaded is 29 ms, so the trade is 29 ms against losing offline support. The Workers free-plan CPU cap is 10 ms per request, which the classifier alone exceeds. The coherent server design was tower-only client at 37.72 MiB with the classifier and prior server-side. The measurement removes the reason to want it. The current 61.66 MiB payload downloads once and remains cacheable. |
+| G15 | Decide where the Bayesian rerank runs | Server-side reranking lets calibration change without a client redownload | ❌ | **Rejected. Client keeps everything.** The work being offloaded is 29 ms, so the trade is 29 ms against losing offline support. The Workers free-plan CPU cap is 10 ms per request, which the classifier alone exceeds. The coherent server design was tower-only client at 37.72 MiB with the classifier and prior server-side. The measurement removes the reason to want it. The current 56.39 MiB download happens once and remains cacheable. |
 | G20 | Fit the absent-species floor instead of hardcoding it | A candidate with no record in the cell gets a hardcoded constant, and the reference and the client disagree on its value | ✅ | The shipped fit used `log(1e-12)`, while the client used `log(1e-9)`. `src/lib/rank.ts` now uses `Math.log(1e-12)`, so both paths agree. The change needs no refit or artifact update. Both floors measured 95.00% top-1 on the same split. |
 | G16 | Add month to the occurrence prior | The prior was P(species\|cell) with no time dimension, so a Rufous Hummingbird in Seattle got the same score in July and January | ✅ | **Month is worth +1.2 points. 93.8 to 95.0 absolute top-1**, paired bootstrap 95% CI [+0.81, +1.69], so the interval excludes zero. Built from the same full corpus: 157,114,209 observations to 54,665,804 (species, cell, month) triples in one DuckDB pass, and the pooled pairs reproduce exactly at 26,396,702. **The final form is simply `P(s\|c,m) = n_scm / n_cm`**, that species' share of all sightings in that cell that month. A backoff term `k` toward the pooled prior was swept and **fits to zero**: k=0 has the lowest training AND validation cross-entropy, so thin cell-months need no shrinkage at all. That contradicts the sparsity worry raised before the build. An apparent k=1 optimum at 95.00 against 94.97 was **one photo out of 3,322**, with a bootstrap CI of [+0.00, +0.09] spanning zero, so it was noise and is not used. Sparsity is visible but harmless: 9.4% of candidate slots carry a monthly count against 13.3% pooled. |
 | G13 | Export the shipping student to ONNX | Any web runtime needs this, and int8 was chosen on the PyTorch artifact in [F10](#phase-f-shrink-the-model-to-clear-the-size-gate), so the export itself has to be proven neutral before that transfers. Core ML converts from torch directly and skips ONNX entirely | ✅ | `wise_a0.60.pt` from `runs/ft_tiny39_fresh` exports clean: worst cosine(pytorch, onnx) **1.00000000**, worst absolute difference **7.34e-07**, **0/16** top-1 disagreements. The script exits non-zero on mismatch, so it cannot pass silently. Artifacts: `onnx_tiny39/wingclip_visual_fp32.onnx` and `text_classifier.npy` at (11167, 768). Parameter counts reconcile: 38.33M visual plus 0.39M projection is 38.72M, and the 38.3M quoted elsewhere is the backbone only. **fp16 export is broken**: `convert_float_to_float16` emits Cast nodes whose declared output type does not match the consumer, so onnxruntime rejects the graph at load. That blocked nothing in the end, because fp16 was only wanted for WebGPU and [G1](#phase-g-ship) selects WASM with int8. fp16 now matters only to Core ML, which converts from torch. |
@@ -220,9 +220,9 @@ binary, cut on the client, keeps the file count low. Cloudflare Workers permits
 | G4 | Clear the license gate | The app is public, so weights, corpus and derived artifacts all need clean licenses | ✅ | LAION ViT-B and TinyCLIP are both clean. Apple MobileCLIP weights are research-only, which is why [F3](#phase-f-shrink-the-model-to-clear-the-size-gate) rejected them. |
 | G5 | Ship one artifact per runtime | Same weights, different precision per platform. The web rule is 25 MiB per FILE, so the question is how many files, not how many MB | ✅ | **iOS: int8, 86.82 top-1, no size constraint.** **Web: two options, both legal.** (a) int8 tower 38.9 MB EXCEEDS the per-file cap, so it needs ONNX external data to split across two files of about 20 and 19 MB, and keeps 86.82. (b) int4 block 32 tower is 21.9 MB in ONE file and costs 2.30 points, landing at 84.61. Either way the text classifier ships as its own 8.6 MB asset. **Decision: option (a).** [G12](#phase-g-ship) proved the split works with one data file and no manifest, so the extra load step is a single `externalData` entry and int4 is not needed on web. |
 | G6 | Replace GPT bird detection and framing | GPT returns `birdCenter`, `birdSize` and `multipleBirds`. A pure classifier returns none of these | ✅ | **The classifier provides none of the three GPT signals.** Species confidence does not detect non-birds, and it does not track framing. The web path drops counting and auto-framing. It uses one crop prompt for species ambiguity only. H3 and H4 track no-bird handling. iOS can revisit Vision-based boxes and counting separately. |
-| G7 | Ship the range data offline | On-device ID is pointless if the ranker still needs a network call for geography | ✅ | Ship the monthly occurrence prior, not the 260 MiB BirdLife store. It is 15.71 MiB gzipped on web and 23 MiB bundled on iOS. Lookup uses the 27 km Equal Earth grid. |
+| G7 | Ship the range data offline | On-device ID is pointless if the ranker still needs a network call for geography | ✅ | Ship the monthly occurrence prior, not the 260 MiB BirdLife store. The historical v3 web blob was 15.71 MiB; current v4 is 21.58 MiB gzipped and 23 MiB uncompressed on iOS. Lookup uses the 27 km Equal Earth grid. |
 | G8 | Refresh the occurrence prior | The prior goes stale as bird distributions shift | ✅ | Quarterly. E6 measured 2.88 pts lost over 2 years, and freshness matters ~2.4x more than data volume. Version-stamp the blob filename and add an immutable Cache-Control entry. |
-| G9 | Prove the adaptive router in a browser | One pipeline, swappable front end: on-device model when cached, hosted VLM otherwise | 🗑️ | Superseded by the shipping client, and `ml/demo/` is deleted. G1 measures the real runtime. The client now ships a 61.66 MiB offline payload behind an explicit gate with persistent caching. |
+| G9 | Prove the adaptive router in a browser | One pipeline, swappable front end: on-device model when cached, hosted VLM otherwise | 🗑️ | Superseded by the shipping client, and `ml/demo/` is deleted. G1 measures the real runtime. The client now ships a 56.39 MiB offline download behind an explicit gate with persistent caching. |
 
 ---
 
@@ -296,15 +296,16 @@ from the first quantisation and ranking passes, superseded by `ml/distill/jobs/`
 and `ml/parity/jobs/`, and nothing imported it.
 ## Next: getting to a PR preview deploy
 
-Steps 1 to 5 are done. What ships today, 61.66 MiB total, every file inside the
-25 MiB Workers per-file cap:
+Steps 1 to 5 are done. The four files total 67.52 MiB after transport decoding;
+the measured download is 56.39 MiB. Every file is inside the 25 MiB Workers
+per-file cap:
 
 | asset | size |
 |---|---|
 | `wingclip_visual_int8.onnx` | 13.72 MiB |
 | `wingclip_visual_int8.data` | 24.00 MiB |
 | `text_classifier_int8.bin` | 8.22 MiB |
-| `occurrence.1fb61779.bin.gz` | 15.71 MiB |
+| `occurrence.4f5c1a15.bin.gz` | 21.58 MiB |
 
 The prior is named by CONTENT HASH, not schema version, because `_headers`
 serves these immutable for a year, and a fixed name hands a stale blob to
@@ -503,7 +504,11 @@ against BioCLIP-2, and the number is true but the label is wrong.
 
 ---
 
-## Reference
+## Historical Reference
+
+The tables in this section record the earlier design comparisons at the time
+they were measured. They are not the current shipping payload; see "What the
+shipped app actually scores" above for current artifacts and measurements.
 
 ### Architecture
 
@@ -521,10 +526,10 @@ device.**
 | ViT-B visual tower | 86.6M params | 346.3 MB | 87 MB | 43 MB |
 | TinyCLIP-39M visual tower | 38.3M params | 153.3 MB | 38.3 MB | 19.2 MB |
 | text classifier | 11,167 × 768 | 34.3 MB | 8.6 MB | 4.3 MB |
-| occurrence prior blob | 99,900 cells | - | 5.4 MB gzipped | - |
+| occurrence prior blob (pre-month prototype) | 99,900 cells | - | 5.4 MB gzipped | - |
 
 All sizes above are `params x bits/8`, so they are calculated and not measured.
-Only the ViT-B int4 ACCURACY cost of -0.88 points is measured. See F10.
+Only the ViT-B int4 ACCURACY cost in this historical table was measured. See F10.
 
 **Payload against the 25 MB web gate**, TinyCLIP-39M:
 
@@ -555,16 +560,13 @@ validation half, shipped scoring path, `wise_a0.60.pt`:
 | int8 ONNX (**what web runs**) | 93.78 | **94.27** |
 | fp32 | 93.76 | 94.82 |
 
-⚠️ **The 95.66 figure quoted in `src/lib/rank.ts`, `src/lib/bird-id-local-adapter.ts`,
+⚠️ **The 95.66 figure formerly quoted in `src/lib/rank.ts`, `src/lib/bird-id-local-adapter.ts`,
 `ios/WingDex/Services/BirdID/BirdRanker.swift` and `bird-probe-order.test.ts` came
 from `wise_a0.90.pt`.** That is WingCLIP-0.1's best alpha, not WingCLIP-0.3's. It is
 a real measurement of a real checkpoint; it is simply not a measurement of the one
-in `public/`. Those comments are the provenance record for the ranker CONSTANTS.
+in `public/`.
 
-**CORRECTION.** An earlier revision of this paragraph said "the constants they
-justify were fitted on that arm", meaning a0.90. **That was wrong**, and it
-would have meant the shipped constants were fitted for a model that is not
-shipped. The four constants `OCC_FLOOR = log(3e-5)`, `k = 0.3`,
+The four constants `OCC_FLOOR = log(3e-5)`, `k = 0.3`,
 `T = 0.007435` and `beta = 1.1634` were fitted on
 `ml/distill/calib_cands_tiny39_a060.parquet`, which is the **alpha 0.60** arm,
 the shipped checkpoint. `jobs/val_absolute.py` records the arm-to-file mapping:
@@ -610,8 +612,8 @@ build uses onnxruntime `quantize_dynamic` with real integer kernels, and its
 measured top-1 agreement with fp32 is **97.64%**, not 99.27%. See
 [F10a](#phase-f-shrink-the-model-to-clear-the-size-gate).
 
-**Text classifier**, 11,167 x 768 = 8,576,256 values. Accuracy cost UNMEASURED,
-see [G10](#phase-g-ship):
+**Historical text-classifier size estimates**, 11,167 x 768 = 8,576,256 values.
+The later measured result is in [G17](#phase-g-ship):
 
 | precision | MB |
 |---|---|
@@ -630,7 +632,7 @@ no such limit at all.
 | int8 tower | 38.9 MB | 2, needs ONNX external data |
 | int4 block 32 tower | 21.9 MB | 1 |
 | text classifier int8 | 8.6 MB | 1 |
-| occurrence prior blob | 5.4 MB gzipped | 1 |
+| occurrence prior blob (pre-month prototype) | 5.4 MB gzipped | 1 |
 
 The text classifier is not part of the ONNX graph. It is a matrix used for a cosine
 comparison AFTER inference, so it always ships as its own asset and never needed

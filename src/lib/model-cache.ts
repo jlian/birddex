@@ -7,16 +7,16 @@
  * existing decision. The Cache API gives the same persistence with none of the
  * lifecycle, and it is available from a normal page context.
  *
- * Assets, all content-addressed by version in the file name so a new model
- * never collides with a cached old one:
+ * Assets carry either a version query or a content hash so a new model never
+ * collides with a cached old one:
  *   wingclip_visual_int8.onnx   13.72 MiB
  *   wingclip_visual_int8.data   24.00 MiB
  *   text_classifier_int8.bin     8.22 MiB
- *   occurrence.<hash>.bin.gz    15.71 MiB
+ *   occurrence.<hash>.bin.gz    21.58 MiB
  *
  * The HTTP cache alone is not enough: it is best-effort and the browser can
  * evict 24 MiB of weights whenever it likes, which would silently turn a free
- * identification into a 62 MiB download on cellular. A named Cache is explicit
+ * identification into a 56 MiB download on cellular. A named Cache is explicit
  * and inspectable.
  */
 
@@ -143,7 +143,7 @@ export type AssetProgress = {
 /**
  * Fetch with cache-first semantics and progress reporting.
  *
- * Progress matters here: 62 MiB with no feedback looks like a hung app, and
+ * Progress matters here: 56 MiB with no feedback looks like a hung app, and
  * this is the first thing a new user hits.
  */
 async function fetchCached(
@@ -195,7 +195,7 @@ async function fetchCached(
 
 /**
  * Warm every asset. Call on FIRST IDENTIFY, not at page load: opening the site
- * must not pull 62 MiB, and most visits never identify anything.
+ * must not pull 56 MiB, and most visits never identify anything.
  */
 export async function preloadAssets(
   urls: string[],
@@ -225,7 +225,7 @@ export async function preloadAssets(
 
 /**
  * Drop entries that are not part of the current asset set. Keys carry the model
- * version, so without this every bump strands another 62 MiB indefinitely.
+ * version, so without this every bump strands another 56 MiB indefinitely.
  */
 async function pruneStaleAssets(urls: string[]): Promise<void> {
   const cache = await openCache()

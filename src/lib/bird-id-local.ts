@@ -10,7 +10,7 @@
  *   models/wingclip_visual_int8.data    24.00 MiB weights, external data
  *   models/text_classifier_int8.bin     11168 x 768 int8 + per-row fp32 scales
  *                                       (11167 species, then the bird probe)
- *   priors/occurrence.<hash>.bin.gz     15.71 MiB v3 geographic prior
+ *   priors/occurrence.<hash>.bin.gz     21.58 MiB v4 geographic prior
  *
  * The .data file is referenced by the `location` string inside the graph, and
  * onnxruntime-web cannot read the file system, so it must be handed over

@@ -14,14 +14,9 @@
  * measurement. If it ever fails, the probe has been wired as something other
  * than a shared multiplier, and the accuracy claim above is void.
  *
- * The probe IS shipped in this change. The earlier claim here, that its
- * threshold was fitted on PyTorch embeddings and did not transfer to the int8
- * ONNX encoder, is RETRACTED: that measurement compared a PyTorch student from
- * wise_a0.90.pt against an int8 export of wise_a0.60.pt, so most of the
- * apparent quantisation drift was an alpha difference between two different
- * models. Re-measured with alpha held fixed, threshold transfer moves the bird
- * flag rate by at most 0.18 pp, and the shipped probe is fitted in the int8
- * space regardless, so no transfer is required of it.
+ * The shipped probe is fitted in the int8 embedding space. With alpha fixed at
+ * 0.60, fp32-to-int8 threshold transfer moves the bird flag rate by at most
+ * 0.18 pp.
  *
  * The multiplier is still applied here by the test rather than taken from the
  * engine, because the invariant under test is algebraic: it must hold for ANY

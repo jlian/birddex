@@ -33,8 +33,9 @@
  * SHIPPED VALUE IS 0.3, not the 1.0 the leave-one-out fit prefers. k trades
  * against OCC_FLOOR: a full pseudo-count combined with the raised floor pulls
  * thin cells too far toward the pooled distribution. At k = 0.3 with
- * floor = 3e-5 the validation top-1 is 95.66 percent, identical to k = 1 at
- * the old floor, and the displayed probabilities stop saturating.
+ * floor = 3e-5 the shipped a0.60/int8/248 path reaches 94.27 percent top-1,
+ * and the displayed probabilities stop saturating. The earlier 95.66 percent
+ * figure came from the non-shipped a0.90 checkpoint.
  *
  * T and beta are FITTED per model. T sets the scale on which similarity trades
  * against the geographic prior, so reusing another model's T silently
@@ -68,9 +69,9 @@ import { occCell, occCellPooled, occTotal, type OccBlob } from './occurrence'
  * confident number the evidence does not support.
  *
  * At 3e-5 with k = 0.3 that gap is survivable, the vulture displays 57.0
- * percent, and species top-1 on the 3,321-photo validation split is UNCHANGED
- * at 95.66 percent. The floor buys calibration, not accuracy, which is exactly
- * what it should do.
+ * percent, and the shipped a0.60/int8/248 path reaches 94.27 percent top-1 on
+ * the validation split. The floor buys calibration without borrowing the
+ * non-shipped a0.90 checkpoint's 95.66 percent result.
  */
 export const OCC_FLOOR = Math.log(3e-5)
 
@@ -131,7 +132,7 @@ export function rankCandidates(
   cal: Calibration,
   occ: OccBlob | null,
   loc: { lat: number; lon: number } | null,
-  /** 1-12, from photo EXIF. Required by a v3 blob, ignored by v2. */
+  /** 1-12, from photo EXIF. Required by v3/v4 blobs, ignored by v2. */
   month?: number,
 ): Scored[] {
   const T = cal.temperature
