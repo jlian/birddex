@@ -91,7 +91,11 @@ def main():
     for k in sorted(props):
         print("  " + k.ljust(38) + props[k])
 
-    want = [k for k in S.provenance() if k not in props]
+    # Static key list, NOT S.provenance(). provenance() hashes the checkpoint,
+    # which lives under the ignored ml/distill/runs/ and is absent from a clean
+    # checkout, so building it here made inspecting the tracked ONNX crash.
+    # Only --stamp legitimately needs checkpoint bytes.
+    want = [k for k in S.PROVENANCE_KEYS if k not in props]
     print("")
     if want:
         print("INCOMPLETE: missing " + str(len(want)) + " provenance key(s):")

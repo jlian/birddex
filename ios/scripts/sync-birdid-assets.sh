@@ -47,7 +47,16 @@ fi
 # read from MODEL_ASSET_URLS in the web adapter rather than repeated here, so
 # regenerating the prior updates one place and iOS follows.
 ADAPTER="$REPO_ROOT/src/lib/bird-id-local-adapter.ts"
-PRIOR_NAME="$(grep -o '/priors/occurrence\.[0-9a-f]*\.bin\.gz' "$ADAPTER" | head -1)"
+if [[ ! -f "$ADAPTER" ]]; then
+  echo "error: missing $ADAPTER" >&2
+  echo "  it is declared in ios/project.yml inputFiles; if that entry is" >&2
+  echo "  gone, script sandboxing denies the read and this looks identical" >&2
+  exit 1
+fi
+# grep exits 1 on no match, and under `set -e` that would kill the script at
+# this assignment, making the empty-match diagnostic below unreachable. The
+# `|| true` keeps the failure local so the message actually fires.
+PRIOR_NAME="$(grep -o '/priors/occurrence\.[0-9a-f]*\.bin\.gz' "$ADAPTER" | head -1 || true)"
 PRIOR_NAME="${PRIOR_NAME#/priors/}"
 if [[ -z "$PRIOR_NAME" ]]; then
   echo "error: no /priors/occurrence.<hash>.bin.gz in $ADAPTER" >&2
