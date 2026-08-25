@@ -596,8 +596,7 @@ final class AddPhotosViewModel {
             let abstained = pBird.map { $0 < BirdIdEngine.birdProbeThreshold } ?? false
             let candidates = abstained ? [] : mapped
 
-            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)"
-                     + (abstained ? " (abstained on the bird probe)" : ""))
+            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)\(abstained ? " (abstained on the bird probe)" : "")")
             rangeAdjusted = !abstained && results.contains { $0.logP != nil }
             currentCandidates = candidates
 
