@@ -118,13 +118,29 @@ final class BirdIdEngineTests: XCTestCase {
             .appendingPathComponent("Fixtures/birdid-golden.json")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: url.path))
         struct Golden: Decodable {
-            struct Calibration: Decodable { let temperature: Double; let beta: Double }
+            struct Probe: Decodable {
+                let bias: Double
+                let plattA: Double
+                let plattB: Double
+                let threshold: Double
+            }
+            struct Calibration: Decodable {
+                let temperature: Double
+                let beta: Double
+                let probe: Probe
+            }
             let taxonomySha16: String
             let calibration: Calibration
         }
         let g = try JSONDecoder().decode(Golden.self, from: try Data(contentsOf: url))
         XCTAssertEqual(BirdIdEngine.calibration.temperature, g.calibration.temperature)
         XCTAssertEqual(BirdIdEngine.calibration.beta, g.calibration.beta)
+        // The probe scalars drift the same silent way temperature and beta do:
+        // a mismatched threshold still gates, just at the wrong rate.
+        XCTAssertEqual(BirdIdEngine.calibration.probe.bias, g.calibration.probe.bias)
+        XCTAssertEqual(BirdIdEngine.calibration.probe.plattA, g.calibration.probe.plattA)
+        XCTAssertEqual(BirdIdEngine.calibration.probe.plattB, g.calibration.probe.plattB)
+        XCTAssertEqual(BirdIdEngine.calibration.probe.threshold, g.calibration.probe.threshold)
         XCTAssertEqual(BirdIdEngine.taxonomySha16, g.taxonomySha16)
     }
 }

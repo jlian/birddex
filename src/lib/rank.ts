@@ -88,6 +88,26 @@ export const OCC_BACKOFF_K = 0.3
 export type Calibration = {
   temperature: number
   beta: number
+  /**
+   * Bird/not-bird probe, applied AFTER the species softmax and never inside
+   * it. See BIRD_PROBE in bird-id-local-adapter.ts for the fitted values and
+   * what each was measured to do.
+   */
+  probe: BirdProbe
+}
+
+/**
+ * Calibrated bird/not-bird head.
+ *
+ * `bias` completes the linear probe whose 768-d weight vector is the LAST row
+ * of the int8 text classifier. `plattA`/`plattB` map its raw output onto a
+ * calibrated P(bird). `threshold` is on the CALIBRATED scale.
+ */
+export type BirdProbe = {
+  bias: number
+  plattA: number
+  plattB: number
+  threshold: number
 }
 
 export type Candidate = {

@@ -3,7 +3,13 @@
   "taxonomySha16": "04951673b96b11bf",
   "calibration": {
     "temperature": 0.007435,
-    "beta": 1.1634
+    "beta": 1.1634,
+    "probe": {
+      "bias": 1.7004907607405835,
+      "plattA": 1.248338657716024,
+      "plattB": 2.1821600341974303,
+      "threshold": 0.3736373465
+    }
   },
   "blobVersion": 4,
   "blobTaxHash": "04951673b96b11bf",

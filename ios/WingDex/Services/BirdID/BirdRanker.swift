@@ -59,6 +59,22 @@ enum BirdRanker {
     struct Calibration: Sendable, Equatable {
         let temperature: Double
         let beta: Double
+        /// Bird/not-bird probe, applied AFTER the species softmax and never
+        /// inside it. Mirrors Calibration in src/lib/rank.ts.
+        let probe: BirdProbe
+    }
+
+    /// Calibrated bird/not-bird head.
+    ///
+    /// `bias` completes the linear probe whose 768-d weight vector is the LAST
+    /// row of the int8 text classifier. `plattA`/`plattB` map its raw output
+    /// onto a calibrated P(bird). `threshold` is on the CALIBRATED scale.
+    /// Mirrors BIRD_PROBE in src/lib/bird-id-local-adapter.ts.
+    struct BirdProbe: Sendable, Equatable {
+        let bias: Double
+        let plattA: Double
+        let plattB: Double
+        let threshold: Double
     }
 
     struct Candidate: Sendable, Equatable {

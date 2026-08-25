@@ -14,15 +14,23 @@
  *                  better than a threshold does.
  *   empty results  The server returned zero candidates for "no bird". A
  *                  classifier ALWAYS returns 25 ranked species, so an empty
- *                  list can never mean "no bird found". The AddPhotosFlow
- *                  empty state is therefore still UNREACHABLE on this path.
- *                  Reaching it needs an explicit abstention signal, not an
- *                  empty list. A discriminative bird/not-bird probe was built
- *                  and measured for exactly this, but it is NOT shipped: its
- *                  threshold was fitted on PyTorch embeddings and does not
- *                  transfer to the int8 ONNX encoder this file loads. See the
- *                  parity note in the pull request; do not wire a gate to that
- *                  empty state until the probe is refitted on ONNX outputs.
+ *                  list can never mean "no bird found" ON ITS OWN. That is now
+ *                  supplied by an explicit abstention signal rather than by an
+ *                  empty list: the bird/not-bird probe below returns P(bird),
+ *                  and identifyBirdLocally drops the candidates when it falls
+ *                  under BIRD_PROBE.threshold. The AddPhotosFlow empty state is
+ *                  therefore REACHABLE on this path.
+ *
+ *                  An earlier revision cut the probe after a parity check
+ *                  appeared to show its threshold did not survive the int8
+ *                  ONNX encoder. That check was CONFOUNDED: it scored a
+ *                  PyTorch student from wise_a0.90.pt against an int8 export of
+ *                  wise_a0.60.pt, so most of the measured "quantization drift"
+ *                  was an alpha difference between two different models.
+ *                  Re-measured with alpha held fixed, threshold transfer
+ *                  between fp32 and int8 moves the bird flag rate by at most
+ *                  0.18 pp. The probe that ships is fitted in the int8 space
+ *                  regardless, so no transfer is required.
  *
  * CONFIDENCE. `confidence` is the post-rerank softmax, which is what the gate
  * should read. Measured on the 3,322-photo validation split: at 0.7 it keeps
@@ -48,6 +56,12 @@ export interface BirdIdResult {
   cropBox?: { x: number; y: number; width: number; height: number }
   multipleBirds?: boolean
   rangeAdjusted?: boolean
+  /**
+   * Calibrated P(bird) for the photo, or null when the engine did not produce
+   * one. An empty `candidates` with a pBird below BIRD_PROBE.threshold is an
+   * abstention; an empty one without it is an upstream failure.
+   */
+  pBird?: number | null
 }
 
 export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
@@ -72,7 +86,7 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
  * (`cat wingclip_visual_int8.onnx wingclip_visual_int8.data
  * text_classifier_int8.bin | sha256sum`).
  */
-export const MODEL_VERSION = "cb8f129a"
+export const MODEL_VERSION = "62a76a30"
 
 /**
  * The four served assets, 67.53 MiB total. Versioned so a new model can never
@@ -87,6 +101,14 @@ export const MODEL_VERSION = "cb8f129a"
  * the prior moved to a new content-hashed file name, which already gives it a
  * fresh cache key. Bumping it here would evict 52 MiB of correctly cached
  * model data to deliver an identical model.
+ *
+ * It IS bumped for the probe row. text_classifier_int8.bin gained a 772-byte
+ * 11,168th row, so the model bytes genuinely changed and a stale immutable
+ * cache entry would hand an existing user an 11,167-row file. That file still
+ * decodes and still matches the taxonomy count, so the mismatch would NOT
+ * throw: the engine would simply read a species row as the probe and gate on
+ * noise. This is exactly the silent-staleness case the version query exists
+ * for.
  */
 export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
@@ -109,7 +131,7 @@ export const MODEL_ASSET_URLS = [
  * per-cell slice and the n_cm table, which are what let the backoff strength
  * live on the client instead of being frozen into the asset.
  */
-export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 22_623_826
+export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_621_696 + 22_623_826
 
 /**
  * Bytes exposed to the fetch reader across the four assets.
@@ -119,7 +141,67 @@ export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 22_623_826
  * This progress total is deliberately not shown to the user: quoting decoded
  * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
  */
-export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 22_623_826
+export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_621_696 + 22_623_826
+
+/**
+ * Bird/not-bird probe: the abstention signal, and the only thing that can make
+ * this path return zero candidates.
+ *
+ * The 768-d weight vector is NOT here. It is the LAST row of
+ * text_classifier_int8.bin (row 11167, after the 11,167 species rows), which
+ * already stores int8 rows plus fp32 per-row scales, so it fits with no format
+ * change for 772 bytes. These four scalars are inlined for the same reason
+ * temperature and beta are: they MUST match those bytes, and a fifth request is
+ * one more thing to get out of sync.
+ *
+ * FITTED IN THE int8 SPACE, deliberately. The app embeds through the int8 ONNX
+ * tower, so both the probe and this Platt pair come from the a060-int8 arm.
+ * Taking them from the fp32 arm would require the threshold to transfer across
+ * quantization, and although that transfer was re-measured as small (at most
+ * 0.18 pp of bird flag rate, with alpha held fixed), not depending on it at all
+ * is free.
+ *
+ * bias      Completes P_raw = sigmoid(w . e + bias) on the L2-normalised
+ *           embedding. From the logistic regression fitted on the FIT half
+ *           only: 7,745 birds against 10,125 hard negatives and 6,697
+ *           Imagenette non-birds. AUROC 0.9941 against both negative sets.
+ *
+ * plattA    P_cal = sigmoid(plattA * logit(P_raw) + plattB). Fitted by the
+ * plattB    mixture objective at pi_fit 0.10, NOT by maximum likelihood on the
+ *           raw probe output: the objective is the binary NLL of the DISPLAYED
+ *           confidence against top-1 correctness, which is what the user reads.
+ *           It improves bird calibration against the same-model no-probe
+ *           baseline: ECE(15) 0.0157 -> 0.0073 in int8, 0.0109 -> 0.0083 in
+ *           fp32. Mean P_cal is 0.985 on validation birds and 0.996 on 8,000
+ *           NABirds that the model never saw, against 0.248 on hard negatives
+ *           and 0.145 on Imagenette.
+ *
+ * threshold On the CALIBRATED scale. Derived as the 0.5% quantile of FIT-half
+ *           bird P_raw computed with the QUANTIZED weight row, so the shipped
+ *           scorer sits at bird_q 0.5% by construction rather than inheriting
+ *           an fp32 number and drifting; raw 0.1032229138 maps through the
+ *           Platt pair to this value. Measured at that point: 0.45% of
+ *           validation birds flagged, 74.10% of hard negatives rejected,
+ *           84.90% of Imagenette rejected, and 0.0375% of the 8,000 NABirds
+ *           rejected. Species top-1 over the photos that still pass is 93.68%
+ *           against 93.95% ungated, so the gate costs 0.27 pp of accuracy.
+ *
+ *           Per 1,000 uploads that is about 4 real birds wrongly sent to the
+ *           empty state and about 740 hard non-birds caught.
+ *
+ * WHAT THIS IS NOT MEASURED TO DO. 74% hard-negative rejection is an UPPER
+ * BOUND for non-bird types the probe never saw. Rejection measured across
+ * negative SETS rather than within one collapses by about 3.14x, so a novel
+ * kind of non-bird photo should be expected to pass far more often than these
+ * numbers suggest. The gate is a cheap filter on the common case, not a
+ * detector.
+ */
+export const BIRD_PROBE = {
+  bias: 1.7004907607405835,
+  plattA: 1.248338657716024,
+  plattB: 2.1821600341974303,
+  threshold: 0.3736373465,
+} as const
 
 /**
  * The full asset bundle the engine needs.
@@ -145,7 +227,7 @@ export const MODEL_ASSETS: EngineAssets = {
   occurrenceUrl: MODEL_ASSET_URLS[3],
   taxonomy: taxonomy as EngineAssets["taxonomy"],
   taxonomySha16: "04951673b96b11bf",
-  calibration: { temperature: 0.007435, beta: 1.1634 },
+  calibration: { temperature: 0.007435, beta: 1.1634, probe: BIRD_PROBE },
 }
 
 /**
@@ -375,7 +457,23 @@ export async function identifyBirdLocally(
   // rangeStatus is BirdLife vocabulary. The Bayesian prior has no notion of
   // present or out-of-range, only a probability, so it is omitted rather than
   // faked from a threshold. cropBox and multipleBirds are absent by design.
-  return mapIdentifyResults(results)
+  const mapped = mapIdentifyResults(results)
+
+  // ABSTENTION. Below the probe threshold this is very likely not a bird, so
+  // the candidates are dropped and the caller gets the empty list that the
+  // AddPhotosFlow empty state keys off. Note the ranked species are discarded
+  // rather than shown with a low confidence: at P_cal 0.37 the top species is
+  // still a confident-looking guess at what KIND of bird it would be if it
+  // were one, and dogs come back as African Penguin. Offering that list would
+  // invite the user to pick from it.
+  //
+  // pBird is left on the result either way so a caller can tell an abstention
+  // apart from a genuinely empty upstream response.
+  const pBird = results.length > 0 ? results[0].pBird : null
+  if (pBird !== null && pBird < BIRD_PROBE.threshold) {
+    return { candidates: [], rangeAdjusted: false, pBird }
+  }
+  return { ...mapped, pBird }
 }
 
 /**
@@ -392,6 +490,13 @@ export function shouldPromptForCrop(
   alreadyPrompted: boolean,
 ): boolean {
   if (alreadyPrompted) return false
+  // An abstention already routes to the empty state, which offers Crop & Retry
+  // as its primary action. Returning true here as well would send it to the
+  // manual-crop step instead and the empty state would never be seen.
+  if (result.pBird !== null && result.pBird !== undefined &&
+      result.pBird < BIRD_PROBE.threshold) {
+    return false
+  }
   const top = result.candidates[0]
   if (!top) return true
   return top.confidence < CONFIDENCE_PROMPT_THRESHOLD
