@@ -8,11 +8,40 @@ import Foundation
 /// on which similarity trades against the geographic prior, so reusing another
 /// model's T silently mis-weights the prior.
 ///
+/// THE PRIOR, AND WHY IT DEPENDS ON THE BLOB VERSION.
+///
+/// Against a v3 blob the prior is simply n_scm / n_cm, that species' share of
+/// all sightings in that cell that month, because that normalised ratio is the
+/// only thing v3 stores. n_cm is divided out at build time and is not
+/// recoverable, so no shrinkage can be applied on the client at all.
+///
+/// Against a v4 blob the prior is the Dirichlet-multinomial posterior mean
+///
+///     P(s | c, m) = (n_scm + k * P(s | c)) / (n_cm + k)
+///
+/// which shrinks a thin cell-month toward that cell's month-agnostic
+/// distribution. v4 ships the pooled slice and n_cm precisely so k can live
+/// here, as a client constant, and be retuned without rebuilding the asset.
+///
 /// Cells with no occurrence data fall back to vision-only ranking, which is a
 /// graceful degradation rather than a confident wrong answer.
 enum BirdRanker {
     /// Absent-from-cell floor. The shipped temperature and beta were fitted at 1e-12.
     static let occFloor = log(1e-12)
+
+    /// Dirichlet-multinomial backoff strength, in pseudo-counts. Applied ONLY to
+    /// a v4 blob, which carries the pooled slice and n_cm needed to compute it;
+    /// a v3 blob ignores this entirely and cannot do otherwise.
+    ///
+    /// WHY k IS NOT ZERO. On 47.9M occurrence observations a majority of
+    /// (species, cell, month) triples are singletons, so at k = 0 the
+    /// leave-one-out predictive likelihood is -inf. k = 1 is a single
+    /// pseudo-count, the standard weakest-informative choice.
+    ///
+    /// This is a CLIENT constant on purpose. Baking it into the blob would
+    /// freeze it into a cached, immutable asset and make every retune a full
+    /// rebuild and re-download. Changing it requires refitting T and beta.
+    static let occBackoffK: Double = 1
 
     struct Calibration: Sendable, Equatable {
         let temperature: Double
@@ -42,16 +71,61 @@ enum BirdRanker {
         month: Int?
     ) -> [Scored] {
         var cellPriors: [Int: Double]?
+        var pooled: [Int: Double]?
+        var nCM: Int?
         if let occurrence, let location,
+           location.lat.isFinite, location.lon.isFinite,
            let cell = EqualEarth.cell(lat: location.lat, lon: location.lon) {
             cellPriors = occurrence.cellPriors(row: cell.row, col: cell.col, month: month)
+            // Backoff is deliberately gated on the MONTHLY slice existing.
+            // Without a month, cellPriors returns nil and v3 degrades to
+            // vision-only; letting total() fall back to n_c here would instead
+            // apply the pooled prior and silently change the no-month and
+            // unpopulated-cell-month cases from "no prior" to "month-agnostic
+            // prior". That may well be an improvement, but it is a separate
+            // product decision from adding shrinkage, and it would arrive
+            // unmeasured and unfitted. Keep the v3 fallback surface.
+            if occurrence.version >= 4, cellPriors != nil {
+                pooled = occurrence.pooledPriors(row: cell.row, col: cell.col)
+                nCM = occurrence.total(row: cell.row, col: cell.col, month: month)
+            }
+        }
+
+        // Backoff needs BOTH the denominator and the distribution to shrink
+        // toward. Missing either means falling back to the plain v3 ratio rather
+        // than improvising: a missing n_cm treated as zero would silently
+        // replace the monthly prior with the pooled one.
+        let backoff: (pooled: [Int: Double], nCM: Double)?
+        if let pooled, let nCM, occBackoffK > 0 {
+            backoff = (pooled, Double(nCM))
+        } else {
+            backoff = nil
         }
 
         let scored = candidates.map { c -> Scored in
-            // A species absent from a POPULATED cell gets occFloor, not zero and
-            // not -infinity. Zero would treat "never observed here" as neutral,
-            // and -infinity would hard-veto genuine rarities.
-            let logP: Double? = cellPriors.map { $0[c.idx] ?? occFloor }
+            let lp = cellPriors?[c.idx]
+            var logP: Double?
+            if let backoff {
+                // n_scm is reconstructed as p_hat * n_cm. p_hat carries the
+                // blob's 5-bit quantisation error, but that identical error is
+                // already in the ratio the v3 path uses today, so backoff adds
+                // no new source of error.
+                let nscm = lp.map { exp($0) * backoff.nCM } ?? 0
+                let ppv = backoff.pooled[c.idx].map { exp($0) } ?? 0
+                let num = nscm + occBackoffK * ppv
+                // Absent from BOTH the monthly and the pooled slice: the
+                // numerator is exactly zero and log would be -infinity, which
+                // hard-vetoes rather than ranking. occFloor keeps the same
+                // semantics as the v3 path.
+                logP = num > 0 ? log(num / (backoff.nCM + occBackoffK)) : occFloor
+            } else {
+                // A species absent from a POPULATED cell gets occFloor, not zero
+                // and not -infinity. Zero would treat "never observed here" as
+                // neutral, and -infinity would hard-veto genuine rarities.
+                logP = cellPriors.map { _ in lp ?? occFloor }
+            }
+            // Never let a floor-only value read as better than the floor.
+            if let v = logP, v < occFloor { logP = occFloor }
             let score = c.sim / calibration.temperature + (logP.map { calibration.beta * $0 } ?? 0)
             return Scored(idx: c.idx, sim: c.sim, score: score, logP: logP)
         }
