@@ -559,12 +559,24 @@ validation half, shipped scoring path, `wise_a0.60.pt`:
 `ios/WingDex/Services/BirdID/BirdRanker.swift` and `bird-probe-order.test.ts` came
 from `wise_a0.90.pt`.** That is WingCLIP-0.1's best alpha, not WingCLIP-0.3's. It is
 a real measurement of a real checkpoint; it is simply not a measurement of the one
-in `public/`. Those comments are the provenance record for the ranker CONSTANTS,
-which is why they have been left alone here rather than silently rewritten: the
-constants they justify were fitted on that arm and are unchanged. **They still need
-correcting, and doing so is a separate change** so that a published claim is not
-edited inside a preprocessing fix. Do not copy 95.66 into a model card, a release
-note or a store listing.
+in `public/`. Those comments are the provenance record for the ranker CONSTANTS.
+
+**CORRECTION.** An earlier revision of this paragraph said "the constants they
+justify were fitted on that arm", meaning a0.90. **That was wrong**, and it
+would have meant the shipped constants were fitted for a model that is not
+shipped. The four constants `OCC_FLOOR = log(3e-5)`, `k = 0.3`,
+`T = 0.007435` and `beta = 1.1634` were fitted on
+`ml/distill/calib_cands_tiny39_a060.parquet`, which is the **alpha 0.60** arm,
+the shipped checkpoint. `jobs/val_absolute.py` records the arm-to-file mapping:
+`tiny39` is `calib_cands_tiny39_a060.parquet` and only the separate `vitb` arm
+uses `calib_cands_01_a090.parquet`. Reproduced 2026-08-25 with
+`sweep_floor_k.py --floors 3e-5 --ks 0.3` on that parquet, which returns
+`T 0.007435, beta 1.1634` exactly; `refit_floor.py` on the same file likewise
+reproduces the PREVIOUS pair (0.00754535 / 0.543508) at the old 1e-12 floor.
+
+What IS a0.90 is the **95.66 accuracy figure**, and only that figure. Do not
+copy 95.66 into a model card, a release note or a store listing; the shipped
+web number is **94.27**.
 
 Two smaller mismatches, kept explicit so they are not "reconciled" by guesswork:
 the 95.09 and 95.00 figures elsewhere in this file are also fp32 harness runs, and
