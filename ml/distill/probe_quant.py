@@ -21,8 +21,18 @@ CACHE = '/home/jlian/refit_cache_onnx.npz'
 # Platt for the a060-int8 arm, from /home/jlian/refit_a060.json.
 PA = 1.248338657716024
 PB = 2.1821600341974303
-# bird_q 0.5% threshold, a060-int8 arm, a quantile of FIT-half bird P_raw.
-THR_RAW = 0.10477584731235684
+# THE SHIPPED GATE. bird_q 0.5% threshold, a060-int8 arm, taken as a quantile
+# of FIT-half bird P_raw computed with the QUANTIZED row, which is what the
+# client scores with. This is the number probe_thr.py emits as
+# int8probe.thr_raw and the one src/lib/bird-id-local-adapter.ts ships through
+# Platt as threshold 0.3736373465; src/__tests__/bird-id-probe.test.ts pins
+# that mapping.
+#
+# This used to be 0.10477584731235684, the FP32-probe quantile, whose Platt
+# image is 0.3785 and which therefore is NOT the gate that ships. Measuring
+# quantization cost at a gate the client never applies reports movement at the
+# wrong operating point.
+THR_RAW = 0.1032229138125628
 
 
 def sig(x):
@@ -151,6 +161,23 @@ def main():
     print('')
     print('  worst flag movement %.4f pp (ship-if <= 0.1 pp)'
           % out['max_abs_flag_delta_pp'])
+    # At the SHIPPED gate the worst movement is 0.2716 pp, on hardneg, so the
+    # 0.1 pp bar is EXCEEDED on the aggregate number. Do not read that as a
+    # 0.1 pp result. Split it by direction before deciding:
+    #
+    #   val_bird   +0.0903 pp   MORE birds wrongly flagged. This is the harm.
+    #   hardneg    +0.2716 pp   MORE non-birds rejected. Correct behaviour.
+    #   imagenette +0.2314 pp   MORE non-birds rejected. Correct behaviour.
+    #   nabirds    +0.0000 pp   unchanged.
+    #
+    # The only set where quantization costs accuracy is val_bird, and it moves
+    # 0.0903 pp, inside the bar. Every set that breaches the bar breaches it by
+    # rejecting MORE non-birds. Whether that clears the gate is a judgement
+    # about what the bar was protecting, not something this script decides.
+    bird = [r for r in rows if r['set'] in ('val_bird', 'nabirds')]
+    worst_bird = max(abs(r['flag_delta_pp']) for r in bird)
+    print('  worst movement on BIRD sets %.4f pp (the false-reject cost)'
+          % worst_bird)
     print('  equivalent P_cal threshold %.10f' % out['thr_cal'])
 
 

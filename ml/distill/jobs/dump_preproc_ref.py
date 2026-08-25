@@ -33,6 +33,12 @@ import sys
 import numpy as np
 from PIL import Image
 
+# ml/distill is the parent of jobs/. Adding it derives from __file__, so this
+# works from any cwd, unlike the sibling path this used to hardcode.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import shipped_model as SM  # noqa: E402  the pinned shipped checkpoint
+
 
 def log(m):
     print(m, flush=True)
@@ -43,8 +49,11 @@ def main():
     ap.add_argument("--nabirds", default="nabirds")
     ap.add_argument("--n", type=int, default=24)
     ap.add_argument("--out-dir", required=True)
+    # The pin, NOT a sibling path. shipped_model.py is the single source of
+    # truth for which checkpoint ships, and its path derives from __file__, so
+    # it no longer resolves against whatever cwd the caller happened to use.
     ap.add_argument("--checkpoint",
-                    default="runs/ft_tiny39_fresh/wise_a0.60.pt",
+                    default=SM.SHIPPED_CHECKPOINT,
                     help="shipped checkpoint; its timm transform is the reference")
     args = ap.parse_args()
 
