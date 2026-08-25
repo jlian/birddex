@@ -7,9 +7,27 @@
 # outliers are exactly what broke int4 at block 128. So the -8.85 measured on
 # the baseline may not transfer either way. Re-measure on the winner.
 #
-# Picks the best alpha from the phase-3 eval JSONs, so it needs no argument.
+# The checkpoint is PINNED in ml/distill/shipped_model.py, not selected here.
+# This script used to scan runs/ft_tiny39_fresh/nbeval_a*.json and take the
+# highest student top1. That cannot give a defensible answer, because 0.60 and
+# 0.75 TIE at 86.90, so the winner was decided by file ordering rather than by
+# evidence. The scan is kept below as a CROSS-CHECK only: if it disagrees with
+# the pin, this script stops and names both instead of silently preferring
+# either one. The pin wins by default because it is a reviewed assertion with
+# the tie-break reasoning written down; the scan is a heuristic that cannot
+# distinguish a tie from a winner.
+#
+# Pass --allow-mismatch to proceed anyway after reading the warning.
 set -uo pipefail
 cd /home/jlian/wingdex/ml/distill || exit 1
+
+ALLOW_MISMATCH=0
+for arg in "$@"; do
+  case "$arg" in
+    --allow-mismatch) ALLOW_MISMATCH=1 ;;
+    *) echo "unknown argument: $arg"; exit 2 ;;
+  esac
+done
 
 V=./.venv/bin/python
 FT=runs/ft_tiny39_fresh
@@ -24,10 +42,21 @@ if [ ! -f "$S/phase3.done" ]; then
   say "ABORT: $S/phase3.done missing, phase 3 has not finished"; exit 3
 fi
 
-# Pick the winning alpha from the eval JSONs rather than hardcoding one.
-BEST=$($V - <<EOF
+# The pinned answer. Single source of truth.
+CKPT=$($V -c 'import shipped_model as S; print(S.SHIPPED_CHECKPOINT)')
+PIN=$($V -c 'import shipped_model as S; print("%.2f" % S.SHIPPED_WISE_ALPHA)')
+if [ -z "$CKPT" ] || [ ! -f "$CKPT" ]; then
+  say "ABORT: pinned checkpoint missing: $CKPT"; exit 4
+fi
+say "pinned alpha = $PIN -> $CKPT"
+
+# Cross-check: what would a max-scan of the phase-3 evals have chosen? This is
+# informational. It reports EVERY alpha at the maximum, so a tie is visible as
+# a tie rather than being collapsed to whichever file came first.
+SCAN=$($V - <<'EOF'
 import json, glob, os
-best, top = None, -1.0
+top = -1.0
+best = []
 for p in sorted(glob.glob("runs/ft_tiny39_fresh/nbeval_a*.json")):
     try:
         d = json.load(open(p))
@@ -35,22 +64,55 @@ for p in sorted(glob.glob("runs/ft_tiny39_fresh/nbeval_a*.json")):
         continue
     s = d.get("student")
     t = s.get("top1") if isinstance(s, dict) else d.get("student_top1")
-    if t is not None and t > top:
-        top = t
-        best = os.path.basename(p).replace("nbeval_a", "").replace(".json", "")
-print(best or "")
+    if t is None:
+        continue
+    a = os.path.basename(p).replace("nbeval_a", "").replace(".json", "")
+    if t > top:
+        top, best = t, [a]
+    elif t == top:
+        best.append(a)
+print(",".join(best) + " " + ("%.2f" % top) if best else "")
 EOF
 )
 
-if [ -z "$BEST" ]; then
-  say "ABORT: no phase-3 eval results, cannot pick an alpha"; exit 4
+if [ -z "$SCAN" ]; then
+  say "WARNING: no phase-3 eval results, cross-check skipped"
+else
+  SCAN_A=${SCAN%% *}
+  SCAN_T=${SCAN##* }
+  say "cross-check: eval scan peaks at top1 $SCAN_T for alpha(s) $SCAN_A"
+  case ",$SCAN_A," in
+    *",$PIN,"*)
+      if [ "$SCAN_A" != "$PIN" ]; then
+        say "cross-check OK: the pin $PIN is among the tied maxima ($SCAN_A)."
+        say "  A tie is why the alpha is pinned rather than scanned."
+      else
+        say "cross-check OK: scan and pin agree on $PIN"
+      fi
+      ;;
+    *)
+      say ""
+      say "########################################################"
+      say "# WARNING: SCAN AND PIN DISAGREE                        #"
+      say "########################################################"
+      say "#  pinned alpha (shipped_model.py) : $PIN"
+      say "#  scan best alpha(s)              : $SCAN_A  (top1 $SCAN_T)"
+      say "#"
+      say "#  Neither is preferred silently. Either the pin is now"
+      say "#  stale and shipped_model.py must be updated with the"
+      say "#  reasoning, or the eval JSONs are from a different run."
+      say "#  Remember runs/ft_tiny39_fresh/ holds SIX alphas and"
+      say "#  wise_a0.90.pt is the PREVIOUS model's optimum."
+      say "#"
+      say "#  Re-run with --allow-mismatch to proceed on the PIN."
+      say "########################################################"
+      if [ "$ALLOW_MISMATCH" -ne 1 ]; then
+        say "ABORT: pin/scan mismatch and no --allow-mismatch"; exit 6
+      fi
+      say "proceeding on the PIN because --allow-mismatch was given"
+      ;;
+  esac
 fi
-
-CKPT="$FT/wise_a${BEST}.pt"
-if [ ! -f "$CKPT" ]; then
-  say "ABORT: $CKPT missing"; exit 4
-fi
-say "best alpha = $BEST -> $CKPT"
 
 # The rescue sweep: fp32, int8, and int4 at three block sizes plus two mixed
 # variants. On the baseline, block 32 recovered 6.6 of the 8.85 lost points.

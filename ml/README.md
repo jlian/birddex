@@ -441,21 +441,43 @@ same naming scheme, and neither is marked. A whole day of measurements was
 contaminated by loading the 0.90 file and reporting the result as the shipped model.
 The 95.66 figure in the client comments comes from exactly that mistake.
 
-**Alpha is selected DYNAMICALLY, so the filename is an output, not an input.**
-`jobs/phase4_quant.sh` scans `runs/ft_tiny39_fresh/nbeval_a*.json` and takes the
-alpha with the highest `student.top1`. **0.60 and 0.75 TIE at 86.90**, so which one
-wins is decided by dict iteration and file ordering, not by evidence. It happens to
-land on 0.60. Nothing enforces that.
+**Alpha WAS selected dynamically, and is now PINNED. FIXED.**
+`jobs/phase4_quant.sh` used to scan `runs/ft_tiny39_fresh/nbeval_a*.json` and take
+the alpha with the highest `student.top1`. **0.60 and 0.75 TIE at 86.90**, so which
+one won was decided by dict iteration and file ordering, not by evidence. It
+happened to land on 0.60. Nothing enforced that.
 
-Two rules follow:
+The shipped checkpoint is now asserted once in
+[`ml/distill/shipped_model.py`](distill/shipped_model.py) as
+`SHIPPED_CHECKPOINT`, with the tie-break reasoning in the module docstring.
+`phase4_quant.sh` reads that pin and keeps the scan only as a CROSS-CHECK: the
+scan reports EVERY alpha at the maximum, so a tie shows up as a tie. If the scan
+excludes the pin, the script prints both and aborts unless given
+`--allow-mismatch`. Neither source is preferred silently.
 
-1. **Pin the alpha explicitly.** Pass it in rather than letting the script pick,
-   and fail loudly on a tie instead of resolving one arbitrarily.
-2. **Read the checkpoint, do not trust the path.** Several scripts still default to
-   `ft_tiny39_fresh/wise_a0.90.pt` (`cj_cal.py`, `cj_disc.py`, `cj_refit.py`,
-   `disc_probe3.py`, `emit_emb_onnx.py`, `parity_emb.py`, `parity_gate.py`), which
-   is the WRONG checkpoint for anything describing the shipped app. Any result
-   quoted as "the shipped model" must state which file produced it.
+These scripts were repointed from `wise_a0.90.pt` to the pin:
+
+| script | was the checkpoint used for weights? |
+|---|---|
+| `cj_cal.py`, `cj_disc.py`, `cj_refit.py`, `disc_probe3.py`, `vemb.py` | **yes**, PyTorch fp32 forward. Prior results are SUPERSEDED. |
+| `parity_emb.py`, `parity_gate.py` | **yes**. These compare PyTorch against the int8 ONNX, and the ONNX came from alpha 0.60 while the PyTorch side ran 0.90, so the old deltas mix quantisation with a model difference and were never parity measurements. |
+| `emit_emb_onnx.py`, `vemb_onnx.py` | **no.** Weights come from the ONNX session; the checkpoint supplies only the timm transform. Verified identical across all six alphas (Resize 248, CenterCrop 224, same normalisation), so no number changed. Repointed for consistency. |
+
+`upload_wingclip01.py` keeps `runs/ft_clean_01/wise_a0.90.pt` and is CORRECT: it
+publishes WingCLIP-0.1, the ViT-B model whose optimum really is 0.90. Different
+run directory, different model.
+
+**Read the checkpoint, do not trust the path.** Any result quoted as "the shipped
+model" must still state which file produced it.
+
+**The shipped ONNX now carries its own provenance.** `public/models/wingclip_visual_int8.onnx`
+records `wingdex.source_checkpoint`, its sha256, `wingdex.wise_alpha`,
+`wingdex.preprocess_resize` (248), `wingdex.preprocess_crop` (224) and
+`wingdex.taxonomy_sha256` in ONNX `metadata_props`. Read them back with
+`.venv/bin/python check_provenance.py`, which also fails if the declared
+resize/crop disagree with `CLIP_RESIZE` / `CLIP_CROP` in
+`src/lib/clip-preprocess.ts`. `export_onnx.py` writes these on every export and
+`jobs/split_external.py` warns if a graph reaches the split with none.
 
 **Use one cache for each teacher.** The cache key is the image path only. The hit
 test is `all(path in cached)`. A cache from a different teacher therefore starts a

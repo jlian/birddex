@@ -14,6 +14,13 @@ This measures the operating point directly rather than inferring it:
 If the ONNX rejection rates collapse relative to the PyTorch numbers
 (51.6% hardneg, 69.0% imagenette), the threshold does not transfer and the
 gate must be refit on ONNX embeddings before shipping.
+
+SUPERSEDED RESULTS. The PyTorch side of this comparison previously ran
+runs/ft_tiny39_fresh/wise_a0.90.pt, a DIFFERENT model from the int8 ONNX
+it was being compared against, which was exported from alpha 0.60. Any
+earlier delta from this file therefore mixes the quantisation difference
+with a 0.34-point model difference and is not a parity measurement. The
+default is now the pinned shipped checkpoint.
 """
 import argparse
 import io
@@ -43,6 +50,7 @@ HOME = os.path.expanduser('~')
 # sys.path entry made the script unrunnable from any other checkout.
 sys.path.insert(0, HERE)
 import emit_calib_candidates as E  # noqa: E402
+import shipped_model as SM  # noqa: E402  the pinned shipped checkpoint
 
 A = 1.3595343229097947
 B = 2.581534818041523
@@ -128,8 +136,7 @@ def main():
                     help='ml/distill, passed to E.load_student for its '
                          'relative model sources.')
     ap.add_argument('--checkpoint',
-                    default=os.path.join(HERE, 'runs', 'ft_tiny39_fresh',
-                                         'wise_a0.90.pt'),
+                    default=SM.SHIPPED_CHECKPOINT,
                     help='PyTorch student. The threshold is fitted on its '
                          'embeddings.')
     ap.add_argument('--onnx', default=None,
