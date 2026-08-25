@@ -9,6 +9,14 @@ import XCTest
 ///   ref_NNN.f32.bin  the PIL reference tensor, 3*224*224
 ///   js_NNN.f32.bin   the shipped TypeScript tensor, 3*224*224
 ///
+/// The reference is built from the SHIPPED CHECKPOINT'S timm transform,
+/// Resize(248) -> CenterCrop(224), read off the checkpoint by
+/// ml/distill/jobs/dump_preproc_ref.py. It used to be built from generic
+/// open_clip ViT-B-16, which is 224 -> 224 and makes the crop a no-op, so this
+/// whole ladder passed while the client fed the model the wrong picture.
+/// Fixtures generated before 2026-08-25 are STALE and will fail; regenerate
+/// them rather than relaxing the bound.
+///
 /// Swift and TypeScript run the same double-precision math and both quantise to
 /// integers before normalising, so they should agree to the bit. PIL is the
 /// ground truth and is allowed a small tolerance, matching what the web port
@@ -53,16 +61,61 @@ final class CLIPPreprocessParityTests: XCTestCase {
 
     func testResizeDimensionsUseFloorNotRound() throws {
         let meta = try Self.loadMeta()
+        let target = CLIPPreprocess.resize
         for p in meta.photos {
             let short = min(p.w, p.h)
             let long = max(p.w, p.h)
-            let want = Int((224.0 * Double(long) / Double(short)).rounded(.down))
-            let got = CLIPPreprocess.outputSize(width: p.w, height: p.h, size: 224)
+            let want = Int((Double(target) * Double(long) / Double(short)).rounded(.down))
+            let got = CLIPPreprocess.outputSize(width: p.w, height: p.h, size: target)
             XCTAssertEqual(max(got.width, got.height), want, "photo \(p.i) is \(p.w)x\(p.h)")
-            XCTAssertEqual(min(got.width, got.height), 224)
+            XCTAssertEqual(min(got.width, got.height), target)
         }
         // The case the comment in the port calls out: floor gives 335, round 336.
         XCTAssertEqual(CLIPPreprocess.outputSize(width: 1024, height: 683, size: 224).width, 335)
+    }
+
+    /// The resize target and the crop size must stay DIFFERENT.
+    ///
+    /// They were one constant, which made the centre crop a no-op and fed the
+    /// model a ~11% wider field of view than it was trained on. Measured cost
+    /// on the validation half, shipped scoring path: int8 93.78 against 94.27,
+    /// fp32 93.76 against 94.82, McNemar p = 0.0005. Nothing threw, and every
+    /// other test in this file still passed, so pin the constants.
+    func testResizeAndCropTargetsDiffer() throws {
+        XCTAssertEqual(CLIPPreprocess.resize, 248)
+        XCTAssertEqual(CLIPPreprocess.crop, 224)
+        XCTAssertNotEqual(CLIPPreprocess.resize, CLIPPreprocess.crop)
+
+        // And the crop must actually discard something.
+        let n = 300
+        let img = CLIPPreprocess.RGB(
+            data: [UInt8](repeating: 128, count: n * n * 3), width: n, height: n)
+        let r = CLIPPreprocess.resizeShorterSide(img, size: CLIPPreprocess.resize)
+        XCTAssertEqual(r.width, 248)
+        XCTAssertEqual(r.height, 248)
+        let c = CLIPPreprocess.centerCrop(r.data, width: r.width, height: r.height,
+                                          size: CLIPPreprocess.crop)
+        XCTAssertLessThan(c.count, r.data.count)
+        XCTAssertEqual(c.count, CLIPPreprocess.crop * CLIPPreprocess.crop * 3)
+    }
+
+    /// The fixtures must match the transform the port claims to implement.
+    /// A stale ml/parity generated at 224 would otherwise fail the tensor
+    /// comparisons below with no hint as to why.
+    func testFixturesWereGeneratedForThisTransform() throws {
+        let url = Self.parityDir.appendingPathComponent("meta.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw XCTSkip("Missing \(url.path).")
+        }
+        let obj = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+        guard let d = obj as? [String: Any],
+              let resize = d["resize"] as? Int, let crop = d["crop"] as? Int else {
+            XCTFail("ml/parity/meta.json has no resize/crop: regenerate it with "
+                    + "ml/distill/jobs/dump_preproc_ref.py")
+            return
+        }
+        XCTAssertEqual(resize, CLIPPreprocess.resize, "stale fixtures, regenerate ml/parity")
+        XCTAssertEqual(crop, CLIPPreprocess.crop, "stale fixtures, regenerate ml/parity")
     }
 
     /// One pass over the fixtures, because preprocessing 24 full-size photos in

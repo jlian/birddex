@@ -168,6 +168,8 @@ actor BirdIdEngine {
     }
 
     private func embed(_ pixels: [Float], model: MLModel) throws -> [Float] {
+        // Stays 224: preprocess() resizes the SHORTER side to 248 and then
+        // centre-crops 224, so only the resize target moved, not the tensor.
         let array = try MLMultiArray(shape: [1, 3, 224, 224], dataType: .float32)
         pixels.withUnsafeBufferPointer { src in
             let dst = array.dataPointer.bindMemory(to: Float.self, capacity: pixels.count)

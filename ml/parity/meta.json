@@ -9,6 +9,8 @@
   0.26130258,
   0.27577711
  ],
+ "resize": 248,
+ "crop": 224,
  "size": 224,
  "interpolation": "bicubic",
  "photos": [

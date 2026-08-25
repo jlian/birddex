@@ -181,7 +181,8 @@ more than **86.41** NABirds top-1. That is the BioCLIP-2 score on the full
 | F6 | Choose the recipe basis for TinyCLIP | Phase C settled the recipe for ViT-B, but a 2.2x capacity cut can move back into the regime where regularization helps | ✅ | 0.2 basis wins on the pilot: val_cos 0.9560 vs 0.9438. This is the opposite of the [C6](#phase-c-recipe-search-on-vit-b) result at full scale on ViT-B, which is the expected direction for a smaller model. |
 | F7 | Run the full 7,555-species distill | TinyCLIP-39M, 0.2 basis, WingCLIP-0.1 teacher, 25 epochs | ✅ | Finished at val_cos 0.9641 and 84.98 NABirds top-1 before fine-tuning. This beats the 81.83 distill-only baseline by 3.15 points. |
 | F8 | Fine-tune and sweep alpha | Same chain as [D3 and D4](#phase-d-beat-the-teacher) applied to the new student, on a ground-truth set disjoint from BOTH the distillation corpus and the set that produced the teacher | ✅ | **SHIP BAR CLEARED: 86.90 against BioCLIP-2 at 86.41**, on the full 24,633-image eval. Best alpha is 0.60, with 0.75 tied. The optimum moved DOWN from the 0.90 that ViT-B wanted, as predicted for a 2.26x smaller model. Sweep: 0.25 86.27, 0.40 86.64, 0.50 86.82, 0.60 **86.90**, 0.75 86.90, 0.90 86.56. Fine-tune gain over the distill baseline is +1.92 (84.98 to 86.90). Retention against the WingCLIP-0.1 teacher (89.93) is 96.6% at 2.26x fewer parameters. The set is 143,890 photos over 3,662 species, excluded by photo_id and by observation_uuid. See the exclusion rule in [Eval methodology](#eval-methodology). |
-| F10 | Measure quantisation on the SHIPPING ARTIFACT | Sizes were calculated, and the only measured int4 cost came from ViT-B. A WiSE-FT blend averages two weight sets, so it can carry a different outlier structure from the distill baseline | ✅ | Measured on `wise_a0.60.pt` over all 24,633 images. **int8 is the only usable format**: 86.82 at 38.9 MB, which clears the bar and preserves the embedding almost exactly (cos 0.999923, 99.27% top-1 agreement with fp32). Every int4 variant misses: blk128 81.50, blk64 84.06, blk32 84.61, mixed ffn4/blk32+sens8 85.07, mixed ffn4/blk64+sens8 85.19. Re-measuring on the blend mattered: blk128 lost 5.41 here against 8.85 on the distill baseline, so the artifact really does quantise differently. |
+| F10 | Measure quantisation on the SHIPPING ARTIFACT | Sizes were calculated, and the only measured int4 cost came from ViT-B. A WiSE-FT blend averages two weight sets, so it can carry a different outlier structure from the distill baseline | ✅ | Measured on `wise_a0.60.pt` over all 24,633 images. **int8 is the only usable format**: 86.82 at 38.9 MB, which clears the bar and preserves the embedding almost exactly (cos 0.999923, 99.27% top-1 agreement with fp32). Every int4 variant misses: blk128 81.50, blk64 84.06, blk32 84.61, mixed ffn4/blk32+sens8 85.07, mixed ffn4/blk64+sens8 85.19. Re-measuring on the blend mattered: blk128 lost 5.41 here against 8.85 on the distill baseline, so the artifact really does quantise differently. ⚠️ **The 99.27% agreement is FAKE-QUANT, not the shipped ONNX.** See [F10a](#phase-f-shrink-the-model-to-clear-the-size-gate). |
+| F10a | Correct what [F10](#phase-f-shrink-the-model-to-clear-the-size-gate) actually measured | F10 reports int8 at 86.82 with cos 0.999923 and **99.27% top-1 agreement with fp32**, and that number is quoted as if it described the artifact users run. It does not. `jobs/quant_rescue.py` calls `fake_quant_int()`, which rounds the WEIGHTS to an int8 grid and writes them straight back as fp32 tensors. Activations stay fp32 and every matmul stays an fp32 matmul. The shipped web artifact is built by onnxruntime `quantize_dynamic`, which uses REAL integer kernels and quantises activations per batch at run time. Those are different computations, so there is no reason for them to agree to the same number | ✅ | **Both numbers are real; they measure different things.** PyTorch fake-quant (int8 weights, fp32 activations, fp32 kernels): **99.27%** agreement, cos 0.999923. The ACTUAL shipped ONNX (`quantize_dynamic`, real integer kernels): **97.64%** agreement. Fake-quant is the right tool for RANKING precision levels cheaply, which is what F10 used it for and why the int4 sweep is still valid. It is the wrong tool for claiming fidelity of the shipped file, and the gap is 1.63 points of top-1 agreement, not rounding. Quote 97.64% whenever the sentence is about what users run. |
 | F11 | Rescue int4 with block size and mixed precision | int4 at the default block of 128 collapses. Two standard fixes exist: a smaller group so fewer weights share one scale, and mixed precision that keeps sensitive layers at int8 | ✅ | **Both help and neither is enough.** Block 128 to 32 buys back 3.11 points (81.50 to 84.61) for 1.8 MB of extra scale metadata, which confirms outliers were the cause: one large weight in a block of 128 crushes the other 127 into a few levels. Mixed precision adds 0.58 more (85.19) but costs 5 MB, so it fails the size gate before accuracy matters. The best int4 variant still lands 1.2 points under the bar. **There is no configuration that is both small enough and accurate enough.** ⚠️ Also unverified: whether onnxruntime-web or Core ML accept block 32 efficiently. |
 | F13 | Recalibrate the ranker for the new student | The shipped score is `sim/T + beta * log P(species\|cell)`. `T` and `beta` were fitted to WingCLIP-0.1 at alpha 0.90, so they set the wrong scale for a 38.3M student at alpha 0.60 | ✅ | Refitted: **T 0.00930 to 0.00760, beta 0.543 to 0.563**. An 18% move in T confirms the refit was needed rather than ceremonial. THREE inputs are candidate-ordered and must be rebuilt together: the candidate file holds one model's similarities, the counts matrix is indexed by candidate RANK, and the range-status file is a per-photo list in the same order. Validated in the shipping JS: `I_occurrence_SHIPPING` scores 94% top-1 and 97% top-5 over all 11,070 photos, against 81% for the old production logic. |
 | F14 | Score both models head to head | The 88.29 figure was a ViT-B pipeline number. A fair comparison needs the same split, the same absolute metric, and each model using its OWN fitted parameters | ✅ | **The 38.3M student beats the 86.6M pipeline by 3.76 points.** Same 30% validation split (3,322 photos, seed 0), same code, each arm with its own `T` and `beta`. ViT-B: ceiling 94.52, vision-only 72.94, Strategy I **90.04**, using 95.3% of its headroom. TinyCLIP-39M: ceiling 97.14, vision-only 81.10, Strategy I **93.80**, using 96.6% of its headroom. The win is not only a higher ceiling: vision-only improved 8.16 points and the ranker converts more of what is reachable. Reproduction note: the original run recorded 88.29 and the JS harness recorded 89, against 90.04 here after rebuilding the counts and status files. Vision-only and the ceiling match the original EXACTLY, so the candidates and split are identical and the spread is implementation noise. |
@@ -206,6 +207,7 @@ binary, cut on the client, keeps the file count low. Cloudflare Workers permits
 | G21 | Replace the GPT-only UX signals in the app | `AddPhotosFlow.tsx` branches on three things GPT returns and a classifier does not | ✅ | **Keep one ambiguity prompt and drop the GPT-only metadata.** `multipleBirds` and `cropBox` are gone. Species confidence can prompt one manual crop, but it does not detect whether a bird exists. After one crop, show the ranked candidates and let the user pick or skip. H3 and H4 track the missing no-bird signal. |
 | G22 | Benchmark the open bird-ID field on one harness | The card claims WingCLIP beats BioCLIP-2, but that is our 24,633-image NABirds test split against a model whose own card reports 555 categories over 48,640 images, so the two numbers are not the same measurement. Three gaps: (a) [BioCLIP 2.5](https://huggingface.co/imageomics/bioclip-2.5-vith14) shipped a ViT-H/14 trained on TreeOfLife-200M+19M and claims +5.7% on species classification over BioCLIP 2, so we benchmarked against a superseded model; (b) supervised fine-grained models score higher on NABirds than any of these (Token Injection Transformer 93.2, DBMFNet 92.4, M2Former 91.1) but train a fixed 555-class head, so the comparison needs stating rather than dodging; (c) two named open targets are untested here: [BioCLIP 2.5](https://huggingface.co/imageomics/bioclip-2.5-vith14) ViT-H/14, the strongest open zero-shot biological model, and [timm eva02_large_patch14_clip_336.merged2b_ft_inat21](https://huggingface.co/timm/eva02_large_patch14_clip_336.merged2b_ft_inat21) at 92.05 top-1 over iNat21's 10,000 species, which is the best open global image model found. NOTE Perch is NOT a candidate: it is bioacoustics, classifying vocalizations from audio, and never sees an image. iNaturalist's own production CV model beats all of these by timm's own admission, but its weights are unpublished, so like Merlin it is out of scope for an OPEN comparison. Merlin is proprietary and unbenchmarked, so it can neither be claimed nor dismissed | ⬜ | **Queued.** Run every open-weight candidate through `eval_nabirds.py` unchanged, and additionally report the full 48,640-image protocol so the numbers line up with BioCLIP-2's published ones. Until then the defensible claim is narrow: WingCLIP-0.1 beats BioCLIP-2 by 3.5 points on OUR protocol at 28% of the parameters, and 0.3 matches it at 13% while running in a browser tab. Do NOT write "best open bird ID model" anywhere until this table exists |
 | G23 | Score the BROWSER decoder over the full held-out split | The 95.09 on the model card was measured through the PYTHON pipeline, where the cap is PIL `Image.draft()` (libjpeg shrink-on-load). The shipping browser path is `createImageBitmap` with `resizeWidth`, which reaches a scaled decode through Skia instead, so the accuracy number and the shipped decoder have never met. Two arms already measured, neither closes this: `e2e/scaled-decode.spec.ts` compares Skia against a full decode on ONE photo (max=141, mean=3.92, cosine=0.99905), and the 3,322-photo run held at 95.09 using `draft()`, not Skia | ⬜ | **Queued.** Drive Playwright over the 3,322 held-out photos, dump each 224x224 tensor, and score with `score_orig.py` against the same reference so only the decoder changes. Expect a pass: cosine 0.99905 on the worst-case 25.6 MP photo is far tighter than the perturbation that already left top-1 intact. Worth running anyway, because it is the only arm that tests the decoder users actually run. Note this covers CHROMIUM only; Safari ignores the resize options entirely and takes the full-decode path, so it inherits the original numbers and needs no separate run |
+| G24 | Check the CLIENT preprocessing against the CHECKPOINT'S transform | Every parity effort so far compared the TypeScript port against a PIL reference built from **generic open_clip ViT-B-16**, which is Resize(224) then CenterCrop(224). Nobody checked that against the transform the SHIPPED checkpoint actually asks for. A 224 resize followed by a 224 crop makes the crop a no-op, so the geometry tests can all pass while the model is fed a different picture from the one it was trained on | ✅ | **The client fed the model a ~11% wider field of view than it was trained on, and had done since the first web build.** `timm` `pretrained_cfg` for `vit_medium_patch16_clip_224.tinyclip_yfcc15m` is **Resize(248, bicubic) → CenterCrop(224)**, the centre ~90% of the frame. `src/lib/clip-preprocess.ts` used a single `CLIP_SIZE = 224` for BOTH steps. Measured on the validation half through the shipped scoring path (OCC_FLOOR log(3e-5), k 0.3, T 0.007435, beta 1.1634, v4 blob): **int8 93.78 → 94.27 (+0.49)**, fp32 93.76 → 94.82 (+1.06). McNemar on the fp32 arm is 65 fixed against 30 broken, **p = 0.0005**. Worst-case embedding cosine between the two transforms is **0.79** and top-1 flips on about **4.8%** of photos; for scale, [G23](#phase-g-ship) treats a decoder cosine of 0.99905 as negligible, so this is a different picture, not numerical noise. **No refit was needed**: the offline harness gets its transform from `Student.preprocess`, so it has ALWAYS run at 248 and `T`, `beta`, `OCC_FLOOR` and `k` were all fitted in 248 space. The fix moves the client INTO alignment with its own calibration. Resize and crop are now separate constants in both the TS and the Swift port, and `jobs/dump_preproc_ref.py` now READS the transform off the checkpoint instead of rebuilding it from open_clip, which is what let the two drift silently. |
 | G19 | Retire the BirdLife half of `range-adjust.js` | The file is two modules wearing one name, and only half survives the cutover | ✅ | Completed with the GPT cutover. The BirdLife trust and range helpers are deleted. Equal Earth projection and grid geometry now live in `src/lib/equal-earth.ts`. The occurrence ranker imports that data-neutral module. |
 | G18 | Ship the iOS Core ML path | The web path is settled. iOS converts from torch directly, skips ONNX, and has no 25 MiB per-file cap | ✅ | iOS now bundles a 37 MiB Core ML tower, 8.2 MiB classifier and 23 MiB occurrence prior. `BirdIdEngine` runs decode, CLIP preprocessing, embedding, cosine classification and occurrence reranking offline. It uses all Core ML compute units. Tests verify the bundled assets, 11,167 classifier rows, calibration and vision-only fallback. |
 | G17 | Measure quantisation on the TEXT CLASSIFIER | [F1](#phase-f-shrink-the-model-to-clear-the-size-gate) and [F10](#phase-f-shrink-the-model-to-clear-the-size-gate) both measured the VISUAL TOWER only. The classifier was never in scope, and fp16 was chosen under size pressure rather than on evidence | ✅ | **int8 per-row costs nothing measurable and saves 8.14 MiB.** Real top-1 over all 24,633 NABirds images: fp32 32.72 MiB **86.91**, fp16 16.36 MiB **86.91**, int8-global 8.18 MiB **86.88**, int8-perrow 8.22 MiB **86.96**. Per-row agreement with fp32 is 99.75%, against 99.46% for one global scale. The current web payload is 61.66 MiB with the 15.71 MiB monthly prior. Embeddings come from the fp32 tower once and are reused for every variant, so the comparison isolates the classifier. |
@@ -428,6 +430,33 @@ that made the checkpoint. Nothing updates it later. `wise_a0.90.pt` shows
 last run. That file looks the same as a new one. An old file with the value 28.42
 almost went into a report as a true result.
 
+⚠️ **`runs/ft_tiny39_fresh/` holds TWO plausible checkpoints, and picking by
+filename costs a day.** The directory contains `wise_a0.90.pt` AND `wise_a0.60.pt`.
+0.90 is the right answer for the PREVIOUS model: it is WingCLIP-0.1's best alpha
+([D4](#phase-d-beat-the-teacher)) and the sweep peaked there on both ViT-B bases.
+0.60 is the right answer for the model that SHIPS
+([F8](#phase-f-shrink-the-model-to-clear-the-size-gate)), because the optimum moved
+down when the student got 2.26x smaller. Both files sit in the same folder with the
+same naming scheme, and neither is marked. A whole day of measurements was
+contaminated by loading the 0.90 file and reporting the result as the shipped model.
+The 95.66 figure in the client comments comes from exactly that mistake.
+
+**Alpha is selected DYNAMICALLY, so the filename is an output, not an input.**
+`jobs/phase4_quant.sh` scans `runs/ft_tiny39_fresh/nbeval_a*.json` and takes the
+alpha with the highest `student.top1`. **0.60 and 0.75 TIE at 86.90**, so which one
+wins is decided by dict iteration and file ordering, not by evidence. It happens to
+land on 0.60. Nothing enforces that.
+
+Two rules follow:
+
+1. **Pin the alpha explicitly.** Pass it in rather than letting the script pick,
+   and fail loudly on a tie instead of resolving one arbitrarily.
+2. **Read the checkpoint, do not trust the path.** Several scripts still default to
+   `ft_tiny39_fresh/wise_a0.90.pt` (`cj_cal.py`, `cj_disc.py`, `cj_refit.py`,
+   `disc_probe3.py`, `emit_emb_onnx.py`, `parity_emb.py`, `parity_gate.py`), which
+   is the WRONG checkpoint for anything describing the shipped app. Any result
+   quoted as "the shipped model" must state which file produced it.
+
 **Use one cache for each teacher.** The cache key is the image path only. The hit
 test is `all(path in cached)`. A cache from a different teacher therefore starts a
 silent recompute. It does not give an error. `runs/full7555_vitb/` holds a 282-row
@@ -483,6 +512,42 @@ Only the ViT-B int4 ACCURACY cost of -0.88 points is measured. See F10.
 | visual int4 + text int4 | **23.5 MB** | clears |
 | visual int8 + text int8 | 46.9 MB | over |
 
+### What the shipped app actually scores (2026-08-25)
+
+⚠️ **Three different numbers get called "the accuracy" in this file. They are
+not interchangeable, and mixing them up is how a day of measurement got thrown
+away. Quote the row that matches the question.**
+
+| number | what it is | measured on |
+|---|---|---|
+| **86.90** | NABirds top-1, VISION ONLY, no prior | fp32 `wise_a0.60.pt`, all 24,633 NABirds images |
+| **86.82** | the same, int8 FAKE-QUANT | see [F10a](#phase-f-shrink-the-model-to-clear-the-size-gate) |
+| 95.66 | end-to-end top-1 WITH the geo/month prior | fp32, **`wise_a0.90.pt`, which is NOT SHIPPED** |
+| **94.27** | end-to-end top-1 WITH the prior, **the shipped path** | **int8 ONNX, `wise_a0.60.pt`, 248 preprocessing** |
+
+**94.27 is the honest headline for the shipped web app.** The full grid on the
+validation half, shipped scoring path, `wise_a0.60.pt`:
+
+| arm | 224 preprocessing (as shipped before) | 248 preprocessing (correct) |
+|---|---|---|
+| int8 ONNX (**what web runs**) | 93.78 | **94.27** |
+| fp32 | 93.76 | 94.82 |
+
+⚠️ **The 95.66 figure quoted in `src/lib/rank.ts`, `src/lib/bird-id-local-adapter.ts`,
+`ios/WingDex/Services/BirdID/BirdRanker.swift` and `bird-probe-order.test.ts` came
+from `wise_a0.90.pt`.** That is WingCLIP-0.1's best alpha, not WingCLIP-0.3's. It is
+a real measurement of a real checkpoint; it is simply not a measurement of the one
+in `public/`. Those comments are the provenance record for the ranker CONSTANTS,
+which is why they have been left alone here rather than silently rewritten: the
+constants they justify were fitted on that arm and are unchanged. **They still need
+correcting, and doing so is a separate change** so that a published claim is not
+edited inside a preprocessing fix. Do not copy 95.66 into a model card, a release
+note or a store listing.
+
+Two smaller mismatches, kept explicit so they are not "reconciled" by guesswork:
+the 95.09 and 95.00 figures elsewhere in this file are also fp32 harness runs, and
+the split is described as 3,322 photos in some places and 3,321 in others.
+
 ### Measured payload (2026-08-04)
 
 All numbers below are MEASURED on the shipping artifact `wise_a0.60.pt` over all
@@ -494,7 +559,7 @@ quantisation needs, which the earlier calculated figures left out.
 | precision | top-1 | tower MB | vs fp32 | cos(fp32) | agree |
 |---|---|---|---|---|---|
 | fp32 | 86.91 | 155 | - | 1.000000 | 100.00% |
-| **int8** | **86.82** | **38.9** | **-0.09** | 0.999923 | 99.27% |
+| **int8** | **86.82** | **38.9** | **-0.09** | 0.999923 | 99.27% [†](#phase-f-shrink-the-model-to-clear-the-size-gate) |
 | mixed ffn4/blk64 + sens8 | 85.19 | 27.0 | -1.73 | 0.987932 | 90.98% |
 | mixed ffn4/blk32 + sens8 | 85.07 | 27.8 | -1.84 | 0.992209 | 92.36% |
 | int4 block 32 | 84.61 | 21.9 | -2.30 | 0.988648 | 91.15% |
@@ -503,6 +568,13 @@ quantisation needs, which the earlier calculated figures left out.
 
 int8 keeps the embedding almost exactly. int4 at block 128 changes it: 0.974
 cosine and only 86% top-1 agreement is a different model, not a noisier one.
+
+† **These are PyTorch FAKE-QUANT numbers**: int8 weights, fp32 activations, fp32
+kernels. That is the correct and cheap way to RANK precision levels against each
+other, which is all this table is for. It is NOT the shipped artifact. The web
+build uses onnxruntime `quantize_dynamic` with real integer kernels, and its
+measured top-1 agreement with fp32 is **97.64%**, not 99.27%. See
+[F10a](#phase-f-shrink-the-model-to-clear-the-size-gate).
 
 **Text classifier**, 11,167 x 768 = 8,576,256 values. Accuracy cost UNMEASURED,
 see [G10](#phase-g-ship):

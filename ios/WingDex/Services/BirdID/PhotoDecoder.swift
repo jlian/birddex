@@ -25,8 +25,14 @@ import UniformTypeIdentifiers
 /// in CLIPPreprocessParityTests.
 enum PhotoDecoder {
     /// Longest side we ask the decoder for, matching DECODE_CAP on the web.
-    /// The model sees 224x224 after a resize to 224 on the SHORTER side, so
-    /// anything above ~500 is detail the tensor throws away.
+    /// The model sees 224x224 after a resize to 248 on the SHORTER side (the
+    /// checkpoint's timm config is 248 -> 224; see CLIPPreprocess), so anything
+    /// above ~500 is detail the tensor throws away.
+    ///
+    /// Deliberately UNCHANGED by the 224 -> 248 resize fix. 500 is a LONG-side
+    /// cap and the resize target is a SHORT-side target, so the cap only starts
+    /// discarding useful detail past an aspect ratio of 500/248 = 2.02, against
+    /// 500/224 = 2.23 before.
     static let decodeCap = 500
 
     /// Returns RGBA bytes, which `CLIPPreprocess` reads directly with
