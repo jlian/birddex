@@ -70,6 +70,15 @@ actor BirdIdEngine {
     )
     static let taxonomySha16 = "04951673b96b11bf"
 
+    /// Abstention threshold on the CALIBRATED P(bird) scale.
+    ///
+    /// Exposed because the gate lives in the caller, not in identify():
+    /// the engine reports pBird and the presentation layer decides to
+    /// abstain, which is the same split the web takes between
+    /// bird-id-local.ts and identifyBirdLocally in the adapter.
+    static var birdProbeThreshold: Double { calibration.probe.threshold }
+
+
     /// Prompt for a crop below this. Measured on 400 labelled held-out photos
     /// plus 393 Imagenette non-birds: 0.8 keeps 93% of real birds and rejects
     /// 76% of dog photos, against 95% / 70% at 0.7.
