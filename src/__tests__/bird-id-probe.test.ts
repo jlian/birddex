@@ -8,7 +8,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BIRD_PROBE, MODEL_ASSETS, shouldPromptForCrop } from '../lib/bird-id-local-adapter'
 import taxonomy from '../lib/taxonomy.json'
@@ -125,12 +125,70 @@ describe('the probe multiplier cannot reorder species', () => {
 describe('the abstention gate', () => {
   const candidate = { species: 'Chukar (Alectoris chukar)', confidence: 0.9 }
 
-  it('fires below the threshold and not at or above it', () => {
-    // The engine gates on `pBird < threshold`, so the boundary itself passes.
-    const below = BIRD_PROBE.threshold - 1e-9
-    const above = BIRD_PROBE.threshold
-    expect(below < BIRD_PROBE.threshold).toBe(true)
-    expect(above < BIRD_PROBE.threshold).toBe(false)
+  afterEach(() => {
+    vi.doUnmock('../lib/bird-id-local')
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+
+  // These drive the REAL gate inside identifyBirdLocally. An earlier version
+  // of this test compared two numbers with `<` and asserted the result, which
+  // tests the JavaScript operator: it stayed green whether the branch in
+  // identifyBirdLocally was present, deleted or inverted. Only the engine and
+  // the canvas decode are stubbed; the gate itself is the shipped code.
+  const identifyWith = async (pBird: number) => {
+    vi.resetModules()
+    const rows = [
+      { commonName: 'Chukar', scientificName: 'Alectoris chukar',
+        taxonIdx: 4211, confidence: 0.9, logP: -1.5, pBird },
+      { commonName: 'Rock Ptarmigan', scientificName: 'Lagopus muta',
+        taxonIdx: 118, confidence: 0.05, logP: -3.2, pBird },
+    ]
+    vi.doMock('../lib/bird-id-local', () => ({
+      BirdIdEngine: class {
+        init() { return Promise.resolve() }
+        identify() { return Promise.resolve(rows) }
+      },
+    }))
+    // decodeScaled is module-private, so its browser dependencies are stubbed
+    // rather than the function. jsdom has neither.
+    vi.stubGlobal('createImageBitmap', () =>
+      Promise.resolve({ width: 2, height: 2 }))
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({ blob: () => Promise.resolve(new Blob([new Uint8Array(8)])) }))
+    const ctx = {
+      drawImage: () => {},
+      getImageData: () => ({ data: new Uint8ClampedArray(2 * 2 * 4) }),
+    }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+
+    const mod = await import('../lib/bird-id-local-adapter')
+    return mod.identifyBirdLocally({} as never, 'data:image/jpeg;base64,AAAA')
+  }
+
+  it('EMPTIES the candidates below the threshold', async () => {
+    const r = await identifyWith(BIRD_PROBE.threshold - 1e-6)
+    expect(r.candidates).toEqual([])
+    // pBird survives so a caller can tell abstention from upstream failure.
+    expect(r.pBird).toBeCloseTo(BIRD_PROBE.threshold - 1e-6, 12)
+    expect(r.rangeAdjusted).toBe(false)
+  })
+
+  it('RETAINS the candidates exactly at the threshold', async () => {
+    // The gate is `pBird < threshold`, so the boundary itself must pass.
+    const r = await identifyWith(BIRD_PROBE.threshold)
+    expect(r.candidates.length).toBe(2)
+    expect(r.candidates[0].species).toBe('Chukar (Alectoris chukar)')
+    expect(r.pBird).toBe(BIRD_PROBE.threshold)
+  })
+
+  it('RETAINS the candidates well above the threshold', async () => {
+    const r = await identifyWith(0.99)
+    expect(r.candidates.length).toBe(2)
+    expect(r.rangeAdjusted).toBe(true)
   })
 
   it('does not ask for a crop on an abstention, which owns that action', () => {
