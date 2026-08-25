@@ -10,7 +10,7 @@
   "n_triples": 8318320,
   "n_pooled_pairs": 3176965,
   "pooled_month_code": 12,
-  "intended_client_k": 1.0,
+  "intended_client_k": 0.3,
   "min_count": 1,
   "raw_bytes": 34576516,
   "gzip_bytes": 22623826,

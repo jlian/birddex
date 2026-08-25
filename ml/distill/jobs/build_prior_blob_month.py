@@ -70,12 +70,29 @@ far below 2^32. Sort order is unchanged, so a cell's twelve months and its
 pooled slice remain contiguous.
 
 WHY n_scm IS NOT STORED DIRECTLY. It would need a varint per triple on top of
-the quantised byte, roughly doubling the payload. The client recovers it as
-round(p_hat * n_cm) from the value already present. That reconstruction inherits
-the 5-bit quantisation error, which is up to about 22% relative on n_scm, but
-that same error is already present in the v3 probability the ranker uses today,
-so backoff adds no new error term. It is only a reconstruction of a number the
-client was already trusting in ratio form.
+the quantised byte, roughly doubling the payload. The client recovers it as the
+FRACTIONAL product p_hat * n_cm from the value already present. That
+reconstruction inherits the 5-bit quantisation error, which is up to about 22%
+relative on n_scm, but that same error is already present in the v3 probability
+the ranker uses today, so backoff adds no new error term. It is only a
+reconstruction of a number the client was already trusting in ratio form.
+
+WHY FRACTIONAL AND NOT round(p_hat * n_cm). An earlier version of this comment
+said the client rounds. It does not, in either client: src/lib/rank.ts uses
+Math.exp(lp) * nCM and ios BirdRanker.swift uses exp(lp) * nCM, both unrounded.
+The fractional form is deliberate and must not be "tidied" into an integer
+count. Rounding is a floor at 0.5, so every cell-month whose reconstructed
+n_scm lands below that collapses to exactly 0 and the species is left with only
+the k * p_pooled backoff term, or with nothing at all when it is absent from the
+pooled slice too. Those thinly observed cell-months are precisely the cells this
+format exists to rescue: quantising away the small mass is quantising away the
+whole effect.
+
+The calibration is fitted against the fractional form, not merely compatible
+with it. T = 0.007435, beta = 1.1634, OCC_FLOOR = log(3e-5) and k = 0.3 were all
+measured with fractional reconstruction in the loop, so switching to rounded
+values invalidates every one of them. ANY future port must use the fractional
+product, or refit all four constants against whatever it does instead.
 
 SIZE. v2 shipped 3,176,965 pairs in 5.41 MiB gzipped. v3 ships 8,318,320
 triples in 15.71 MiB gzipped. v4 adds the 3,176,965 pooled pairs (a 1.38x
@@ -88,10 +105,34 @@ import gzip
 import hashlib
 import json
 import math
+import os
+import re
 import struct
 import time
 
 import duckdb
+
+# Repo root, derived from this file rather than hardcoded, so the script
+# works from a clone at any path.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
+
+
+def read_client_k(path):
+    """OCC_BACKOFF_K from the web ranker: the k the app actually applies.
+
+    The metadata field is provenance, so it must come from the code it
+    claims to describe. Retyping it as a flag is how the shipped v4 blob
+    came to record 1.0 while both rankers ran 0.3.
+    """
+    with open(path, encoding="utf-8") as fh:
+        src = fh.read()
+    m = re.search(r"OCC_BACKOFF_K\s*=\s*([0-9.eE+-]+)", src)
+    if not m:
+        raise SystemExit("no OCC_BACKOFF_K in " + path + "; pass --k "
+                         "explicitly if the ranker moved it")
+    return float(m.group(1))
+
 
 MAGIC = b"WDOP"
 VERSION = 3
@@ -140,15 +181,30 @@ def main():
                     help="emit v4: add the pooled per-cell slice and the n_cm "
                          "totals table, so the client can apply backoff. "
                          "Absent, the output is byte-for-byte v3.")
-    ap.add_argument("--k", type=float, default=0.0,
+    ap.add_argument("--k", type=float, default=None,
                     help="RECORDED IN METADATA ONLY; it does not change a "
                          "single byte of the blob. k is a client constant "
                          "under v4, which is the entire point of the format: "
                          "retuning k must not require a rebuild. The flag "
                          "exists so a build can document the k it was intended "
                          "for. A non-zero k requires --v4, because a v3 blob "
-                         "cannot express backoff at all.")
+                         "cannot express backoff at all. DEFAULTS TO THE "
+                         "VALUE READ FROM --rank-ts, because a hand-typed k "
+                         "is provenance that can be wrong: the v4 blob "
+                         "shipped with 1.0 recorded while both rankers ran "
+                         "0.3.")
+    ap.add_argument("--rank-ts",
+                    default=os.path.join(REPO_ROOT, "src", "lib", "rank.ts"),
+                    help="Single source of truth for the client k. "
+                         "OCC_BACKOFF_K in the web ranker is the shipped "
+                         "value, and ios BirdRanker.swift occBackoffK "
+                         "mirrors it. Read rather than retyped so the "
+                         "metadata cannot drift from the code it describes.")
     args = ap.parse_args()
+
+    if args.k is None:
+        args.k = read_client_k(args.rank_ts)
+        log("client k read from " + args.rank_ts + ": " + repr(args.k))
 
     if args.k != 0.0 and not args.v4:
         raise SystemExit("--k is meaningless without --v4: a v3 blob stores "

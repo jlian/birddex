@@ -832,7 +832,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			inputPaths = (
 				"$(SRCROOT)/scripts/sync-birdid-assets.sh",
 				"$(SRCROOT)/../public/models/text_classifier_int8.bin",
-				"$(SRCROOT)/../public/priors/occurrence.1fb61779.bin.gz",
+				"$(SRCROOT)/../public/priors/occurrence.4f5c1a15.bin.gz",
 				"$(SRCROOT)/../src/lib/taxonomy.json",
 				"$(SRCROOT)/WingDex/Resources/taxonomy.json",
 			);
