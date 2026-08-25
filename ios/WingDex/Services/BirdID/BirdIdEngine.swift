@@ -243,12 +243,24 @@ actor BirdIdEngine {
     /// saturates on obvious birds and Float rounds those to exactly 1, where an
     /// unclamped logit is infinite and the Platt map returns NaN.
     private static func birdProbability(_ embedding: [Float], _ l: Loaded) -> Double {
+        return birdProbability(embedding, probeW: l.probeW)
+    }
+
+    /// The probe computation itself, taking the weight row directly.
+    ///
+    /// Split out from the  overload so a test can drive it with a known
+    /// embedding and the real bundled probe row, without a Core ML forward
+    /// pass. The accuracy tests only check species ORDER, and the probe is a
+    /// positive scalar multiplier that cannot change an order, so without a
+    /// golden on THIS function a wrong dot product, a swapped Platt pair or a
+    /// missing normalisation all still pass.
+    static func birdProbability(_ embedding: [Float], probeW: [Float]) -> Double {
         var norm: Float = 0
         vDSP_svesq(embedding, 1, &norm, vDSP_Length(embedDim))
         norm = norm.squareRoot()
         if norm == 0 { norm = 1 }
         var dot: Float = 0
-        vDSP_dotpr(l.probeW, 1, embedding, 1, &dot, vDSP_Length(embedDim))
+        vDSP_dotpr(probeW, 1, embedding, 1, &dot, vDSP_Length(embedDim))
         let raw = 1.0 / (1.0 + exp(-(Double(dot / norm) + calibration.probe.bias)))
         let eps = 1e-7
         let c = min(max(raw, eps), 1 - eps)
