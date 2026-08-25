@@ -52,12 +52,17 @@ def main():
 
     sys.path.insert(0, args.distill_dir)
     import shipped_model as SM
-    props = SM.provenance(
-        checkpoint=args.checkpoint,
-        wise_alpha=args.wise_alpha,
-        taxonomy=args.taxonomy,
-        preprocess_resize=args.preprocess_resize,
-        preprocess_crop=args.preprocess_crop)
+    try:
+        props = SM.provenance(
+            checkpoint=args.checkpoint,
+            wise_alpha=args.wise_alpha,
+            taxonomy=args.taxonomy,
+            preprocess_resize=args.preprocess_resize,
+            preprocess_crop=args.preprocess_crop)
+    except ValueError as exc:
+        log("ERROR: exporting " + args.checkpoint)
+        log("       " + str(exc))
+        raise SystemExit(2) from None
 
     os.makedirs(args.out_dir, exist_ok=True)
     from train_student import Student
@@ -130,15 +135,6 @@ def main():
     # the command that made the checkpoint and nothing updates it later:
     # wise_a0.90.pt reports alpha 0.5. See "Read the weights, not args"
     # in ml/README.md. Take it from --wise-alpha, or from the pin.
-    # provenance() now REFUSES this rather than recording the pinned alpha
-    # against a different checkpoint's hash. Logged first so the failure names
-    # the file, not just the exception.
-    if os.path.abspath(args.checkpoint) != os.path.abspath(
-            SM.SHIPPED_CHECKPOINT) and args.wise_alpha is None:
-        log("ERROR: exporting " + args.checkpoint)
-        log("       which is NOT the pinned shipped checkpoint")
-        log("       " + SM.SHIPPED_CHECKPOINT)
-        log("       Pass --wise-alpha to state the real blend weight.")
     om = onnx.load(onnx_path)
     SM.write_provenance(om, props)
     onnx.save(om, onnx_path)
