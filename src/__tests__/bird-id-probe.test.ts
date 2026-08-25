@@ -10,11 +10,24 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { BIRD_PROBE, MODEL_ASSETS, shouldPromptForCrop } from '../lib/bird-id-local-adapter'
+import {
+  BIRD_PROBE,
+  identifyBirdLocally,
+  MODEL_ASSETS,
+  shouldPromptForCrop,
+} from '../lib/bird-id-local-adapter'
 import taxonomy from '../lib/taxonomy.json'
 
 const EMBED_DIM = 768
 const BIN = resolve(__dirname, '../../public/models/text_classifier_int8.bin')
+const birdEngine = vi.hoisted(() => ({ identify: vi.fn() }))
+
+vi.mock('../lib/bird-id-local', () => ({
+  BirdIdEngine: class {
+    async init() {}
+    identify() { return birdEngine.identify() }
+  },
+}))
 
 function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x))
@@ -126,10 +139,9 @@ describe('the abstention gate', () => {
   const candidate = { species: 'Chukar (Alectoris chukar)', confidence: 0.9 }
 
   afterEach(() => {
-    vi.doUnmock('../lib/bird-id-local')
+    birdEngine.identify.mockReset()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-    vi.resetModules()
   })
 
 
@@ -139,19 +151,13 @@ describe('the abstention gate', () => {
   // identifyBirdLocally was present, deleted or inverted. Only the engine and
   // the canvas decode are stubbed; the gate itself is the shipped code.
   const identifyWith = async (pBird: number) => {
-    vi.resetModules()
     const rows = [
       { commonName: 'Chukar', scientificName: 'Alectoris chukar',
         taxonIdx: 4211, confidence: 0.9, logP: -1.5, pBird },
       { commonName: 'Rock Ptarmigan', scientificName: 'Lagopus muta',
         taxonIdx: 118, confidence: 0.05, logP: -3.2, pBird },
     ]
-    vi.doMock('../lib/bird-id-local', () => ({
-      BirdIdEngine: class {
-        init() { return Promise.resolve() }
-        identify() { return Promise.resolve(rows) }
-      },
-    }))
+    birdEngine.identify.mockResolvedValue(rows)
     // decodeScaled is module-private, so its browser dependencies are stubbed
     // rather than the function. jsdom has neither.
     vi.stubGlobal('createImageBitmap', () =>
@@ -165,8 +171,7 @@ describe('the abstention gate', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
 
-    const mod = await import('../lib/bird-id-local-adapter')
-    return mod.identifyBirdLocally({} as never, 'data:image/jpeg;base64,AAAA')
+    return identifyBirdLocally({} as never, 'data:image/jpeg;base64,AAAA')
   }
 
   it('EMPTIES the candidates below the threshold', async () => {
