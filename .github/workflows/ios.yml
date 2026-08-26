@@ -49,7 +49,7 @@ jobs:
       # Package.resolved, so a warm cache skips dependency resolution and
       # lets xcodebuild reuse module/index artifacts.
       - name: Cache SwiftPM and DerivedData
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
@@ -243,8 +243,6 @@ jobs:
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -derivedDataPath build/DerivedData \
-            -parallel-testing-enabled YES \
-            -parallel-testing-worker-count 2 \
             -onlyUsePackageVersionsFromResolvedFile \
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
