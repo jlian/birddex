@@ -49,18 +49,23 @@ struct RarityMark: View {
                     .fill(Color.rarityMark)
                     .frame(width: coreDiameter, height: coreDiameter)
             }
-            // A second ring leaving the mark, so the concentric form animates
-            // outward from the shape it already has. It is mounted at phase 0,
-            // where it sits exactly on the static ring and is fully opaque, and
-            // the phase is animated afterwards; inserting it already expanded
-            // and transparent would leave nothing to interpolate from and the
-            // ping would never be seen.
+            // Two rings leaving the mark, staggered, so the concentric form
+            // animates outward from the shape it already has. Each is mounted at
+            // phase 0 where it sits exactly on the static ring and is fully
+            // opaque; inserting one already expanded and transparent would leave
+            // nothing to interpolate from and the ping would never be seen.
+            //
+            // Two rather than one because a single faint ring at list-glyph size
+            // is easy to miss entirely, which is what shipped first.
             if showsPing {
-                Circle()
-                    .strokeBorder(Color.rarityMark, lineWidth: ringWidth)
-                    .frame(width: unit, height: unit)
-                    .scaleEffect(1 + shownPhase * 1.4)
-                    .opacity(Double(1 - shownPhase))
+                ForEach([0.0, 0.28], id: \.self) { delay in
+                    let p = max(0, min(1, (shownPhase - delay) / (1 - delay)))
+                    Circle()
+                        .strokeBorder(Color.rarityMark, lineWidth: ringWidth)
+                        .frame(width: unit, height: unit)
+                        .scaleEffect(1 + p * 2.0)
+                        .opacity(shownPhase >= delay ? Double(1 - p) : 0)
+                }
             }
         }
         .frame(width: unit, height: unit)
@@ -72,11 +77,11 @@ struct RarityMark: View {
             pinging = true
             phase = 0
             Task {
-                // Let the ring mount at phase 0 before animating, or SwiftUI
+                // Let the rings mount at phase 0 before animating, or SwiftUI
                 // batches both into one frame and there is no visible start.
                 await Task.yield()
-                withAnimation(.easeOut(duration: 0.7)) { phase = 1 }
-                try? await Task.sleep(for: .milliseconds(750))
+                withAnimation(.easeOut(duration: 0.9)) { phase = 1 }
+                try? await Task.sleep(for: .milliseconds(950))
                 pinging = false
             }
         }
@@ -137,8 +142,8 @@ extension RarityState {
 /// The ping, frozen at four points. RenderPreview captures one frame, so this
 /// is the only way to check the motion without a simulator video.
 #Preview("Ping phases") {
-    HStack(spacing: 28) {
-        ForEach([0.0, 0.33, 0.66, 1.0], id: \.self) { p in
+    HStack(spacing: 34) {
+        ForEach([0.0, 0.25, 0.5, 0.75, 1.0], id: \.self) { p in
             RarityMark(state: .both, previewPhase: CGFloat(p))
         }
     }
