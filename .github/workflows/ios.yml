@@ -38,6 +38,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # SPM checkouts and DerivedData survive across runs on the same
+      # Package.resolved, so a warm cache skips dependency resolution and
+      # lets xcodebuild reuse module/index artifacts.
+      - name: Cache SwiftPM and DerivedData
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ios/build/DerivedData
+          key: ios-spm-dd-${{ runner.os }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml') }}
+          restore-keys: |
+            ios-spm-dd-${{ runner.os }}-
+
       - name: Start iOS Simulator
         run: |
           set -euo pipefail
@@ -104,6 +117,7 @@ jobs:
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
@@ -221,6 +235,9 @@ jobs:
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled YES \
+            -maximum-concurrent-test-simulator-destinations 2 \
             -onlyUsePackageVersionsFromResolvedFile \
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
