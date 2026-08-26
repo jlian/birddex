@@ -103,9 +103,10 @@ export function useRarity(
  * The 1-12 month of a stored ISO timestamp, in its OWN timezone. Reading it
  * locally would move an evening outing into the wrong month.
  *
- * The whole shape is validated, not just a leading YYYY-MM. Matching a prefix
- * would read "2026-02-not-a-date" as February and hand back a confident month
- * for a value that is not a date at all; an unparseable date has to fail closed.
+ * Anchored, so a value that merely STARTS like a date is rejected rather than
+ * read as its leading month. Beyond that the month range is the only check,
+ * matching DateFormatting.localMonth on iOS: these strings come from our own
+ * API, and validating the calendar here would reject values that side accepts.
  */
 const ISO_DATE = /^\d{4}-(\d{2})-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/
 
