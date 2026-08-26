@@ -395,6 +395,10 @@ struct PerPhotoConfirmView: View {
                         let state = rarity(for: selectedSpecies)
                         if state != .none {
                             RarityMark(state: state, pingTrigger: confirmedRarity)
+                                // The title stack is tighter than a list row, so
+                                // the mark makes up the difference and sits the
+                                // same distance from the name on both.
+                                .padding(.leading, 4)
                                 .accessibilityIdentifier("confirm.rarity")
                         }
                     }
@@ -547,12 +551,18 @@ struct PerPhotoConfirmView: View {
         }
         guard rarity(for: selectedSpecies) == .both else { return commit() }
 
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
         guard !reduceMotion else { return commit() }
+        // Two beats, not one. A single tap is indistinguishable from the tap the
+        // user just made on the confirm button.
+        Task {
+            try? await Task.sleep(for: .milliseconds(130))
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
+        }
         confirmedRarity = UUID()
         isAcknowledging = true
         Task {
-            try? await Task.sleep(for: .milliseconds(650))
+            try? await Task.sleep(for: .milliseconds(900))
             isAcknowledging = false
             commit()
         }
