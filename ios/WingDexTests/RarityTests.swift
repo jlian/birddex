@@ -150,6 +150,22 @@ final class RarityTests: XCTestCase {
         XCTAssertEqual(b.state(speciesIdx: 8999, lat: lat, lon: lon, month: 6), .both)
     }
 
+    func testMarksNothingWhenThePayloadIsCorruptNeverAMega() throws {
+        // "Absent from a well-recorded cell" is the STRONGEST verdict this asset
+        // gives, so a truncated payload that merely looks absent would turn a
+        // bad asset into a screen full of confident megas. Corruption fails
+        // closed.
+        let raw = buildAsset(cells: [(
+            key: key(lat: lat, lon: lon),
+            monthMask: allMonths,
+            species: [(7, allMonths), (9000, 0)]
+        )])
+        let intact = try RarityBlob(raw: raw)
+        let truncated = try RarityBlob(raw: Array(raw[0..<(raw.count - 3)]))
+        XCTAssertEqual(intact.state(speciesIdx: 500, lat: lat, lon: lon, month: 6), .both)
+        XCTAssertEqual(truncated.state(speciesIdx: 500, lat: lat, lon: lon, month: 6), .none)
+    }
+
     // MARK: - Seasonal readout
 
     func testReportsTheMonthsASpeciesIsOrdinaryHere() throws {

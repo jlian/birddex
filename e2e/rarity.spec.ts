@@ -17,7 +17,7 @@ import { seedViaCSVImport } from './helpers'
  * against known distributions.
  */
 test.describe('rarity mark', () => {
-  const MEGA = 'Rarely recorded in this area'
+  const MEGA = 'Off its usual range and out of season for this area'
 
   async function openDiscoveryPark(page: import('@playwright/test').Page) {
     await seedViaCSVImport(page)
@@ -38,8 +38,15 @@ test.describe('rarity mark', () => {
     const blueJay = page.locator('p:visible', { hasText: 'Blue Jay' }).first()
     await expect(blueJay.getByRole('img', { name: MEGA })).toBeVisible()
 
-    for (const ordinary of ['Mallard', 'Song Sparrow', 'Great Blue Heron', 'Bald Eagle']) {
-      const row = page.locator('p:visible', { hasText: ordinary }).first()
+    // Every remaining fixture species. Naming all seven is the point: a
+    // resolver that marked everything would fail here, and one that silently
+    // marked nothing would fail the two assertions above.
+    const ordinary = [
+      'Mallard', 'Song Sparrow', 'Great Blue Heron', 'Bald Eagle',
+      'Black-capped Chickadee', "Steller's Jay", 'Dark-eyed Junco',
+    ]
+    for (const name of ordinary) {
+      const row = page.locator('p:visible', { hasText: name }).first()
       await expect(row.getByRole('img')).toHaveCount(0)
     }
   })

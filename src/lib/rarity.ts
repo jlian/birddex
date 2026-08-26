@@ -144,36 +144,46 @@ function coarseKey(r: RarityBlob, lat: number, lon: number): number {
          Math.floor(cell.col / r.coarse)
 }
 
-/** Walk one cell's payload for a single species. Returns its ordinary-month
- *  mask, or null when the species is not listed in that cell at all. */
-function findMask(r: RarityBlob, slot: number, speciesIdx: number): number | null {
+/**
+ * The outcome of looking one species up inside a cell.
+ *
+ * `absent` and `invalid` MUST stay distinct. Absent is the strongest verdict
+ * this asset can give, a bird never recorded in a well-recorded cell, so
+ * collapsing a corrupt payload into it would turn a truncated download into a
+ * screen full of confident megas. Corruption has to fail closed.
+ */
+type MaskLookup =
+  | { kind: 'found'; mask: number }
+  | { kind: 'absent' }
+  | { kind: 'invalid' }
+
+/** Walk one cell's payload for a single species. */
+function findMask(r: RarityBlob, slot: number, speciesIdx: number): MaskLookup {
   const start = r.view.getUint32(r.idxStart + slot * 8 + 4, true)
   const end = r.view.getUint32(r.idxStart + (slot + 1) * 8 + 4, true)
   let p = r.payloadStart + start
   const stop = r.payloadStart + end
-  // A corrupt offset pair would send the reader off the end. Bail rather than
-  // decode garbage into a confident verdict.
-  if (start > end || stop > r.raw.length) return null
+  if (start > end || stop > r.raw.length) return { kind: 'invalid' }
   let cur = 0
   while (p < stop) {
     let shift = 0
     let v = 0
     let b = 0
     do {
-      if (p >= stop) return null
+      if (p >= stop) return { kind: 'invalid' }
       b = r.raw[p++]
       v |= (b & 0x7f) << shift
       shift += 7
     } while (b & 0x80)
     cur += v
-    if (p + 1 >= stop) return null
+    if (p + 1 >= stop) return { kind: 'invalid' }
     const mask = r.raw[p] | (r.raw[p + 1] << 8)
     p += 2
-    if (cur === speciesIdx) return mask
+    if (cur === speciesIdx) return { kind: 'found', mask }
     // Species are stored ascending, so passing the target means it is absent.
-    if (cur > speciesIdx) return null
+    if (cur > speciesIdx) return { kind: 'absent' }
   }
-  return null
+  return { kind: 'absent' }
 }
 
 /**
@@ -209,11 +219,12 @@ export function rarityAt(
   // This cell has too few records in this month to judge anything.
   if (!((monthMask >> (month - 1)) & 1)) return 'none'
 
-  const mask = findMask(r, slot, speciesIdx)
-  // Never meaningfully recorded in a cell that has plenty of records.
-  if (mask === null) return 'both'
-  if ((mask >> (month - 1)) & 1) return 'none'
-  return mask === 0 ? 'offRange' : 'outOfSeason'
+  const found = findMask(r, slot, speciesIdx)
+  // A corrupt payload marks nothing. Only a clean miss is the mega.
+  if (found.kind === 'invalid') return 'none'
+  if (found.kind === 'absent') return 'both'
+  if ((found.mask >> (month - 1)) & 1) return 'none'
+  return found.mask === 0 ? 'offRange' : 'outOfSeason'
 }
 
 /**
@@ -235,7 +246,9 @@ export function ordinaryMonths(
   if (slot < 0) return null
   const monthMask = r.view.getUint16(r.monthsStart + slot * 2, true)
   if (monthMask === 0) return null
-  const mask = findMask(r, slot, speciesIdx) ?? 0
+  const found = findMask(r, slot, speciesIdx)
+  if (found.kind === 'invalid') return null
+  const mask = found.kind === 'found' ? found.mask : 0
   // A month the cell cannot judge reads as not-ordinary rather than as a gap,
   // because the caller draws 12 bars and a third state has no meaning there.
   return Array.from({ length: 12 }, (_, m) =>

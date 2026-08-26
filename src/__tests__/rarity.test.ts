@@ -157,6 +157,20 @@ describe('rarityAt', () => {
     expect(at(species, 9000, 6)).toBe('none')
     expect(at(species, 8999, 6)).toBe('both')
   })
+
+  it('marks nothing when the payload is corrupt, never a mega', () => {
+    // "Absent from a well-recorded cell" is the STRONGEST verdict this asset
+    // gives, so a truncated payload that merely looks absent would turn a bad
+    // download into a screen full of confident megas. Corruption fails closed.
+    const raw = buildAsset({
+      cells: [{ key: KEY, monthMask: ALL_MONTHS, species: [[7, ALL_MONTHS], [9000, 0]] }],
+    })
+    const blob = parseRarity(raw)
+    // Chop the payload so the offsets promise more bytes than exist.
+    const truncated = parseRarity(raw.slice(0, raw.length - 3))
+    expect(rarityAt(blob, 500, pt.lat, pt.lon, 6)).toBe('both')
+    expect(rarityAt(truncated, 500, pt.lat, pt.lon, 6)).toBe('none')
+  })
 })
 
 describe('ordinaryMonths', () => {

@@ -26,7 +26,9 @@ export const RARITY_LABELS: Record<Exclude<RarityState, 'none'>, string> = {
 const A11Y_LABELS: Record<Exclude<RarityState, 'none'>, string> = {
   outOfSeason: 'Out of season for this area',
   offRange: 'Off its usual range',
-  both: 'Rarely recorded in this area',
+  // Both halves, because a screen reader user cannot see that the glyph is a
+  // dot inside a ring and would otherwise lose the seasonal reason.
+  both: 'Off its usual range and out of season for this area',
 }
 
 export function RarityMark({ state, className = '' }: { state: RarityState; className?: string }) {
