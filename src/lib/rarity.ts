@@ -170,7 +170,11 @@ function findMask(r: RarityBlob, slot: number, speciesIdx: number): MaskLookup {
     let v = 0
     let b = 0
     do {
-      if (p >= stop) return { kind: 'invalid' }
+      // The shift cap is not padding. JS shift counts are taken mod 32, so a
+      // malformed sixth byte wraps to shift 3 and corrupts `cur` upward, which
+      // can step past the target and return a clean-looking `absent` that the
+      // caller renders as a mega. The Swift port guards the same way.
+      if (p >= stop || shift >= 35) return { kind: 'invalid' }
       b = r.raw[p++]
       v |= (b & 0x7f) << shift
       shift += 7

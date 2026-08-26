@@ -105,6 +105,7 @@ struct PerPhotoConfirmView: View {
                     } label: {
                         Image(systemName: "chevron.left")
                     }
+                    .disabled(isAcknowledging)
                 }
 
                 Spacer()
@@ -135,6 +136,7 @@ struct PerPhotoConfirmView: View {
                     } label: {
                         Image(systemName: "ellipsis")
                     }
+                    .disabled(isAcknowledging)
                 } else {
                     Button("Re-crop") {
                         viewModel.requestManualCrop()
@@ -561,9 +563,16 @@ struct PerPhotoConfirmView: View {
         }
         confirmedRarity = UUID()
         isAcknowledging = true
+        // Back, Skip, Re-identify, Re-crop and Close all stay reachable during
+        // the hold, and every one of them moves the wizard. Committing blind
+        // afterwards would file this species against whatever photo is showing
+        // by then, so the commit is bound to the photo it was made for. The
+        // toolbar is disabled too, which is the cheaper half of the fix.
+        let confirmedPhotoID = photo?.id
         Task {
             try? await Task.sleep(for: .milliseconds(900))
             isAcknowledging = false
+            guard let confirmedPhotoID, viewModel.currentPhoto?.id == confirmedPhotoID else { return }
             commit()
         }
     }
