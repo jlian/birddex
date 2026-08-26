@@ -93,7 +93,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
 
   const [photoResults, setPhotoResults] = useState<PhotoResult[]>([])
   const [currentCandidates, setCurrentCandidates] = useState<
-    { species: string; confidence: number; plumage?: string; rangeStatus?: string }[]
+    { species: string; confidence: number; plumage?: string }[]
   >([])
   const [rangeAdjusted, setRangeAdjusted] = useState(false)
 
@@ -919,7 +919,7 @@ function AiZoomedPreview({
 
 interface PerPhotoConfirmProps {
   photo: PhotoWithCrop
-  candidates: { species: string; confidence: number; plumage?: string; rangeStatus?: string }[]
+  candidates: { species: string; confidence: number; plumage?: string }[]
   rangeAdjusted?: boolean
   photoIndex: number
   totalPhotos: number
@@ -1204,11 +1204,6 @@ function PerPhotoConfirm({
                         )}
                       </span>
                       <span className="flex items-center gap-1.5">
-                        {c.rangeStatus && (c.rangeStatus === 'out-of-range' || c.rangeStatus === 'near-range') && (
-                          <span className={`text-[10px] font-medium ${c.rangeStatus === 'out-of-range' ? 'text-red-500 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                            {c.rangeStatus === 'out-of-range' ? 'Out of range' : 'Near range'}
-                          </span>
-                        )}
                         <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>
                       </span>
                     </button>
