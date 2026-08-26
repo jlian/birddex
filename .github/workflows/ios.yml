@@ -120,15 +120,16 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p build/logs
-          xcodebuild build-for-testing \
+          NSUnbufferedIO=YES xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
+            -showBuildTimingSummary \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/logs/build.log | xcbeautify
+            2>&1 | tee build/logs/build.log | xcbeautify --renderer github-actions
 
       - name: Select API backend
         env:
@@ -238,7 +239,7 @@ jobs:
           # xcodebuild does not create missing parents for -resultBundlePath, and
           # ios/build does not exist in a clean checkout.
           mkdir -p build
-          TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
+          NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
@@ -248,7 +249,7 @@ jobs:
             -only-testing:WingDexTests \
             -only-testing:WingDexUITests \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/logs/test.log | xcbeautify
+            2>&1 | tee build/logs/test.log | xcbeautify --renderer github-actions
 
       - name: Upload iOS test diagnostics
         if: always()
