@@ -300,6 +300,8 @@ def main():
     ap.add_argument("--occurrence", help="v4 WDOP blob, for the record-gate report")
     ap.add_argument("--min-cell-records", type=int, default=400)
     ap.add_argument("--probe", help="lat,lon,month -- list species by state there")
+    ap.add_argument("--probe-limit", type=int, default=12,
+                    help="examples per state; raise it to list a bucket in full")
     args = ap.parse_args()
 
     blob = load_rarity(args.rarity)
@@ -320,7 +322,7 @@ def main():
     if args.probe:
         lat, lon, month = args.probe.split(",")
         print("probe at " + args.probe + ":")
-        probe(blob, names, float(lat), float(lon), int(month))
+        probe(blob, names, float(lat), float(lon), int(month), args.probe_limit)
         print()
 
     failures = 0
