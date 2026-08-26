@@ -42,7 +42,7 @@ import { useBirdGallery } from '@/hooks/use-bird-image'
 import { computePaddedSquareCropFromPercent } from '@/lib/crop-math'
 import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
 import { RarityMark } from '@/components/ui/rarity-mark'
-import { useRarityResolver, localMonth } from '@/lib/rarity-client'
+import { useRarityResolver } from '@/lib/rarity-client'
 
 interface AddPhotosFlowProps {
   data: WingDexDataStore
@@ -781,6 +781,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
               photo={fullCurrentPhoto}
               candidates={currentCandidates}
               rangeAdjusted={rangeAdjusted}
+              useGeoContext={useGeoContext}
               photoIndex={currentPhotoIndex}
               totalPhotos={clusterPhotos.length}
               onConfirm={confirmCurrentPhoto}
@@ -923,6 +924,10 @@ interface PerPhotoConfirmProps {
   photo: PhotoWithCrop
   candidates: { species: string; confidence: number; plumage?: string }[]
   rangeAdjusted?: boolean
+  /** The user's Use Location and Time setting. Ranking drops GPS and month when
+   *  it is off, so the mark must stay silent too rather than showing a
+   *  geographic conclusion they turned off. */
+  useGeoContext?: boolean
   photoIndex: number
   totalPhotos: number
   onConfirm: (
@@ -941,6 +946,7 @@ function PerPhotoConfirm({
   photo,
   candidates,
   rangeAdjusted,
+  useGeoContext,
   photoIndex,
   totalPhotos,
   onConfirm,
@@ -959,9 +965,17 @@ function PerPhotoConfirm({
 
   // Resolved once for the whole candidate list: a hook cannot be called per
   // candidate, because the count changes between photos.
-  const photoLat = photo.gps?.lat
-  const photoLon = photo.gps?.lon
-  const photoMonth = localMonth(photo.exifTime)
+  //
+  // The month is derived the SAME way runSpeciesId derives it, in the browser
+  // timezone, rather than from the timestamp's own offset. Reading it the other
+  // way is arguably more correct but would let a photo ranked as February show
+  // a January verdict, and a mark that contradicts the ranking beside it is
+  // worse than one that is a day off at a month boundary.
+  const exif = photo.exifTime ? new Date(photo.exifTime) : null
+  const rankingMonth = exif && !Number.isNaN(exif.getTime()) ? exif.getMonth() + 1 : null
+  const photoLat = useGeoContext ? photo.gps?.lat : undefined
+  const photoLon = useGeoContext ? photo.gps?.lon : undefined
+  const photoMonth = useGeoContext ? rankingMonth : null
   const resolveRarity = useRarityResolver(
     photoLat != null && photoLon != null && photoMonth != null)
 

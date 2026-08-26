@@ -43,9 +43,12 @@ export const BirdRow = memo(function BirdRow({ speciesName, imageUrl, subtitle, 
       actions={actions}
     >
       <div className="md:flex md:items-baseline md:gap-2">
-        <p className="font-serif font-semibold text-sm text-foreground truncate">
-          {displayName}
-          <RarityMark state={rarity} className="ml-1.5" />
+        {/* The mark sits OUTSIDE the truncating element. Inside it, a long
+            species name would ellipsize the verdict away on exactly the narrow
+            rows where truncation kicks in. */}
+        <p className="font-serif font-semibold text-sm text-foreground flex items-baseline gap-1.5 min-w-0">
+          <span className="truncate">{displayName}</span>
+          <RarityMark state={rarity} />
         </p>
         {scientificName && (
           <p className="text-xs text-muted-foreground italic truncate">

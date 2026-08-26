@@ -19,16 +19,23 @@ struct RarityMark: View {
     /// Fires the ping once when this changes to a non-nil value. Only the
     /// concentric state animates, and only where the user just did something.
     var pingTrigger: AnyHashable?
+    /// Previews only. RenderPreview captures a single frame, so the only way to
+    /// see the ping is to pin its phase and render a few.
+    var previewPhase: CGFloat?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var unit: CGFloat = 10
 
-    @State private var ping = false
+    @State private var pinging = false
+    @State private var phase: CGFloat = 0
 
     private var ringWidth: CGFloat { max(1, unit * 0.15) }
     /// Sized so the standalone dot carries at least as much ink as the hollow
     /// ring: off range is the rarer verdict of the two and must not read lighter.
     private var coreDiameter: CGFloat { state == .both ? unit * 0.42 : unit * 0.7 }
+
+    private var shownPhase: CGFloat { previewPhase ?? phase }
+    private var showsPing: Bool { previewPhase != nil || pinging }
 
     var body: some View {
         ZStack {
@@ -42,29 +49,35 @@ struct RarityMark: View {
                     .fill(Color.rarityMark)
                     .frame(width: coreDiameter, height: coreDiameter)
             }
-            // The ping is a second ring leaving the core, so the concentric
-            // form animates into the shape it already has rather than arriving
-            // as unrelated motion.
-            if ping {
+            // A second ring leaving the mark, so the concentric form animates
+            // outward from the shape it already has. It is mounted at phase 0,
+            // where it sits exactly on the static ring and is fully opaque, and
+            // the phase is animated afterwards; inserting it already expanded
+            // and transparent would leave nothing to interpolate from and the
+            // ping would never be seen.
+            if showsPing {
                 Circle()
                     .strokeBorder(Color.rarityMark, lineWidth: ringWidth)
                     .frame(width: unit, height: unit)
-                    .scaleEffect(2.2)
-                    .opacity(0)
-                    .transition(.identity)
+                    .scaleEffect(1 + shownPhase * 1.4)
+                    .opacity(Double(1 - shownPhase))
             }
         }
         .frame(width: unit, height: unit)
-        .animation(.easeOut(duration: 0.7), value: ping)
         .accessibilityElement()
         .accessibilityLabel(state.accessibilityLabel ?? "")
         .accessibilityHidden(state == .none)
         .onChange(of: pingTrigger) { _, newValue in
             guard newValue != nil, state == .both, !reduceMotion else { return }
-            ping = true
+            pinging = true
+            phase = 0
             Task {
-                try? await Task.sleep(for: .milliseconds(700))
-                ping = false
+                // Let the ring mount at phase 0 before animating, or SwiftUI
+                // batches both into one frame and there is no visible start.
+                await Task.yield()
+                withAnimation(.easeOut(duration: 0.7)) { phase = 1 }
+                try? await Task.sleep(for: .milliseconds(750))
+                pinging = false
             }
         }
     }
@@ -87,7 +100,9 @@ extension RarityState {
         case .none: nil
         case .outOfSeason: "Out of season for this area"
         case .offRange: "Off its usual range"
-        case .both: "Rarely recorded in this area"
+        // Both halves, because VoiceOver users cannot see that the glyph is a
+        // dot inside a ring and would otherwise lose the seasonal reason.
+        case .both: "Off its usual range and out of season for this area"
         }
     }
 
@@ -119,6 +134,18 @@ extension RarityState {
 /// The mark at the size and weight it actually ships at, beside a serif species
 /// name. Uses explicit states rather than the store because the asset loads
 /// asynchronously and a preview snapshot is taken before that finishes.
+/// The ping, frozen at four points. RenderPreview captures one frame, so this
+/// is the only way to check the motion without a simulator video.
+#Preview("Ping phases") {
+    HStack(spacing: 28) {
+        ForEach([0.0, 0.33, 0.66, 1.0], id: \.self) { p in
+            RarityMark(state: .both, previewPhase: CGFloat(p))
+        }
+    }
+    .padding(40)
+    .background(Color.pageBg)
+}
+
 #Preview("In a row") {
     let rows: [(String, String, RarityState)] = [
         ("American Robin", "Turdus migratorius", .none),

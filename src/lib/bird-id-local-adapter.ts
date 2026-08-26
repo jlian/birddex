@@ -33,6 +33,7 @@
 
 import { BirdIdEngine, type EngineAssets, type IdentifyResult } from './bird-id-local'
 import { assetsCached, type AssetProgress } from './model-cache'
+import { TAXONOMY_SHA16 } from './taxonomy-hash'
 import taxonomy from './taxonomy.json'
 
 interface VisionResult {
@@ -229,7 +230,7 @@ export const MODEL_ASSETS: EngineAssets = {
   textClassifierUrl: MODEL_ASSET_URLS[2],
   occurrenceUrl: MODEL_ASSET_URLS[3],
   taxonomy: taxonomy as EngineAssets["taxonomy"],
-  taxonomySha16: "04951673b96b11bf",
+  taxonomySha16: TAXONOMY_SHA16,
   calibration: { temperature: 0.007435, beta: 1.1634, probe: BIRD_PROBE },
 }
 

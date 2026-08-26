@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { gunzipIfNeeded } from './gunzip'
 import { parseRarity, rarityAt, RARITY_ASSET_URL, type RarityState } from './rarity'
 import { getSpeciesIndexLookup } from './taxonomy-order'
+import { TAXONOMY_SHA16 } from './taxonomy-hash'
 
 export type { RarityState }
 
@@ -38,7 +39,10 @@ async function build(): Promise<Resolver> {
         .then(b => gunzipIfNeeded(new Uint8Array(b))),
       getSpeciesIndexLookup(),
     ])
-    const blob = parseRarity(raw)
+    // Checked, not skipped. Species are keyed by taxonomy row index, so a
+    // taxonomy bumped without rebuilding the asset must fail closed rather
+    // than apply every verdict to the wrong bird.
+    const blob = parseRarity(raw, TAXONOMY_SHA16)
     return (species, lat, lon, month) => {
       if (lat == null || lon == null || month == null) return 'none'
       const idx = speciesIndex(species)

@@ -108,14 +108,25 @@ struct RarityBlob: Sendable {
         return -1
     }
 
-    /// Walk one cell's payload for a single species. Nil when the species is not
-    /// listed in that cell at all.
-    private func findMask(slot: Int, speciesIdx: Int) -> UInt16? {
+    /// The outcome of looking one species up inside a cell.
+    ///
+    /// `absent` and `invalid` MUST stay distinct. Absent is the strongest
+    /// verdict this asset can give, a bird never recorded in a well-recorded
+    /// cell, so collapsing a corrupt payload into it would turn a truncated
+    /// asset into a screen full of confident megas. Corruption fails closed.
+    private enum MaskLookup {
+        case found(UInt16)
+        case absent
+        case invalid
+    }
+
+    /// Walk one cell's payload for a single species.
+    private func findMask(slot: Int, speciesIdx: Int) -> MaskLookup {
         let start = Int(Self.readUInt32(raw, at: idxStart + slot * 8 + 4))
         let end = Int(Self.readUInt32(raw, at: idxStart + (slot + 1) * 8 + 4))
         var p = payloadStart + start
         let stop = payloadStart + end
-        guard start <= end, stop <= raw.count else { return nil }
+        guard start <= end, stop <= raw.count else { return .invalid }
 
         var cur = 0
         while p < stop {
@@ -123,7 +134,7 @@ struct RarityBlob: Sendable {
             var v = 0
             var b: UInt8 = 0
             repeat {
-                guard p < stop, shift < 35 else { return nil }
+                guard p < stop, shift < 35 else { return .invalid }
                 b = raw[p]
                 p += 1
                 v |= Int(b & 0x7f) << shift
@@ -132,14 +143,14 @@ struct RarityBlob: Sendable {
             // A malformed payload must not trap, so overflow wraps and a
             // negative running index ends the walk instead.
             cur = cur &+ v
-            guard cur >= 0, p + 1 < stop else { return nil }
+            guard cur >= 0, p + 1 < stop else { return .invalid }
             let mask = UInt16(raw[p]) | (UInt16(raw[p + 1]) << 8)
             p += 2
-            if cur == speciesIdx { return mask }
+            if cur == speciesIdx { return .found(mask) }
             // Species are stored ascending, so passing the target means absent.
-            if cur > speciesIdx { return nil }
+            if cur > speciesIdx { return .absent }
         }
-        return nil
+        return .absent
     }
 
     /// The coarse cell key for a point, or nil when it falls outside the grid,
@@ -169,10 +180,16 @@ struct RarityBlob: Sendable {
         // Too few records in this month here to judge anything.
         guard (monthMask >> UInt16(month - 1)) & 1 == 1 else { return .none }
 
-        // Never meaningfully recorded in a cell that has plenty of records.
-        guard let mask = findMask(slot: slot, speciesIdx: speciesIdx) else { return .both }
-        if (mask >> UInt16(month - 1)) & 1 == 1 { return .none }
-        return mask == 0 ? .offRange : .outOfSeason
+        // A corrupt payload marks nothing. Only a clean miss is the mega.
+        switch findMask(slot: slot, speciesIdx: speciesIdx) {
+        case .invalid:
+            return .none
+        case .absent:
+            return .both
+        case .found(let mask):
+            if (mask >> UInt16(month - 1)) & 1 == 1 { return .none }
+            return mask == 0 ? .offRange : .outOfSeason
+        }
     }
 
     /// The 12 months in which this species is ordinary here, for the seasonal
@@ -185,7 +202,12 @@ struct RarityBlob: Sendable {
         guard slot >= 0 else { return nil }
         let monthMask = Self.readUInt16(raw, at: monthsStart + slot * 2)
         guard monthMask != 0 else { return nil }
-        let mask = findMask(slot: slot, speciesIdx: speciesIdx) ?? 0
+        let mask: UInt16
+        switch findMask(slot: slot, speciesIdx: speciesIdx) {
+        case .invalid: return nil
+        case .absent: mask = 0
+        case .found(let m): mask = m
+        }
         // A month the cell cannot judge reads as not-ordinary rather than as a
         // gap, because the caller draws 12 bars and a third state has no meaning.
         return (0..<12).map { m in
