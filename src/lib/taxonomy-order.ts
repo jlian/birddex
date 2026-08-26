@@ -52,10 +52,23 @@ export async function buildSyncOrderLookup(
 }
 
 /**
+ * A synchronous species-name to taxonomy row index lookup, for callers that key
+ * data by that index. Returns -1 for unknown species, which callers must treat
+ * as "no answer" rather than as row 0.
+ *
+ * Separate from getSpeciesOrder because that returns MAX_SAFE_INTEGER for
+ * unknowns to sort them last, and using a sentinel that large as an index would
+ * read far off the end of any table.
+ */
+export async function getSpeciesIndexLookup(): Promise<(name: string) => number> {
+  const map = await loadOrderMap()
+  return (name: string) => map.get(name.split('(')[0].trim().toLowerCase()) ?? -1
+}
+
+/**
  * Return the BirdLife DataZone factsheet URL for a species, or undefined if unknown.
  * Lazy-loads the taxonomy on first call (shares the cache with order lookups).
- */
-export async function getBirdlifeFactsheetUrl(
+ */export async function getBirdlifeFactsheetUrl(
   speciesName: string
 ): Promise<string | undefined> {
   await loadOrderMap()

@@ -634,6 +634,7 @@ function OutingDetail({
                 speciesName={group.speciesName}
                 subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                 onClick={() => onSelectSpecies(group.speciesName)}
+                outing={outing}
                 actions={
                   <Button
                     variant="ghost"
@@ -662,6 +663,7 @@ function OutingDetail({
                   speciesName={group.speciesName}
                   subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                   onClick={() => onSelectSpecies(group.speciesName)}
+                  outing={outing}
                   actions={
                     <>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">possible</Badge>
