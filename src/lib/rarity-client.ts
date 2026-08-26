@@ -71,7 +71,9 @@ export function loadRarity(): Promise<Resolver> {
  * not pull 1.38 MiB it will never read.
  */
 export function useRarityResolver(enabled = true): Resolver {
-  const [resolver, setResolver] = useState<Resolver | null>(resolved)
+  // Wrapped, because React treats a bare function as a LAZY INITIALIZER and
+  // would call the resolver with no arguments, then store whatever came back.
+  const [resolver, setResolver] = useState<Resolver | null>(() => resolved)
 
   useEffect(() => {
     if (resolver || !enabled) return
@@ -97,12 +99,20 @@ export function useRarity(
   return useRarityResolver(known)(species, lat, lon, month)
 }
 
-/** The 1-12 month of a stored ISO timestamp, in its OWN timezone.
- *  Reading it locally would move an evening outing into the wrong month. */
+/**
+ * The 1-12 month of a stored ISO timestamp, in its OWN timezone. Reading it
+ * locally would move an evening outing into the wrong month.
+ *
+ * The whole shape is validated, not just a leading YYYY-MM. Matching a prefix
+ * would read "2026-02-not-a-date" as February and hand back a confident month
+ * for a value that is not a date at all; an unparseable date has to fail closed.
+ */
+const ISO_DATE = /^\d{4}-(\d{2})-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/
+
 export function localMonth(timeStr: string | null | undefined): number | null {
   if (!timeStr) return null
-  const m = /^(\d{4})-(\d{2})/.exec(timeStr)
+  const m = ISO_DATE.exec(timeStr)
   if (!m) return null
-  const month = Number(m[2])
+  const month = Number(m[1])
   return month >= 1 && month <= 12 ? month : null
 }

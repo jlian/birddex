@@ -16,6 +16,22 @@ describe('localMonth', () => {
     }
   })
 
+  it('rejects a value that merely starts like a date', () => {
+    // A prefix match would read this as February and mark a bird on the
+    // strength of a string that is not a date at all.
+    expect(localMonth('2026-02-not-a-date')).toBeNull()
+    expect(localMonth('2026-02-01T99')).toBeNull()
+    expect(localMonth('2026-02')).toBeNull()
+  })
+
+  it('accepts the shapes actually stored', () => {
+    expect(localMonth('2026-03-04')).toBe(3)
+    expect(localMonth('2026-03-04T05:06')).toBe(3)
+    expect(localMonth('2026-03-04T05:06:07')).toBe(3)
+    expect(localMonth('2026-03-04T05:06:07.123Z')).toBe(3)
+    expect(localMonth('2026-03-04 05:06:07-08:00')).toBe(3)
+  })
+
   it('rejects an out-of-range month instead of clamping it', () => {
     expect(localMonth('2026-13-01T00:00:00Z')).toBeNull()
     expect(localMonth('2026-00-01T00:00:00Z')).toBeNull()
