@@ -312,6 +312,9 @@ struct MainTabView: View {
             }
             #endif
             async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
+            // Rows resolve their mark synchronously, so pay the 2 MiB read here
+            // rather than on the first scroll.
+            RarityStore.shared.warmUp()
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             do {
@@ -419,12 +422,18 @@ struct MainTabView: View {
                     stage = "seed outing write"
                     let service = DataService(auth: auth, expectedAccountID: accountID)
                     let outingID = "ui-test-seeded-outing-\(accountID)"
+                    // Coordinates matter: rarity is keyed by cell and month, so an
+                    // outing without them renders no rarity mark at all. This
+                    // fixture had none, which quietly made every seeded screen
+                    // untestable for that feature.
                     _ = try await service.createOuting(Outing(
                         id: outingID,
                         userId: accountID,
                         startTime: "2026-02-12T06:58:00-03:00",
                         endTime: "2026-02-12T07:58:00-03:00",
                         locationName: "Parque Ibirapuera, Sao Paulo",
+                        lat: -23.5875,
+                        lon: -46.6575,
                         notes: "UI test seed",
                         createdAt: "2026-02-12T06:58:00-03:00"
                     ))
@@ -447,6 +456,41 @@ struct MainTabView: View {
                             notes: ""
                         ),
                     ])
+
+                    // A second outing whose four species land on all four rarity
+                    // verdicts, so every state is reachable from one launch. The
+                    // expectations are locked by ml/distill/verify_rarity_blob.py
+                    // against the shipped asset; change one and that check fails.
+                    stage = "seed rarity outing write"
+                    let rarityOutingID = "ui-test-seeded-rarity-outing-\(accountID)"
+                    _ = try await service.createOuting(Outing(
+                        id: rarityOutingID,
+                        userId: accountID,
+                        startTime: "2026-01-18T08:30:00-08:00",
+                        endTime: "2026-01-18T10:30:00-08:00",
+                        locationName: "Carkeek Park, Seattle",
+                        lat: 47.61,
+                        lon: -122.33,
+                        notes: "UI test seed, rarity states",
+                        createdAt: "2026-01-18T08:30:00-08:00"
+                    ))
+                    stage = "seed rarity observation write"
+                    let rarities: [(String, String)] = [
+                        ("robin", "American Robin (Turdus migratorius)"),
+                        ("rufous", "Rufous Hummingbird (Selasphorus rufus)"),
+                        ("tundra-swan", "Tundra Swan (Cygnus columbianus)"),
+                        ("cardinal", "Northern Cardinal (Cardinalis cardinalis)"),
+                    ]
+                    _ = try await service.createObservations(rarities.map { slug, name in
+                        BirdObservation(
+                            id: "ui-test-\(slug)-\(accountID)",
+                            outingId: rarityOutingID,
+                            speciesName: name,
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        )
+                    })
                     stage = "seeded account reload"
                     await store.loadAll()
                     guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }

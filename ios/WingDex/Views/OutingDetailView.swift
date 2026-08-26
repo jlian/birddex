@@ -332,7 +332,8 @@ struct OutingDetailView: View {
                         BirdRow(
                             speciesName: speciesName,
                             thumbnailUrl: entry?.thumbnailUrl,
-                            count: totalCount
+                            count: totalCount,
+                            outing: outing
                         )
                     }
                     .contextMenu {
@@ -398,7 +399,8 @@ struct OutingDetailView: View {
                         BirdRow(
                             speciesName: speciesName,
                             thumbnailUrl: entry?.thumbnailUrl,
-                            count: totalCount
+                            count: totalCount,
+                            outing: outing
                         )
                     }
                     .contextMenu {
