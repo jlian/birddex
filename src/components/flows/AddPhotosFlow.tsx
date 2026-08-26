@@ -41,6 +41,8 @@ import type { GalleryImage } from '@/lib/wikimedia'
 import { useBirdGallery } from '@/hooks/use-bird-image'
 import { computePaddedSquareCropFromPercent } from '@/lib/crop-math'
 import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
+import { RarityMark } from '@/components/ui/rarity-mark'
+import { useRarityResolver, localMonth } from '@/lib/rarity-client'
 
 interface AddPhotosFlowProps {
   data: WingDexDataStore
@@ -955,6 +957,14 @@ function PerPhotoConfirm({
   const [selectedPlumage, setSelectedPlumage] = useState(topCandidate?.plumage)
   const isHighConfidence = selectedConfidence >= 0.8
 
+  // Resolved once for the whole candidate list: a hook cannot be called per
+  // candidate, because the count changes between photos.
+  const photoLat = photo.gps?.lat
+  const photoLon = photo.gps?.lon
+  const photoMonth = localMonth(photo.exifTime)
+  const resolveRarity = useRarityResolver(
+    photoLat != null && photoLon != null && photoMonth != null)
+
   // Reset selection when candidates change (new photo or async results)
   useEffect(() => {
     const top = candidates[0]
@@ -1202,6 +1212,15 @@ function PerPhotoConfirm({
                         {c.plumage && (
                           <span className="ml-1 text-xs text-muted-foreground font-normal">({c.plumage})</span>
                         )}
+                        {/* Shown on every candidate, not just the selected one.
+                            When the top pick is a mega and the runner-up is the
+                            ordinary local bird, that contrast is the most useful
+                            thing on the screen. Dimmed when unselected so it
+                            informs without competing with the selection state. */}
+                        <RarityMark
+                          state={resolveRarity(c.species, photoLat, photoLon, photoMonth)}
+                          className={`ml-1.5 ${isSelected ? '' : 'opacity-45'}`}
+                        />
                       </span>
                       <span className="flex items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>

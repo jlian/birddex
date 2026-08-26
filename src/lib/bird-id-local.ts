@@ -27,6 +27,7 @@ import * as ort from 'onnxruntime-web/wasm'
 import ortWasmModuleUrl from 'onnxruntime-web/ort-wasm-simd-threaded.mjs?url'
 import ortWasmBinaryUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
 import { preloadAssets, type AssetProgress } from './model-cache'
+import { gunzipIfNeeded } from './gunzip'
 import { preprocess, type Rgb } from './clip-preprocess'
 import { parseOccurrence, type OccBlob } from './occurrence'
 import { rankCandidates, scoresToProbs, type Calibration, type Candidate } from './rank'
@@ -298,18 +299,8 @@ function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
 /**
  * Decompress the occurrence blob, unless the transport already did it.
  *
- * Cloudflare serves the .gz asset as an opaque body, so the raw gzip arrives and
- * has to be decoded here. `wrangler dev` instead labels it `Content-Encoding: gzip`
- * off the file extension, so the browser decodes it in transit and this receives
- * the 24 MiB payload rather than the 16 MiB file. The gzip magic says which
- * happened, and it cannot collide: a decoded blob starts with "WDOP".
+ * Defined in ./gunzip so a page that only needs the small rarity asset does not
+ * import this module and the ONNX runtime with it. Re-exported because
+ * src/__tests__/occurrence-transport.test.ts imports it from this path.
  */
-export async function gunzipIfNeeded(buf: Uint8Array): Promise<Uint8Array> {
-  if (buf[0] !== 0x1f || buf[1] !== 0x8b) return buf
-  const ds = new DecompressionStream("gzip")
-  const writer = ds.writable.getWriter()
-  void writer.write(buf)
-  void writer.close()
-  const out = await new Response(ds.readable).arrayBuffer()
-  return new Uint8Array(out)
-}
+export { gunzipIfNeeded }
