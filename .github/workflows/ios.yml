@@ -107,9 +107,7 @@ jobs:
           xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
       - name: Install XcodeGen
-        run: |
-          ios/scripts/install-xcodegen.sh
-          xcbeautify --version
+        run: ios/scripts/install-xcodegen.sh
 
       - name: Generate Xcode project
         working-directory: ios
@@ -118,8 +116,6 @@ jobs:
       - name: Build for Simulator
         working-directory: ios
         run: |
-          set -o pipefail
-          mkdir -p build/logs
           NSUnbufferedIO=YES xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
             -scheme Dev \
@@ -128,8 +124,7 @@ jobs:
             -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
             -showBuildTimingSummary \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/logs/build.log | xcbeautify --renderer github-actions
+            CODE_SIGNING_ALLOWED=NO 2>&1
 
       - name: Select API backend
         env:
@@ -235,7 +230,6 @@ jobs:
       - name: Run tests
         working-directory: ios
         run: |
-          set -o pipefail
           # xcodebuild does not create missing parents for -resultBundlePath, and
           # ios/build does not exist in a clean checkout.
           mkdir -p build
@@ -248,15 +242,12 @@ jobs:
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
             -only-testing:WingDexUITests \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/logs/test.log | xcbeautify --renderer github-actions
+            CODE_SIGNING_ALLOWED=NO 2>&1
 
       - name: Upload iOS test diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: iOS-test-diagnostics
-          path: |
-            ios/build/TestResults.xcresult
-            ios/build/logs/
+          path: ios/build/TestResults.xcresult
           retention-days: 7
