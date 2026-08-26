@@ -77,6 +77,31 @@ if [[ ! -f "$PRIOR" ]]; then
   exit 1
 fi
 
+# The rarity asset, read the same way from the module that owns its format.
+# It is NOT in MODEL_ASSET_URLS: it ships outside the gated model download
+# because it renders on list screens, not only during identification.
+RARITY_SRC="$REPO_ROOT/src/lib/rarity.ts"
+if [[ ! -f "$RARITY_SRC" ]]; then
+  echo "error: missing $RARITY_SRC" >&2
+  echo "  it is declared in ios/project.yml inputFiles; if that entry is" >&2
+  echo "  gone, script sandboxing denies the read and this looks identical" >&2
+  exit 1
+fi
+RARITY_NAME="$(grep -o '/priors/rarity\.[0-9a-f]*\.bin\.gz' "$RARITY_SRC" | head -1 || true)"
+RARITY_NAME="${RARITY_NAME#/priors/}"
+if [[ -z "$RARITY_NAME" ]]; then
+  echo "error: no /priors/rarity.<hash>.bin.gz in $RARITY_SRC" >&2
+  echo "  RARITY_ASSET_URL names the shipped asset; iOS reads it there" >&2
+  exit 1
+fi
+RARITY="$REPO_ROOT/public/priors/$RARITY_NAME"
+if [[ ! -f "$RARITY" ]]; then
+  echo "error: missing shipped rarity asset $RARITY" >&2
+  echo "  RARITY_ASSET_URL names $RARITY_NAME but public/priors has:" >&2
+  ls -1 "$REPO_ROOT/public/priors" >&2
+  exit 1
+fi
+
 # Rewrite only when the bytes actually differ. mtime is not enough: a preserved
 # or restored workspace can leave a stale generated file with a newer timestamp
 # than freshly checked-out sources, silently bundling old classifier/prior data
@@ -90,6 +115,11 @@ fi
 if [[ ! -f "$DEST/occurrence.bin" ]] || ! gunzip -c "$PRIOR" | cmp -s - "$DEST/occurrence.bin"; then
   gunzip -c "$PRIOR" > "$DEST/occurrence.bin"
   echo "decompressed $(basename "$PRIOR") -> occurrence.bin"
+fi
+
+if [[ ! -f "$DEST/rarity.bin" ]] || ! gunzip -c "$RARITY" | cmp -s - "$DEST/rarity.bin"; then
+  gunzip -c "$RARITY" > "$DEST/rarity.bin"
+  echo "decompressed $(basename "$RARITY") -> rarity.bin"
 fi
 
 # The taxonomy the prior is keyed by must be the one the app bundles, or every
