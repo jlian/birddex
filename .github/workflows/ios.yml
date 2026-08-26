@@ -116,6 +116,11 @@ jobs:
       - name: Build for Simulator
         working-directory: ios
         run: |
+          # The app icon is an Icon Composer bundle: layered SVGs with gradient
+          # fill specializations and light/dark variants. Rasterizing it into
+          # every size and appearance took 145s of a 5m31s build on the runner,
+          # and no test looks at the icon. Release builds archive through
+          # ios-release.yml and are unaffected.
           NSUnbufferedIO=YES xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
             -scheme Dev \
@@ -124,6 +129,8 @@ jobs:
             -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
             -showBuildTimingSummary \
+            ASSETCATALOG_COMPILER_APPICON_NAME="" \
+            ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=NO \
             CODE_SIGNING_ALLOWED=NO 2>&1
 
       - name: Select API backend
