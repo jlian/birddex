@@ -38,6 +38,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # DerivedData is toolchain-specific, so a cache restored across an Xcode
+      # bump would be stale. Key on the installed xcodebuild version too.
+      - name: Read Xcode cache version
+        id: xcode-cache-version
+        run: |
+          echo "value=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
       # SPM checkouts and DerivedData survive across runs on the same
       # Package.resolved, so a warm cache skips dependency resolution and
       # lets xcodebuild reuse module/index artifacts.
@@ -47,9 +54,9 @@ jobs:
           path: |
             ~/Library/Caches/org.swift.swiftpm
             ios/build/DerivedData
-          key: ios-spm-dd-${{ runner.os }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml') }}
+          key: ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml') }}
           restore-keys: |
-            ios-spm-dd-${{ runner.os }}-
+            ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-
 
       - name: Start iOS Simulator
         run: |
