@@ -96,6 +96,16 @@ enum DateFormatting {
 
     // MARK: - Internals
 
+    /// The 1-12 month in the date's OWN timezone, which is the month the rarity
+    /// asset is keyed by. Reading it in the device timezone would move an
+    /// evening outing near a month boundary into the wrong month.
+    static func localMonth(_ timeStr: String) -> Int? {
+        guard let comps = parseLocalComponents(timeStr), (1...12).contains(comps.month) else {
+            return nil
+        }
+        return comps.month
+    }
+
     private struct LocalComponents {
         let year: Int, month: Int, day: Int
         let hour: Int, minute: Int, second: Int
@@ -194,6 +204,13 @@ private final class TaxonomyLookupStore {
         }
     }
 
+    #if DEBUG
+    func primeSynchronously() {
+        guard lookups.order.isEmpty else { return }
+        lookups = Self.loadFromBundle()
+    }
+    #endif
+
     func load() async {
         if !lookups.order.isEmpty { return }
         if let loadTask {
@@ -243,6 +260,19 @@ private final class TaxonomyLookupStore {
 func prewarmTaxonomyLookups() async {
     await TaxonomyLookupStore.shared.load()
 }
+
+#if DEBUG
+/// Prime the taxonomy synchronously, for SwiftUI previews only.
+///
+/// A preview snapshot is taken from the first frame, before any `.task` has
+/// resolved, so anything reading a taxonomy-derived value renders empty. The
+/// app never takes this path: parsing 11,167 rows of JSON belongs off the main
+/// thread, which is why `load()` is async.
+@MainActor
+func primeTaxonomyLookupsForPreview() {
+    TaxonomyLookupStore.shared.primeSynchronously()
+}
+#endif
 
 /// Return the bundled eBird taxonomy index for sorting, or Int.max when unknown.
 @MainActor

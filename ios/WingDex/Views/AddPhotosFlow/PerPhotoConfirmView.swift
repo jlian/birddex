@@ -22,6 +22,13 @@ struct PerPhotoConfirmView: View {
     @State private var decodedCroppedImage: UIImage?
     @State private var decodedThumbnail: UIImage?
     @State private var decodeTask: Task<Void, Never>?
+    /// Set when a confirmed species turns out to be a mega, which is what makes
+    /// the mark ping. Nil the rest of the time, so nothing animates by default.
+    @State private var confirmedRarity: UUID?
+    /// True only while a mega's ping plays, so a second tap cannot confirm twice.
+    @State private var isAcknowledging = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var photo: ProcessedPhoto? { viewModel.currentPhoto }
     private var candidates: [IdentifiedCandidate] { viewModel.currentCandidates }
@@ -31,6 +38,23 @@ struct PerPhotoConfirmView: View {
     private var displayName: String { getDisplayName(selectedSpecies) }
     private var scientificName: String? { getScientificName(selectedSpecies) }
     private var selectedPlumage: String? { candidates.first { $0.species == selectedSpecies }?.plumage }
+
+    /// The verdict for one candidate on THIS photo.
+    ///
+    /// Gated on the same `useGeoContext` switch the ranker uses: a user who has
+    /// turned geographic context off has asked not to be told where a bird
+    /// belongs, and a mark would answer a question they declined.
+    private func rarity(for species: String) -> RarityState {
+        guard viewModel.useGeoContext, let photo else { return .none }
+        // Same month derivation the ranker used for this photo, so the mark can
+        // never contradict the ranking that produced the candidate.
+        return RarityStore.shared.state(
+            species: species,
+            lat: photo.gpsLat,
+            lon: photo.gpsLon,
+            month: photo.exifTime.map { Calendar.current.component(.month, from: $0) }
+        )
+    }
 
     private func plumageIcon(_ p: String) -> String? {
         let l = p.lowercased()
@@ -66,7 +90,7 @@ struct PerPhotoConfirmView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("confirm.accept")
-                    .disabled(selectedSpecies.isEmpty)
+                    .disabled(selectedSpecies.isEmpty || isAcknowledging)
                 } else {
                     Button("Skip", role: .destructive) {
                         viewModel.skipCurrentPhoto()
@@ -368,6 +392,11 @@ struct PerPhotoConfirmView: View {
                                 .font(.subheadline)
                                 .accessibilityLabel(plumage)
                         }
+                        let state = rarity(for: selectedSpecies)
+                        if state != .none {
+                            RarityMark(state: state, pingTrigger: confirmedRarity)
+                                .accessibilityIdentifier("confirm.rarity")
+                        }
                     }
                     if let sci = scientificName {
                         Text(sci)
@@ -417,12 +446,17 @@ struct PerPhotoConfirmView: View {
                         .font(.caption)
                         .accessibilityLabel(plumage)
                 }
-                Spacer()
-                if let range = candidate.rangeStatus, range == "out-of-range" || range == "near-range" {
-                    Image(systemName: range == "out-of-range" ? "location.slash" : "location")
-                        .font(.system(size: 10))
-                        .foregroundStyle(range == "out-of-range" ? .red : .orange)
+                // Shown on every candidate, not just the selected one. When the
+                // top pick is a mega and the runner-up is the ordinary local
+                // bird, that contrast is the most useful thing on the screen.
+                // Dimmed when unselected so it informs without competing with
+                // the selection state.
+                let state = rarity(for: candidate.species)
+                if state != .none {
+                    RarityMark(state: state)
+                        .opacity(isSelected ? 1 : 0.45)
                 }
+                Spacer()
                 Text(BirdIdEngine.formatConfidence(candidate.confidence))
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -497,7 +531,31 @@ struct PerPhotoConfirmView: View {
     }
 
     private func confirmWith(status: ObservationStatus) {
-        viewModel.confirmCurrentPhoto(species: selectedSpecies, confidence: selectedConfidence, status: status, count: 1)
+        guard !isAcknowledging else { return }
+        // The mega gets its own beat before the wizard moves on: a ping on the
+        // mark and a soft two-tap, deliberately NOT the lifer confetti and NOT
+        // the lifer success haptic. If the bird is also a lifer, that
+        // celebration fires on save and this stays the smaller, earlier moment.
+        //
+        // Advancing immediately would unmount the mark mid-animation, so the
+        // wizard waits. Pausing to acknowledge IS the moment, and at 1 in 208
+        // confirmations it is not a tax on the common path.
+        let commit = {
+            viewModel.confirmCurrentPhoto(species: selectedSpecies,
+                                          confidence: selectedConfidence,
+                                          status: status, count: 1)
+        }
+        guard rarity(for: selectedSpecies) == .both else { return commit() }
+
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        guard !reduceMotion else { return commit() }
+        confirmedRarity = UUID()
+        isAcknowledging = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(650))
+            isAcknowledging = false
+            commit()
+        }
     }
 
     private func fetchWikiImage() {
@@ -689,8 +747,8 @@ struct PerPhotoConfirmView: View {
                     confidence: 0.95, status: .confirmed, count: 1
                 )]
                 vm.currentCandidates = [
-                    IdentifiedCandidate(species: "Bald Eagle (Haliaeetus leucocephalus)", confidence: 0.92, wikiTitle: "Bald_eagle", plumage: nil, rangeStatus: nil),
-                    IdentifiedCandidate(species: "Golden Eagle (Aquila chrysaetos)", confidence: 0.06, wikiTitle: "Golden_eagle", plumage: nil, rangeStatus: nil),
+                    IdentifiedCandidate(species: "Bald Eagle (Haliaeetus leucocephalus)", confidence: 0.92, wikiTitle: "Bald_eagle", plumage: nil),
+                    IdentifiedCandidate(species: "Golden Eagle (Aquila chrysaetos)", confidence: 0.06, wikiTitle: "Golden_eagle", plumage: nil),
                 ]
             }
     }
@@ -704,9 +762,9 @@ struct PerPhotoConfirmView: View {
                 vm.clusters = [PreviewData.sampleCluster(photoCount: 5)]
                 vm.currentPhotoIndex = 2
                 vm.currentCandidates = [
-                    IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil, rangeStatus: nil),
-                    IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil, rangeStatus: nil),
-                    IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil, rangeStatus: nil),
+                    IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil),
+                    IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil),
+                    IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil),
                 ]
             }
     }
@@ -732,9 +790,9 @@ struct PerPhotoConfirmView: View {
             vm.clusters = [PreviewData.sampleCluster(photoCount: 5)]
             vm.currentPhotoIndex = 2
             vm.currentCandidates = [
-                IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil, rangeStatus: nil),
-                IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil, rangeStatus: nil),
-                IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil, rangeStatus: nil),
+                IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil),
+                IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil),
+                IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil),
             ]
         }
 }
