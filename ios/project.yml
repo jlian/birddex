@@ -48,15 +48,18 @@ targets:
           - "$(SRCROOT)/scripts/sync-birdid-assets.sh"
           - "$(SRCROOT)/../public/models/text_classifier_int8.bin"
           - "$(SRCROOT)/../public/priors/occurrence.4f5c1a15.bin.gz"
-          # The script READS this file to learn the shipped prior filename.
+          - "$(SRCROOT)/../public/priors/rarity.2c02a406.bin.gz"
+          # The script READS these two to learn the shipped asset filenames.
           # Under ENABLE_USER_SCRIPT_SANDBOXING an undeclared input is denied,
-          # so leaving it out makes the script fail at the grep.
+          # so leaving one out makes the script fail at the grep.
           - "$(SRCROOT)/../src/lib/bird-id-local-adapter.ts"
+          - "$(SRCROOT)/../src/lib/rarity.ts"
           - "$(SRCROOT)/../src/lib/taxonomy.json"
           - "$(SRCROOT)/WingDex/Resources/taxonomy.json"
         outputFiles:
           - "$(SRCROOT)/WingDex/Resources/BirdID/text_classifier_int8.bin"
           - "$(SRCROOT)/WingDex/Resources/BirdID/occurrence.bin"
+          - "$(SRCROOT)/WingDex/Resources/BirdID/rarity.bin"
         basedOnDependencyAnalysis: false
     sources:
       - path: WingDex
