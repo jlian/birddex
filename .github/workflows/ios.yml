@@ -237,7 +237,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -derivedDataPath build/DerivedData \
             -parallel-testing-enabled YES \
-            -maximum-concurrent-test-simulator-destinations 2 \
+            -parallel-testing-worker-count 2 \
             -onlyUsePackageVersionsFromResolvedFile \
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
