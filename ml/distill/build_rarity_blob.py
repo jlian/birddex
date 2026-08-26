@@ -195,6 +195,15 @@ def main():
     print("taxonomy sha256[:8] = " + tx_hash.hex())
 
     raw, version, n_cells, idx_start, totals_start, payload_start = read_wdop(args.occurrence)
+    # The source blob is keyed by taxonomy ROW INDEX, so building against a
+    # different taxonomy than it was built with would copy those indexes under a
+    # new hash and both clients would accept the result and mis-key every
+    # verdict. The hash in the header is the only thing that catches it.
+    blob_hash = raw[8:16]
+    if blob_hash != tx_hash:
+        raise SystemExit("occurrence blob taxonomy hash " + blob_hash.hex() +
+                         " != taxonomy.json " + tx_hash.hex() +
+                         " -- rebuild the occurrence blob first")
     print("read WDOP v" + str(version) + ", " + str(n_cells) + " slices")
 
     coarse = args.coarse
