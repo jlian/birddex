@@ -573,11 +573,7 @@ final class AddPhotosViewModel {
                     species: "\($0.commonName) (\($0.scientificName))",
                     confidence: $0.confidence,
                     wikiTitle: nil,
-                    plumage: nil,
-                    // rangeStatus is BirdLife vocabulary. The Bayesian prior has
-                    // no notion of present or out-of-range, only a probability,
-                    // so it is omitted rather than faked from a threshold.
-                    rangeStatus: nil
+                    plumage: nil
                 )
             }
 
@@ -976,7 +972,6 @@ struct IdentifiedCandidate {
     let confidence: Double
     let wikiTitle: String?
     let plumage: String?
-    let rangeStatus: String?
 }
 
 /// AI crop box in percentage coordinates (0-100).

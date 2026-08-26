@@ -40,7 +40,6 @@ interface VisionResult {
   confidence: number
   wikiTitle?: string
   plumage?: string
-  rangeStatus?: 'present' | 'near-range' | 'out-of-range' | 'no-data'
 }
 
 /** Shape the add-photos flow consumes. Named for the server response it replaced. */
@@ -458,9 +457,7 @@ export async function identifyBirdLocally(
     5,
   )
 
-  // rangeStatus is BirdLife vocabulary. The Bayesian prior has no notion of
-  // present or out-of-range, only a probability, so it is omitted rather than
-  // faked from a threshold. cropBox and multipleBirds are absent by design.
+  // cropBox and multipleBirds are absent by design.
   const mapped = mapIdentifyResults(results)
 
   // ABSTENTION. Below the probe threshold this is very likely not a bird, so
