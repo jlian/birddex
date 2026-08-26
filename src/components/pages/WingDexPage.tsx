@@ -12,6 +12,8 @@ import { birdObjectPosition } from '@/components/ui/wiki-bird-thumbnail'
 import { useBirdSummary } from '@/hooks/use-bird-image'
 import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
+import { RarityMark, RARITY_LABELS } from '@/components/ui/rarity-mark'
+import { useRarityResolver, localMonth } from '@/lib/rarity-client'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { getDisplayName, getScientificName } from '@/lib/utils'
@@ -356,6 +358,8 @@ function SpeciesDetail({
 }) {
   const displayName = getDisplayName(entry.speciesName)
   const scientificName = getScientificName(entry.speciesName)
+  // Taken once for the whole sightings list rather than per row.
+  const resolveRarity = useRarityResolver()
   const { summary } = useBirdSummary(entry.speciesName, { wikiTitle: entry.wikiTitle })
   const [ebirdUrl, setEbirdUrl] = useState(() => getEbirdUrl(displayName))
   const [birdlifeUrl, setBirdlifeUrl] = useState<string | undefined>(undefined)
@@ -388,12 +392,12 @@ function SpeciesDetail({
   }, [entry.speciesName, displayName])
 
   // Find all sightings of this species across outings
-  const sightings: Array<{ observation: Observation; outing: { id: string; locationName: string; startTime: string } }> = []
+  const sightings: Array<{ observation: Observation; outing: { id: string; locationName: string; startTime: string; lat?: number | null; lon?: number | null } }> = []
   for (const outing of data.outings) {
     const obs = data.getOutingObservations(outing.id)
     for (const o of obs) {
       if (o.speciesName === entry.speciesName && o.certainty !== 'rejected') {
-        sightings.push({ observation: o, outing: { id: outing.id, locationName: outing.locationName, startTime: outing.startTime } })
+        sightings.push({ observation: o, outing: { id: outing.id, locationName: outing.locationName, startTime: outing.startTime, lat: outing.lat, lon: outing.lon } })
       }
     }
   }
@@ -584,6 +588,20 @@ function SpeciesDetail({
                     {observation.count > 1 && ` · x${observation.count}`}
                     {' · '}
                     {observation.certainty.charAt(0).toUpperCase() + observation.certainty.slice(1)}
+                    {(() => {
+                      // Species detail is the one screen with room for the word,
+                      // which is where the issue asks for a fuller label.
+                      const state = resolveRarity(entry.speciesName, outing.lat, outing.lon, localMonth(outing.startTime))
+                      if (state === 'none') return null
+                      return (
+                        <span className="text-amber-700 dark:text-amber-400">
+                          {' · '}
+                          <RarityMark state={state} />
+                          {' '}
+                          {RARITY_LABELS[state]}
+                        </span>
+                      )
+                    })()}
                   </p>
                 </ListRow>
               ))}
