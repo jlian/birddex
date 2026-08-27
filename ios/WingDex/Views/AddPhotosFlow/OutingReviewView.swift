@@ -169,7 +169,7 @@ struct OutingReviewView: View {
 
     /// One caption below the location controls: attribution, then what happens to coordinates.
     private var locationFooter: some View {
-        Text("Location data by [Geoapify](https://www.geoapify.com/), [OpenStreetMap](https://www.openstreetmap.org/copyright), and [GeoNames](https://www.geonames.org/). Coordinates are saved with your outing and rounded for lookups.")
+        Text("Place names from [\u00a9 OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL 1.0. Search by [Geoapify](https://www.geoapify.com/). Coordinates are saved with your outing and rounded for lookups.")
             .font(.footnote)
             .foregroundStyle(Color.mutedText)
             .tint(Color.accentColor)
@@ -541,7 +541,14 @@ struct OutingReviewView: View {
                 inferredStateProvince = result.stateProvince
                 inferredCountryCode = result.countryCode
             } else {
-                applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+                // No NAMED place, but the jurisdiction is a separate question
+                // and often still answerable offshore or on unmapped land.
+                // Carry those codes through so the eBird export keeps them.
+                applyCoordinateFallback(
+                    latitude: roundedLat,
+                    longitude: roundedLon,
+                    regionCodes: lookup.regionCodes
+                )
             }
         } catch is CancellationError {
             return
@@ -554,16 +561,25 @@ struct OutingReviewView: View {
         }
     }
 
-    private func applyCoordinateFallback(latitude: Double, longitude: Double) {
+    /// Fall back to a coordinate string as the outing name.
+    ///
+    /// `regionCodes` is nil on the ERROR path, where nothing is known, and
+    /// carries the ISO codes on the successful-but-unnamed path, where the
+    /// jurisdiction resolved even though no place did.
+    private func applyCoordinateFallback(
+        latitude: Double,
+        longitude: Double,
+        regionCodes: GeocodingService.RegionCodes? = nil
+    ) {
         let fallback = viewModel.lastLocationName.isEmpty
             ? "\(latitude)deg, \(longitude)deg"
             : viewModel.lastLocationName
         locationName = fallback
         suggestedLocation = fallback
-        suggestedStateProvince = nil
-        suggestedCountryCode = nil
-        inferredStateProvince = nil
-        inferredCountryCode = nil
+        suggestedStateProvince = regionCodes?.stateProvince
+        suggestedCountryCode = regionCodes?.countryCode
+        inferredStateProvince = regionCodes?.stateProvince
+        inferredCountryCode = regionCodes?.countryCode
     }
 
     private func submitPlaceSearch() {

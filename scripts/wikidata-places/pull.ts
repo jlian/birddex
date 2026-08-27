@@ -11,7 +11,7 @@
  *
  * Usage: npx tsx scripts/wikidata-places/pull.ts [--out places.ndjson]
  */
-import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { writeFileSync, appendFileSync, existsSync, readFileSync, mkdirSync, rmSync } from 'node:fs'
 import { PLACE_CLASSES } from './classes.ts'
 
 const ENDPOINT = 'https://query.wikidata.org/sparql'
@@ -83,21 +83,31 @@ async function main() {
   // Resume rather than restart. A full pull takes long enough, and is gentle
   // enough on a shared endpoint, that losing completed classes to one transient
   // 429 is worth avoiding. --fresh forces a clean run.
-  // Resume on COMPLETED classes only.
   //
-  // Presence of rows is not proof of completeness: a class that gave up after
-  // writing a few pages leaves rows behind, and treating those as done makes
-  // the next run skip the rest of that class forever. The extract then looks
-  // plausible while missing most of a category.
+  // Resume on COMPLETED classes only, and STAGE each class before publishing.
   //
-  // A sidecar file records the classes that reached their last page. It is
-  // rewritten from scratch on --fresh alongside the output.
+  // Two failure modes have to be avoided at once, and fixing only one creates
+  // the other:
+  //
+  // - Treating "any row exists" as done makes a class that gave up partway
+  //   through get skipped forever, silently losing most of a category.
+  // - Appending straight to the output makes a retry of an unfinished class
+  //   re-append every page it already wrote, accumulating duplicate rows on
+  //   each resume.
+  //
+  // So each class writes to its own staging file, and only a class that
+  // reaches its final page is concatenated onto the output and recorded in the
+  // marker. An interrupted class leaves a staging file that the next run
+  // truncates and rebuilds from offset 0, which is correct because nothing
+  // partial ever reached the output.
   const doneMarker = `${out}.done`
+  const stageDir = `${out}.staging`
   const fresh = process.argv.includes('--fresh')
   const done = new Set<string>()
   if (fresh) {
     writeFileSync(out, '')
     writeFileSync(doneMarker, '')
+    rmSync(stageDir, { recursive: true, force: true })
   } else if (existsSync(doneMarker)) {
     for (const line of readFileSync(doneMarker, 'utf8').split('\n')) {
       if (line.trim()) done.add(line.trim())
@@ -106,8 +116,14 @@ async function main() {
   }
 
   let total = 0
+  mkdirSync(stageDir, { recursive: true })
   for (const { qid, label } of PLACE_CLASSES) {
     if (done.has(qid)) continue
+    // Truncate any staging file left by an interrupted attempt at this class.
+    // Nothing partial ever reached the output, so restarting at offset 0 is
+    // correct and cannot duplicate rows.
+    const stagePath = `${stageDir}/${qid}.ndjson`
+    writeFileSync(stagePath, '')
     let offset = 0
     let forClass = 0
     // Only a class that reaches its final page is marked complete. A give-up
@@ -131,7 +147,7 @@ async function main() {
       if (!page) break
       if (page.raw === 0) { complete = true; break }
       if (page.rows.length > 0) {
-        appendFileSync(out, page.rows.map(r => JSON.stringify(r)).join('\n') + '\n')
+        appendFileSync(stagePath, page.rows.map(r => JSON.stringify(r)).join('\n') + '\n')
       }
       forClass += page.rows.length
       offset += PAGE
@@ -144,10 +160,15 @@ async function main() {
     }
     total += forClass
     if (complete) {
+      // Publish the class as one append, THEN mark it. If the process dies
+      // between the two, the next run redoes the class and overwrites its
+      // staging file, which costs time but cannot corrupt the output.
+      appendFileSync(out, readFileSync(stagePath))
       appendFileSync(doneMarker, `${qid}\n`)
+      rmSync(stagePath, { force: true })
       process.stdout.write(`\r  ${label.padEnd(18)} ${forClass}\n`)
     } else {
-      process.stdout.write(`\r  ${label.padEnd(18)} ${forClass} INCOMPLETE, will retry on the next run\n`)
+      process.stdout.write(`\r  ${label.padEnd(18)} ${forClass} INCOMPLETE, discarded; will retry on the next run\n`)
     }
     await new Promise(r => setTimeout(r, DELAY_MS))
   }

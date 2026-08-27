@@ -59,7 +59,7 @@ export default function PrivacyPage() {
             <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
             <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
             <li><strong>Geoapify:</strong> When you type a place name into the location search box, that query is forwarded through our server to Geoapify. Nothing else is. Coordinates are never sent to Geoapify. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics.</li>
-            <li><strong>OpenStreetMap:</strong> Suggesting an outing name from your photo's location runs entirely on WingDex infrastructure, against a place-name database built from OpenStreetMap data. Your coordinates are not sent to any third party for this. Results may incorporate OpenStreetMap and GeoNames data.</li>
+            <li><strong>OpenStreetMap:</strong> Suggesting an outing name from your photo's location runs entirely on WingDex infrastructure, against a place-name database built from OpenStreetMap data. Your coordinates are not sent to any third party for this. The database is built solely from OpenStreetMap data, (c) OpenStreetMap contributors, ODbL 1.0.</li>
             <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
           </ul>
         </section>

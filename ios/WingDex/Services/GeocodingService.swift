@@ -33,6 +33,18 @@ final class GeocodingService {
     private struct ReverseResponse: Codable {
         let result: GeocodingResult?
         let nearby: [GeocodingResult]?
+        let regionCodes: RegionCodes?
+    }
+
+    /// ISO 3166 codes for the jurisdiction a coordinate sits in.
+    ///
+    /// Independent of the named place: a coordinate offshore or on unmapped
+    /// land often has a valid code and no name, and the eBird export still
+    /// wants the code. Optional so an older server that omits the field decodes
+    /// rather than throwing.
+    struct RegionCodes: Codable {
+        let stateProvince: String?
+        let countryCode: String?
     }
 
     private struct SearchResponse: Codable {
@@ -48,12 +60,15 @@ final class GeocodingService {
     }
 
     /// The best guess plus the other named places within the search radius, from one request.
-    func reverse(latitude: Double, longitude: Double) async throws -> (result: GeocodingResult?, nearby: [GeocodingResult]) {
+    func reverse(
+        latitude: Double,
+        longitude: Double
+    ) async throws -> (result: GeocodingResult?, nearby: [GeocodingResult], regionCodes: RegionCodes?) {
         let response: ReverseResponse = try await post(
             path: "api/geocoding/reverse",
             body: ["lat": latitude, "lon": longitude]
         )
-        return (response.result, response.nearby ?? [])
+        return (response.result, response.nearby ?? [], response.regionCodes)
     }
 
     func search(query: String) async throws -> [GeocodingResult] {
