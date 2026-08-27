@@ -60,7 +60,19 @@ export default function OutingReview({
   const [suggestedCountryCode, setSuggestedCountryCode] = useState<string | undefined>(undefined)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
-  const [locationLookupFailed, setLocationLookupFailed] = useState(false)
+  /**
+   * Why three states rather than one boolean.
+   *
+   * A reverse-geocode call has two very different unhappy endings, and
+   * collapsing them into "failed" produced a misleading UI. `'error'` means the
+   * request genuinely broke: a 500, a timeout, a network drop. Retrying that is
+   * sensible. `'empty'` means the lookup SUCCEEDED and there is no named place
+   * near the coordinate, which is common in rural areas: 18.5% of 20,000
+   * iNaturalist coordinates have no named OSM feature within 2 km. Retrying
+   * that is guaranteed to return the same nothing, so offering a Retry button
+   * invites the user to click something that cannot help them.
+   */
+  const [lookupState, setLookupState] = useState<'ok' | 'empty' | 'error'>('ok')
 
   // Compute observation-local ISO string for display and manual editing.
   // cluster.startTime is a UTC-correct Date (exifTime is offset-aware),
@@ -101,12 +113,44 @@ export default function OutingReview({
 
   const fetchLocationName = useCallback(async (lat: number, lon: number) => {
     setIsLoadingLocation(true)
-    setLocationLookupFailed(false)
+    setLookupState('ok')
+
+    // Used for both unhappy endings: the coordinate string is a usable name and
+    // the field stays editable, so the user is never blocked either way.
+    //
+    // NOT named `useFallback`: the `use` prefix makes ESLint's
+    // react-hooks/rules-of-hooks treat a plain closure as a Hook, so calling it
+    // inside a callback fails lint.
+    //
+    // `regionCodes` is carried even on the empty path: a coordinate can have an
+    // ISO state/country code with no named place (offshore, unmapped land), and
+    // the eBird export still wants those. They are independent of the name, so
+    // an 'empty' lookup can still infer a region while showing no place name.
+    const applyFallback = (
+      state: 'empty' | 'error',
+      regionCodes: { stateProvince?: string; countryCode?: string } = {},
+    ) => {
+      const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
+      setSuggestedLocation(fallback)
+      setLocationName(fallback)
+      setSuggestedStateProvince(regionCodes.stateProvince)
+      setSuggestedCountryCode(regionCodes.countryCode)
+      setInferredStateProvince(regionCodes.stateProvince)
+      setInferredCountryCode(regionCodes.countryCode)
+      setLookupState(state)
+    }
+
     try {
       debug('geocoding', 'Starting reverse geocoding')
-      const result = await reverseGeocode(lat, lon)
-      if (!result) throw new Error('No location name returned')
-      
+      const { result, regionCodes } = await reverseGeocode(lat, lon)
+      if (!result) {
+        // A successful lookup with no nearby named place. Not an error. Region
+        // codes may still be present, so carry them through.
+        debug('geocoding', 'No named place near this coordinate')
+        applyFallback('empty', regionCodes)
+        return
+      }
+
       debug('geocoding', 'Location identified')
       setSuggestedLocation(result.label)
       setLocationName(result.label)
@@ -114,18 +158,9 @@ export default function OutingReview({
       setSuggestedCountryCode(result.countryCode)
       setInferredStateProvince(result.stateProvince)
       setInferredCountryCode(result.countryCode)
-    } catch (error) {
-      debug('geocoding', 'Reverse geocoding failed')
-      // Fall back to default location or coordinate string
-      const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
-      debug('geocoding', 'Using location fallback')
-      setSuggestedLocation(fallback)
-      setLocationName(fallback)
-      setSuggestedStateProvince(undefined)
-      setSuggestedCountryCode(undefined)
-      setInferredStateProvince(undefined)
-      setInferredCountryCode(undefined)
-      setLocationLookupFailed(true)
+    } catch {
+      debug('geocoding', 'Reverse geocoding request failed')
+      applyFallback('error')
     } finally {
       setIsLoadingLocation(false)
     }
@@ -502,7 +537,7 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
-            {locationLookupFailed && hasGps && (
+            {lookupState === 'error' && hasGps && (
               <p className="text-xs text-destructive">
                 Location lookup failed.{' '}
                 <button
@@ -512,6 +547,13 @@ export default function OutingReview({
                 >
                   Retry
                 </button>
+              </p>
+            )}
+            {lookupState === 'empty' && hasGps && (
+              // Deliberately no Retry: the lookup worked, and the answer is that
+              // nothing named is nearby, so a retry returns the same result.
+              <p className="text-xs text-muted-foreground">
+                No named place found nearby. Tap above to name this outing.
               </p>
             )}
           </div>

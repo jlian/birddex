@@ -1,11 +1,10 @@
 import {
   normalizeGeoapifyResult,
   parseCoordinate,
-  roundCoordinate,
-  type GeoapifyPlacesResponse,
   type GeoapifyResponse,
   type GeocodingResult,
 } from './geocoding'
+import { getPMTiles, lookupPlacesWithRegion, type RegionCodes } from './osm-places'
 
 const GEOAPIFY_ORIGIN = 'https://api.geoapify.com'
 const GEOAPIFY_DEADLINE_MS = 5_000
@@ -93,69 +92,65 @@ function parseGeocodingResponse(body: unknown, stage: GeocodingStage): GeoapifyR
   return { results }
 }
 
-function parsePlacesResponse(body: unknown): GeoapifyPlacesResponse {
-  const features = body && typeof body === 'object' && 'features' in body
-    ? (body as Partial<GeoapifyPlacesResponse>).features
-    : undefined
-  if (!Array.isArray(features)) throw new GeocodingUpstreamError(502, undefined, 200, 'places lookup', 'unusable payload')
-  return { features }
-}
-
-function coordinateParam(value: number): string {
-  return roundCoordinate(value).toFixed(3)
-}
-
-// A sanctuary or reserve names an outing better than the large park containing it.
-const RESERVE_CATEGORIES = new Set(['leisure.park.nature_reserve', 'natural.protected_area'])
-
-export async function reverseGeocode(
-  apiKey: string | undefined,
-  rawLatitude: string | null,
-  rawLongitude: string | null,
-  fetcher: Fetcher = fetch,
-  onReverseFallback?: () => void,
-): Promise<{ result: GeocodingResult | null; nearby: GeocodingResult[] }> {
-  const latitude = parseCoordinate(rawLatitude, 'latitude')
-  const longitude = parseCoordinate(rawLongitude, 'longitude')
-  const lat = coordinateParam(latitude)
-  const lon = coordinateParam(longitude)
-  const controller = new AbortController()
-  const deadline = setTimeout(() => controller.abort(), GEOAPIFY_DEADLINE_MS)
-  try {
-    const places = parsePlacesResponse(await requestGeoapify(apiKey, '/v2/places', {
-      // Geoapify does not union a comma-separated list, so extra categories only narrow
-      // the match. `leisure` is the one value that covers parks and nature reserves.
-      categories: 'leisure',
-      conditions: 'named',
-      filter: `circle:${lon},${lat},1000`,
-      bias: `proximity:${lon},${lat}`,
-      limit: '8',
-    }, fetcher, controller.signal, 'places lookup'))
-    const candidates = places.features
-      .map(feature => feature.properties)
-      .filter((properties): properties is NonNullable<typeof properties> => Boolean(properties))
-      .map(properties => ({ place: normalizeGeoapifyResult(properties), categories: properties.categories ?? [] }))
-      .filter((candidate): candidate is { place: GeocodingResult; categories: string[] } => candidate.place !== null)
-    const reserveIndex = candidates.findIndex(candidate =>
-      candidate.categories.some(category => RESERVE_CATEGORIES.has(category)))
-    if (reserveIndex > 0) candidates.unshift(...candidates.splice(reserveIndex, 1))
-    const nearby = candidates.map(candidate => candidate.place)
-    if (nearby.length > 0) return { result: nearby[0], nearby }
-
-    onReverseFallback?.()
-    const response = parseGeocodingResponse(await requestGeoapify(apiKey, '/v1/geocode/reverse', {
-      lat,
-      lon,
-      limit: '1',
-    }, fetcher, controller.signal, 'reverse fallback'), 'reverse fallback')
-
-    return {
-      result: response.results.map(normalizeGeoapifyResult).find(result => result !== null) ?? null,
-      nearby: [],
-    }
-  } finally {
-    clearTimeout(deadline)
-  }
+/**
+ * Reverse geocode from the LOCAL OSM archive.
+ *
+ * Ordered first because it is better on every axis that matters here: no
+ * per-call cost, no rate limit, no network hop (p50 18 ms measured against
+ * local R2 versus a 5 s provider deadline), and it answers with the place a
+ * photo was actually taken in rather than the nearest postal address.
+ *
+ * It returns null when there is no bucket bound or the tile holds no named
+ * place. There is no provider behind this any more, so null is the final
+ * answer for that coordinate and the app renders its "no named place" state.
+ *
+ * A MISSING or CORRUPT archive throws instead, because that is a real fault
+ * worth seeing rather than a quiet degradation to blank outing names. The
+ * reverse route turns it into a 503.
+ *
+ * Region codes come from a SECOND containment pass against the `admin` layer.
+ * They are attached to every candidate rather than only the winner, because
+ * picking a different place from the list does not move the coordinate, so the
+ * jurisdiction is identical for all of them. An archive built before that layer
+ * existed simply yields no codes, which is what the eBird export already treats
+ * as "unknown".
+ *
+ * The codes are ALSO returned separately as `regionCodes`, because they are
+ * independent of the named place: the `admin` layer answers "which jurisdiction"
+ * and the `parks` layer answers "what is it called", and a coordinate can carry
+ * one without the other. A point offshore or in unmapped land often has an ISO
+ * code but no named place, so the region pass runs and its codes are returned
+ * even when `result` is null. `result` stays null in that case so the UI's
+ * "no named place found" state is preserved.
+ */
+export async function reverseGeocodeLocal(
+  bucket: R2Bucket | undefined,
+  latitude: number,
+  longitude: number,
+): Promise<{
+  result: GeocodingResult | null
+  nearby: GeocodingResult[]
+  regionCodes: RegionCodes
+} | null> {
+  if (!bucket) return null
+  const pmtiles = getPMTiles(bucket)
+  // ONE tile read for both answers. Both layers live in the same z/x/y tile, so
+  // calling the two lookups separately fetched and decoded identical bytes
+  // twice: measured against the planet archive, that second call was a real
+  // extra R2 range GET of 10 to 18 KB on every request, because the tile body
+  // sits far past the cacheable directory prefix in a 1.6 GB archive.
+  const { places: hits, regionCodes: codes } = await lookupPlacesWithRegion(pmtiles, latitude, longitude)
+  if (hits.length === 0) return { result: null, nearby: [], regionCodes: codes }
+  // The archive names a place but does not move the pin: the coordinate the
+  // photo carries is more precise than any polygon centroid we could derive.
+  const shape = (hit: { name: string }): GeocodingResult => ({
+    label: hit.name,
+    lat: latitude,
+    lon: longitude,
+    ...codes,
+  })
+  const nearby = hits.map(shape)
+  return { result: nearby[0], nearby, regionCodes: codes }
 }
 
 export async function searchPlaces(

@@ -395,3 +395,116 @@ describe('OutingReview', () => {
     expect(screen.queryByText('Search failed.')).not.toBeInTheDocument()
   })
 })
+describe('OutingReview reverse geocoding outcomes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  // The component reads centerLat/centerLon, not per-photo coordinates, and
+  // only starts a lookup when both are present.
+  const gpsCluster = {
+    photos: [],
+    startTime: new Date('2026-08-07T12:00:00Z'),
+    endTime: new Date('2026-08-07T13:00:00Z'),
+    centerLat: 48.9801,
+    centerLon: -122.7887,
+  } as unknown as Parameters<typeof OutingReview>[0]['cluster']
+
+  /** Stub the reverse-geocoding endpoint with one JSON body. */
+  const stubReverse = (body: unknown) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/geocoding/reverse')) {
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }))
+  }
+
+  const renderWithGps = (data: WingDexDataStore, onConfirm = vi.fn(async () => undefined)) => {
+    render(
+      <OutingReview
+        cluster={gpsCluster}
+        data={data}
+        userId="user-1"
+        autoLookupGps
+        onConfirm={onConfirm}
+      />,
+    )
+    return onConfirm
+  }
+
+  it('shows the no-retry message and keeps the name editable when nothing is named nearby', async () => {
+    // A successful lookup that found no NAMED place. Retrying would return the
+    // same nothing, so the UI must not offer a Retry button here.
+    stubReverse({ result: null, nearby: [], regionCodes: {} })
+    renderWithGps(createDataStore())
+
+    await waitFor(() => {
+      expect(screen.getByText(/No named place found nearby/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
+
+    // The coordinate string is a usable fallback name. It renders in the
+    // name control, which is a button until tapped, and the lookup rounds to
+    // 3 decimals before querying, so the value shown is the rounded one.
+    const nameControl = screen.getByRole('button', { name: /48\.9800/ })
+    expect(nameControl).toBeInTheDocument()
+
+    // Tapping it opens a real editable input, so the user is never blocked.
+    fireEvent.click(nameControl)
+    const field = await screen.findByDisplayValue(/48\.9800/) as HTMLInputElement
+    expect(field.readOnly).toBe(false)
+  })
+
+  it('keeps region codes from an empty lookup so the eBird export still gets them', async () => {
+    // The case this contract exists for: offshore and unmapped land often have
+    // a valid ISO code and no named place. The codes must survive onto the
+    // saved outing even though `result` is null.
+    stubReverse({
+      result: null,
+      nearby: [],
+      regionCodes: { stateProvince: 'US-WA', countryCode: 'US' },
+    })
+    const data = createDataStore()
+    const onConfirm = vi.fn(async () => undefined)
+    renderWithGps(data, onConfirm)
+
+    await waitFor(() => {
+      expect(screen.getByText(/No named place found nearby/i)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    // The outing is HANDED to onConfirm rather than written here: nothing is
+    // saved until the cluster has a sighting.
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled())
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ stateProvince: 'US-WA', countryCode: 'US' }),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    )
+  })
+
+  it('offers a retry when the lookup actually fails', async () => {
+    // The other unhappy ending. A real failure IS worth retrying, so this path
+    // must stay distinguishable from the empty one.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/geocoding/reverse')) {
+        return new Response('Service Unavailable', { status: 503 })
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }))
+    renderWithGps(createDataStore())
+
+    await waitFor(() => {
+      expect(screen.getByText(/Location lookup failed/i)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  })
+})

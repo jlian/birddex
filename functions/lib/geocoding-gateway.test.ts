@@ -3,7 +3,7 @@ import {
   GeocodingConfigurationError,
   GeocodingUpstreamError,
   rateLimitKey,
-  reverseGeocode,
+  reverseGeocodeLocal,
   searchPlaces,
 } from './geocoding-gateway'
 
@@ -43,68 +43,15 @@ describe('Geoapify geocoding gateway', () => {
     })])
   })
 
-  it('keeps every nearby named place as a candidate and leads with a reserve', async () => {
-    const sanctuary = {
-      ...providerResult,
-      name: 'Montrose Point Bird Sanctuary',
-      categories: ['leisure', 'leisure.park', 'leisure.park.nature_reserve'],
-    }
-    const containingPark = { ...providerResult, name: 'Lincoln Park', categories: ['leisure', 'leisure.park'] }
-    const fetcher = vi.fn<Fetcher>(async () => Response.json({
-      features: [{ properties: containingPark }, { properties: sanctuary }],
-    }))
-    const onReverseFallback = vi.fn()
-
-    const { result, nearby } = await reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)
-
-    expect(result).toMatchObject({ label: 'Montrose Point Bird Sanctuary, Seattle' })
-    expect(nearby.map(place => place.label)).toEqual([
-      'Montrose Point Bird Sanctuary, Seattle',
-      'Lincoln Park, Seattle',
-    ])
-    expect(fetcher).toHaveBeenCalledOnce()
-    expect(onReverseFallback).not.toHaveBeenCalled()
-    const url = new URL(String(fetcher.mock.calls[0][0]))
-    expect(url.pathname).toBe('/v2/places')
-    expect(url.searchParams.get('filter')).toBe('circle:-122.328,47.680,1000')
-    expect(url.searchParams.get('bias')).toBe('proximity:-122.328,47.680')
-    // Geoapify narrows rather than unions when given several categories.
-    expect(url.searchParams.get('categories')).toBe('leisure')
-  })
-
-  it('falls back to one reverse-geocoding request when no outdoor place is nearby', async () => {
-    const fetcher = vi.fn<Fetcher>()
-      .mockResolvedValueOnce(Response.json({ features: [] }))
-      .mockResolvedValueOnce(Response.json({ results: [providerResult] }))
-    const onReverseFallback = vi.fn()
-
-    await expect(reverseGeocode('test-key', '47.68049', '-122.32771', fetcher, onReverseFallback)).resolves.toMatchObject({
-      result: { label: 'Green Lake Park, Seattle', context: 'Washington' },
-      nearby: [],
-    })
-
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(onReverseFallback).toHaveBeenCalledOnce()
-    expect(onReverseFallback).toHaveBeenCalledWith()
-    expect(onReverseFallback.mock.invocationCallOrder[0]).toBeLessThan(fetcher.mock.invocationCallOrder[1])
-    const url = new URL(String(fetcher.mock.calls[1][0]))
-    expect(url.pathname).toBe('/v1/geocode/reverse')
-    expect(url.searchParams.get('lat')).toBe('47.680')
-    expect(url.searchParams.get('lon')).toBe('-122.328')
-    expect(url.searchParams.get('limit')).toBe('1')
-  })
-
   it('rejects invalid input before contacting the provider', async () => {
     const fetcher = vi.fn<Fetcher>()
 
     await expect(searchPlaces('test-key', 'x', fetcher)).rejects.toThrow('Invalid search query')
-    await expect(reverseGeocode('test-key', '91', '0', fetcher)).rejects.toThrow('Invalid latitude')
     expect(fetcher).not.toHaveBeenCalled()
   })
 
   it('requires the server-side provider key', async () => {
     await expect(searchPlaces(undefined, 'Green Lake')).rejects.toBeInstanceOf(GeocodingConfigurationError)
-    await expect(reverseGeocode(' ', '47', '-122')).rejects.toBeInstanceOf(GeocodingConfigurationError)
   })
 
   it('preserves provider throttling and Retry-After without exposing other statuses', async () => {
@@ -166,6 +113,24 @@ describe('Geoapify geocoding gateway', () => {
     }))
 
     await expect(searchPlaces('test-key', 'Nowhere', fetcher)).resolves.toEqual([])
+  })
+})
+
+describe('reverseGeocodeLocal', () => {
+  // The local archive is ordered ahead of the paid provider, so the contract
+  // that matters is when it declines to answer: an unconfigured bucket and an
+  // empty tile must both fall through rather than fail the request.
+
+  it('returns null when no archive is bound, so the provider still answers', () => {
+    return expect(reverseGeocodeLocal(undefined, 47.68, -122.33)).resolves.toBeNull()
+  })
+
+  it('throws on a missing archive rather than silently billing the provider', async () => {
+    // A bucket bound to a key that is not there is a deployment fault, not a
+    // coverage gap. It must be visible; the reverse route catches it, logs a
+    // warning and falls back, so the endpoint still answers.
+    const bucket = { get: async () => null } as unknown as R2Bucket
+    await expect(reverseGeocodeLocal(bucket, 47.68, -122.33)).rejects.toThrow(/PMTiles archive not found/)
   })
 })
 
