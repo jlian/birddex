@@ -286,8 +286,20 @@ fetch() {
   local r="$1"
   [ -s "$SRC/$r.osm.pbf" ] && { echo "  have $r"; return; }
   echo "  downloading $r"
-  curl -sL --retry 3 -o "$SRC/$r.osm.pbf" \
-    "https://download.geofabrik.de/$r-latest.osm.pbf"
+  # Download to a TEMP path and rename only on success. Writing straight to the
+  # final path let an interrupted transfer, or an HTTP error body, leave a
+  # non-empty .osm.pbf that the `-s` guard above then trusted forever: every
+  # rerun said "have" and never repaired it. `--fail` makes curl treat a 4xx or
+  # 5xx as an error instead of saving the error page as the extract.
+  local tmp="$SRC/$r.osm.pbf.part"
+  rm -f "$tmp"
+  if ! curl -sL --fail --retry 3 -o "$tmp" \
+       "https://download.geofabrik.de/$r-latest.osm.pbf"; then
+    echo "  FAILED: could not download $r" >&2
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$SRC/$r.osm.pbf"
 }
 
 build_region() {
@@ -369,8 +381,15 @@ build_region() {
   # KEEP change like adding `wikidata` must not re-read 84.6 GB of source. The
   # key is a hash of $FILTER, so changing the tag list correctly invalidates it
   # while changing what tippecanoe keeps does not.
-  local fkey cached
-  fkey=$(printf '%s|named=%s' "$FILTER" "${NAMED_ONLY:-1}" | md5sum | cut -c1-8)
+  # The key hashes the FILTER and the SOURCE EXTRACT's identity. Hashing the
+  # filter alone meant a refreshed $SRC/$r.osm.pbf reused the old parks extract
+  # while the admin stage rebuilt from the new source, producing exactly the
+  # mixed-vintage layers the cleanup logic exists to prevent. Size plus mtime is
+  # enough to distinguish snapshots without checksumming a multi-GB file on
+  # every run.
+  local fkey cached src_id
+  src_id=$(stat -c '%s:%Y' "$SRC/$r.osm.pbf" 2>/dev/null || echo 'missing')
+  fkey=$(printf '%s|named=%s|src=%s' "$FILTER" "${NAMED_ONLY:-1}" "$src_id" | md5sum | cut -c1-8)
   cached="$FCACHE/$r-$fkey.osm.pbf"
   if [ -s "$cached" ]; then
     echo "  cached filter $r ($(du -h "$cached" | cut -f1))"
@@ -552,7 +571,11 @@ fi
 # level are the dangerous case: they are valid files, so a size check passes,
 # and the merged output looks plausible while being wrong.
 for _m in "${MERGE_IN[@]}"; do
-  if [ -n "$(find "$_m" -mtime +1 2>/dev/null)" ]; then
+  # `-mtime +1` does NOT mean "older than 24 hours": GNU find rounds age down
+  # to whole days, so it only starts matching at 48 hours and a 25-hour-old
+  # tileset from a previous zoom slipped through. `-mmin` gives the granularity
+  # the message actually claims.
+  if [ -n "$(find "$_m" -mmin +1440 2>/dev/null)" ]; then
     echo "  FAILED: $_m is older than 24h, refusing to merge a stale tileset" >&2
     exit 1
   fi

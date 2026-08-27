@@ -44,9 +44,18 @@ def main():
 
     # lbzip2 -n 16 | grep -F on the two predicate URIs. grep does the rejecting,
     # so Python only ever sees candidate lines.
-    cmd = ("lbzip2 -dc -n 16 %s 2>/dev/null | grep -F -e %s -e %s"
+    # `set -o pipefail` is load-bearing. Without it the pipeline reports grep's
+    # status, and grep exits 0 after reading a stream that lbzip2 truncated, so
+    # a corrupt dump produced a plausible but incomplete containment extract
+    # that looked like a clean build.
+    cmd = ("set -o pipefail; lbzip2 -dc -n 16 %s | grep -F -e %s -e %s"
            % (DUMP, "'" + P131 + "'", "'" + P276 + "'"))
-    proc = subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.PIPE, bufsize=1 << 20)
+    proc = subprocess.Popen(
+        ["bash", "-c", cmd],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        bufsize=1 << 20,
+    )
 
     kept = 0
     seen = 0
@@ -82,6 +91,16 @@ def main():
                 print("  scanned %dM candidate lines, kept %d, both-in-extract %d"
                       % (seen // 1_000_000, kept, both_in_extract), flush=True)
     proc.wait()
+    # grep exits 1 when it matched nothing, which for this dump means the scan
+    # found no containment statements at all: still a failure worth surfacing.
+    if proc.returncode != 0:
+        detail = (proc.stderr.read() or b"").decode("utf-8", "replace").strip()
+        os.unlink(OUT)
+        raise RuntimeError(
+            "decompress/grep pipeline failed with exit %d; removed the partial "
+            "%s rather than publishing an incomplete extract. %s"
+            % (proc.returncode, OUT, detail)
+        )
 
     print("candidate lines from grep: %d" % seen, flush=True)
     print("edges for extract places:  %d" % kept, flush=True)

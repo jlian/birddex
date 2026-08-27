@@ -315,24 +315,40 @@ interface TileAddress {
  * The bounds handling in here is load-bearing and was a real bug: see the
  * comments below.
  */
-function tileAddressFor(lat: number, lon: number): TileAddress {
+/**
+ * Resolve a coordinate to a tile address, or null when the archive cannot
+ * represent it.
+ *
+ * Shared by the place lookup and the ISO-code lookup so the two cannot drift.
+ * The bounds handling in here is load-bearing and was a real bug: see the
+ * comments below.
+ */
+function tileAddressFor(lat: number, lon: number): TileAddress | null {
   const n = 2 ** ZOOM
   // parseCoordinate accepts the full lon/lat domain, but the tile maths does
-  // not wrap or clamp on its own. Longitude is continuous across the
-  // antimeridian, so wrap it modulo the world width: at lon=180 the raw column
-  // is n, which IS column 0. Latitude has no projection at all beyond the Web
-  // Mercator limit, so clamp to it: a pole is not a place, and without the
-  // clamp lat=90 yields a negative row and lat=-90 yields Infinity, both of
-  // which are out-of-range tile addresses that throw or fetch an unrelated tile.
+  // not wrap or clamp on its own.
+  //
+  // Longitude is continuous across the antimeridian, so WRAP it modulo the
+  // world width: at lon=180 the raw column is n, which IS column 0. That is a
+  // faithful transformation, not an approximation.
+  //
+  // Latitude beyond the Web Mercator limit is different: the projection does
+  // not define it at all. This used to CLAMP, which silently answered about a
+  // different place: a request for the North Pole was looked up at 85.051
+  // degrees, roughly 550 km away, and could return a park or a jurisdiction
+  // that has nothing to do with the coordinate asked about. A confident wrong
+  // answer is worse than none, so a polar coordinate now returns null and the
+  // caller reports "no named place", which is true: the archive has no tiles
+  // there.
   const MERC_MAX_LAT = 85.0511287798066
-  const clampedLat = Math.max(-MERC_MAX_LAT, Math.min(MERC_MAX_LAT, lat))
-  const latRad = (clampedLat * Math.PI) / 180
+  if (!(Math.abs(lat) <= MERC_MAX_LAT)) return null
+  const latRad = (lat * Math.PI) / 180
   const rawX = ((lon + 180) / 360) * n
   const worldX = ((rawX % n) + n) % n
   const worldY = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
   const tileX = Math.floor(worldX)
-  // The clamp puts worldY at the very top or bottom row, where floating-point
-  // rounding can land it a hair outside [0, n); pin the row into range.
+  // Exactly at the limit, floating-point rounding can land worldY a hair
+  // outside [0, n); pin the row into range.
   const tileY = Math.min(n - 1, Math.max(0, Math.floor(worldY)))
   // Metres per tile unit at this latitude, so a buffer can be expressed in
   // metres rather than in tile-local integers.
@@ -347,6 +363,7 @@ async function collectCandidates(
   importance?: ImportanceLookup,
 ): Promise<Ranked[]> {
   const address = tileAddressFor(lat, lon)
+  if (!address) return []
   const resp = await pmtiles.getZxy(ZOOM, address.tileX, address.tileY)
   if (!resp) return []
   return candidatesFromTile(new VectorTile(new PbfReader(new Uint8Array(resp.data))), address, importance)
@@ -549,6 +566,16 @@ export function getPMTiles(bucket: R2Bucket, key = PLACES_KEY): PMTiles {
   return pm
 }
 
+/**
+ * ODbL attribution for the archive.
+ *
+ * The archive is a Produced Work under ODbL 1.4.1, which requires the notice to
+ * accompany it. Defined here, next to the data it describes, so the route and
+ * any future consumer share one string rather than each hard-coding a copy that
+ * can drift.
+ */
+export const PLACES_ATTRIBUTION = '(c) OpenStreetMap contributors, ODbL 1.0'
+
 /** ISO 3166 codes for the administrative area containing a coordinate. */
 export interface RegionCodes {
   /** ISO 3166-2 subdivision code, e.g. "CU-03" or "US-WA". */
@@ -590,6 +617,7 @@ export async function lookupRegionCodes(
   lon: number,
 ): Promise<RegionCodes> {
   const address = tileAddressFor(lat, lon)
+  if (!address) return {}
   const resp = await pmtiles.getZxy(ZOOM, address.tileX, address.tileY)
   if (!resp) return {}
   return regionCodesFromTile(new VectorTile(new PbfReader(new Uint8Array(resp.data))), address)
@@ -679,6 +707,7 @@ export async function lookupPlacesWithRegion(
   importance?: ImportanceLookup,
 ): Promise<{ places: Ranked[]; regionCodes: RegionCodes }> {
   const address = tileAddressFor(lat, lon)
+  if (!address) return { places: [], regionCodes: {} }
   const resp = await pmtiles.getZxy(ZOOM, address.tileX, address.tileY)
   if (!resp) return { places: [], regionCodes: {} }
 

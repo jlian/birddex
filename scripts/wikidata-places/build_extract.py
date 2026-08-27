@@ -93,6 +93,32 @@ def stream(path: str):
         )
 
 
+# N-Triples escape sequences, per the spec: \uXXXX, \UXXXXXXXX, and the single
+# character escapes. Nothing else is an escape.
+_NT_ESCAPE = re.compile(r'\\(?:u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([tbnrf"\'\\]))')
+_NT_SIMPLE = {'t': '\t', 'b': '\b', 'n': '\n', 'r': '\r', 'f': '\f',
+              '"': '"', "'": "'", '\\': '\\'}
+
+
+def nt_unescape(text: str) -> str:
+    r"""Resolve N-Triples backslash escapes, leaving literal characters alone.
+
+    NOT `.encode().decode('unicode_escape')`. That round trip treats the
+    string's UTF-8 bytes as Latin-1, so every label containing a literal
+    non-ASCII character is corrupted: "Montreal" with an accent came back as
+    mojibake. Most Wikidata labels arrive as literal UTF-8, not as \u escapes,
+    so that silently damaged a large share of the extract.
+    """
+    def sub(match: 're.Match[str]') -> str:
+        if match.group(1):
+            return chr(int(match.group(1), 16))
+        if match.group(2):
+            return chr(int(match.group(2), 16))
+        return _NT_SIMPLE[match.group(3)]
+
+    return _NT_ESCAPE.sub(sub, text)
+
+
 def pass1_closure() -> dict:
     """Map every subclass QID to the root it descends from."""
     children = defaultdict(list)
@@ -173,7 +199,7 @@ def pass3_labels(keep: dict) -> dict:
             continue
         m = LABEL_RE.search(parts[2].rstrip('\n'))
         if m:
-            labels[q] = m.group(1).encode().decode('unicode_escape')
+            labels[q] = nt_unescape(m.group(1))
         if n % 100_000_000 == 0:
             print(f'  pass3 {n // 1_000_000}M lines, {len(labels)} labels', flush=True)
     print(f'  labels: {len(labels)}', flush=True)

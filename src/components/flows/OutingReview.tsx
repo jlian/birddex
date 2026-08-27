@@ -299,6 +299,10 @@ export default function OutingReview({
     setPlaceResults([])
     setIsEditingLocation(false)
     setLocationSearchQuery('')
+    // The name is no longer the reverse-geocode fallback, so the "no named
+    // place found nearby" hint would be both false and confusing: it asks the
+    // user to tap the field they just filled in.
+    setLookupState('ok')
   }
 
   const useEnteredLocation = () => {
@@ -313,6 +317,9 @@ export default function OutingReview({
     setLocationSearchQuery('')
     setPlaceResults([])
     setPlaceSearchFailed(false)
+    // Same reason as selectPlace: the user has named this outing, so the
+    // reverse-geocode hint no longer describes the current value.
+    setLookupState('ok')
   }
 
 
@@ -560,17 +567,21 @@ export default function OutingReview({
           )}
 
           <p className="text-xs text-muted-foreground">
-            Location data from{' '}
+            {/*
+              ODbL 1.4.1 requires the attribution notice on any Produced Work,
+              so the OpenStreetMap credit is named explicitly with its license
+              rather than folded into a generic provider list. Geoapify is
+              credited for the place SEARCH box only, which is the one thing it
+              still serves; GeoNames was dropped because the local archive is
+              built solely from OpenStreetMap and never incorporated it.
+            */}
+            Place names from{' '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              &copy; OpenStreetMap contributors
+            </a>
+            {', ODbL 1.0. Search by '}
             <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
               Geoapify
-            </a>
-            {', '}
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              OpenStreetMap
-            </a>
-            {', and '}
-            <a href="https://www.geonames.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              GeoNames
             </a>
             .
           </p>

@@ -1,4 +1,5 @@
 import { reverseGeocodeLocal } from '../../lib/geocoding-gateway'
+import { PLACES_ATTRIBUTION } from '../../lib/osm-places'
 import { parseCoordinate } from '../../lib/geocoding'
 import { createRouteResponder } from '../../lib/log'
 
@@ -61,7 +62,13 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const payload = local ?? { result: null, nearby: [], regionCodes: {} }
     const namedCount = payload.result ? payload.nearby.length : 0
     return route.complete(
-      Response.json(payload, { headers: { 'Cache-Control': 'private, no-store' } }),
+      Response.json(
+        // ODbL 1.4.1 asks for the notice to travel with the produced work, so
+        // the response carries it rather than relying on the client to hold a
+        // hard-coded string that can drift from the archive it describes.
+        { ...payload, attribution: PLACES_ATTRIBUTION },
+        { headers: { 'Cache-Control': 'private, no-store' } },
+      ),
       payload.result
         ? `Completed reverse geocoding from the local archive (${namedCount} candidates)`
         : 'Completed reverse geocoding from the local archive with no named place near the coordinate',
