@@ -429,13 +429,13 @@ describe('non-auth durable observability', () => {
     expect(events).toEqual([])
   })
 
-  it('emits only a privacy-safe Application fallback event from the reverse route', async () => {
+  it('never leaks the coordinate or archive internals from the reverse route', async () => {
+    // The privacy contract outlived the provider: a reverse-geocoding log must
+    // never carry the coordinate being looked up, because that is the location
+    // of a user's photo.
     const { events, log } = createEventLogger()
     const latitude = '47.68049'
     const longitude = '-122.32771'
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce(Response.json({ features: [] }))
-      .mockResolvedValueOnce(Response.json({ results: [] })))
 
     const response = await reverseGeocode(routeContext(
       jsonRequest({ lat: latitude, lon: longitude }),
@@ -443,51 +443,40 @@ describe('non-auth durable observability', () => {
       log,
     ) as never)
 
-    expect(response.status).toBe(200)
-    expect(events).toEqual([expect.objectContaining({
-      operationName: 'geocoding/reverse/read',
-      fields: expect.objectContaining({
-        category: 'Application',
-        resultDescription: 'Places lookup returned no usable named outdoor place; starting reverse geocoding fallback',
-      }),
-    })])
-    expect(events[0].fields?.resultType).toBeUndefined()
+    // No PLACES binding in the test context, so this is the unconfigured path.
+    expect(response.status).toBe(503)
     const serialized = JSON.stringify(events)
     expect(serialized).not.toContain(latitude)
     expect(serialized).not.toContain(longitude)
-    expect(serialized).not.toContain('provider-key')
-    expect(serialized).not.toContain('geoapify.com')
   })
 
-  it('keeps reverse geocoding provider failures stage-specific', async () => {
-    const places = createEventLogger()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 403 })))
-
-    const placesResponse = await reverseGeocode(routeContext(
+  it('reports a broken archive as unavailable rather than as an empty result', async () => {
+    // With no provider behind it there is nothing to fall back to, so a failing
+    // archive must surface. Disguising it as "no place found" would silently
+    // turn every lookup into a blank outing name.
+    const { events, log } = createEventLogger()
+    const brokenBucket = {
+      get: async () => {
+        throw new Error('private archive detail')
+      },
+    }
+    const context = routeContext(
       jsonRequest({ lat: '47.68049', lon: '-122.32771' }),
       {} as D1Database,
-      places.log,
-    ) as never)
+      log,
+    ) as unknown as { env: Record<string, unknown> }
+    context.env.PLACES = brokenBucket
 
-    expect(placesResponse.status).toBe(502)
-    expect(placesResponse.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Places lookup provider returned HTTP 403; retry reverse geocoding')
-    expect(places.events).toEqual([])
-
-    const fallback = createEventLogger()
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce(Response.json({ features: [] }))
-      .mockRejectedValueOnce(new Error('private provider error')))
-
-    const fallbackResponse = await reverseGeocode(routeContext(
-      jsonRequest({ lat: '47.68049', lon: '-122.32771' }),
-      {} as D1Database,
-      fallback.log,
-    ) as never)
-
-    expect(fallbackResponse.status).toBe(502)
-    expect(fallbackResponse.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Reverse geocoding fallback network request failed; retry reverse geocoding')
-    expect(fallback.events).toHaveLength(1)
-    expect(JSON.stringify(fallback.events)).not.toContain('private provider error')
+    const response = await reverseGeocode(context as never)
+    expect(response.status).toBe(503)
+    // The raw exception must not reach the client response or the logs: the
+    // middleware forwards the result-description header to the production log,
+    // so a leaked archive detail would land there.
+    const serialized = JSON.stringify({
+      events,
+      description: response.headers.get(RESULT_DESCRIPTION_HEADER),
+    })
+    expect(serialized).not.toContain('private archive detail')
   })
 
   it('rejects a null JSON body on the geocoding routes without a 500', async () => {

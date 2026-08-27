@@ -58,7 +58,8 @@ export default function PrivacyPage() {
             <li><strong>eBird / Cornell Lab of Ornithology:</strong> Taxonomy and species data for matching and display.</li>
             <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
             <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
-            <li><strong>Geoapify / OpenStreetMap:</strong> WingDex forwards explicitly submitted location searches and rounded coordinates through our server to Geoapify for geocoding. Exact outing and photo coordinates remain stored by WingDex as described above and are not sent for geocoding. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics. Results may incorporate OpenStreetMap and GeoNames data.</li>
+            <li><strong>Geoapify:</strong> When you type a place name into the location search box, that query is forwarded through our server to Geoapify. Nothing else is. Coordinates are never sent to Geoapify. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics.</li>
+            <li><strong>OpenStreetMap:</strong> Suggesting an outing name from your photo's location runs entirely on WingDex infrastructure, against a place-name database built from OpenStreetMap data. Your coordinates are not sent to any third party for this. Results may incorporate OpenStreetMap and GeoNames data.</li>
             <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
           </ul>
         </section>
@@ -68,7 +69,7 @@ export default function PrivacyPage() {
           <p>We do not sell, rent, or trade your personal information. We may share information only:</p>
           <ul className="list-disc ml-5 space-y-0.5">
             <li>With infrastructure and authentication providers as described in Section 5, solely to operate the Service</li>
-            <li>With Geoapify when you submit a location search or WingDex requests a location suggestion, subject to its separate privacy policy</li>
+            <li>With Geoapify when you submit a location search, subject to its separate privacy policy. Location name suggestions from your coordinates do not involve Geoapify.</li>
             <li>If required by law, regulation, legal process, or governmental request</li>
             <li>To protect the rights, property, or safety of WingDex, its users, or the public</li>
           </ul>

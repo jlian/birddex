@@ -28,7 +28,7 @@ Use this worksheet when completing App Store Connect. It records implemented beh
 - [x] **Purchases:** WingDex has no subscription or in-app purchase.
 - [x] **Health and Fitness, Financial Info, Contacts, Browsing History, Search History:** WingDex does not collect these categories as product data.
 
-Location searches submitted for geocoding and rounded GPS coordinates are forwarded through WingDex to Geoapify. They are not attached to WingDex application logs, and WingDex does not cache provider responses. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics. **Confirm** with App Store Connect guidance whether explicit place queries should be included under Search History despite being location-feature input rather than general web search.
+Typed location searches are forwarded through WingDex to Geoapify. GPS coordinates are NOT: outing name suggestions are resolved on WingDex infrastructure from an OpenStreetMap-derived archive. They are not attached to WingDex application logs, and WingDex does not cache provider responses. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics. **Confirm** with App Store Connect guidance whether explicit place queries should be included under Search History despite being location-feature input rather than general web search.
 
 ## Deletion and retention evidence
 

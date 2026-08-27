@@ -18,6 +18,12 @@ database_name = "wingdex-db"
 database_id = "bb0a4504-8009-4ea3-b462-ce2b9de3d615"
 migrations_dir = "migrations"
 
+# OSM place polygons (PMTiles) for local reverse geocoding, see scripts/osm-places.
+# Data (c) OpenStreetMap contributors, ODbL 1.0.
+[[r2_buckets]]
+binding = "PLACES"
+bucket_name = "wingdex-places"
+
 # Burst guard for the Geoapify-backed routes, keyed on account id.
 [[ratelimits]]
 name = "GEOCODING_LIMITER"
@@ -85,5 +91,16 @@ namespace_id = "1004"
   [env.preview.ratelimits.simple]
   limit = 40
   period = 60
+
+# The SAME archive bucket as production. Wrangler environments do not inherit
+# top-level bindings, so omitting this left `env.PLACES` undefined on preview
+# and every reverse-geocode request answered 503.
+#
+# Deliberately not a separate bucket: the archive is a 1.5 GB read-only
+# artifact with no per-environment state, so a second copy would double the
+# storage and the upload for nothing.
+[[env.preview.r2_buckets]]
+binding = "PLACES"
+bucket_name = "wingdex-places"
 
 

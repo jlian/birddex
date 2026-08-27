@@ -627,8 +627,8 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
               Use Location and Time
             </label>
             <p className="text-xs text-muted-foreground">
-              Improves identification using photo location and month. Rounded coordinates may be
-              sent to Geoapify to suggest outing names.
+              Improves identification using photo location and month. Outing name
+              suggestions are looked up on WingDex servers, not sent to a third party.
             </p>
           </div>
           <Switch

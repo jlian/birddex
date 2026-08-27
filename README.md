@@ -53,7 +53,7 @@ The same model, priors, and preprocessing ship on both platforms, and a golden-v
 | Styling | Tailwind CSS 4, Radix UI primitives, Phosphor Icons |
 | Auth | better-auth (anonymous, passkeys, GitHub/Google/Apple OAuth) |
 | Identification | WingCLIP-0.3 via ONNX Runtime Web (browser) and Core ML (iOS) |
-| Geocoding | WingDex proxy backed by Geoapify (results may incorporate OpenStreetMap data) |
+| Geocoding | Reverse (coordinate to place name) from a local OpenStreetMap PMTiles archive in R2; forward place search proxied to Geoapify |
 | Bird imagery | Wikipedia REST API |
 | Testing | Vitest (unit), Playwright (e2e), XCTest (iOS) |
 | iOS | Swift, XcodeGen |

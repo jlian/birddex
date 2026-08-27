@@ -28,6 +28,12 @@ dist-ssr
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+# Same secrets, dotless or singular typo spellings. These have really appeared
+# in this working tree, and without these lines a `git add -A` commits live
+# credentials.
+dev.var
+dev.vars
+.dev.var
 **/agent-eval-report*
 packages
 pids

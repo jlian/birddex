@@ -10,6 +10,23 @@ export interface GeocodingResult {
   countryCode?: string
 }
 
+/** ISO 3166 codes for the jurisdiction a coordinate sits in. */
+export interface RegionCodes {
+  stateProvince?: string
+  countryCode?: string
+}
+
+/**
+ * A reverse-geocode outcome. `result` is the named place, null when the archive
+ * has no named place near the coordinate. `regionCodes` is independent: a
+ * coordinate offshore or in unmapped land often has an ISO state/country code
+ * with no named place, and the eBird export still wants those codes.
+ */
+export interface ReverseGeocodeResult {
+  result: GeocodingResult | null
+  regionCodes: RegionCodes
+}
+
 async function fetchGeocoding<T>(path: string, body: object, signal?: AbortSignal): Promise<T> {
   const timeoutController = new AbortController()
   const timeout = window.setTimeout(() => timeoutController.abort(), 6_000)
@@ -35,13 +52,16 @@ export async function reverseGeocode(
   latitude: number,
   longitude: number,
   signal?: AbortSignal,
-): Promise<GeocodingResult | null> {
-  const body = await fetchGeocoding<{ result: GeocodingResult | null }>(
+): Promise<ReverseGeocodeResult> {
+  const body = await fetchGeocoding<{
+    result: GeocodingResult | null
+    regionCodes?: RegionCodes
+  }>(
     '/api/geocoding/reverse',
     { lat: latitude, lon: longitude },
     signal,
   )
-  return body.result
+  return { result: body.result, regionCodes: body.regionCodes ?? {} }
 }
 
 export async function searchPlaces(query: string, signal?: AbortSignal): Promise<GeocodingResult[]> {

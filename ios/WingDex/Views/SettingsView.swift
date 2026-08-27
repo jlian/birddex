@@ -328,7 +328,7 @@ struct SettingsView: View {
                 .font(.headline)
                 .foregroundStyle(Color.foregroundText)
         } footer: {
-            Text("Improves identification using photo location and month. Rounded coordinates may be sent to Geoapify to suggest outing names.")
+            Text("Improves identification using photo location and month. Outing name suggestions are looked up on WingDex servers, not sent to a third party.")
                 .font(.footnote)
                 .foregroundStyle(Color.mutedText)
                 .fixedSize(horizontal: false, vertical: true)
