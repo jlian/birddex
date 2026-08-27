@@ -117,18 +117,21 @@ describe('Geoapify geocoding gateway', () => {
 })
 
 describe('reverseGeocodeLocal', () => {
-  // The local archive is ordered ahead of the paid provider, so the contract
-  // that matters is when it declines to answer: an unconfigured bucket and an
-  // empty tile must both fall through rather than fail the request.
+  // Reverse lookup is LOCAL ONLY: there is no provider behind this. So the
+  // contract that matters is how it distinguishes "nothing here" from "this
+  // deployment is broken", because the route turns the first into a null
+  // result and the second into a 503.
 
-  it('returns null when no archive is bound, so the provider still answers', () => {
+  it('returns null when no archive is bound', () => {
+    // A deployment with no PLACES binding cannot answer, and the route reports
+    // 503 rather than pretending the coordinate has no nearby place.
     return expect(reverseGeocodeLocal(undefined, 47.68, -122.33)).resolves.toBeNull()
   })
 
-  it('throws on a missing archive rather than silently billing the provider', async () => {
+  it('throws on a missing archive rather than reporting an empty result', async () => {
     // A bucket bound to a key that is not there is a deployment fault, not a
-    // coverage gap. It must be visible; the reverse route catches it, logs a
-    // warning and falls back, so the endpoint still answers.
+    // coverage gap. Disguising it as "no place found" would quietly turn every
+    // lookup into a blank outing name, so it must surface as a 503.
     const bucket = { get: async () => null } as unknown as R2Bucket
     await expect(reverseGeocodeLocal(bucket, 47.68, -122.33)).rejects.toThrow(/PMTiles archive not found/)
   })
