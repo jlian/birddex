@@ -169,7 +169,7 @@ struct OutingReviewView: View {
 
     /// One caption below the location controls: attribution, then what happens to coordinates.
     private var locationFooter: some View {
-        Text("Place names from [\u00a9 OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL 1.0. Search by [Geoapify](https://www.geoapify.com/). Coordinates are saved with your outing and rounded for lookups.")
+        Text("Place names from [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL 1.0. Search by [Geoapify](https://www.geoapify.com/). Coordinates are saved with your outing and rounded for lookups.")
             .font(.footnote)
             .foregroundStyle(Color.mutedText)
             .tint(Color.accentColor)
