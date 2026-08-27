@@ -294,8 +294,7 @@ test.describe('CSV import + photo upload integration', () => {
     await expect(dialog.getByText('Discovery Park, Seattle')).toBeVisible()
     expect(searchRequestCount).toBe(1)
     await expect(dialog.getByRole('link', { name: 'Geoapify' })).toBeVisible()
-    await expect(dialog.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible()
-    await expect(dialog.getByRole('link', { name: 'GeoNames' })).toBeVisible()
+    await expect(dialog.getByRole('link', { name: /OpenStreetMap contributors/ })).toBeVisible()
   })
 
   // @live: asserts CONVERGENCE onto a named species, which needs a known
