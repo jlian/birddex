@@ -117,6 +117,31 @@ describe('searchPlacesLocal', () => {
     expect(results[0].label).toBe('Central Park')
   })
 
+  it('ranks the prominent place first when many share a name exactly', async () => {
+    // `central park` matches 521 places in the real corpus. Two obscure ones
+    // tagged `tourism=attraction` score 26 against New York's 25, so ordering
+    // exact matches by category score put a zoo in Tajikistan first. Inside
+    // the exact group, importance decides.
+    const rows: Row[] = [
+      { osm_id: 'w20', label: 'Central Park', lat: 38.0, lon: 68.0, score: 26, kind: 'attraction', imp: null, aliases: ['central park'], country: 'TJ' },
+      { osm_id: 'w21', label: 'Central Park', lat: 40.78, lon: -73.96, score: 25, kind: 'park', imp: 156, aliases: ['central park'], state: 'US-NY', country: 'US' },
+      { osm_id: 'w22', label: 'Central Park', lat: 49.0, lon: 16.0, score: 25, kind: 'park', imp: 43, aliases: ['central park'], country: 'CZ' },
+    ]
+    const results = await searchPlacesLocal(build(rows), 'central park')
+    expect(results[0].stateProvince).toBe('US-NY')
+  })
+
+  it('still uses the category score to break a tie among non-exact matches', async () => {
+    // Outside the exact group the original order stands: a park outranks a
+    // hotel when neither name matches the query exactly.
+    const rows: Row[] = [
+      { osm_id: 'w30', label: 'Lakeside Hotel', lat: 1, lon: 1, score: 19, kind: 'lodging', imp: null, aliases: ['lakeside hotel'], country: 'US' },
+      { osm_id: 'w31', label: 'Lakeside Park', lat: 2, lon: 2, score: 25, kind: 'park', imp: null, aliases: ['lakeside park'], country: 'US' },
+    ]
+    const results = await searchPlacesLocal(build(rows), 'lakeside')
+    expect(results[0].label).toBe('Lakeside Park')
+  })
+
   it('boosts an exact match on a SECONDARY alias', async () => {
     // `casa` is the second of three aliases. When aliases were space-joined
     // into one column, equality could only ever fire for single-alias rows.

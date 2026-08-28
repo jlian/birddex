@@ -62,7 +62,7 @@ CREATE VIRTUAL TABLE places_fts USING fts5(
   tokenize='unicode61 remove_diacritics 2',
   detail=none
 );
-INSERT INTO places_fts(rowid, alias) SELECT id, alias FROM places;
+INSERT INTO places_fts(rowid, alias) SELECT id, REPLACE(alias, '|', ' ') FROM places;
 """
 
 
@@ -186,12 +186,17 @@ def main() -> int:
     db.executescript(FTS_DDL)
     # Populate the per-alias table by splitting the concatenated column, so an
     # exact-match test can hit ANY of a place's names.
+    # Split on the PIPE boundary, not on spaces. Aliases are pipe-separated in
+    # the TSV precisely because folding can never emit a pipe, so a multi-word
+    # alias such as `central park` stays ONE row. Splitting on spaces produced
+    # 8.4 million single WORDS, so `alias = 'central park'` matched nothing and
+    # the exact-match boost was dead for every name containing a space.
     db.execute(
         "INSERT INTO place_alias(place_id, alias)"
         " WITH split(id, one, rest) AS ("
-        "   SELECT id, '', alias || ' ' FROM places"
+        "   SELECT id, '', alias || '|' FROM places"
         "   UNION ALL"
-        "   SELECT id, substr(rest, 1, instr(rest, ' ') - 1), substr(rest, instr(rest, ' ') + 1)"
+        "   SELECT id, substr(rest, 1, instr(rest, '|') - 1), substr(rest, instr(rest, '|') + 1)"
         "   FROM split WHERE rest <> ''"
         " ) SELECT DISTINCT id, one FROM split WHERE one <> ''"
     )
@@ -245,18 +250,23 @@ def main() -> int:
     sql = (
         "WITH candidates AS ("
         "  SELECT f.rowid AS id, rank AS fts_rank FROM places_fts f"
-        "  WHERE places_fts MATCH ?2 ORDER BY rank LIMIT ?3"
+        "  WHERE places_fts MATCH ? ORDER BY rank LIMIT ?"
         "), exact AS ("
         "  SELECT a.place_id AS id, 0.0 AS fts_rank FROM place_alias a"
         "  JOIN places pe ON pe.id = a.place_id"
-        "  WHERE a.alias = ?1"
-        "  ORDER BY pe.score DESC, COALESCE(pe.imp,0) DESC, pe.osm_id LIMIT ?3"
+        "  WHERE a.alias = ?"
+        "  ORDER BY COALESCE(pe.imp,0) DESC, pe.score DESC, pe.osm_id LIMIT ?"
         "), pool AS ("
         "  SELECT id, MIN(fts_rank) AS fts_rank FROM"
         "  (SELECT * FROM candidates UNION ALL SELECT * FROM exact) GROUP BY id"
-        ") SELECT p.label, p.kind, p.score FROM pool JOIN places p ON p.id=pool.id "
-        "ORDER BY (EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id=p.id AND a.alias=?1)) DESC, "
-        "pool.fts_rank, p.score DESC, COALESCE(p.imp,0) DESC, p.osm_id LIMIT ?4"
+        "), ranked AS ("
+        "  SELECT p.label, p.kind, p.score, p.imp, p.osm_id, pool.fts_rank,"
+        "  EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id=p.id AND a.alias=?) AS is_exact"
+        "  FROM pool JOIN places p ON p.id=pool.id"
+        ") SELECT label, kind, score FROM ranked "
+        "ORDER BY is_exact DESC, CASE WHEN is_exact THEN 0.0 ELSE fts_rank END, "
+        "CASE WHEN is_exact THEN -COALESCE(imp,0) ELSE -score END, "
+        "CASE WHEN is_exact THEN -score ELSE -COALESCE(imp,0) END, osm_id LIMIT ?"
     )
     for q in golden:
         term = fts_query(q)
@@ -264,7 +274,7 @@ def main() -> int:
         top = None
         for _ in range(20):
             s = time.perf_counter()
-            hits = cur.execute(sql, (q, term, 200, 5)).fetchall()
+            hits = cur.execute(sql, (term, 200, q, 200, q, 5)).fetchall()
             times.append((time.perf_counter() - s) * 1000)
             top = hits[0] if hits else None
         times.sort()
