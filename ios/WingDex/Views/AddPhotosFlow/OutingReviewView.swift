@@ -341,7 +341,10 @@ struct OutingReviewView: View {
                 case .error:
                     HStack(spacing: 4) {
                         Text("Location lookup failed.")
-                            .foregroundStyle(.red)
+                            // System red nearly misses contrast against this
+                            // screen's dark card background. The explicit error
+                            // wording carries the state without relying on color.
+                            .foregroundStyle(Color.primary)
                             .accessibilityIdentifier("outing.locationLookupError")
                         Button("Retry") {
                             retryReverseGeocoding()

@@ -608,10 +608,10 @@ export function getPMTiles(bucket: ReadonlyR2Bucket, key = PLACES_KEY): PMTiles 
 /**
  * ODbL attribution for the archive.
  *
- * The archive is a Produced Work under ODbL 1.4.1, which requires the notice to
- * accompany it. Defined here, next to the data it describes, so the route and
- * any future consumer share one string rather than each hard-coding a copy that
- * can drift.
+ * The archive is a Derivative Database under ODbL 1.0, while each returned
+ * place name is a Produced Work. Defined here, next to the data it describes,
+ * so the route and any future consumer share one string rather than each
+ * hard-coding a copy that can drift.
  */
 export const PLACES_ATTRIBUTION = '(c) OpenStreetMap contributors, ODbL 1.0'
 

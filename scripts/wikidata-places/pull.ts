@@ -112,7 +112,7 @@ async function main() {
     if (done.size > 0) console.log(`resuming; completed classes: ${[...done].join(', ')}`)
   }
 
-  let total = 0
+  let fetchedThisRun = 0
   mkdirSync(classDir, { recursive: true })
   for (const { qid, label } of PLACE_CLASSES) {
     if (done.has(qid)) continue
@@ -156,7 +156,7 @@ async function main() {
       if (page.raw < PAGE) { complete = true; break }
       await new Promise(r => setTimeout(r, DELAY_MS))
     }
-    total += forClass
+    fetchedThisRun += forClass
     if (complete) {
       renameSync(stagePath, completedPath)
       done.add(qid)
@@ -174,11 +174,16 @@ async function main() {
 
   const assembled = `${out}.part`
   writeFileSync(assembled, '')
+  let assembledRows = 0
   for (const { qid } of PLACE_CLASSES) {
-    appendFileSync(assembled, readFileSync(`${classDir}/${qid}.ndjson`))
+    const rows = readFileSync(`${classDir}/${qid}.ndjson`)
+    appendFileSync(assembled, rows)
+    for (const byte of rows) {
+      if (byte === 0x0a) assembledRows++
+    }
   }
   renameSync(assembled, out)
-  console.log(`\ntotal rows: ${total} -> ${out}`)
+  console.log(`\ntotal rows: ${assembledRows} (${fetchedThisRun} fetched this run) -> ${out}`)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

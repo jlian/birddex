@@ -46,12 +46,13 @@ struct PerPhotoConfirmView: View {
     /// belongs, and a mark would answer a question they declined.
     private func rarity(for species: String) -> RarityState {
         guard viewModel.useGeoContext, let photo else { return .none }
+        let location = viewModel.currentInferenceLocation
         // Same month derivation the ranker used for this photo, so the mark can
         // never contradict the ranking that produced the candidate.
         return RarityStore.shared.state(
             species: species,
-            lat: photo.gpsLat,
-            lon: photo.gpsLon,
+            lat: location?.lat,
+            lon: location?.lon,
             month: photo.exifTime.map { Calendar.current.component(.month, from: $0) }
         )
     }

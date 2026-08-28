@@ -89,6 +89,14 @@ final class AddPhotosViewModel {
     private var outingInferenceLocation: (lat: Double, lon: Double)?
     private var outingOverridesPhotoGPS = false
 
+    /// The exact coordinates used by the range prior for the current photo.
+    /// The confirmation UI reuses this value so its rarity mark cannot describe
+    /// a different location from the one that ranked the candidates.
+    var currentInferenceLocation: (lat: Double, lon: Double)? {
+        guard let photo = currentPhoto else { return nil }
+        return inferenceLocation(for: photo)
+    }
+
     // MARK: - Per-Photo Identification State
 
     /// Index of the photo currently being processed/confirmed within the current cluster.
@@ -561,13 +569,7 @@ final class AddPhotosViewModel {
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
 
         do {
-            let location = Self.resolveInferenceLocation(
-                useGeoContext: useGeoContext,
-                photoLat: photo.gpsLat,
-                photoLon: photo.gpsLon,
-                outingLocation: outingInferenceLocation,
-                outingOverridesPhotoGPS: outingOverridesPhotoGPS
-            )
+            let location = inferenceLocation(for: photo)
             // 1-12. The old server API took 0-11, so this deliberately does NOT
             // subtract one: a 0 would be rejected by the v3 prior and silently
             // drop back to vision-only.
@@ -655,6 +657,16 @@ final class AddPhotosViewModel {
         if outingOverridesPhotoGPS, let outingLocation { return outingLocation }
         if let photoLat, let photoLon { return (lat: photoLat, lon: photoLon) }
         return outingLocation
+    }
+
+    private func inferenceLocation(for photo: ProcessedPhoto) -> (lat: Double, lon: Double)? {
+        Self.resolveInferenceLocation(
+            useGeoContext: useGeoContext,
+            photoLat: photo.gpsLat,
+            photoLon: photo.gpsLon,
+            outingLocation: outingInferenceLocation,
+            outingOverridesPhotoGPS: outingOverridesPhotoGPS
+        )
     }
 
     // MARK: - Step 4: Per-Photo Confirmation
