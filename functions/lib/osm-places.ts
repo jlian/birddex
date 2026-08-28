@@ -430,22 +430,22 @@ function candidatesFromTile(
     }
 
     if (isLine) {
+      let nearestDistance = Infinity
       for (const ring of feat.loadGeometry()) {
         // A line needs 2 vertices to exist.
         if (ring.length < 2) continue
-        const d = distanceToRing(px, py, ring, false)
-        if (d <= nearMissUnits) {
-          near.push({
-            name,
-            score: nearScoreOf(props, tagScore),
-            area: 0,
-            contained: false,
-            distanceM: Math.round((d / layer.extent) * tileSpanM),
-            kind: kindOf(props),
-            importance: importanceOf(props, importance),
-          })
-          break
-        }
+        nearestDistance = Math.min(nearestDistance, distanceToRing(px, py, ring, false))
+      }
+      if (nearestDistance <= nearMissUnits) {
+        near.push({
+          name,
+          score: nearScoreOf(props, tagScore),
+          area: 0,
+          contained: false,
+          distanceM: Math.round((nearestDistance / layer.extent) * tileSpanM),
+          kind: kindOf(props),
+          importance: importanceOf(props, importance),
+        })
       }
       continue
     }

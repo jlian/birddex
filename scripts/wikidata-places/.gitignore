@@ -1,3 +1,4 @@
 # generated extracts, rebuilt from build_extract.py / build_containment.py
 places.ndjson
 containment.ndjson
+*.ndjson.classes/

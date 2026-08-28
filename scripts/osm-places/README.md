@@ -39,13 +39,11 @@ application declares `PLACES` as get-only in TypeScript and treats dated archive
 keys as immutable, which prevents accidental writes but is not a security
 boundary for arbitrary Worker code.
 
-Use `npx wrangler dev --local` when deliberately testing without remote
-resources. That switches `PLACES` back to Miniflare's local R2 simulation; load
-an archive there with `r2-load.mjs` when an offline end-to-end lookup is needed.
 Playwright runs use mixed mode so their Worker keeps D1 local while reading the
 real R2 archive. The iOS suite covers the same archive through the deployed PR
-preview. Run Playwright with `WRANGLER_LOCAL_ONLY=true` only when an archive has
-been loaded into local R2 for an intentionally offline integration run.
+preview. Reverse-geocoding integration tests therefore require a Wrangler login
+or a deployed environment; a multi-gigabyte local archive is not a supported
+development path.
 The bucket does not need an `r2.dev` URL or a custom domain: those expose raw
 objects over HTTP and do not exercise the private `R2Bucket.get()` path used in
 production.
@@ -171,8 +169,9 @@ a real change.
   such as an algorithm**.
 
 Option (b) is satisfied by publishing this directory: the build commands above
-plus the exact Geofabrik source URL make the archive fully reproducible, so no
-derived data needs hosting.
+document the alterations and rebuild an equivalent archive from Geofabrik OSM
+extracts, so no derived data needs hosting. The `-latest` source URLs are mutable,
+therefore a later build is not expected to reproduce identical tile bytes.
 
 ### ODbL obligations, and which clause each step satisfies
 
@@ -188,10 +187,10 @@ share-alike is engaged. That is a licensing obligation, not a hosting one.
 - **4.4**, share alike: the archive is ODbL by construction and is not
   relicensed.
 - **4.6(b)**, offer the alterations OR the method: this directory IS the method.
-  `build-global.sh` plus the named Geofabrik extract reproduces the archive
-  exactly, so the 1.5 GB file itself does not need to be downloadable. The
-  privacy policy links to it, which is what makes the offer visible to users
-  rather than merely available.
+  `build-global.sh` documents how to rebuild an equivalent archive from the
+  named Geofabrik extracts, so the 1.5 GB file itself does not need to be
+  downloadable. The privacy policy links to it, which is what makes the offer
+  visible to users rather than merely available.
 
 Not legal advice; this is a reading of the license text.
 

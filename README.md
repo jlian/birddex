@@ -74,9 +74,9 @@ npm run dev
 
 Reverse geocoding reads the private production place archive through a remote
 R2 binding while the Worker and D1 stay local. Run `npx wrangler login` before
-starting development. Use `npx wrangler dev --local` for an offline session with
-Miniflare's local R2 instead. Local and CI Playwright runs keep D1 local but read
-the real archive through the same remote binding.
+starting development. Local and CI Playwright runs keep D1 local but read the
+real archive through the same remote binding; reverse-geocoding integration
+tests do not support an offline local-R2 mode.
 
 Run `npm run check` (lint, typecheck, unit) before pushing, and `npm run check:all` (adds e2e and a production build) when the change touches `functions/`, `e2e/`, routing, auth, or data flow. Everything runnable is in `package.json` under `scripts`.
 

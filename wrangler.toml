@@ -26,7 +26,7 @@ bucket_name = "wingdex-places"
 # Cloudflare bindings have no runtime read-only mode, so application types expose
 # only `get` and the archive key is immutable by policy. Keep the Worker and D1
 # local during development while routing this binding to the real private bucket;
-# `wrangler dev --local` remains the explicit offline/local-R2 path.
+# reverse-geocoding integration tests require remote access to this archive.
 remote = true
 
 # Burst guard for the Geoapify-backed routes, keyed on account id.
