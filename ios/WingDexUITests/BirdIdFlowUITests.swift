@@ -279,7 +279,6 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
     func testSuccessfulEmptyGeocodingExplainsCoordinateFallbackWithoutRetry() {
         let app = launchApp(extraArguments: [
             "--ui-test-geocoding-empty",
-            "--ui-test-clear-last-location",
         ])
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })

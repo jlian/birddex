@@ -412,7 +412,11 @@ struct OutingReviewView: View {
                         }
                         ForEach(dropdownPlaces) { item in
                             Button {
-                                selectPlace(item)
+                                // A nearby result only changes the outing's name;
+                                // it still describes the original photo location.
+                                // A submitted search is an explicit coordinate
+                                // correction and therefore overrides photo EXIF GPS.
+                                selectPlace(item, overridesPhotoGPS: !isShowingNearby)
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.label)
@@ -590,7 +594,10 @@ struct OutingReviewView: View {
         #endif
 
         do {
-            let lookup = try await GeocodingService(auth: auth).reverse(latitude: roundedLat, longitude: roundedLon)
+            // This lookup stays inside WingDex, so preserve the photo cluster's
+            // exact coordinate. Rounding by three decimals can move a point
+            // across a park or administrative boundary.
+            let lookup = try await GeocodingService(auth: auth).reverse(latitude: latitude, longitude: longitude)
             try Task.checkCancellation()
             guard cluster?.id == clusterID else { return }
             nearbyPlaces = lookup.nearby
@@ -643,9 +650,13 @@ struct OutingReviewView: View {
         regionCodes: GeocodingService.RegionCodes? = nil,
         state: LocationLookupState
     ) {
-        let fallback = viewModel.lastLocationName.isEmpty
-            ? "\(latitude)deg, \(longitude)deg"
-            : viewModel.lastLocationName
+        let coordinates = "\(latitude)deg, \(longitude)deg"
+        // A successful empty lookup proves that the previous outing's name
+        // does not describe this coordinate. Preserve it only when a transient
+        // error prevented the lookup from answering.
+        let fallback = state == .error && !viewModel.lastLocationName.isEmpty
+            ? viewModel.lastLocationName
+            : coordinates
         locationName = fallback
         suggestedLocation = fallback
         suggestedStateProvince = regionCodes?.stateProvince
@@ -710,10 +721,12 @@ struct OutingReviewView: View {
         }
     }
 
-    private func selectPlace(_ result: GeocodingResult) {
+    private func selectPlace(_ result: GeocodingResult, overridesPhotoGPS: Bool) {
         let coordinate = CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude)
-        if CLLocationCoordinate2DIsValid(coordinate) {
+        if overridesPhotoGPS, CLLocationCoordinate2DIsValid(coordinate) {
             overriddenCoords = coordinate
+        } else {
+            overriddenCoords = nil
         }
         locationName = result.label
         inferredCountryCode = result.countryCode
