@@ -27,72 +27,61 @@ from __future__ import annotations
 import json
 import sys
 import unicodedata
+from pathlib import Path
 from typing import Iterator
 
-# Mirrors scoreOf()/kindOf() in functions/lib/place-rank.ts. Kept as data rather
-# than prose so a drift between forward and reverse search is a diff, not a
-# discrepancy someone notices in production.
-ATTRACTION = {"zoo", "aquarium", "theme_park", "museum"}
-POI_MARKER = {"viewpoint", "attraction"}
-LODGING = {"hotel", "motel", "guest_house", "hostel", "chalet", "camp_site", "caravan_site"}
-NEARBY_LANDMARK = {"picnic_site", "artwork", "information"}
-BIRD_WATER = {"water", "bay", "strait", "wetland", "beach", "coastline", "spring", "hot_spring"}
-BIRD_LAND = {"wood", "scrub", "heath", "grassland", "sand", "mud", "cliff", "peak", "ridge", "valley"}
-SETTLEMENT = {
-    "city": 20, "town": 18, "village": 17, "hamlet": 16, "suburb": 16,
-    "neighbourhood": 15, "borough": 15, "municipality": 15, "quarter": 14,
-    "locality": 12, "isolated_dwelling": 12, "farm": 12,
-}
+# The birding-place contract is GENERATED from `functions/lib/place-rank.ts`
+# into `place-contract.json`, not restated here.
+#
+# An earlier version of this file hand-copied `scoreOf()` and `kindOf()`. Review
+# caught that copy already disagreeing with the real thing: `museum` scored 26
+# instead of 19, `city` scored 20 instead of 14, whole fallback tiers were
+# missing, and it emitted `kind` values that do not exist. A corpus built on
+# those rules is not a measurement of the shipped contract, it is a measurement
+# of a typo.
+#
+# `functions/lib/place-contract.test.ts` regenerates the artifact and fails if
+# the committed copy is stale, so a rule change cannot silently leave the next
+# corpus built on the previous rules.
+CONTRACT_PATH = Path(__file__).with_name("place-contract.json")
+
+# Order matters and mirrors the branch order in `scoreOf()`: an object carrying
+# several tags takes the FIRST key that scores, exactly as the TypeScript does
+# by falling through its if-chain.
+CONTRACT_KEYS = ("tourism", "leisure", "natural", "boundary", "landuse", "place")
+
+
+def load_contract(path: Path = CONTRACT_PATH) -> tuple[dict, dict]:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    return data["score"], data["kind"]
+
+
+_SCORE: dict = {}
+_KIND: dict = {}
 
 
 def score_of(t: dict) -> int:
     """Return the WingDex category score, or 0 for "not a birding place"."""
-    tourism, leisure = t.get("tourism"), t.get("leisure")
-    natural, boundary = t.get("natural"), t.get("boundary")
-    landuse, place = t.get("landuse"), t.get("place")
-
-    if tourism in ATTRACTION:
-        return 26
-    if leisure in ("garden", "park", "nature_reserve"):
-        return 25
-    if natural in BIRD_WATER or boundary in ("protected_area", "national_park") or tourism in POI_MARKER:
-        return 24
-    if leisure == "golf_course" or landuse in ("forest", "recreation_ground") or natural in BIRD_LAND:
-        return 22
-    if place in ("island", "islet"):
-        return 21
-    if tourism in LODGING or tourism in NEARBY_LANDMARK:
-        return 19
-    if place in SETTLEMENT:
-        return SETTLEMENT[place]
+    for key in CONTRACT_KEYS:
+        value = t.get(key)
+        if value is None:
+            continue
+        score = _SCORE.get(key, {}).get(value)
+        if score:
+            return score
     return 0
 
 
 def kind_of(t: dict) -> str:
     """A coarse label for grouping and for explaining a result in the UI."""
-    tourism, leisure = t.get("tourism"), t.get("leisure")
-    natural, boundary = t.get("natural"), t.get("boundary")
-    landuse, place = t.get("landuse"), t.get("place")
-    if leisure == "golf_course":
-        return "golf-course"
-    if leisure in ("park", "garden"):
-        return "park"
-    if leisure == "nature_reserve" or boundary in ("protected_area", "national_park"):
-        return "reserve"
-    if tourism in ATTRACTION:
-        return "attraction"
-    if tourism in LODGING:
-        return "lodging"
-    if tourism:
-        return "poi"
-    if natural in BIRD_WATER:
-        return "water"
-    if natural:
-        return "natural-other"
-    if landuse:
-        return "landcover"
-    if place:
-        return "place"
+    for key in CONTRACT_KEYS:
+        value = t.get(key)
+        if value is None:
+            continue
+        kind = _KIND.get(key, {}).get(value)
+        if kind:
+            return kind
     return "other"
 
 
@@ -131,6 +120,46 @@ def fold(s: str) -> str:
     return " ".join("".join(out).split())
 
 
+def _crossings(ring: list, y: float) -> list[float]:
+    """X coordinates where the horizontal line at `y` crosses `ring`."""
+    xs = []
+    for i in range(len(ring) - 1):
+        x1, y1 = ring[i]
+        x2, y2 = ring[i + 1]
+        if (y1 > y) != (y2 > y):
+            xs.append(x1 + (y - y1) * (x2 - x1) / (y2 - y1))
+    xs.sort()
+    return xs
+
+
+def _interior_spans(outer: list, holes: list, y: float) -> list[tuple[float, float]]:
+    """Return (width, midpoint_x) for each span of `y` that is INSIDE the polygon.
+
+    Holes are subtracted rather than ignored. Walking the merged crossing list
+    and toggling depth means a span inside a hole is skipped, so a donut-shaped
+    reserve yields the two spans of actual land and never the gap between them.
+    """
+    events = [(x, 0) for x in _crossings(outer, y)]
+    for hole in holes:
+        events.extend((x, 1) for x in _crossings(hole, y))
+    if len(events) < 2:
+        return []
+    events.sort()
+    spans = []
+    inside_outer = False
+    inside_hole = 0
+    prev_x = None
+    for x, kind in events:
+        if prev_x is not None and inside_outer and inside_hole == 0 and x > prev_x:
+            spans.append((x - prev_x, (prev_x + x) / 2.0))
+        if kind == 0:
+            inside_outer = not inside_outer
+        else:
+            inside_hole = 0 if inside_hole else 1
+        prev_x = x
+    return spans
+
+
 def representative_point(geom: dict) -> tuple[float, float] | None:
     """Return (lat, lon) that lies ON the feature.
 
@@ -139,12 +168,13 @@ def representative_point(geom: dict) -> tuple[float, float] | None:
     centroid sits outside the polygon. Search results are "take me here"
     answers, so the point has to be on the thing.
 
-    Polygons use a scanline point-on-surface: take the horizontal line at the
-    vertical midpoint, collect its crossings with the ring, and return the
-    middle of the WIDEST interior span. That lands inside a C shape and inside
-    a ring with a hole, which a centroid does not. Lines use the midpoint
-    VERTEX rather than an interpolated midpoint, so the point is always one the
-    mapper actually placed, even on a coastline that doubles back.
+    Polygons use a scanline point-on-surface: take a horizontal line, collect
+    its crossings with the outer ring AND with every hole, and return the middle
+    of the widest span that is inside the outer ring and outside every hole.
+    Subtracting holes is load-bearing: for a ring-shaped reserve, the widest
+    span between outer crossings alone is the hole itself. Lines use the
+    midpoint VERTEX rather than an interpolated midpoint, so the point is always
+    one the mapper actually placed, even on a coastline that doubles back.
     """
     gtype, coords = geom.get("type"), geom.get("coordinates")
     if not coords:
@@ -170,25 +200,26 @@ def representative_point(geom: dict) -> tuple[float, float] | None:
         # planet-scale corpus.
         rings = coords if gtype == "Polygon" else max(coords, key=lambda p: len(p[0]))
         outer = rings[0]
+        holes = [r for r in rings[1:] if len(r) >= 4]
         if len(outer) < 3:
             return None
         lats = [p[1] for p in outer]
-        y = (min(lats) + max(lats)) / 2.0
-        xs = []
-        for i in range(len(outer) - 1):
-            x1, y1 = outer[i]
-            x2, y2 = outer[i + 1]
-            if (y1 > y) != (y2 > y):
-                xs.append(x1 + (y - y1) * (x2 - x1) / (y2 - y1))
-        xs.sort()
-        if len(xs) >= 2:
-            best, bx = 0.0, None
-            for i in range(0, len(xs) - 1, 2):
-                span = xs[i + 1] - xs[i]
-                if span > best:
-                    best, bx = span, (xs[i] + xs[i + 1]) / 2.0
-            if bx is not None:
-                return y, bx
+        lo, hi = min(lats), max(lats)
+        # Try several scanlines, not just the vertical midpoint.
+        #
+        # A single midpoint line is wrong for a donut: for a ring-shaped
+        # reserve the midpoint crosses the hole, and taking the widest span
+        # between OUTER crossings alone puts the point inside the hole,
+        # violating the whole point of this function. Subtracting the hole
+        # crossings fixes the common case; trying more offsets fixes shapes
+        # where the midpoint line happens to be degenerate.
+        for frac in (0.5, 0.25, 0.75, 0.1, 0.9):
+            y = lo + (hi - lo) * frac
+            spans = _interior_spans(outer, holes, y)
+            if spans:
+                width, x = max(spans)
+                if width > 0:
+                    return y, x
         # Degenerate ring (all vertices on one line): fall back to a vertex,
         # which is still ON the feature, rather than to an averaged point.
         return outer[0][1], outer[0][0]
@@ -281,6 +312,8 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
 
 
 def main() -> int:
+    global _SCORE, _KIND
+    _SCORE, _KIND = load_contract()
     n = 0
     out = sys.stdout
     for row in records(sys.stdin):

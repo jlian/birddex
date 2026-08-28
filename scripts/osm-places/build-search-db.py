@@ -170,6 +170,12 @@ def main() -> int:
 
     t1 = time.time()
     db.executescript(FTS_DDL)
+    # The alias index is part of the SHIPPED schema, not an afterthought: the
+    # ranking ORDER BY leads with `alias = ?`, which without it scans every
+    # candidate row the MATCH returned. Create it BEFORE sampling the size, or
+    # the reported total describes a database that cannot serve the benchmarked
+    # query plan.
+    db.execute("CREATE INDEX idx_places_alias ON places(alias)")
     db.commit()
     fts_s = time.time() - t1
     total_bytes = size(out)
@@ -178,8 +184,8 @@ def main() -> int:
     print(f"  rows                 {rows:,}")
     print(f"  source TSV           {fmt(size(src))}")
     print(f"  content table only   {fmt(content_bytes)}   ({load_s:.0f}s)")
-    print(f"  FTS5 index added     {fmt(total_bytes - content_bytes)}   ({fts_s:.0f}s)")
-    print(f"  TOTAL DATABASE       {fmt(total_bytes)}")
+    print(f"  FTS5 index + alias   {fmt(total_bytes - content_bytes)}   ({fts_s:.0f}s)")
+    print(f"  TOTAL DATABASE       {fmt(total_bytes)}   (all indexes created)")
 
     gate = 7 * 1024 ** 3
     verdict = "UNDER the 7 GB gate" if total_bytes <= gate else "OVER the 7 GB gate"
@@ -202,11 +208,6 @@ def main() -> int:
     print(f"  carrying a QID       {withqid:,} ({100*withqid/max(rows,1):.1f}%)")
     print(f"  carrying importance  {withimp:,} ({100*withimp/max(rows,1):.1f}%)"
           f"  [{100*withimp/max(withqid,1):.1f}% of QIDs matched]")
-
-    # An exact-match index. The ORDER BY leads with `alias = ?`, which without
-    # this index means a scan of every candidate row the MATCH returned.
-    cur.execute("CREATE INDEX idx_places_alias ON places(alias)")
-    db.commit()
 
     print(f"\n=== golden queries (p50 / p95 over 20 runs, top hit) ===")
     golden = ["discovery park", "central park", "union bay", "donana",
