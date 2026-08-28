@@ -139,7 +139,19 @@ export TMPDIR
 # central-america, adding it costs 0.99% (39.03 -> 39.42 MB), about +55 MB on
 # the global archive. Re-tiling later to add a 12-byte key would cost hours, so
 # it is cheaper to carry it now than to need it later.
-KEEP="-y name -y name:en -y tourism -y leisure -y natural -y boundary -y landuse -y place -y wikidata -y admin_level -y ISO3166-1:alpha2 -y ISO3166-1 -y ISO3166-2"
+KEEP="-y name -y name:en -y tourism -y leisure -y natural -y boundary -y landuse -y place -y importance -y admin_level -y ISO3166-1:alpha2 -y ISO3166-1 -y ISO3166-2"
+
+# The Wikipedia-derived importance join, run between osmium and tippecanoe.
+#
+# `wikidata` is deliberately NOT in KEEP any more. The QID is only a join key,
+# and once the join happens at build time the key is dead weight: measured over
+# 3,551 real tiles, QID strings cost 130,277 bytes of MVT string pool (1.55% of
+# tile bytes) while the quantised scores cost 28,512 (0.34%). Swapping one for
+# the other makes the archive about 20 MB SMALLER while adding the data, and it
+# removes a per-request lookup table from the Worker entirely.
+IMPORTANCE_JOIN="${IMPORTANCE_JOIN:-$(dirname "${BASH_SOURCE[0]}")/join-importance.py}"
+IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
+IMPORTANCE_URL="${IMPORTANCE_URL:-https://nominatim.org/data/wikimedia-importance.csv.gz}"
 
 # osmium export config: ONE geometry per object.
 #
@@ -437,6 +449,7 @@ build_region() {
   # cannot catch.
   set +e
   osmium export "$WORK/$r-parks.osm.pbf" -f geojsonseq -c "$EXPORT_CONFIG" -o - 2>"$WORK/$r.export.log" \
+    | python3 "$IMPORTANCE_JOIN" "$IMPORTANCE_TABLE" 2>"$WORK/$r.importance.log" \
     | tippecanoe -o "$WORK/$r.mbtiles" --force -z12 -Z12 -pf -pk \
         --no-simplification-of-shared-nodes --no-tiny-polygon-reduction \
         --temporary-directory="$TMPDIR" \
@@ -444,13 +457,20 @@ build_region() {
         -l parks /dev/stdin 2>"$WORK/$r.tip.log"
   local -a pipe_rc=("${PIPESTATUS[@]}")
   set -e
+  # The join sits in the middle of the pipe, so its status is PIPESTATUS[1] and
+  # tippecanoe's moves to [2]. Check all three or a join failure is invisible.
+  if [ "${pipe_rc[1]}" -ne 0 ]; then
+    echo "  FAILED $r: importance join exited ${pipe_rc[1]} (see $r.importance.log)" >&2
+    rm -f "$WORK/$r.mbtiles" "$WORK/$r-admin.mbtiles"
+    return 1
+  fi
   if [ "${pipe_rc[0]}" -ne 0 ]; then
     echo "  FAILED $r: osmium export exited ${pipe_rc[0]} (see $r.export.log); upstream failure would otherwise be masked by tippecanoe" >&2
     rm -f "$WORK/$r.mbtiles"
     return 1
   fi
-  if [ "${pipe_rc[1]}" -ne 0 ]; then
-    echo "  FAILED $r: tippecanoe exited ${pipe_rc[1]} (see $r.tip.log)" >&2
+  if [ "${pipe_rc[2]}" -ne 0 ]; then
+    echo "  FAILED $r: tippecanoe exited ${pipe_rc[2]} (see $r.tip.log)" >&2
     rm -f "$WORK/$r.mbtiles"
     return 1
   fi
@@ -544,10 +564,36 @@ export WORK SRC FILTER KEEP FCACHE TMPDIR MIN_MBTILES_BYTES NAMED_ONLY
 # The child `bash -c` shells need these too, or the admin layer silently builds
 # with an empty filter and the export config path resolves to nothing.
 export ADMIN_FILTER ADMIN_LEVELS ADMIN_LAYER EXPORT_CONFIG MIN_ADMIN_BYTES
+export IMPORTANCE_JOIN IMPORTANCE_TABLE
 
 echo "==> fetching continent extracts"
 write_export_config
 echo "  export config: $EXPORT_CONFIG (one geometry per object)"
+
+# Build the QID -> importance map once, before the region loop, so all eight
+# regions join against the same snapshot.
+#
+# nominatim.org 403s a default curl user-agent, so one is set explicitly.
+if [ ! -s "$IMPORTANCE_TABLE" ]; then
+  echo "==> building the importance table"
+  _imp_gz="$WORK/wikimedia-importance.csv.gz"
+  if [ ! -s "$_imp_gz" ]; then
+    if ! curl -sL --fail -A "WingDex archive build (+https://github.com/jlian/wingdex)" \
+         -o "$_imp_gz.part" "$IMPORTANCE_URL"; then
+      echo "  FAILED: could not download $IMPORTANCE_URL" >&2
+      rm -f "$_imp_gz.part"
+      exit 1
+    fi
+    mv "$_imp_gz.part" "$_imp_gz"
+  fi
+  if ! python3 "$(dirname "$IMPORTANCE_JOIN")/mk-importance-table.py" "$_imp_gz" "$IMPORTANCE_TABLE.part"; then
+    echo "  FAILED: could not reduce the importance table" >&2
+    rm -f "$IMPORTANCE_TABLE.part"
+    exit 1
+  fi
+  mv "$IMPORTANCE_TABLE.part" "$IMPORTANCE_TABLE"
+fi
+echo "  importance table: $(wc -l < "$IMPORTANCE_TABLE") QIDs"
 for r in "${REGIONS[@]}"; do fetch "$r" & done
 wait
 

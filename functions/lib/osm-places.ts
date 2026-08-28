@@ -260,9 +260,8 @@ export async function lookupPlaces(
   lat: number,
   lon: number,
   limit = 25,
-  importance?: ImportanceLookup,
 ): Promise<Ranked[]> {
-  return rankCandidates(await collectCandidates(pmtiles, lat, lon, importance)).slice(0, limit)
+  return rankCandidates(await collectCandidates(pmtiles, lat, lon)).slice(0, limit)
 }
 
 export async function lookupPlace(
@@ -275,30 +274,36 @@ export async function lookupPlace(
 }
 
 /**
- * Look up a feature's Wikipedia-derived importance from its Wikidata QID.
+ * Read a feature's Wikipedia-derived importance, baked in at build time.
  *
  * Nominatim's own measure: how many articles link to a place, across languages
- * and including redirects. Their published table is 19M rows, so it cannot ship
- * inside a Worker; the caller passes whatever subset it has, and a miss is
- * simply `undefined`.
+ * and including redirects. Their published table is 19M rows and reduces to
+ * 3.58M distinct Wikidata QIDs, which is far too much to ship inside a Worker
+ * or to query per request.
  *
- * Only about 16% of named features carry a QID (measured on the Seattle tile:
- * 46 of 286), which is exactly why this is a tie-breaker and never a sort key.
- * Ranking on it earlier would mean Wikipedia's coverage decides geography, and
- * the 84% without an article would always lose.
+ * So the join happens in `scripts/osm-places/join-importance.py`, between
+ * osmium and tippecanoe, and the archive carries the RESULT rather than the
+ * join key. That is why this reads a plain tag and needs no lookup table, no
+ * extra R2 object, and no D1 round trip: the value arrives with the feature
+ * that was already decoded.
+ *
+ * Stored quantised to 0..255 and returned as 0..1. A byte is plenty for what
+ * is only ever the third tie-breaker, after containment and category.
+ *
+ * About a quarter of named features have one (measured on the shipped archive:
+ * 12,474 of 48,143 named features carry a QID, and 32% of those QIDs have a
+ * Wikipedia article). That is exactly why it is a tie-breaker and never a sort
+ * key: ranking on it earlier would let Wikipedia's coverage decide geography,
+ * and the large majority without an article would always lose.
  */
-function importanceOf(
-  props: Record<string, unknown>,
-  table: ImportanceLookup | undefined,
-): number | undefined {
-  if (!table) return undefined
-  const qid = props.wikidata
-  if (typeof qid !== 'string' || !qid) return undefined
-  return table(qid)
+function importanceOf(props: Record<string, unknown>): number | undefined {
+  const raw = props.importance
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
+  // Guard the range rather than trusting the archive: a malformed value must
+  // not push a candidate above a legitimately more important one.
+  if (raw < 0 || raw > 255) return undefined
+  return raw / 255
 }
-
-/** Resolve a Wikidata QID to an importance in 0..1, or undefined if unknown. */
-export type ImportanceLookup = (qid: string) => number | undefined
 
 /** A coordinate resolved to a tile address plus its position inside it. */
 interface TileAddress {
@@ -362,19 +367,17 @@ async function collectCandidates(
   pmtiles: PMTiles,
   lat: number,
   lon: number,
-  importance?: ImportanceLookup,
 ): Promise<Ranked[]> {
   const address = tileAddressFor(lat, lon)
   if (!address) return []
   const resp = await pmtiles.getZxy(ZOOM, address.tileX, address.tileY)
   if (!resp) return []
-  return candidatesFromTile(new VectorTile(new PbfReader(new Uint8Array(resp.data))), address, importance)
+  return candidatesFromTile(new VectorTile(new PbfReader(new Uint8Array(resp.data))), address)
 }
 
 function candidatesFromTile(
   tile: VectorTile,
   address: TileAddress,
-  importance?: ImportanceLookup,
 ): Ranked[] {
   const { tileX, tileY, worldX, worldY, tileSpanM } = address
   const layer = tile.layers.parks
@@ -423,7 +426,7 @@ function candidatesFromTile(
           contained: false,
           distanceM: Math.round((nearestDistance / layer.extent) * tileSpanM),
           kind: kindOf(props),
-          importance: importanceOf(props, importance),
+          importance: importanceOf(props),
         })
       }
       continue
@@ -444,7 +447,7 @@ function candidatesFromTile(
           contained: false,
           distanceM: Math.round((nearestDistance / layer.extent) * tileSpanM),
           kind: kindOf(props),
-          importance: importanceOf(props, importance),
+          importance: importanceOf(props),
         })
       }
       continue
@@ -484,7 +487,7 @@ function candidatesFromTile(
         contained: true,
         distanceM: 0,
         kind: kindOf(props),
-        importance: importanceOf(props, importance),
+        importance: importanceOf(props),
       })
       continue
     }
@@ -524,7 +527,7 @@ function candidatesFromTile(
         contained: false,
         distanceM: Math.round((nearestDistance / layer.extent) * tileSpanM),
         kind: kindOf(props),
-        importance: importanceOf(props, importance),
+        importance: importanceOf(props),
       })
     }
   }
@@ -744,7 +747,6 @@ export async function lookupPlacesWithRegion(
   lat: number,
   lon: number,
   limit = 25,
-  importance?: ImportanceLookup,
 ): Promise<{ places: Ranked[]; regionCodes: RegionCodes }> {
   const address = tileAddressFor(lat, lon)
   if (!address) return { places: [], regionCodes: {} }
@@ -753,7 +755,7 @@ export async function lookupPlacesWithRegion(
 
   const tile = new VectorTile(new PbfReader(new Uint8Array(resp.data)))
   return {
-    places: rankCandidates(candidatesFromTile(tile, address, importance)).slice(0, limit),
+    places: rankCandidates(candidatesFromTile(tile, address)).slice(0, limit),
     regionCodes: regionCodesFromTile(tile, address),
   }
 }
