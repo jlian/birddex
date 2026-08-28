@@ -18,6 +18,14 @@ private let log = Logger(subsystem: Config.bundleID, category: "AddPhotos")
 @Observable
 final class AddPhotosViewModel {
 
+    enum IncomingShareImportResult: Equatable {
+        case accepted
+        case busy
+        case empty
+        case failed
+        case cancelled
+    }
+
     enum CropPromptContext: Equatable {
         case manualRecrop
         case lowConfidence
@@ -48,7 +56,8 @@ final class AddPhotosViewModel {
 
     var currentStep: Step = .selectPhotos
     private(set) var flowDismissalRequestID = UUID()
-    private(set) var resumesPendingShareAfterDismissal = true
+    private(set) var continuesShareQueueAfterDismissal = false
+    private(set) var stoppedShareQueueAfterDismissal = false
 
     // MARK: - Photo Selection
 
@@ -136,6 +145,7 @@ final class AddPhotosViewModel {
 
     var pendingNewPhotos: [ProcessedPhoto] = []
     var pendingDuplicatePhotos: [ProcessedPhoto] = []
+    private var pendingRejectedSharedPhotoCount = 0
     var showDuplicateConfirm = false
 
     // MARK: - Results After Save
@@ -182,8 +192,9 @@ final class AddPhotosViewModel {
         dataStore = nil
     }
 
-    func suppressPendingShareAutoResume() {
-        resumesPendingShareAfterDismissal = false
+    func stopShareQueueAfterDismissal() {
+        continuesShareQueueAfterDismissal = false
+        stoppedShareQueueAfterDismissal = true
     }
 
     // MARK: - Convenience
@@ -209,15 +220,32 @@ final class AddPhotosViewModel {
         cameraPhotos.append((image: image, lat: lat, lon: lon))
     }
 
-    func importIncomingShareIfAvailable() async {
-        guard currentStep == .selectPhotos else { return }
+    func importIncomingShareIfAvailable() async -> IncomingShareImportResult {
+        guard currentStep == .selectPhotos,
+              !isProcessing,
+              !showDuplicateConfirm,
+              pendingNewPhotos.isEmpty,
+              pendingDuplicatePhotos.isEmpty,
+              incomingShareID == nil
+        else { return .busy }
         do {
-            guard let snapshot = try IncomingShareStore.pendingShare() else { return }
+            guard let snapshot = try await IncomingShareStore.oldestPendingShare() else {
+                return .empty
+            }
             incomingShareID = snapshot.id
             incomingSharedPhotos = snapshot.photos
             await processSelectedPhotos()
+            if incomingShareID == nil {
+                continuesShareQueueAfterDismissal = true
+                return .accepted
+            }
+            return .failed
+        } catch is CancellationError {
+            return .cancelled
         } catch {
             self.error = AppError.map(error, fallback: "Could not import the shared photos. Try again.")
+            errorRecovery = .incomingShareImport
+            return .failed
         }
     }
 
@@ -292,9 +320,17 @@ final class AddPhotosViewModel {
         for photo in candidatePhotos {
             appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
         }
+        if incomingShareID != nil, newPhotos.isEmpty, duplicatePhotos.isEmpty {
+            error = .message("No shared photos could be read. Share them again in a supported image format.")
+            errorRecovery = .sessionPreparation
+            isProcessing = false
+            return
+        }
         if let incomingShareID {
             do {
-                try IncomingShareStore.completePendingShare(id: incomingShareID)
+                guard try await IncomingShareStore.accept(id: incomingShareID) else {
+                    throw IncomingShareError.noLongerPending
+                }
             } catch {
                 self.error = AppError.map(
                     error,
@@ -304,6 +340,10 @@ final class AddPhotosViewModel {
                 isProcessing = false
                 return
             }
+        }
+        guard isCurrentSession(sessionID) else {
+            cancelExtractionForSessionChange()
+            return
         }
         incomingShareID = nil
         incomingSharedPhotos = []
@@ -344,6 +384,7 @@ final class AddPhotosViewModel {
         if !duplicatePhotos.isEmpty {
             pendingNewPhotos = newPhotos
             pendingDuplicatePhotos = duplicatePhotos
+            pendingRejectedSharedPhotoCount = rejectedSharedFileNames.count
             currentStep = .selectPhotos
             isProcessing = false
             showDuplicateConfirm = true
@@ -435,16 +476,33 @@ final class AddPhotosViewModel {
             : pendingNewPhotos
         pendingNewPhotos = []
         pendingDuplicatePhotos = []
+        let rejectedSharedPhotoCount = pendingRejectedSharedPhotoCount
+        pendingRejectedSharedPhotoCount = 0
 
         if finalPhotos.isEmpty {
             selectedItems = []
             currentStep = .selectPhotos
-            flowDismissalRequestID = UUID()
+            if rejectedSharedPhotoCount > 0 {
+                error = .message(
+                    rejectedSharedPhotoCount == 1
+                        ? "One shared photo could not be read. Share it again in a supported image format."
+                        : "\(rejectedSharedPhotoCount) shared photos could not be read. Share them again in a supported image format."
+                )
+            } else {
+                flowDismissalRequestID = UUID()
+            }
             return
         }
 
         currentStep = .extracting
         finishExtraction(photos: finalPhotos)
+        if rejectedSharedPhotoCount > 0 {
+            error = .message(
+                rejectedSharedPhotoCount == 1
+                    ? "One shared photo could not be read. Share it again in a supported image format."
+                    : "\(rejectedSharedPhotoCount) shared photos could not be read. Share them again in a supported image format."
+            )
+        }
     }
 
     private func finishExtraction(photos: [ProcessedPhoto]) {
@@ -883,6 +941,8 @@ final class AddPhotosViewModel {
         error = nil
         errorRecovery = nil
         switch recovery {
+        case .incomingShareImport:
+            Task { _ = await importIncomingShareIfAvailable() }
         case .sessionPreparation:
             Task { await processSelectedPhotos() }
         case .speciesIdentification(let photoIndex, let croppedImageData):
@@ -973,6 +1033,7 @@ func sightingResults(_ results: [PhotoResult]) -> [PhotoResult] {
 }
 
 private enum ErrorRecovery {
+    case incomingShareImport
     case sessionPreparation
     case speciesIdentification(photoIndex: Int, croppedImageData: Data?)
     case saveCluster

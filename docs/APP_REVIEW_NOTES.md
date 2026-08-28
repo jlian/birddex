@@ -40,7 +40,7 @@ To test the share extension:
 
 1. Select one or more images in Photos.
 2. Open the system share sheet and choose **WingDex**.
-3. Wait for the extension to finish staging the photos, tap **Done**, then open WingDex.
+3. Wait for the extension to finish staging the photos. If WingDex does not open automatically, tap **Done** and open it.
 4. WingDex opens the normal photo review and identification flow with the shared images.
 
-Shared image files are staged locally in the WingDex app group for this handoff. They are not uploaded for bird identification.
+Shared image files are staged locally as atomic batches in the WingDex app group for this handoff. Batches are imported in order and accepted once before their temporary files are removed. They are not uploaded for bird identification.

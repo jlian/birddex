@@ -33,6 +33,7 @@
 		2CDDDF5ED153526ADF124174 /* collage21.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7A292B9762D444579B157E2C /* collage21.jpg */; };
 		2DF6B92A4F947A1497A4CA41 /* EqualEarth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10507D91DA1C50A43D085DCF /* EqualEarth.swift */; };
 		2F5267D0C1B1E2BAFBA497F3 /* AppQuickActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E352D968B97DD2140828523 /* AppQuickActions.swift */; };
+		309348E5AEF96E3F6C432509 /* IncomingShareStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 936DDC496C89FC341EA03EE2 /* IncomingShareStoreTests.swift */; };
 		316CF383D25D383C86E1DD7F /* RarityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DC3E6948C72DF0D52CB421 /* RarityStore.swift */; };
 		320A9744CC6832F26CA4842D /* rarity.bin in Resources */ = {isa = PBXBuildFile; fileRef = A42EC091D54C666B084E812C /* rarity.bin */; };
 		32A90BB7899AF9413E1466ED /* CelebrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BDBF72550893F931771EA36 /* CelebrationTests.swift */; };
@@ -265,6 +266,7 @@
 		8DF3BE4EAF4D781A2029593E /* DataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataStore.swift; sourceTree = "<group>"; };
 		8E0885077F6EE158317DCAC6 /* AppIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconView.swift; sourceTree = "<group>"; };
 		92009ED89B0B508740436CC5 /* collage17.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage17.jpg; sourceTree = "<group>"; };
+		936DDC496C89FC341EA03EE2 /* IncomingShareStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingShareStoreTests.swift; sourceTree = "<group>"; };
 		94ACB4713633B9A241E65EED /* WingDexShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WingDexShortcuts.swift; sourceTree = "<group>"; };
 		963619FEAD365BFF8CDC24E8 /* IncomingShareStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingShareStore.swift; sourceTree = "<group>"; };
 		989AEA195C999B4857206090 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
@@ -536,6 +538,7 @@
 				2E72A9251EFB7534EA141B3E /* DataStoreCacheTests.swift */,
 				452C55049EB9AB7E09E62CA9 /* FunNamesTests.swift */,
 				4E6BAB4FEED37A66EB25CDB0 /* GeocodingServiceTests.swift */,
+				936DDC496C89FC341EA03EE2 /* IncomingShareStoreTests.swift */,
 				9A4B59465EA0A8A76E825C25 /* InferenceLocationTests.swift */,
 				721474DC157B206D90945C86 /* OccurrenceV4Tests.swift */,
 				1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */,
@@ -990,6 +993,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				32E8B1249FDA37CF3CAAD493 /* DataStoreCacheTests.swift in Sources */,
 				E2DEFBDD3B36FEB4C7CFCC96 /* FunNamesTests.swift in Sources */,
 				50F4BCC128CEB199FEE961AB /* GeocodingServiceTests.swift in Sources */,
+				309348E5AEF96E3F6C432509 /* IncomingShareStoreTests.swift in Sources */,
 				D1C2AF592201DE9E785DA80A /* InferenceLocationTests.swift in Sources */,
 				C6DF1D3BFC6E971A319E6672 /* OccurrenceV4Tests.swift in Sources */,
 				3EF5CB0983D37395F5272CFD /* Phase9FoundationTests.swift in Sources */,

@@ -15,10 +15,6 @@ final class ShareViewController: UIViewController {
         stagingTask = Task { await stageSharedPhotos() }
     }
 
-    deinit {
-        stagingTask?.cancel()
-    }
-
     private func configureUI() {
         view.backgroundColor = .systemBackground
 
@@ -95,7 +91,8 @@ final class ShareViewController: UIViewController {
             }
 
             try Task.checkCancellation()
-            try await stageInBackground(fileURLs: temporaryFiles)
+            try await IncomingShareStore.stage(fileURLs: temporaryFiles)
+            try Task.checkCancellation()
             if await openHostApp() {
                 extensionContext?.completeRequest(returningItems: nil)
                 return
@@ -120,12 +117,8 @@ final class ShareViewController: UIViewController {
     /// Matches the app's `CFBundleURLSchemes` entry and the `share-import` host it handles.
     private static let hostAppShareImportURL = URL(string: "wingdex://share-import")
 
-    /// Whether the app actually came to the front.
-    ///
-    /// iOS 18 blocks the old `UIApplication.openURL:` responder-chain trick outright, and
-    /// `NSExtensionContext.open` reports success while doing nothing unless the app already
-    /// happens to be in memory. Reaching the hosting scene is the route that still launches
-    /// the app, and it is undocumented for extensions, so failing has to stay survivable.
+    /// This works on current iOS releases but is undocumented for Share extensions,
+    /// so the extension must keep the manual-open fallback when it fails.
     private func openHostApp() async -> Bool {
         guard let url = Self.hostAppShareImportURL else { return false }
         var responder: UIResponder? = self
@@ -138,17 +131,6 @@ final class ShareViewController: UIViewController {
             responder = current.next
         }
         return false
-    }
-
-    private func stageInBackground(fileURLs: [URL]) async throws {
-        let stagingTask = Task.detached(priority: .userInitiated) {
-            try await IncomingShareStore.stage(fileURLs: fileURLs)
-        }
-        try await withTaskCancellationHandler {
-            try await stagingTask.value
-        } onCancel: {
-            stagingTask.cancel()
-        }
     }
 
     private func inputProviders() -> [NSItemProvider] {

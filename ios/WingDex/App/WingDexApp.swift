@@ -25,21 +25,6 @@ enum SignupPromptStore {
 
 @main
 struct WingDexApp: App {
-    private static let incomingShareObserver: Void = {
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            nil,
-            { _, _, _, _, _ in
-                DispatchQueue.main.async {
-                    AppNavigationModel.shared.handleIncomingShare()
-                }
-            },
-            IncomingShareStore.changeNotificationName as CFString,
-            nil,
-            .deliverImmediately
-        )
-    }()
-
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var authService: AuthService
     @State private var dataStore: DataStore
@@ -47,7 +32,6 @@ struct WingDexApp: App {
     @State private var toasts = ToastCenter()
 
     init() {
-        _ = Self.incomingShareObserver
         let auth = AuthService.shared
         let cache = try? AccountDataCache()
         _authService = State(initialValue: auth)
@@ -132,11 +116,6 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
-            if (ProcessInfo.processInfo.arguments.contains("--ui-test-clear-pending-share")
-                || ProcessInfo.processInfo.arguments.contains("--ui-test-reset-pending-share")),
-               let pendingShare = try? IncomingShareStore.pendingShare() {
-                try? IncomingShareStore.completePendingShare(id: pendingShare.id)
-            }
             if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
                 await auth.signOut()
             }
@@ -212,10 +191,14 @@ struct MainTabView: View {
     @State private var showingAccount = false
     @State private var addPhotosVM = AddPhotosViewModel()
     @State private var showingWizard = false
-    @State private var initialDataLoaded = false
+    @State private var incomingShareImportInFlight = false
+    @State private var incomingShareImportRequested = false
+    @State private var incomingShareImportDeferred = false
+    @State private var incomingShareImportTask: Task<Void, Never>?
+    @State private var incomingShareImportTaskID: UUID?
     #if DEBUG
     private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
-    private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-clear-pending-share")
+    private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-ignore-shares")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
     #else
     private let uiTestForcesSettings = false
@@ -270,18 +253,27 @@ struct MainTabView: View {
             }
         }
         .fullScreenCover(isPresented: $showingWizard, onDismiss: {
-            let shouldResumePendingShare = addPhotosVM.resumesPendingShareAfterDismissal
+            let shouldContinueShareQueue = addPhotosVM.continuesShareQueueAfterDismissal
+            let explicitlyStoppedShareQueue = addPhotosVM.stoppedShareQueueAfterDismissal
             let shouldPrompt = auth.identity == .anonymous
                 && addPhotosVM.savedOutingCount > 0
                 && auth.userId.map { !SignupPromptStore.hasPrompted(userID: $0) } == true
+            incomingShareImportTask?.cancel()
+            incomingShareImportTask = nil
+            incomingShareImportTaskID = nil
             addPhotosVM.cancelSession()
             addPhotosVM = AddPhotosViewModel()
             addPhotosVM.configure(
                 auth: auth,
                 dataStore: store
             )
-            if shouldResumePendingShare, IncomingShareStore.hasPendingShare {
-                Task { await importIncomingShareIfAvailable() }
+            if explicitlyStoppedShareQueue {
+                incomingShareImportDeferred = false
+            } else if shouldPrompt {
+                incomingShareImportDeferred = shouldContinueShareQueue || incomingShareImportDeferred
+            } else if shouldContinueShareQueue || incomingShareImportDeferred {
+                incomingShareImportDeferred = false
+                scheduleIncomingShareImport()
             }
             if shouldPrompt {
                 if let userID = auth.userId { SignupPromptStore.markPrompted(userID: userID) }
@@ -304,6 +296,12 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $showingAccount) {
             AccountAccessView()
         }
+        .onChange(of: showingAccount) { _, isShowing in
+            if !isShowing, incomingShareImportDeferred {
+                incomingShareImportDeferred = false
+                scheduleIncomingShareImport()
+            }
+        }
         .task {
             navigation.setMainInterfaceReady(true)
             #if DEBUG
@@ -318,10 +316,12 @@ struct MainTabView: View {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             do {
+                if arguments.contains("--ui-test-reset-share-store") {
+                    try await IncomingShareStore.resetForUITests()
+                }
                 try await prepareUITestData(arguments: arguments)
-                if arguments.contains("--ui-test-share-photo") {
+                if arguments.contains("--ui-test-stage-share") {
                     try await stageUITestSharePhoto()
-                    navigation.handleIncomingShare()
                 }
                 if arguments.contains("--ui-test-open-settings") {
                     showingSettings = true
@@ -332,12 +332,13 @@ struct MainTabView: View {
                 uiTestDataSetupIdentifier = "ui-test.dataSetupFailed"
             }
             #endif
-            await completeInitialLoadIfReady()
+            scheduleIncomingShareImport()
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--ui-test-delayed-share-photo") {
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-stage-share-after-launch") {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(1))
                     try? await stageUITestSharePhoto()
+                    navigation.handleIncomingShare()
                 }
             }
             #endif
@@ -348,32 +349,26 @@ struct MainTabView: View {
         }
         .onChange(of: store.hasLoadedAll) { _, hasLoadedAll in
             guard hasLoadedAll else { return }
-            Task {
-                await completeInitialLoadIfReady()
-                await addPhotosVM.processSelectedPhotos()
-            }
+            Task { await addPhotosVM.processSelectedPhotos() }
         }
         .onChange(of: auth.userId) {
-            initialDataLoaded = false
             addPhotosVM.configure(auth: auth, dataStore: store)
         }
         .onChange(of: scenePhase) { _, phase in
             guard !uiTestIgnoresPendingShare,
-                  phase == .active,
-                  IncomingShareStore.hasPendingShare
+                  phase == .active
             else { return }
-            Task { await importIncomingShareIfAvailable() }
+            scheduleIncomingShareImport()
         }
         .onDisappear {
             navigation.setMainInterfaceReady(false)
+            incomingShareImportTask?.cancel()
+            incomingShareImportTask = nil
+            incomingShareImportTaskID = nil
             addPhotosVM.cancelSession()
         }
-        .task(id: navigation.incomingShareRequestID) {
-            guard !uiTestIgnoresPendingShare else { return }
-            await importIncomingShareIfAvailable()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: IncomingShareStore.didStageNotification)) { _ in
-            navigation.handleIncomingShare()
+        .onChange(of: navigation.incomingShareRequestID) {
+            scheduleIncomingShareImport()
         }
         .environment(\.showAddPhotos) { navigation.route(to: .addPhotos()) }
         .environment(\.showSettings) {
@@ -506,28 +501,50 @@ struct MainTabView: View {
     }
     #endif
 
-    private func importIncomingShareIfAvailable() async {
-        guard !uiTestIgnoresPendingShare,
-              IncomingShareStore.hasPendingShare
-        else { return }
-        navigation.route(to: .addPhotos())
-        addPhotosVM.configure(
-            auth: auth,
-            dataStore: store
-        )
-        await addPhotosVM.importIncomingShareIfAvailable()
+    private func requestIncomingShareImport() async {
+        guard !uiTestIgnoresPendingShare else { return }
+        guard !incomingShareImportInFlight else {
+            incomingShareImportRequested = true
+            return
+        }
+        incomingShareImportInFlight = true
+        defer { incomingShareImportInFlight = false }
+        repeat {
+            incomingShareImportRequested = false
+            addPhotosVM.configure(
+                auth: auth,
+                dataStore: store
+            )
+            let result = await addPhotosVM.importIncomingShareIfAvailable()
+            guard !Task.isCancelled else { return }
+            if result == .accepted {
+                navigation.route(to: .addPhotos())
+            } else if result == .failed {
+                navigation.route(to: .addPhotos())
+                showingWizard = true
+            } else if result == .busy {
+                incomingShareImportDeferred = true
+            }
+        } while incomingShareImportRequested
     }
 
-    private func completeInitialLoadIfReady() async {
-        guard !initialDataLoaded else { return }
-        if !auth.hasSession {
-            initialDataLoaded = true
-        } else {
-            guard store.hasLoadedAll else { return }
-            initialDataLoaded = true
+    private func scheduleIncomingShareImport() {
+        if showingAccount {
+            incomingShareImportDeferred = true
+            return
         }
-        if !uiTestIgnoresPendingShare, IncomingShareStore.hasPendingShare {
-            await importIncomingShareIfAvailable()
+        if incomingShareImportTask != nil {
+            incomingShareImportRequested = true
+            return
+        }
+        let requestID = UUID()
+        incomingShareImportTaskID = requestID
+        incomingShareImportTask = Task {
+            await requestIncomingShareImport()
+            if incomingShareImportTaskID == requestID {
+                incomingShareImportTask = nil
+                incomingShareImportTaskID = nil
+            }
         }
     }
 
