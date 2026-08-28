@@ -19,8 +19,10 @@ interface Env {
   /** OSM place polygons (PMTiles) for local reverse geocoding, ODbL 1.0. */
   PLACES?: Pick<R2Bucket, 'get'>
   GEOAPIFY_KEY: string
-  /** Burst limiter for the Geoapify-backed routes. See [[ratelimits]] in wrangler.toml. */
+  /** Burst limiter for the Geoapify-backed place-search route. See [[ratelimits]] in wrangler.toml. */
   GEOCODING_LIMITER: RateLimit
+  /** Abuse guard for local PMTiles reverse lookups and their R2 reads. */
+  REVERSE_GEOCODING_LIMITER: RateLimit
   /** Burst limiter for the eBird CSV import routes. See [[ratelimits]] in wrangler.toml. */
   IMPORT_LIMITER: RateLimit
   AI_DAILY_LIMIT_IDENTIFY?: string

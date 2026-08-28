@@ -75,6 +75,7 @@ function routeContext(request: Request, db: D1Database, log: Logger, params: Rec
       DB: db,
       GEOAPIFY_KEY: 'provider-key',
       GEOCODING_LIMITER: { limit: async () => ({ success: true }) },
+      REVERSE_GEOCODING_LIMITER: { limit: async () => ({ success: true }) },
       IMPORT_LIMITER: { limit: async () => ({ success: true }) },
     },
     data: { user: { id: 'user-1' }, log },
@@ -477,6 +478,26 @@ describe('non-auth durable observability', () => {
       description: response.headers.get(RESULT_DESCRIPTION_HEADER),
     })
     expect(serialized).not.toContain('private archive detail')
+  })
+
+  it('rate limits reverse geocoding before reading the archive', async () => {
+    const { log } = createEventLogger()
+    const get = vi.fn()
+    const context = routeContext(
+      jsonRequest({ lat: '47.68049', lon: '-122.32771' }),
+      {} as D1Database,
+      log,
+    ) as unknown as { env: Record<string, unknown> }
+    context.env.PLACES = { get }
+    context.env.REVERSE_GEOCODING_LIMITER = {
+      limit: vi.fn(async () => ({ success: false })),
+    }
+
+    const response = await reverseGeocode(context as never)
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('60')
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('rejects a null JSON body on the geocoding routes without a 500', async () => {
