@@ -307,12 +307,9 @@ describe('OutingReview', () => {
       />,
     )
 
-    // ODbL requires the OpenStreetMap notice on the produced work, so it is
-    // named with its license rather than folded into a provider list. GeoNames
-    // is deliberately absent: the local archive never incorporated it.
-    const osm = await screen.findByRole('link', { name: /OpenStreetMap contributors/ })
+    const osm = await screen.findByRole('link', { name: 'OpenStreetMap' })
     expect(osm).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
-    expect(osm.closest('p')).toHaveTextContent(/ODbL 1\.0/)
+    expect(osm.closest('p')).toHaveTextContent('Powered by Geoapify and OpenStreetMap')
     expect(screen.getByRole('link', { name: 'Geoapify' })).toHaveAttribute(
       'href',
       'https://www.geoapify.com/',
@@ -325,7 +322,7 @@ describe('OutingReview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
 
     expect(screen.getByRole('link', { name: 'Geoapify' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /OpenStreetMap contributors/ })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
   })
 
   it('keeps static provider attribution visible when adding to an existing outing', () => {
@@ -355,7 +352,7 @@ describe('OutingReview', () => {
 
     expect(screen.getByRole('switch', { name: 'Add to existing outing?' })).toBeChecked()
     expect(screen.getByRole('link', { name: 'Geoapify' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /OpenStreetMap contributors/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
   })
 
   it('shows a compact retry action after a place search failure', async () => {

@@ -567,23 +567,14 @@ export default function OutingReview({
           )}
 
           <p className="text-xs text-muted-foreground">
-            {/*
-              ODbL 1.4.1 requires the attribution notice on any Produced Work,
-              so the OpenStreetMap credit is named explicitly with its license
-              rather than folded into a generic provider list. Geoapify is
-              credited for the place SEARCH box only, which is the one thing it
-              still serves; GeoNames was dropped because the local archive is
-              built solely from OpenStreetMap and never incorporated it.
-            */}
-            Place names from{' '}
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              &copy; OpenStreetMap contributors
-            </a>
-            {', ODbL 1.0. Search by '}
+            Powered by{' '}
             <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
               Geoapify
             </a>
-            .
+            {' and '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              OpenStreetMap
+            </a>
           </p>
 
           <div className="space-y-2">
