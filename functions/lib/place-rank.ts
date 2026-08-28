@@ -364,6 +364,7 @@ export function scoreOf(props: Record<string, unknown>): number {
   if (tourism && POI_MARKER.has(tourism)) return 24
 
   // 22: broad land cover with a real boundary.
+  if (leisure === 'golf_course') return 22
   if (landuse === 'forest' || landuse === 'recreation_ground') return 22
   if (natural && BIRD_LAND.has(natural)) return 22
 
@@ -424,6 +425,7 @@ export function kindOf(props: Record<string, unknown>): string {
   if (tourism) return 'tourism-other'
   if (props.leisure === 'garden') return 'garden'
   if (props.leisure === 'park' || props.leisure === 'nature_reserve') return 'park'
+  if (props.leisure === 'golf_course') return 'golf-course'
   if (natural && BIRD_WATER.has(natural)) return 'water'
   if (props.boundary === 'protected_area' || props.boundary === 'national_park') {
     return 'protected'

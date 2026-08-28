@@ -11,7 +11,7 @@
  *
  * Usage: npx tsx scripts/wikidata-places/pull.ts [--out places.ndjson]
  */
-import { writeFileSync, appendFileSync, existsSync, readFileSync, mkdirSync, rmSync } from 'node:fs'
+import { writeFileSync, appendFileSync, existsSync, readFileSync, mkdirSync, rmSync, renameSync } from 'node:fs'
 import { PLACE_CLASSES } from './classes.ts'
 
 const ENDPOINT = 'https://query.wikidata.org/sparql'
@@ -95,34 +95,32 @@ async function main() {
   //   re-append every page it already wrote, accumulating duplicate rows on
   //   each resume.
   //
-  // So each class writes to its own staging file, and only a class that
-  // reaches its final page is concatenated onto the output and recorded in the
-  // marker. An interrupted class leaves a staging file that the next run
-  // truncates and rebuilds from offset 0, which is correct because nothing
-  // partial ever reached the output.
-  const doneMarker = `${out}.done`
-  const stageDir = `${out}.staging`
+  // So each class is atomically renamed to its own completed file after its
+  // final page. Those files ARE the resume state: there is no separate marker
+  // that can get out of sync with the published rows. Once every class exists,
+  // the combined output is assembled under a temporary name and atomically
+  // renamed into place.
+  const classDir = `${out}.classes`
   const fresh = process.argv.includes('--fresh')
   const done = new Set<string>()
   if (fresh) {
-    writeFileSync(out, '')
-    writeFileSync(doneMarker, '')
-    rmSync(stageDir, { recursive: true, force: true })
-  } else if (existsSync(doneMarker)) {
-    for (const line of readFileSync(doneMarker, 'utf8').split('\n')) {
-      if (line.trim()) done.add(line.trim())
+    rmSync(classDir, { recursive: true, force: true })
+  } else {
+    for (const { qid } of PLACE_CLASSES) {
+      if (existsSync(`${classDir}/${qid}.ndjson`)) done.add(qid)
     }
     if (done.size > 0) console.log(`resuming; completed classes: ${[...done].join(', ')}`)
   }
 
   let total = 0
-  mkdirSync(stageDir, { recursive: true })
+  mkdirSync(classDir, { recursive: true })
   for (const { qid, label } of PLACE_CLASSES) {
     if (done.has(qid)) continue
-    // Truncate any staging file left by an interrupted attempt at this class.
-    // Nothing partial ever reached the output, so restarting at offset 0 is
-    // correct and cannot duplicate rows.
-    const stagePath = `${stageDir}/${qid}.ndjson`
+    // Truncate any partial file left by an interrupted attempt at this class.
+    // Completed files have a different name and are never overwritten during
+    // resume, so restarting a partial class at offset 0 cannot duplicate rows.
+    const stagePath = `${classDir}/${qid}.ndjson.part`
+    const completedPath = `${classDir}/${qid}.ndjson`
     writeFileSync(stagePath, '')
     let offset = 0
     let forClass = 0
@@ -160,18 +158,26 @@ async function main() {
     }
     total += forClass
     if (complete) {
-      // Publish the class as one append, THEN mark it. If the process dies
-      // between the two, the next run redoes the class and overwrites its
-      // staging file, which costs time but cannot corrupt the output.
-      appendFileSync(out, readFileSync(stagePath))
-      appendFileSync(doneMarker, `${qid}\n`)
-      rmSync(stagePath, { force: true })
+      renameSync(stagePath, completedPath)
+      done.add(qid)
       process.stdout.write(`\r  ${label.padEnd(18)} ${forClass}\n`)
     } else {
       process.stdout.write(`\r  ${label.padEnd(18)} ${forClass} INCOMPLETE, discarded; will retry on the next run\n`)
     }
     await new Promise(r => setTimeout(r, DELAY_MS))
   }
+
+  const missing = PLACE_CLASSES.filter(({ qid }) => !done.has(qid))
+  if (missing.length > 0) {
+    throw new Error(`extract incomplete; resume to finish: ${missing.map(({ qid }) => qid).join(', ')}`)
+  }
+
+  const assembled = `${out}.part`
+  writeFileSync(assembled, '')
+  for (const { qid } of PLACE_CLASSES) {
+    appendFileSync(assembled, readFileSync(`${classDir}/${qid}.ndjson`))
+  }
+  renameSync(assembled, out)
   console.log(`\ntotal rows: ${total} -> ${out}`)
 }
 

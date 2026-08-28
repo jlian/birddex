@@ -28,7 +28,7 @@ const ZOOM = 12
 type Ring = [number, number][]
 interface Feat {
   props: Record<string, string>
-  type?: 1 | 3
+  type?: 1 | 2 | 3
   points?: Ring
   // A simple single-ring polygon, or `rings` for an outer ring plus holes. MVT
   // winds a hole opposite to its outer ring, which the fixtures below do by
@@ -73,6 +73,26 @@ function pointsGeometry(points: Ring): number[] {
   return g
 }
 
+/** MVT geometry commands for one or more open LineString parts. */
+function linesGeometry(lines: Ring[]): number[] {
+  const g: number[] = []
+  let cx = 0
+  let cy = 0
+  for (const points of lines) {
+    g.push(1 | (1 << 3)) // MoveTo, 1 point
+    g.push(zigzag(points[0][0] - cx), zigzag(points[0][1] - cy))
+    cx = points[0][0]
+    cy = points[0][1]
+    g.push(2 | ((points.length - 1) << 3)) // LineTo, n-1 points
+    for (let i = 1; i < points.length; i++) {
+      g.push(zigzag(points[i][0] - cx), zigzag(points[i][1] - cy))
+      cx = points[i][0]
+      cy = points[i][1]
+    }
+  }
+  return g
+}
+
 /** A single-layer vector tile named `parks`, which is the layer the code reads. */
 function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
   const keys: string[] = []
@@ -96,7 +116,9 @@ function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
     const type = f.type ?? 3
     const geometry = type === 1
       ? pointsGeometry(f.points!)
-      : ringsGeometry(f.rings ?? [f.ring!])
+      : type === 2
+        ? linesGeometry(f.rings ?? [f.ring!])
+        : ringsGeometry(f.rings ?? [f.ring!])
     return { tags, geometry, type }
   })
 
@@ -297,6 +319,15 @@ describe('museums and galleries are landmarks, not birding places', () => {
   })
 })
 
+describe('golf courses are intentional outdoor fallbacks', () => {
+  it('keeps the golf courses included by the archive build', () => {
+    const golfCourse = { name: 'Links', leisure: 'golf_course' }
+    expect(scoreOf(golfCourse)).toBeGreaterThan(0)
+    expect(scoreOf(golfCourse)).toBeLessThan(scoreOf({ name: 'Park', leisure: 'park' }))
+    expect(kindOf(golfCourse)).toBe('golf-course')
+  })
+})
+
 describe('near-tier distance band', () => {
   const near = (name: string, score: number, distanceM: number) => ({
     name,
@@ -392,6 +423,67 @@ describe('point candidates', () => {
     expect(hits[0].name).toBe('Scattered Settlement')
     expect(hits[0].distanceM).toBeGreaterThan(0)
     expect(hits[0].distanceM).toBeLessThan(NEAR_BAND_M)
+  })
+})
+
+describe('linestring candidates', () => {
+  it('returns a nearby open line', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Nearby Coast', natural: 'coastline' },
+      type: 2,
+      ring: [[2200, 1800], [2200, 2200]],
+    }]))
+    const [lat, lon] = coordAt(2000, 2000)
+
+    const hit = await lookupPlace(pm, lat, lon)
+
+    expect(hit?.name).toBe('Nearby Coast')
+    expect(hit?.contained).toBe(false)
+    expect(hit?.distanceM).toBeGreaterThan(0)
+    expect(hit?.distanceM).toBeLessThan(500)
+  })
+
+  it('ignores an open line outside the near-miss radius', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Distant Coast', natural: 'coastline' },
+      type: 2,
+      ring: [[0, 0], [0, 1000]],
+    }]))
+    const [lat, lon] = coordAt(3000, 3000)
+
+    await expect(lookupPlace(pm, lat, lon)).resolves.toBeNull()
+  })
+
+  it('does not invent a closing segment between the endpoints', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Open Ridge', natural: 'ridge' },
+      type: 2,
+      ring: [[1000, 1000], [1000, 3000], [3000, 3000]],
+    }]))
+    const [lat, lon] = coordAt(2000, 2000)
+
+    const hit = await lookupPlace(pm, lat, lon)
+
+    expect(hit?.name).toBe('Open Ridge')
+    expect(hit?.distanceM).toBeGreaterThan(1000)
+  })
+
+  it('uses the nearest part of a multi-part line', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Split Coast', natural: 'coastline' },
+      type: 2,
+      rings: [
+        [[1000, 1800], [1000, 2200]],
+        [[1950, 1800], [1950, 2200]],
+      ],
+    }]))
+    const [lat, lon] = coordAt(2000, 2000)
+
+    const hit = await lookupPlace(pm, lat, lon)
+
+    expect(hit?.name).toBe('Split Coast')
+    expect(hit?.distanceM).toBeGreaterThan(0)
+    expect(hit?.distanceM).toBeLessThan(NEAR_BAND_M)
   })
 })
 
@@ -702,21 +794,17 @@ describe('polygon holes are not containing areas', () => {
   })
 })
 
-describe('extreme coordinates project to a valid tile', () => {
+describe('extreme coordinates project safely', () => {
   // parseCoordinate accepts the full lon/lat domain, but the tile maths used to
   // neither wrap longitude nor clamp latitude, so lon=180 built column n,
   // lat=90 a negative row and lat=-90 an Infinite row: a throw or an unrelated
   // tile. The lookup must return a value, not throw, for all of them.
-  const cases: Array<[string, number, number]> = [
+  const projected: Array<[string, number, number]> = [
     ['antimeridian lon=180', 0, 180],
-    ['north pole lat=90', 90, 0],
-    ['south pole lat=-90', -90, 0],
     ['lon just under 180', 0, 179.999],
   ]
-  for (const [label, lat, lon] of cases) {
-    it(`does not throw at ${label}`, async () => {
-      // An empty tile is served, so the interesting part is that getZxy is
-      // called with an in-range address rather than throwing on projection.
+  for (const [label, lat, lon] of projected) {
+    it(`requests an in-range tile at ${label}`, async () => {
       const asked: Array<[number, number, number]> = []
       const pm = pmtilesOf(buildTile([]))
       const inner = pm.getZxy.bind(pm)
@@ -725,6 +813,7 @@ describe('extreme coordinates project to a valid tile', () => {
         return inner(z, x, y)
       }
       await expect(lookupPlaces(pm, lat, lon, 5)).resolves.toEqual([])
+      expect(asked).toHaveLength(1)
       const n = 2 ** ZOOM
       for (const [, x, y] of asked) {
         expect(x).toBeGreaterThanOrEqual(0)
@@ -732,6 +821,17 @@ describe('extreme coordinates project to a valid tile', () => {
         expect(y).toBeGreaterThanOrEqual(0)
         expect(y).toBeLessThan(n)
       }
+    })
+  }
+
+  for (const [label, lat] of [['north pole', 90], ['south pole', -90]] as const) {
+    it(`returns no answer without requesting a tile at the ${label}`, async () => {
+      const pm = pmtilesOf(buildTile([]))
+      const getZxy = vi.fn(pm.getZxy.bind(pm))
+      pm.getZxy = getZxy
+
+      await expect(lookupPlaces(pm, lat, 0, 5)).resolves.toEqual([])
+      expect(getZxy).not.toHaveBeenCalled()
     })
   }
 })

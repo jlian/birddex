@@ -113,7 +113,7 @@ targets:
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         NSCameraUsageDescription: "WingDex uses the camera so you can take bird photos for identification."
-        NSLocationWhenInUseUsageDescription: "WingDex uses your location to tag where bird photos were taken. Exact coordinates are saved by WingDex with your outings and photo metadata, and WingDex may forward rounded coordinates to Geoapify to suggest a location name."
+        NSLocationWhenInUseUsageDescription: "WingDex uses your location to tag where bird photos were taken and suggest outing names. Exact coordinates are saved with outings and photo metadata. Reverse lookup runs on WingDex servers; typed place searches are sent to Geoapify."
         NSPhotoLibraryUsageDescription: "WingDex uses your photo library so you can choose bird photos to identify."
         NSPhotoLibraryAddUsageDescription: "WingDex may save captured bird photos to your library when you choose to keep them."
         UISupportedInterfaceOrientations:
