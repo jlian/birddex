@@ -480,11 +480,15 @@ describe('non-auth durable observability', () => {
     expect(serialized).not.toContain('private archive detail')
   })
 
-  it('rate limits reverse geocoding before reading the archive', async () => {
+  it('rate limits reverse geocoding before parsing the request or reading the archive', async () => {
     const { log } = createEventLogger()
     const get = vi.fn()
     const context = routeContext(
-      jsonRequest({ lat: '47.68049', lon: '-122.32771' }),
+      new Request('https://wingdex.test/api/geocoding/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not valid JSON',
+      }),
       {} as D1Database,
       log,
     ) as unknown as { env: Record<string, unknown> }
