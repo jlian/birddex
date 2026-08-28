@@ -134,17 +134,30 @@ export function ftsExpression(folded: string): string {
  * ranking ever saw it. Ordering by the same criteria the final sort uses makes
  * the cut deterministic and keeps the best rows.
  *
- * Within the exact group the FTS rank is deliberately neutralised: `bm25`
- * cannot separate 521 places whose names are all identical, and letting it try
- * put a Czech park first because its shorter text scores better.
+ * Within the exact group the FTS rank is neutralised and IMPORTANCE leads,
+ * ahead of the WingDex category score.
  *
- * The order after that is the one #343 step 12 specifies: category score, then
- * importance, then the stable id. An earlier version put importance first,
- * because `central park` matches two obscure parks tagged `tourism=attraction`
- * that score 26 against New York's 25, so the category score alone surfaces a
- * zoo in Tajikistan. That is a real weakness, but changing the documented
- * ranking contract is a scope decision rather than a fix, so it is raised for
- * John instead of made unilaterally.
+ * That is a deliberate amendment to #343 step 12, which specifies category
+ * before importance, agreed with John on 2026-08-28 after the corpus showed the
+ * documented order returning the wrong answer for the most obvious query in the
+ * golden set.
+ *
+ * `central park` matches 521 places EXACTLY. Two of them are tagged
+ * `tourism=attraction` and therefore score 26, against 25 for a plain
+ * `leisure=park`, so category-first ranking returns a park in Tajikistan ahead
+ * of the one in New York, which carries importance 156 against their nothing.
+ *
+ * The reasoning: the category score answers "what KIND of place is this", which
+ * is the right tie-breaker while candidates still differ by name. Once several
+ * places share a name exactly, that question is spent and the remaining one is
+ * "which of these does the searcher mean", which is what importance measures.
+ * Category still breaks ties beneath it.
+ *
+ * bm25 is neutralised for the same reason: it cannot separate names that are
+ * identical, and letting it try ranked whichever matching name was shortest.
+ *
+ * Non-exact candidates keep the documented order, where text relevance and
+ * category still carry the signal.
  *
  * The exact test uses `place_alias`, not `places.alias`. The latter
  * concatenates every alias, so equality there would only ever fire for places
@@ -163,7 +176,7 @@ const SEARCH_SQL = `
     FROM place_alias a
     JOIN places pe ON pe.id = a.place_id
     WHERE a.alias = ?1
-    ORDER BY pe.score DESC, COALESCE(pe.imp, 0) DESC, pe.osm_id
+    ORDER BY COALESCE(pe.imp, 0) DESC, pe.score DESC, pe.osm_id
     LIMIT ?3
   ),
   pool AS (
@@ -182,8 +195,8 @@ const SEARCH_SQL = `
   FROM ranked
   ORDER BY is_exact DESC,
            CASE WHEN is_exact THEN 0.0 ELSE fts_rank END,
-           score DESC,
-           COALESCE(imp, 0) DESC,
+           CASE WHEN is_exact THEN -COALESCE(imp, 0) ELSE -score END,
+           CASE WHEN is_exact THEN -score ELSE -COALESCE(imp, 0) END,
            osm_id
   LIMIT ?4
 `

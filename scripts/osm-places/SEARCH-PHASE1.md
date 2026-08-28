@@ -18,19 +18,24 @@ leaving rebuild headroom under D1's 10 GB hard limit.
 | Canonical rows, global | 3,608,008 |
 | Exported TSV | 0.327 GB |
 | Content table | 0.425 GB |
-| FTS5 index and alias table | 0.295 GB |
-| **Total database** | **0.720 GB** |
-| Share of the 7 GB gate | **10.3%** |
+| FTS5 index and alias table | 0.313 GB |
+| **Total database** | **0.737 GB** |
+| Share of the 7 GB gate | **10.5%** |
 
 Not close to the limit, so the R2 prefix/FST shard fallback is not needed and
 phase 2 proceeds as written. Load time is 13 s for the content and 15 s for the
 indexes.
 
-Two schema choices produce most of that margin. `places_fts` is an **external
-content** table (`content=places`), so FTS5 indexes the text without storing a
-second copy; an ordinary FTS5 table would have roughly doubled the text bytes.
-`detail=none` drops per-position offsets, which exist for phrase and NEAR
-queries that prefix matching on short place names never uses.
+`places_fts` is an **external content** table (`content=places`), so FTS5
+indexes the text without storing a second copy; an ordinary FTS5 table would
+have roughly doubled the text bytes.
+
+`detail=full` is kept even though phrase and NEAR queries are never used.
+`detail=none` looks like free savings and was used at first, but it makes
+`ORDER BY rank` about twice as slow, because bm25 must score without
+per-position data. On the full corpus it cost 2.3% of the database and roughly
+halved query time, which is the right trade when the corpus sits at a tenth of
+the gate.
 
 The alias set is bounded to `name`, `name:en`, `int_name`, `alt_name`,
 `official_name` and `short_name` rather than every `name:*` variant. A planet
@@ -44,14 +49,14 @@ this shows the shape of the problem, not the production number.
 
 | Query | p50 | p95 | Top hit |
 | --- | --- | --- | --- |
-| discover par | 174.95 ms | 177.86 ms | Discovery Park |
-| central park | 134.38 ms | 165.83 ms | Central Park |
-| discovery park | 124.17 ms | 141.90 ms | Discovery Park |
-| st martin | 93.24 ms | 96.39 ms | St Martin |
-| union bay | 13.05 ms | 13.96 ms | Union Bay |
-| tokyo | 1.59 ms | 2.01 ms | Tokyo |
-| skagit | 0.65 ms | 0.80 ms | Skagit |
-| carkeek | 0.43 ms | 0.57 ms | Carkeek |
+| discover par | 80.50 ms | 84.65 ms | Discovery Park |
+| central park | 60.07 ms | 60.94 ms | Central Park |
+| discovery park | 51.72 ms | 56.41 ms | Discovery Park |
+| st martin | 49.60 ms | 88.46 ms | St Martin |
+| union bay | 5.13 ms | 5.90 ms | Union Bay |
+| tokyo | 1.07 ms | 1.48 ms | Tokyo |
+| skagit | 0.56 ms | 0.72 ms | Skagit |
+| carkeek | 0.41 ms | 0.53 ms | Carkeek |
 
 `donana` returning Doñana confirms diacritic folding works from an ASCII query.
 
@@ -66,20 +71,25 @@ to find Discovery Park. Starring only the LAST token was the second attempt and
 also failed, because `discover` is not a token in `discovery park`. Every token
 carries a star now, and the bounded candidate stage is what pays for it.
 
-**This is the number phase 2 should watch.** A bare `LIMIT` does not bound the
-work: it applies after the full MATCH is evaluated and sorted, so a common
-prefix would run the whole ordering over hundreds of thousands of rows. The
-query therefore takes the top 200 rows by FTS rank in an inner stage, which
-FTS5 satisfies from its own index, and applies the secondary ranking to that
-bounded pool. Exact alias matches enter the pool through a separate arm so a
-low bm25 rank cannot cut the row the ranking exists to promote.
+A bare `LIMIT` does not bound the work: it applies after the full MATCH is
+evaluated and sorted, so a common prefix would run the whole ordering over
+hundreds of thousands of rows. The query therefore takes the top 200 rows by FTS
+rank in an inner stage, which FTS5 satisfies from its own index, and applies the
+secondary ranking to that bounded pool. Exact alias matches enter through a
+separate arm so a low bm25 rank cannot cut the row the ranking exists to
+promote.
+
+Profiling found the cost was NOT the candidate limit: dropping it from 200 to 50
+changed nothing. `ORDER BY rank` was the expense, and it was the `detail=none`
+setting making bm25 work harder. Switching to `detail=full` halved the slow
+cases. What remains is the honest cost of scoring a large prefix match, and it
+is now the number phase 2 should watch on D1.
 
 ## Ranking
 
 Per #343 step 12: text quality first, then the WingDex category score, then
-importance, then the stable id so the order is total and reproducible.
-
-Two additions were necessary, and neither changes that contract.
+importance, then the stable id so the order is total and reproducible. One
+amendment to that order is documented below.
 
 `bm25` cannot distinguish an exact full-name match from a prefix hit inside a
 longer name, so "central park" ranked `Centrální park` above the real one. An
@@ -91,19 +101,22 @@ Inside the exact group the FTS rank is neutralised. It cannot separate names
 that are identical, and letting it try ranked whichever matching name happened
 to be shortest.
 
-### Open question for a decision
+### Amendment to step 12: importance leads inside the exact group
 
-The documented order returns the wrong Central Park.
+Step 12 orders category score before importance. For EXACT matches that returns
+the wrong answer, so the criterion was amended with John's agreement on
+2026-08-28.
 
-`central park` matches **521 places exactly**. Two of them are tagged
+`central park` matches **521 places exactly**. Two are tagged
 `tourism=attraction` and therefore score 26, against 25 for a plain
-`leisure=park`, so category-first ranking puts a park in Tajikistan above the
-one in New York, which carries importance 156 against their nothing.
+`leisure=park`, so category-first ranking put a park in Tajikistan above the one
+in New York, which carries importance 156 against their nothing.
 
-Ranking exact matches by importance before category fixes that query. It was
-implemented, then reverted, because it contradicts the criterion in step 12 and
-that is a scope decision rather than a bug fix. Recorded here for a decision
-rather than settled quietly.
+The category score answers "what KIND of place is this", which is the right
+tie-breaker while candidates still differ by name. Once several places share a
+name exactly, that question is spent and the remaining one is "which of these
+does the searcher mean", which is what importance measures. Category still
+breaks ties beneath it, and non-exact candidates keep the documented order.
 
 ## Region codes
 

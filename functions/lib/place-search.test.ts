@@ -117,16 +117,29 @@ describe('searchPlacesLocal', () => {
     expect(results[0].label).toBe('Central Park')
   })
 
-  it('ranks identical exact names by category, then importance, per issue step 12', async () => {
-    // Text quality cannot separate names that are identical, so the documented
-    // order takes over: category score, then importance, then the stable id.
-    // Among equal-category rows, importance decides, so New York wins.
+  it('ranks identical exact names by importance before category', async () => {
+    // The real corpus has 521 places named exactly `central park`. Two are
+    // tagged `tourism=attraction` and score 26 against New York's 25, so
+    // category-first ranking returns a park in Tajikistan. Once names match
+    // exactly, prominence is the question that remains.
     const rows: Row[] = [
+      { osm_id: 'w20', label: 'Central Park', lat: 38.0, lon: 68.0, score: 26, kind: 'attraction', imp: null, aliases: ['central park'], country: 'TJ' },
       { osm_id: 'w21', label: 'Central Park', lat: 40.78, lon: -73.96, score: 25, kind: 'park', imp: 156, aliases: ['central park'], state: 'US-NY', country: 'US' },
       { osm_id: 'w22', label: 'Central Park', lat: 49.0, lon: 16.0, score: 25, kind: 'park', imp: 43, aliases: ['central park'], country: 'CZ' },
     ]
     const results = await searchPlacesLocal(build(rows), 'central park')
     expect(results[0].stateProvince).toBe('US-NY')
+  })
+
+  it('breaks ties by category when exact matches share importance', async () => {
+    // Category is still the tie-breaker beneath importance, so a park beats a
+    // hotel of the same name when neither carries a prominence score.
+    const rows: Row[] = [
+      { osm_id: 'w40', label: 'Riverside', lat: 1, lon: 1, score: 19, kind: 'lodging', imp: null, aliases: ['riverside'], country: 'US' },
+      { osm_id: 'w41', label: 'Riverside', lat: 2, lon: 2, score: 25, kind: 'park', imp: null, aliases: ['riverside'], country: 'US' },
+    ]
+    const results = await searchPlacesLocal(build(rows), 'riverside')
+    expect(results[0].lat).toBe(2)
   })
 
   it('still uses the category score to break a tie among non-exact matches', async () => {

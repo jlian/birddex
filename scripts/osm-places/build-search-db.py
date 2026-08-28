@@ -9,13 +9,16 @@ rather than only building something that works.
 Schema shape matters for that gate:
 
 `places` is a plain content table. `places_fts` is an EXTERNAL CONTENT FTS5
-table (`content=places`), which stores the index but NOT a second copy of the\ntext. Letting FTS5 own its own copy would roughly double the text bytes for no
+table (`content=places`), which stores the index but NOT a second copy of the
+text. Letting FTS5 own its own copy would roughly double the text bytes for no
 benefit, and text is the bulk of this dataset.
 
-`detail=none` drops the per-position offsets FTS5 keeps for phrase and NEAR
-queries. Forward search here is prefix matching on short place names, so those
-offsets are pure weight. This is measured rather than assumed: the script
-reports the saving so the tradeoff is visible.
+`detail=full` is kept even though phrase and NEAR queries are never used.
+`detail=none` looked like free savings, but it makes `ORDER BY rank` about
+twice as slow, because bm25 must score without per-position data. Measured on a
+400k-row sample: ranked `"park"*` costs 32.8 ms at detail=none against 15.1 ms
+at detail=full, for 12% more bytes. Ranking speed is the binding constraint,
+not size: the corpus lands at a tenth of the gate.
 """
 from __future__ import annotations
 
@@ -60,7 +63,7 @@ CREATE VIRTUAL TABLE places_fts USING fts5(
   content=places,
   content_rowid=id,
   tokenize='unicode61 remove_diacritics 2',
-  detail=none
+  detail=full
 );
 INSERT INTO places_fts(rowid, alias) SELECT id, REPLACE(alias, '|', ' ') FROM places;
 """
@@ -255,7 +258,7 @@ def main() -> int:
         "  SELECT a.place_id AS id, 0.0 AS fts_rank FROM place_alias a"
         "  JOIN places pe ON pe.id = a.place_id"
         "  WHERE a.alias = ?"
-        "  ORDER BY pe.score DESC, COALESCE(pe.imp,0) DESC, pe.osm_id LIMIT ?"
+        "  ORDER BY COALESCE(pe.imp,0) DESC, pe.score DESC, pe.osm_id LIMIT ?"
         "), pool AS ("
         "  SELECT id, MIN(fts_rank) AS fts_rank FROM"
         "  (SELECT * FROM candidates UNION ALL SELECT * FROM exact) GROUP BY id"
@@ -265,7 +268,8 @@ def main() -> int:
         "  FROM pool JOIN places p ON p.id=pool.id"
         ") SELECT label, kind, score FROM ranked "
         "ORDER BY is_exact DESC, CASE WHEN is_exact THEN 0.0 ELSE fts_rank END, "
-        "score DESC, COALESCE(imp,0) DESC, osm_id LIMIT ?"
+        "CASE WHEN is_exact THEN -COALESCE(imp,0) ELSE -score END, "
+        "CASE WHEN is_exact THEN -score ELSE -COALESCE(imp,0) END, osm_id LIMIT ?"
     )
     for q in golden:
         term = fts_query(q)
