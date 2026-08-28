@@ -94,7 +94,9 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             "--ui-test-sign-out",
             "--ui-test-reset-signup-prompt",
             "--ui-test-delay-session-enrichment",
-            "--ui-test-share-photo",
+            "--ui-test-share-store",
+            "--ui-test-reset-share-store",
+            "--ui-test-stage-share",
         ]
         app.launch()
 
@@ -104,12 +106,42 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         )
     }
 
+    func testAcceptedShareDoesNotReappearAfterRelaunch() {
+        let app = application()
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-share-store",
+            "--ui-test-reset-share-store",
+            "--ui-test-stage-share",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["Continue"].waitForExistence(timeout: 30),
+            "Queued shared photo never reached outing review"
+        )
+
+        app.terminate()
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-share-store",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertFalse(
+            app.buttons["Continue"].waitForExistence(timeout: 30),
+            "The accepted share was imported again after relaunch"
+        )
+    }
+
     func testAlreadyLoadedSessionlessAppReceivesStagedShare() {
         let app = application()
         app.launchArguments = [
             "--ui-test-sign-out",
-            "--ui-test-reset-pending-share",
-            "--ui-test-delayed-share-photo",
+            "--ui-test-share-store",
+            "--ui-test-reset-share-store",
+            "--ui-test-stage-share-after-launch",
         ]
         app.launch()
 
@@ -125,7 +157,9 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         app.launchEnvironment["API_BASE_URL"] = "http://127.0.0.1:1"
         app.launchArguments = [
             "--ui-test-sign-out",
-            "--ui-test-share-photo",
+            "--ui-test-share-store",
+            "--ui-test-reset-share-store",
+            "--ui-test-stage-share",
         ]
         app.launch()
 
@@ -140,7 +174,12 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
 
     func testColdLaunchShowsAccountOptionalShellAndGates() {
         let app = application()
-        app.launchArguments = ["--ui-test-sign-out", "--ui-test-clear-pending-share"]
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-share-store",
+            "--ui-test-reset-share-store",
+            "--ui-test-ignore-shares",
+        ]
         app.launch()
 
         XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))

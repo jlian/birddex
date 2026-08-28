@@ -56,16 +56,17 @@ struct AddPhotosFlow: View {
                     if needsCloseConfirmation {
                         showCloseConfirm = true
                     } else {
-                        dismissWizard()
+                        dismissWizard(stopShareQueue: viewModel.currentStep != .done)
                     }
                 } label: {
                     Image(systemName: "xmark")
                 }
+                .disabled(viewModel.currentStep == .extracting)
                 .accessibilityLabel("Close")
             }
         }
         .alert("Discard progress?", isPresented: $showCloseConfirm) {
-            Button("Discard", role: .destructive) { dismissWizard() }
+            Button("Discard", role: .destructive) { dismissWizard(stopShareQueue: true) }
             Button("Continue Uploading", role: .cancel) {}
         } message: {
             Text("Your upload is still in progress. If you close now, any unsaved changes will be lost.")
@@ -93,7 +94,7 @@ struct AddPhotosFlow: View {
         .alert("Could Not Continue", isPresented: addPhotosErrorBinding) {
             if viewModel.canRetryError {
                 Button("Retry") { viewModel.retryCurrentError() }
-                Button("Close Upload", role: .destructive) { dismissWizard() }
+                Button("Close Upload", role: .destructive) { dismissWizard(stopShareQueue: true) }
             } else {
                 Button("OK", role: .cancel) { viewModel.error = nil }
             }
@@ -126,8 +127,10 @@ struct AddPhotosFlow: View {
 
     /// Dismiss the wizard full-screen cover. The onDismiss handler in
     /// MainTabView resets the view model and returns to the photo selection tab.
-    private func dismissWizard() {
-        viewModel.suppressPendingShareAutoResume()
+    private func dismissWizard(stopShareQueue: Bool) {
+        if stopShareQueue {
+            viewModel.stopShareQueueAfterDismissal()
+        }
         viewModel.currentStep = .selectPhotos
         dismiss()
     }
@@ -329,7 +332,7 @@ struct AddPhotosFlow: View {
 
             // Done button
             Button {
-                dismissWizard()
+                dismissWizard(stopShareQueue: false)
             } label: {
                 Text("Done")
                     .font(.system(size: 16, weight: .medium))

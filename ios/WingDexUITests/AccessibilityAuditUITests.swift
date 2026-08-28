@@ -15,7 +15,12 @@ final class AccessibilityAuditUITests: BirdIdFlowUITestCase {
 
     func testSignInPassesAccessibilityAudit() throws {
         let app = application()
-        app.launchArguments = ["--ui-test-sign-out", "--ui-test-clear-pending-share"]
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-share-store",
+            "--ui-test-reset-share-store",
+            "--ui-test-ignore-shares",
+        ]
         app.launch()
         XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 30))
         app.buttons["Log in"].tap()
