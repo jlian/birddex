@@ -27,7 +27,10 @@ const ZOOM = 12
 
 type Ring = [number, number][]
 interface Feat {
-  props: Record<string, string>
+  // Values may be numbers: tippecanoe writes an integer tag as an MVT int
+  // value, which is how `importance` reaches the runtime, and encoding it as a
+  // string here would test a shape the archive never produces.
+  props: Record<string, string | number>
   type?: 1 | 2 | 3
   points?: Ring
   // A simple single-ring polygon, or `rings` for an outer ring plus holes. MVT
@@ -97,8 +100,8 @@ function linesGeometry(lines: Ring[]): number[] {
 function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
   const keys: string[] = []
   const keyIndex = new Map<string, number>()
-  const values: string[] = []
-  const valueIndex = new Map<string, number>()
+  const values: (string | number)[] = []
+  const valueIndex = new Map<string | number, number>()
 
   const encoded = features.map(f => {
     const tags: number[] = []
@@ -142,7 +145,15 @@ function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
       }
       for (const k of keys) layer.writeStringField(3, k)
       for (const v of values) {
-        layer.writeMessage(4, (_u, val) => val.writeStringField(1, v), null)
+        // Field 1 is string_value, field 4 is int_value. Tippecanoe picks the
+        // latter for integer tags, so the fixture must too.
+        layer.writeMessage(
+          4,
+          (_u, val) => (typeof v === 'number'
+            ? val.writeVarintField(4, v)
+            : val.writeStringField(1, v)),
+          null,
+        )
       }
     },
     null,
@@ -1081,5 +1092,62 @@ describe('lookupPlacesWithRegion', () => {
     pm.getZxy = async () => undefined as never
     const [lat, lon] = coordAt(2000, 2000)
     await expect(lookupPlacesWithRegion(pm, lat, lon)).resolves.toEqual({ places: [], regionCodes: {} })
+  })
+})
+
+describe('baked-in importance', () => {
+  // The Wikipedia-derived importance used to require a caller-supplied lookup
+  // table keyed by Wikidata QID, and nothing in production ever passed one, so
+  // it was always undefined. The join now happens at build time and the archive
+  // carries the quantised result, so these pin the value actually being read.
+
+  it('reads the quantised tag and returns it as 0..1', async () => {
+    const pm = pmtilesOf(buildTile([
+      { props: { name: 'Big Park', leisure: 'park', importance: 255 }, ring: square(0, 0, EXTENT) },
+    ]))
+    const [lat, lon] = coordAt(2000, 2000)
+    const [hit] = await lookupPlaces(pm, lat, lon)
+    expect(hit.importance).toBe(1)
+  })
+
+  it('leaves importance undefined when the feature has none', async () => {
+    // About three quarters of named features have no Wikipedia article, so
+    // absent is the common case and must not become 0, which would rank them
+    // below a genuinely unimportant place rather than alongside.
+    const pm = pmtilesOf(buildTile([
+      { props: { name: 'Quiet Marsh', natural: 'wetland' }, ring: square(0, 0, EXTENT) },
+    ]))
+    const [lat, lon] = coordAt(2000, 2000)
+    const [hit] = await lookupPlaces(pm, lat, lon)
+    expect(hit.importance).toBeUndefined()
+  })
+
+  it('ignores an out-of-range value rather than trusting the archive', async () => {
+    // A malformed tag must not push a candidate above a legitimately more
+    // important one.
+    const pm = pmtilesOf(buildTile([
+      { props: { name: 'Bad Data', leisure: 'park', importance: 9999 }, ring: square(0, 0, EXTENT) },
+    ]))
+    const [lat, lon] = coordAt(2000, 2000)
+    const [hit] = await lookupPlaces(pm, lat, lon)
+    expect(hit.importance).toBeUndefined()
+  })
+
+  it('breaks a tie in the near tier, where the sort actually consults it', async () => {
+    // Importance is the THIRD tie-breaker and only applies to candidates that
+    // do not contain the point: containment is resolved by class then polygon
+    // area, before importance is ever compared. So both of these sit just
+    // outside the point, in the same distance band and the same class, which
+    // is the one situation where importance decides.
+    const pm = pmtilesOf(buildTile([
+      { props: { name: 'Obscure Park', leisure: 'park', importance: 10 }, ring: square(2100, 2100, 300) },
+      { props: { name: 'Famous Park', leisure: 'park', importance: 200 }, ring: square(2100, 1600, 300) },
+    ]))
+    const [lat, lon] = coordAt(2000, 2000)
+    const hits = await lookupPlaces(pm, lat, lon)
+    // Both land at the same distance and class, so the sort falls through to
+    // importance. Verified: 228 m each, 0.784 against 0.039.
+    expect(hits[0].distanceM).toBe(hits[1].distanceM)
+    expect(hits[0].name).toBe('Famous Park')
   })
 })
