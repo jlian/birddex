@@ -85,26 +85,36 @@ describe('query folding matches the offline builder', () => {
   it('keeps non-Latin scripts intact', () => {
     expect(foldQuery('東京')).toBe('東京')
   })
+
+  it('strips combining marks outside the Latin block', () => {
+    // Hebrew niqqud are combining marks. An earlier version stripped only
+    // U+0300-U+036F, so these survived, were treated as punctuation, and split
+    // one word into three tokens that the index could never match.
+    expect(foldQuery('שָׁלוֹם')).toBe('שלום')
+  })
 })
 
 describe('FTS expression building', () => {
-  it('quotes every token and adds no prefix star', () => {
-    // The absence of `*` is load-bearing: a star on a common complete word
-    // costs 6x for rows nobody wants. See the comment in place-search.ts.
-    expect(ftsExpression('discovery park')).toBe('"discovery" "park"')
+  it('keeps a prefix star on the LAST token only', () => {
+    // #343 requires token-prefix matching, so `discover par` must find
+    // Discovery Park. Starring EVERY token is what costs 6x, so the earlier
+    // tokens stay exact and narrow the candidate set first.
+    expect(ftsExpression('discovery park')).toBe('"discovery" "park"*')
+    expect(ftsExpression('discover par')).toBe('"discover" "par"*')
+    expect(ftsExpression('tokyo')).toBe('"tokyo"*')
   })
 
   it('neutralises FTS5 operators a user might type', () => {
     // Unquoted, `OR` and `NOT` are operators and would silently change the
     // query's meaning. Folding removes the star, and quoting makes the
     // remaining words literal.
-    expect(ftsExpression(foldQuery('park OR NOT lake'))).toBe('"park" "or" "not" "lake"')
-    expect(ftsExpression(foldQuery('park*'))).toBe('"park"')
-    expect(ftsExpression(foldQuery('^park'))).toBe('"park"')
+    expect(ftsExpression(foldQuery('park OR NOT lake'))).toBe('"park" "or" "not" "lake"*')
+    expect(ftsExpression(foldQuery('park*'))).toBe('"park"*')
+    expect(ftsExpression(foldQuery('^park'))).toBe('"park"*')
   })
 
   it('escapes an embedded double quote by doubling it', () => {
-    expect(ftsExpression('a"b')).toBe('"a""b"')
+    expect(ftsExpression('a"b')).toBe('"a""b"*')
   })
 
   it('produces an empty expression for empty input', () => {

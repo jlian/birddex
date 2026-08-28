@@ -45,44 +45,49 @@ from typing import Iterator
 # corpus built on the previous rules.
 CONTRACT_PATH = Path(__file__).with_name("place-contract.json")
 
-# Order matters and mirrors the branch order in `scoreOf()`: an object carrying
-# several tags takes the FIRST key that scores, exactly as the TypeScript does
-# by falling through its if-chain.
-CONTRACT_KEYS = ("tourism", "leisure", "natural", "boundary", "landuse", "place")
+WILDCARD = "*"
 
 
-def load_contract(path: Path = CONTRACT_PATH) -> tuple[dict, dict]:
+def load_contract(path: Path = CONTRACT_PATH) -> tuple[list, list]:
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
-    return data["score"], data["kind"]
+    return data["scoreRules"], data["kindRules"]
 
 
-_SCORE: dict = {}
-_KIND: dict = {}
+_SCORE_RULES: list = []
+_KIND_RULES: list = []
+
+
+def _first_match(rules: list, tags: dict):
+    """Walk the exported chain and take the FIRST rule that matches.
+
+    The rules are emitted in the order of the real if-chain, so this is the
+    same decision the TypeScript makes. A lookup table keyed by tag cannot
+    reproduce it, because precedence is interleaved across keys: a hotel in a
+    park scores 25 from the park branch, while a zoo in a park scores 26 from
+    the zoo branch. Score and kind are separate chains for the same reason,
+    since that hotel scores as a park but is still KIND `lodging`.
+    """
+    for rule in rules:
+        value = tags.get(rule["key"])
+        if value is None:
+            continue
+        values = rule["values"]
+        if WILDCARD in values or value in values:
+            return rule
+    return None
 
 
 def score_of(t: dict) -> int:
     """Return the WingDex category score, or 0 for "not a birding place"."""
-    for key in CONTRACT_KEYS:
-        value = t.get(key)
-        if value is None:
-            continue
-        score = _SCORE.get(key, {}).get(value)
-        if score:
-            return score
-    return 0
+    rule = _first_match(_SCORE_RULES, t)
+    return rule["score"] if rule else 0
 
 
 def kind_of(t: dict) -> str:
     """A coarse label for grouping and for explaining a result in the UI."""
-    for key in CONTRACT_KEYS:
-        value = t.get(key)
-        if value is None:
-            continue
-        kind = _KIND.get(key, {}).get(value)
-        if kind:
-            return kind
-    return "other"
+    rule = _first_match(_KIND_RULES, t)
+    return rule["kind"] if rule else "other"
 
 
 def fold(s: str) -> str:
@@ -312,8 +317,8 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
 
 
 def main() -> int:
-    global _SCORE, _KIND
-    _SCORE, _KIND = load_contract()
+    global _SCORE_RULES, _KIND_RULES
+    _SCORE_RULES, _KIND_RULES = load_contract()
     n = 0
     out = sys.stdout
     for row in records(sys.stdin):

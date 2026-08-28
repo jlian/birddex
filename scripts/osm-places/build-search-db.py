@@ -38,6 +38,18 @@ CREATE TABLE places (
   kind     TEXT NOT NULL,
   imp      INTEGER,
   qid      TEXT,
+  alias    TEXT NOT NULL,
+  state    TEXT,
+  country  TEXT
+);
+
+-- One row per alias, so an exact-match test works on a SINGLE alias rather
+-- than on the space-joined blob. `places.alias` concatenates every alias for
+-- FTS indexing, so `alias = 'casablanca'` is false for a place whose alias
+-- column reads 'casablanca ... casa ...'. Ranking against this table gives the
+-- exact-match boost to any of a place's names, not only to single-name places.
+CREATE TABLE place_alias (
+  place_id INTEGER NOT NULL REFERENCES places(id),
   alias    TEXT NOT NULL
 );
 """
@@ -57,30 +69,24 @@ INSERT INTO places_fts(rowid, alias) SELECT id, alias FROM places;
 def fts_query(q: str) -> str:
     """Build the FTS5 MATCH expression for a SUBMITTED query.
 
-    Every token is exact. That is a deliberate 13x win, measured, not a
-    limitation: a trailing `*` on a COMMON COMPLETE WORD is what made the slow
-    cases slow. `"park"*` matches 231,558 rows and costs 42 ms on its own,
-    while exact `park` matches 219,289 and costs 6.9 ms. The star buys 12,269
-    extra rows (`parkway`, `parkland`) that nobody searching for a park wants,
-    and pays 6x for them.
+    Every token is exact EXCEPT the last, which keeps a trailing `*`.
 
-    Full measurement over the golden set, all-prefix versus all-exact:
+    That split is deliberate. #343 requires token-prefix matching, so a
+    submitted partial name like `discover par` has to find Discovery Park. But
+    a star on EVERY token is what made the slow queries slow: `"park"*` matches
+    231,558 rows and costs 42 ms alone, against 6.9 ms for exact `park`.
 
-        discovery park   86.14 ms -> 6.68 ms
-        central park     89.03 ms -> 11.33 ms
-        st martin        60.05 ms -> 0.59 ms
-        union bay         7.92 ms -> 0.61 ms
-
-    The top hit is IDENTICAL for every query in that set, so this costs no
-    result quality. It is sound here specifically because #343 states
-    autocomplete is not required: this runs on submitted search, where the
-    user has finished typing. Reintroducing prefix matching for autocomplete
-    would need this measured again.
-
-    Quoting each token also makes the input inert: FTS5 operators a user types
-    (`AND`, `NOT`, `*`, `^`) become literal text instead of query syntax.
+    Starring only the final token keeps prefix search working where a user
+    actually stops typing, while the earlier tokens stay cheap and narrow the
+    candidate set first. Measured on the golden set, this recovers most of the
+    all-exact speed and still answers partial queries.
     """
-    return " ".join(f'"{t}"' for t in q.split() if t)
+    tokens = [t for t in q.split() if t]
+    if not tokens:
+        return ""
+    head = " ".join(f'"{t}"' for t in tokens[:-1])
+    tail = f'"{tokens[-1]}"*'
+    return f"{head} {tail}".strip()
 
 
 def human(n: int) -> str:
@@ -133,12 +139,20 @@ def main() -> int:
     rows = 0
     matched_imp = 0
     batch = []
+    enriched = 0
     with open(src, encoding="utf-8") as fh:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
-            if len(parts) != 9:
+            # 9 fields is the raw export; 11 adds the offline region codes from
+            # `enrich-search-regions.py`. Accepting only one of the two meant an
+            # enriched build silently imported ZERO rows.
+            if len(parts) == 9:
+                parts = parts + ["", ""]
+            elif len(parts) != 11:
                 continue
-            osm_id, label, lat, lon, score, kind, imp, qid, alias = parts
+            osm_id, label, lat, lon, score, kind, imp, qid, alias, state, country = parts
+            if state or country:
+                enriched += 1
             imp_val = int(imp) if imp else None
             if imp_val is None and qid and imp_table:
                 # QIDs arrive as `Q1563`; the table is keyed on the number.
@@ -147,17 +161,17 @@ def main() -> int:
                     if imp_val is not None:
                         matched_imp += 1
             batch.append((osm_id, label, float(lat), float(lon), int(score), kind,
-                          imp_val, qid or None, alias))
+                          imp_val, qid or None, alias, state or None, country or None))
             if len(batch) >= 50_000:
                 db.executemany(
-                    "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)", batch)
+                    "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?)", batch)
                 rows += len(batch)
                 batch.clear()
     if batch:
         db.executemany(
-            "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias)"
-            " VALUES(?,?,?,?,?,?,?,?,?)", batch)
+            "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?)", batch)
         rows += len(batch)
     db.commit()
     # Regional extracts OVERLAP at borders: Geofabrik ships a feature that
@@ -170,12 +184,20 @@ def main() -> int:
 
     t1 = time.time()
     db.executescript(FTS_DDL)
-    # The alias index is part of the SHIPPED schema, not an afterthought: the
-    # ranking ORDER BY leads with `alias = ?`, which without it scans every
-    # candidate row the MATCH returned. Create it BEFORE sampling the size, or
-    # the reported total describes a database that cannot serve the benchmarked
-    # query plan.
-    db.execute("CREATE INDEX idx_places_alias ON places(alias)")
+    # Populate the per-alias table by splitting the concatenated column, so an
+    # exact-match test can hit ANY of a place's names.
+    db.execute(
+        "INSERT INTO place_alias(place_id, alias)"
+        " WITH split(id, one, rest) AS ("
+        "   SELECT id, '', alias || ' ' FROM places"
+        "   UNION ALL"
+        "   SELECT id, substr(rest, 1, instr(rest, ' ') - 1), substr(rest, instr(rest, ' ') + 1)"
+        "   FROM split WHERE rest <> ''"
+        " ) SELECT DISTINCT id, one FROM split WHERE one <> ''"
+    )
+    # The ranking ORDER BY leads with an exact-alias test, which without an
+    # index scans every candidate row the MATCH returned.
+    db.execute("CREATE INDEX idx_place_alias ON place_alias(alias, place_id)")
     db.commit()
     fts_s = time.time() - t1
     total_bytes = size(out)
@@ -222,7 +244,8 @@ def main() -> int:
     # signal a searcher can give, so it outranks everything else.
     sql = ("SELECT p.label, p.kind, p.score FROM places_fts f JOIN places p ON p.id=f.rowid "
            "WHERE places_fts MATCH ? "
-           "ORDER BY (p.alias = ?) DESC, bm25(places_fts), p.score DESC, "
+           "ORDER BY (EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id=p.id AND a.alias=?)) DESC, "
+           "bm25(places_fts), p.score DESC, "
            "COALESCE(p.imp,0) DESC, p.osm_id LIMIT 5")
     for q in golden:
         term = fts_query(q)

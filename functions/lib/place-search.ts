@@ -48,8 +48,13 @@ interface SearchRow {
 export function foldQuery(input: string): string {
   return input
     .normalize('NFKD')
-    // Strip combining marks left by the decomposition.
-    .replace(/[\u0300-\u036f]/g, '')
+    // Strip EVERY combining mark, matching Python's `unicodedata.combining`
+    // test. An earlier version used the U+0300-U+036F block, which covers only
+    // Latin/Greek/Cyrillic marks: Hebrew niqqud and Arabic harakat survived,
+    // were then treated as punctuation, and split one word into several. The
+    // Hebrew for "shalom" folded to three tokens here and one token in the
+    // builder, so the index and the query could never agree.
+    .replace(/\p{M}/gu, '')
     // `toLowerCase`, matching `str.lower` in the offline builder rather than
     // Python's `casefold`. `casefold` is linguistically better in isolation,
     // folding the German sharp s to `ss`, but JavaScript has no equivalent.
@@ -67,15 +72,16 @@ export function foldQuery(input: string): string {
 /**
  * Build the FTS5 MATCH expression for a submitted query.
  *
- * Every token is quoted and NONE carries a trailing `*`. That is a measured
- * 13x win rather than a limitation: a star on a common complete word dominates
- * the query cost. Against the global index, `"park"*` matches 231,558 rows in
- * 42 ms while exact `park` matches 219,289 in 6.9 ms, and the extra rows are
- * `parkway` and `parkland`, which nobody searching for a park wants.
+ * Every token is quoted and exact EXCEPT the last, which keeps a trailing `*`.
  *
- * This is only correct because #343 states autocomplete is not required, so
- * the user has finished typing. Adding autocomplete later reintroduces the
- * cost and needs measuring again.
+ * That split is deliberate. #343 requires token-prefix matching, so a submitted
+ * partial name such as `discover par` has to find Discovery Park. But a star on
+ * EVERY token is what makes a query slow: against the global index `"park"*`
+ * matches 231,558 rows and costs 42 ms on its own, against 6.9 ms for exact
+ * `park`, and the extra rows are `parkway` and `parkland`.
+ *
+ * Starring only the final token keeps prefix search where a user actually stops
+ * typing, while the earlier tokens narrow the candidate set cheaply first.
  *
  * Quoting is also what makes the input inert. FTS5 treats bare `AND`, `NOT`,
  * `NEAR`, `*` and `^` as operators, so an unquoted user string is a query
@@ -83,22 +89,29 @@ export function foldQuery(input: string): string {
  * error. Quoted tokens are literal text.
  */
 export function ftsExpression(folded: string): string {
-  return folded
-    .split(' ')
-    .filter(Boolean)
-    // A double quote is the only character with meaning inside a quoted FTS5
-    // string, and it is escaped by doubling it.
-    .map((token) => `"${token.replace(/"/g, '""')}"`)
-    .join(' ')
+  const tokens = folded.split(' ').filter(Boolean)
+  if (tokens.length === 0) return ''
+  // A double quote is the only character with meaning inside a quoted FTS5
+  // string, and it is escaped by doubling it.
+  const quote = (token: string) => `"${token.replace(/"/g, '""')}"`
+  const head = tokens.slice(0, -1).map(quote)
+  const tail = `${quote(tokens[tokens.length - 1])}*`
+  return [...head, tail].join(' ')
 }
 
 /**
  * Rank text quality first, then the WingDex category, then importance.
  *
- * `alias = ?1` leads the sort deliberately. `bm25` alone cannot distinguish an
- * exact full-name match from a prefix hit inside a longer name, so a search for
- * `central park` ranked `Centralni park` above the real Central Park. An exact
- * normalised match is the strongest signal a searcher can give.
+ * The exact-alias test leads the sort deliberately. `bm25` alone cannot
+ * distinguish an exact full-name match from a prefix hit inside a longer name,
+ * so a search for `central park` ranked `Centralni park` above the real
+ * Central Park. An exact normalised match is the strongest signal a searcher
+ * can give.
+ *
+ * It tests `place_alias`, not `places.alias`. The latter concatenates every
+ * alias for FTS indexing, so `alias = 'casablanca'` is FALSE for a place whose
+ * column reads `casablanca ... casa ...`, and the boost would reach only
+ * places that happen to have exactly one name.
  *
  * `osm_id` breaks the final tie so the order is total: without it, two equally
  * scored rows could swap between requests and a result list would look
@@ -109,7 +122,7 @@ const SEARCH_SQL = `
   FROM places_fts f
   JOIN places p ON p.id = f.rowid
   WHERE places_fts MATCH ?2
-  ORDER BY (p.alias = ?1) DESC,
+  ORDER BY (EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id = p.id AND a.alias = ?1)) DESC,
            bm25(places_fts),
            p.score DESC,
            COALESCE(p.imp, 0) DESC,
