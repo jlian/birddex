@@ -9,7 +9,7 @@
  * being a guess. Discovery Park is a polygon; either you are inside it or you are
  * not.
  */
-import { PMTiles, type Source, type RangeResponse } from 'pmtiles'
+import { PMTiles, ResolvedValueCache, type Source, type RangeResponse } from 'pmtiles'
 import { VectorTile } from '@mapbox/vector-tile'
 import { PbfReader } from 'pbf'
 import { scoreOf, kindOf, capOversized, nearScoreOf, spansTile, rankCandidates, type Ranked } from './place-rank'
@@ -548,7 +548,13 @@ function candidatesFromTile(
 export const PLACES_KEY = 'places/place-all.20260827.pmtiles'
 
 export function createPMTiles(bucket: R2Bucket, key = PLACES_KEY): PMTiles {
-  return new PMTiles(new R2Source(bucket, key))
+  // `ResolvedValueCache`, not the `SharedPromiseCache` default. Cloudflare
+  // Workers cannot share a promise across requests, and this instance is held
+  // in a module-level map, so a later request that awaited a header or
+  // directory promise created under an earlier request context fails with a
+  // cross-request I/O error. `ResolvedValueCache` stores resolved values, which
+  // are safe to reuse, and gives the same re-parse savings.
+  return new PMTiles(new R2Source(bucket, key), new ResolvedValueCache())
 }
 
 /**
