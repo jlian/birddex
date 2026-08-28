@@ -91,8 +91,12 @@ final class ShareViewController: UIViewController {
             }
 
             try Task.checkCancellation()
+            // Publication is the commit point. `stage` moves the batch into
+            // `pending` atomically, so once it returns the app will import the
+            // batch. Checking for cancellation after that point would report a
+            // cancelled share while the batch stays queued, so the next check
+            // is deliberately absent.
             try await IncomingShareStore.stage(fileURLs: temporaryFiles)
-            try Task.checkCancellation()
             if await openHostApp() {
                 extensionContext?.completeRequest(returningItems: nil)
                 return
