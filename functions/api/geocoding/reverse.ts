@@ -2,6 +2,7 @@ import { reverseGeocodeLocal } from '../../lib/geocoding-gateway'
 import { PLACES_ATTRIBUTION } from '../../lib/osm-places'
 import { parseCoordinate } from '../../lib/geocoding'
 import { createRouteResponder } from '../../lib/log'
+import { rateLimitKey } from '../../lib/rate-limit'
 
 /**
  * Reverse geocode a coordinate from the local OSM archive.
@@ -17,8 +18,9 @@ import { createRouteResponder } from '../../lib/log'
  * third-party dependency from the path, and a wrong-but-confident address is
  * worse for naming a birding outing than an honest blank.
  *
- * No rate limit either: the only cost is an R2 range read, so there is no
- * budget to protect.
+ * The archive has no third-party quota, but R2 reads and Worker CPU are still
+ * finite resources. A dedicated limiter protects them without allowing reverse
+ * traffic to consume the separate Geoapify search budget.
  */
 export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/reverse/read', 'Application')
@@ -47,6 +49,19 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       503,
       'Geocoding service unavailable',
       'Reverse geocoding is unavailable because the place archive is not bound',
+    )
+  }
+
+  const user = (context.data as RequestData).user
+  const { success } = await context.env.REVERSE_GEOCODING_LIMITER.limit({
+    key: rateLimitKey(user, context.request),
+  })
+  if (!success) {
+    return route.failWithHeaders(
+      429,
+      'Too many requests',
+      { 'Retry-After': '60' },
+      'Reverse geocoding exceeded the rate limit for this account; retry after the window closes',
     )
   }
 

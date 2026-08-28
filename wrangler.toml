@@ -33,13 +33,24 @@ bucket_name = "wingdex-places"
 # reverse-geocoding integration tests require remote access to this archive.
 remote = true
 
-# Burst guard for the Geoapify-backed routes, keyed on account id.
+# Burst guard for Geoapify place search, keyed by account for registered users
+# and IP for freely minted anonymous sessions.
 [[ratelimits]]
 name = "GEOCODING_LIMITER"
 namespace_id = "1001"
 
   [ratelimits.simple]
   limit = 20
+  period = 60
+
+# Reverse lookup has no provider quota, but every call spends Worker CPU and R2
+# Class B operations. Keep it separate so abuse cannot exhaust place search.
+[[ratelimits]]
+name = "REVERSE_GEOCODING_LIMITER"
+namespace_id = "1005"
+
+  [ratelimits.simple]
+  limit = 30
   period = 60
 
 # Import is the heaviest write path an account can reach. This throttles bursts;
@@ -91,6 +102,14 @@ namespace_id = "1002"
 
   [env.preview.ratelimits.simple]
   limit = 20
+  period = 60
+
+[[env.preview.ratelimits]]
+name = "REVERSE_GEOCODING_LIMITER"
+namespace_id = "1006"
+
+  [env.preview.ratelimits.simple]
+  limit = 30
   period = 60
 
 [[env.preview.ratelimits]]
