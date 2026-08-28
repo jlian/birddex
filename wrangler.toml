@@ -23,6 +23,10 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "PLACES"
 bucket_name = "wingdex-places"
+# PRODUCTION archive. Previews bind `wingdex-places-preview` instead, because a
+# binding grants runtime `put` and `delete` and CI deploys PR code with the
+# preview environment. See the env.preview block below.
+#
 # Cloudflare bindings have no runtime read-only mode, so application types expose
 # only `get` and the archive key is immutable by policy. Keep the Worker and D1
 # local during development while routing this binding to the real private bucket;
@@ -97,15 +101,30 @@ namespace_id = "1004"
   limit = 40
   period = 60
 
-# The SAME archive bucket as production. Wrangler environments do not inherit
-# top-level bindings, so omitting this left `env.PLACES` undefined on preview
-# and every reverse-geocode request answered 503.
+# A SEPARATE bucket from production, holding the same archive.
 #
-# Deliberately not a separate bucket: the archive is a 1.5 GB read-only
-# artifact with no per-environment state, so a second copy would double the
-# storage and the upload for nothing.
+# Wrangler environments do not inherit top-level bindings, so this block has to
+# exist at all: omitting it left `env.PLACES` undefined on preview and every
+# reverse-geocode request answered 503.
+#
+# It points at `wingdex-places-preview` rather than production because CI
+# deploys PULL REQUEST code with this environment, in two places:
+# `.github/workflows/ci.yml` (`versions upload --env preview`) and
+# `.github/workflows/release.yml` (`deploy --env preview`). A binding grants
+# full `put` and `delete` at runtime, and `ReadonlyR2Bucket` is
+# `Pick<R2Bucket, 'get'>`, a compile-time type that erases at runtime and
+# constrains only our own code. So a production binding here would let any PR
+# branch overwrite or delete the only production archive and take LIVE reverse
+# geocoding down, not just its own preview.
+#
+# Cloudflare has no runtime read-only binding, so separation is the only
+# mechanism available.
+#
+# There is no promotion step. The archive is immutable and dated, so the same
+# build is uploaded to both buckets under the same key and the two copies are
+# byte-identical. Cost is one extra 1.5 GB object, about 2 cents a month.
 [[env.preview.r2_buckets]]
 binding = "PLACES"
-bucket_name = "wingdex-places"
+bucket_name = "wingdex-places-preview"
 
 
