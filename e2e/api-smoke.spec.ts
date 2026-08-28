@@ -201,6 +201,10 @@ test.describe('API smoke (request context)', () => {
     await api.dispose()
   })
 
+  // Tagged `@remote-r2` because it needs a real Cloudflare token to reach the
+  // PMTiles archive through Wrangler's mixed mode. GitHub withholds secrets
+  // from FORK pull requests, so CI excludes this tag when no token is present:
+  // otherwise every fork PR would fail here regardless of what it changed.
   test('reverse geocoding reads the remote PMTiles archive @remote-r2', async () => {
     const api = await request.newContext({ baseURL: API_BASE })
     const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
