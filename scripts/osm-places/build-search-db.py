@@ -233,27 +233,39 @@ def main() -> int:
 
     print(f"\n=== golden queries (p50 / p95 over 20 runs, top hit) ===")
     golden = ["discovery park", "central park", "union bay", "donana",
-              "carkeek", "skagit", "tokyo", "sydney", "serengeti", "st martin"]
-    # Rank text quality FIRST (bm25), then the WingDex category score, then
-    # importance, then the stable id so the order is total and reproducible.
+              "carkeek", "skagit", "tokyo", "sydney", "serengeti", "st martin",
+              # Partial input: #343 requires token-prefix matching, so this has
+              # to find Discovery Park.
+              "discover par"]
+    # Mirrors SEARCH_SQL in functions/lib/place-search.ts EXACTLY, including the
+    # bounded candidate stage. A bare `LIMIT 5` applied after the full ordering
+    # measures a query that does not ship: it evaluates and sorts every MATCH
+    # row first, which is the cost the bounded design exists to remove, so the
+    # published latency would not validate the shipped design at all.
     #
-    # The `alias = ?` term is what stops a common query drifting to a foreign
-    # near-match: without it "central park" ranked `Centrala park` above the
-    # real one, because bm25 alone cannot tell an EXACT full-name match from a
-    # prefix hit on a longer name. An exact normalised match is the strongest
-    # signal a searcher can give, so it outranks everything else.
-    sql = ("SELECT p.label, p.kind, p.score FROM places_fts f JOIN places p ON p.id=f.rowid "
-           "WHERE places_fts MATCH ? "
-           "ORDER BY (EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id=p.id AND a.alias=?)) DESC, "
-           "bm25(places_fts), p.score DESC, "
-           "COALESCE(p.imp,0) DESC, p.osm_id LIMIT 5")
+    # Exact alias matches enter the pool through their own arm, so a row that
+    # bm25 ranks low cannot be cut before the ranking that promotes it.
+    sql = (
+        "WITH candidates AS ("
+        "  SELECT f.rowid AS id, rank AS fts_rank FROM places_fts f"
+        "  WHERE places_fts MATCH ?2 ORDER BY rank LIMIT ?3"
+        "), exact AS ("
+        "  SELECT a.place_id AS id, 0.0 AS fts_rank FROM place_alias a"
+        "  WHERE a.alias = ?1 LIMIT ?3"
+        "), pool AS ("
+        "  SELECT id, MIN(fts_rank) AS fts_rank FROM"
+        "  (SELECT * FROM candidates UNION ALL SELECT * FROM exact) GROUP BY id"
+        ") SELECT p.label, p.kind, p.score FROM pool JOIN places p ON p.id=pool.id "
+        "ORDER BY (EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id=p.id AND a.alias=?1)) DESC, "
+        "pool.fts_rank, p.score DESC, COALESCE(p.imp,0) DESC, p.osm_id LIMIT ?4"
+    )
     for q in golden:
         term = fts_query(q)
         times = []
         top = None
         for _ in range(20):
             s = time.perf_counter()
-            hits = cur.execute(sql, (term, q)).fetchall()
+            hits = cur.execute(sql, (q, term, 200, 5)).fetchall()
             times.append((time.perf_counter() - s) * 1000)
             top = hits[0] if hits else None
         times.sort()

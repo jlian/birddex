@@ -1,20 +1,36 @@
 #!/usr/bin/env bash
 # Full search-corpus rebuild: export -> region enrich -> database + measure.
 #
-# One script so the three stages cannot race each other. Each corpus rebuild
-# takes tens of minutes, and two overlapping runs previously produced row
-# counts that did not match the files on disk.
-set -uo pipefail
-cd /mnt/ssdscratch
+# One script so the three stages cannot race each other. Each rebuild takes
+# tens of minutes, and two overlapping runs previously produced row counts that
+# did not match the files on disk.
+#
+# `-e` matters here: without it a failed export or enrichment still fell
+# through to the completion marker, so `pipeline.DONE` could advertise a
+# partial or stale artifact as a finished build.
+set -euo pipefail
+
+# Paths are overridable so this runs outside the one machine it was written on.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORK="${WORK:-/mnt/ssdscratch}"
+VENV_PY="${VENV_PY:-$WORK/venv/bin/python}"
+IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
+EXPORT_SCRIPT="${EXPORT_SCRIPT:-$WORK/run-search-export.sh}"
+
+cd "$WORK"
 rm -f pipeline.DONE
 : > pipeline.log
+
 echo "== export ==" | tee -a pipeline.log
 rm -f search-export.DONE
-./run-search-export.sh >> pipeline.log 2>&1
+"$EXPORT_SCRIPT" >> pipeline.log 2>&1
+
 echo "== enrich ==" | tee -a pipeline.log
-/mnt/ssdscratch/venv/bin/python enrich-search-regions.py \
+"$VENV_PY" "$SCRIPT_DIR/enrich-search-regions.py" \
   search/admin-iso.geojsonseq search/all.tsv > search/all-enriched.tsv 2>> pipeline.log
+
 echo "== database ==" | tee -a pipeline.log
-python3 build-search-db.py search/all-enriched.tsv search/places-search.sqlite \
-  qid-importance.tsv >> pipeline.log 2>&1
+python3 "$SCRIPT_DIR/build-search-db.py" search/all-enriched.tsv \
+  search/places-search.sqlite "$IMPORTANCE_TABLE" >> pipeline.log 2>&1
+
 echo DONE > pipeline.DONE

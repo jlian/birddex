@@ -45,6 +45,13 @@ from typing import Iterator
 # corpus built on the previous rules.
 CONTRACT_PATH = Path(__file__).with_name("place-contract.json")
 
+# Alias boundary marker. Folding maps every punctuation character to a space,
+# so a folded alias can never contain a pipe. Joining with spaces destroyed the
+# boundaries: a two-word alias like `cap sainte anne` became indistinguishable
+# from three single-word aliases, so the exact-match boost could never fire for
+# any name containing a space, which is most of them.
+ALIAS_SEPARATOR = "|"
+
 WILDCARD = "*"
 
 
@@ -239,6 +246,9 @@ def aliases_for(tags: dict, display: str) -> list[str]:
     language variants per famous feature, and each one costs index bytes while
     only the local name, the English name and the mapper's own alternates get
     typed by this app's users. That bound is what keeps the 7 GB gate reachable.
+
+    The caller joins these with `ALIAS_SEPARATOR`, not with spaces, so a
+    multi-word alias survives as one alias through loading.
     """
     seen, out = set(), []
     for key in ("name", "name:en", "int_name", "alt_name", "official_name", "short_name"):
@@ -290,19 +300,19 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
         if not alias:
             continue
         imp = tags.get("importance")
-        # OSM has its OWN free-text `importance` tag (`national`, `regional`,
-        # `international`, and one entry reading `Bulgarian 100`), which
-        # collides with the numeric score the reverse archive bakes in. Keep
-        # only a clean integer in range; anything else is the OSM tag and must
-        # not be mistaken for a ranking value.
+        # Do NOT trust OSM's `importance` tag, even when it parses as a number.
+        #
+        # OSM carries its own free-text `importance` (`national`, `regional`,
+        # and one entry reading `Bulgarian 100`), which collides with the
+        # Wikipedia-derived score the reverse archive bakes in. Accepting a
+        # numeric-looking OSM value here made it authoritative and BLOCKED the
+        # QID join in the loader, so that record could rank differently from
+        # reverse search for no reason a reader could see.
+        #
+        # Importance comes from one place only: the QID table, joined in
+        # `build-search-db.py` against the same `qid-importance.tsv` the
+        # archive uses. The column stays empty here.
         imp_out = ""
-        if imp not in (None, ""):
-            try:
-                n = int(str(imp).strip())
-            except ValueError:
-                n = -1
-            if 0 <= n <= 255:
-                imp_out = str(n)
         yield (
             f"{otype}{oid}",
             display.replace("\t", " ").replace("\n", " "),
@@ -312,7 +322,7 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
             kind_of(tags),
             imp_out,
             tags.get("wikidata") or "",
-            " ".join(alias),
+            ALIAS_SEPARATOR.join(alias),
         )
 
 

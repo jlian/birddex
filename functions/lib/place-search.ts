@@ -42,8 +42,8 @@ interface SearchRow {
  *
  * NFKD then strip combining marks, so an ASCII `donana` finds `Doñana`.
  * Punctuation becomes a space, so `Saint-Louis` matches `Saint Louis`.
- * `toLowerCase` is applied to the decomposed form for the same reason the
- * builder uses `casefold`.
+ * `toLowerCase` matches the builder's `str.lower`; the note below explains why
+ * that is deliberate rather than `casefold`.
  */
 export function foldQuery(input: string): string {
   return input
@@ -63,9 +63,18 @@ export function foldQuery(input: string): string {
     // both languages implement natively cannot drift, and
     // `place-search-folding.test.ts` runs the real Python to prove it.
     .toLowerCase()
-    // Anything that is not a letter or digit becomes a separator. `\p{L}` and
-    // `\p{N}` keep non-Latin scripts intact, which a naive [a-z0-9] would not.
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    // Match the builder's category test exactly. It keeps alphanumerics, maps
+    // punctuation, separators and symbols (P, Z, S) to a space, and DROPS
+    // everything else. A single catch-all was wrong for format characters: a
+    // zero-width joiner is category Cf, so the builder deleted it while this
+    // turned it into a space, folding `ab<ZWJ>cd` to `abcd` offline and
+    // `ab cd` here, which the index could never match.
+    .replace(/[\p{Cf}\p{Cc}\p{Co}\p{Cn}]+/gu, '')
+    .replace(/[\p{P}\p{Z}\p{S}]+/gu, ' ')
+    // Anything still not alphanumeric is dropped rather than separated, which
+    // is what the builder's else-branch does.
+    .replace(/[^\p{L}\p{N} ]+/gu, '')
+    .replace(/ +/g, ' ')
     .trim()
 }
 
@@ -100,34 +109,55 @@ export function ftsExpression(folded: string): string {
 }
 
 /**
- * Rank text quality first, then the WingDex category, then importance.
+ * Bound the candidate set BEFORE ranking, then rank only those rows.
  *
- * The exact-alias test leads the sort deliberately. `bm25` alone cannot
- * distinguish an exact full-name match from a prefix hit inside a longer name,
- * so a search for `central park` ranked `Centralni park` above the real
- * Central Park. An exact normalised match is the strongest signal a searcher
- * can give.
+ * The obvious single query is wrong at planet scale: `LIMIT` applies after the
+ * full MATCH is evaluated and sorted, so a common prefix like `park*` would run
+ * the correlated alias lookup and the sort across hundreds of thousands of rows
+ * and only then keep five. On D1 that is the difference between a fast query
+ * and a timeout.
  *
- * It tests `place_alias`, not `places.alias`. The latter concatenates every
- * alias for FTS indexing, so `alias = 'casablanca'` is FALSE for a place whose
- * column reads `casablanca ... casa ...`, and the boost would reach only
- * places that happen to have exactly one name.
+ * The inner query takes the top `CANDIDATE_LIMIT` rows by FTS rank alone, which
+ * FTS5 satisfies from its own index, and the outer query does the expensive
+ * exact-alias test and secondary ordering over that bounded set.
  *
- * `osm_id` breaks the final tie so the order is total: without it, two equally
- * scored rows could swap between requests and a result list would look
- * unstable for no reason.
+ * A pure rank-ordered cut could drop an exact match that bm25 ranks low, so the
+ * candidate stage is a UNION: the FTS-ranked head plus any row whose alias
+ * matches the query exactly. Exact matches are the whole point of the ranking,
+ * so they can never be cut before it runs.
+ *
+ * The exact test uses `place_alias`, not `places.alias`. The latter
+ * concatenates every alias, so equality there would only ever fire for places
+ * with exactly one name.
  */
 const SEARCH_SQL = `
+  WITH candidates AS (
+    SELECT f.rowid AS id, rank AS fts_rank
+    FROM places_fts f
+    WHERE places_fts MATCH ?2
+    ORDER BY rank
+    LIMIT ?3
+  ),
+  exact AS (
+    SELECT a.place_id AS id, 0.0 AS fts_rank
+    FROM place_alias a
+    WHERE a.alias = ?1
+    LIMIT ?3
+  ),
+  pool AS (
+    SELECT id, MIN(fts_rank) AS fts_rank
+    FROM (SELECT * FROM candidates UNION ALL SELECT * FROM exact)
+    GROUP BY id
+  )
   SELECT p.label, p.lat, p.lon, p.state, p.country
-  FROM places_fts f
-  JOIN places p ON p.id = f.rowid
-  WHERE places_fts MATCH ?2
+  FROM pool
+  JOIN places p ON p.id = pool.id
   ORDER BY (EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id = p.id AND a.alias = ?1)) DESC,
-           bm25(places_fts),
+           pool.fts_rank,
            p.score DESC,
            COALESCE(p.imp, 0) DESC,
            p.osm_id
-  LIMIT ?3
+  LIMIT ?4
 `
 
 export async function searchPlacesLocal(
@@ -154,7 +184,7 @@ export async function searchPlacesLocal(
   try {
     const result = await db
       .prepare(SEARCH_SQL)
-      .bind(folded, expression, CANDIDATE_LIMIT)
+      .bind(folded, expression, CANDIDATE_LIMIT, SEARCH_LIMIT)
       .all<SearchRow>()
     rows = result.results ?? []
   } catch (cause) {
@@ -166,15 +196,12 @@ export async function searchPlacesLocal(
     )
   }
 
-  const seen = new Set<string>()
   const out: GeocodingResult[] = []
   for (const row of rows) {
-    // Collapse rows that would render identically. The corpus legitimately
-    // holds many places sharing a name, but two entries reading exactly
-    // "Discovery Park, US-WA" in a five-item list are noise, not choice.
-    const key = `${row.label}|${row.state ?? ''}|${row.country ?? ''}`
-    if (seen.has(key)) continue
-    seen.add(key)
+    // No de-duplication by label. Two places genuinely called `Memorial Park`
+    // in the same state are different destinations with different coordinates,
+    // and collapsing them silently removes a valid answer. The five-result
+    // limit already bounds the list.
     out.push({
       label: row.label,
       // Region codes are attached OFFLINE, so a five-result search costs no
