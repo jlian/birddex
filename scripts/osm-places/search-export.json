@@ -1,0 +1,30 @@
+{
+  "//": "Osmium export config for the FORWARD SEARCH index (issue #343 phase 1).",
+  "//1": "Distinct from one-geometry.json, which feeds the reverse PMTiles archive.",
+  "//2": "Search needs identity and a representative point; tiles need geometry.",
+  "//3": "linear_tags/area_tags off: this export decides area-ness by geometry",
+  "//4": "type, not by re-guessing from tags, so a record maps 1:1 to an object.",
+  "attributes": {
+    "type": true,
+    "id": true
+  },
+  "linear_tags": true,
+  "area_tags": true,
+  "exclude_tags": [],
+  "include_tags": [
+    "name",
+    "name:en",
+    "int_name",
+    "alt_name",
+    "official_name",
+    "short_name",
+    "wikidata",
+    "importance",
+    "leisure",
+    "boundary",
+    "landuse",
+    "natural",
+    "place",
+    "tourism"
+  ]
+}
