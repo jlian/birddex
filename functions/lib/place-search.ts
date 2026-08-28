@@ -126,6 +126,13 @@ export function ftsExpression(folded: string): string {
  * matches the query exactly. Exact matches are the whole point of the ranking,
  * so they can never be cut before it runs.
  *
+ * The exact arm carries its own ORDER BY rather than an unordered `LIMIT`. A
+ * bare limit takes whichever rows the index happens to yield first, so for a
+ * common name with more than `CANDIDATE_LIMIT` exact matches the surviving
+ * subset depended on import order, and a better match could be dropped before
+ * ranking ever saw it. Ordering by the same criteria the final sort uses makes
+ * the cut deterministic and keeps the best rows.
+ *
  * The exact test uses `place_alias`, not `places.alias`. The latter
  * concatenates every alias, so equality there would only ever fire for places
  * with exactly one name.
@@ -141,7 +148,9 @@ const SEARCH_SQL = `
   exact AS (
     SELECT a.place_id AS id, 0.0 AS fts_rank
     FROM place_alias a
+    JOIN places pe ON pe.id = a.place_id
     WHERE a.alias = ?1
+    ORDER BY pe.score DESC, COALESCE(pe.imp, 0) DESC, pe.osm_id
     LIMIT ?3
   ),
   pool AS (

@@ -238,20 +238,19 @@ def main() -> int:
               # to find Discovery Park.
               "discover par"]
     # Mirrors SEARCH_SQL in functions/lib/place-search.ts EXACTLY, including the
-    # bounded candidate stage. A bare `LIMIT 5` applied after the full ordering
-    # measures a query that does not ship: it evaluates and sorts every MATCH
-    # row first, which is the cost the bounded design exists to remove, so the
-    # published latency would not validate the shipped design at all.
-    #
-    # Exact alias matches enter the pool through their own arm, so a row that
-    # bm25 ranks low cannot be cut before the ranking that promotes it.
+    # bounded candidate stage and the ORDERED exact arm. A bare `LIMIT 5` after
+    # the full ordering measures a query that does not ship, and an unordered
+    # cap on the exact arm measures an arbitrary subset for any name with more
+    # than the cap in exact matches.
     sql = (
         "WITH candidates AS ("
         "  SELECT f.rowid AS id, rank AS fts_rank FROM places_fts f"
         "  WHERE places_fts MATCH ?2 ORDER BY rank LIMIT ?3"
         "), exact AS ("
         "  SELECT a.place_id AS id, 0.0 AS fts_rank FROM place_alias a"
-        "  WHERE a.alias = ?1 LIMIT ?3"
+        "  JOIN places pe ON pe.id = a.place_id"
+        "  WHERE a.alias = ?1"
+        "  ORDER BY pe.score DESC, COALESCE(pe.imp,0) DESC, pe.osm_id LIMIT ?3"
         "), pool AS ("
         "  SELECT id, MIN(fts_rank) AS fts_rank FROM"
         "  (SELECT * FROM candidates UNION ALL SELECT * FROM exact) GROUP BY id"

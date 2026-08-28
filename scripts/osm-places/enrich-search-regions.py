@@ -28,7 +28,12 @@ import sys
 from shapely.geometry import Point, shape
 from shapely.strtree import STRtree
 
-ISO_3166_2 = re.compile(r"^([A-Z]{2})-")
+# Must match `ISO_3166_2` in `functions/lib/osm-places.ts` EXACTLY. A looser
+# prefix match here accepted malformed values that the reverse lookup rejects:
+# `US-TOO-LONG` would derive country `US` in search while reverse geocoding
+# fell back to the country tag, so the two paths could disagree about the same
+# place despite sharing a source.
+ISO_3166_2 = re.compile(r"^([A-Z]{2})-([A-Z0-9]{1,3})$")
 
 
 def main() -> int:

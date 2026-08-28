@@ -15,7 +15,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-/mnt/ssdscratch}"
 VENV_PY="${VENV_PY:-$WORK/venv/bin/python}"
 IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
-EXPORT_SCRIPT="${EXPORT_SCRIPT:-$WORK/run-search-export.sh}"
+# Default to the exporter COMMITTED next to this script. Pointing at a copy
+# under the scratch directory meant a normal checkout could not rebuild, and
+# where such a copy did exist it could silently be older than the repository.
+EXPORT_SCRIPT="${EXPORT_SCRIPT:-$SCRIPT_DIR/run-search-export.sh}"
 
 cd "$WORK"
 rm -f pipeline.DONE
