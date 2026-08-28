@@ -675,7 +675,11 @@ function regionCodesFromTile(tile: VectorTile, address: TileAddress): RegionCode
     const feat = layer.feature(i)
     const props = feat.properties as Record<string, unknown>
     const state = typeof props['ISO3166-2'] === 'string' ? props['ISO3166-2'] : undefined
-    const country = typeof props['ISO3166-1'] === 'string' ? props['ISO3166-1'] : undefined
+    const canonicalCountry = typeof props['ISO3166-1:alpha2'] === 'string'
+      ? props['ISO3166-1:alpha2']
+      : undefined
+    const legacyCountry = typeof props['ISO3166-1'] === 'string' ? props['ISO3166-1'] : undefined
+    const country = canonicalCountry ?? legacyCountry
     // A boundary with no ISO code cannot answer the question, so skip it before
     // doing any geometry work.
     if (!state && !country) continue
@@ -703,7 +707,7 @@ function regionCodesFromTile(tile: VectorTile, address: TileAddress): RegionCode
   const state = matches.find((m) => m.state)?.state
 
   // Derive the country FROM the subdivision code, and prefer that over any
-  // `ISO3166-1` tag on the same polygon.
+  // canonical or legacy ISO 3166-1 tag on the same polygon.
   //
   // This is not a micro-optimization, it is a correctness fix found against the
   // real archive. Puerto Rico's admin_level=4 boundary carries BOTH

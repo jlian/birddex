@@ -20,6 +20,8 @@
 # "database is locked". Source PBFs may live on the NAS; outputs must not.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Re-exec under a PRIVATE MOUNT NAMESPACE with /tmp bound to scratch storage.
 #
 # Needed because tippecanoe hardcodes /tmp/sort1 and /tmp/sort2 (see the note on
@@ -56,6 +58,7 @@ if [ "${TMPNS:-0}" != "1" ]; then
             ADMIN_LEVELS='${ADMIN_LEVELS:-}' \
             ADMIN_LAYER='${ADMIN_LAYER:-}' \
             MIN_ADMIN_BYTES='${MIN_ADMIN_BYTES:-}' \
+            PATH='${PATH}' \
             '$(readlink -f "$0")'"
   fi
   echo "WARNING: no mount namespace available. tippecanoe sort1/sort2 will write to /tmp on the ROOT volume." >&2
@@ -136,7 +139,7 @@ export TMPDIR
 # central-america, adding it costs 0.99% (39.03 -> 39.42 MB), about +55 MB on
 # the global archive. Re-tiling later to add a 12-byte key would cost hours, so
 # it is cheaper to carry it now than to need it later.
-KEEP="-y name -y name:en -y tourism -y leisure -y natural -y boundary -y landuse -y place -y wikidata -y admin_level -y ISO3166-1 -y ISO3166-2"
+KEEP="-y name -y name:en -y tourism -y leisure -y natural -y boundary -y landuse -y place -y wikidata -y admin_level -y ISO3166-1:alpha2 -y ISO3166-1 -y ISO3166-2"
 
 # osmium export config: ONE geometry per object.
 #
@@ -265,8 +268,8 @@ FILTER="${FILTER:-wr/leisure=park,nature_reserve,garden,golf_course wr/boundary=
 #
 # The eBird export needs a state/province code and a country code, and polygons
 # in the `parks` layer carry neither. They live on administrative boundaries as
-# `ISO3166-1` and `ISO3166-2`, which the main filter never asked for, so only
-# 139 leaked into the previous archive by accident.
+# `ISO3166-1:alpha2`, legacy `ISO3166-1`, and `ISO3166-2`, which the main filter
+# never asked for, so only 139 leaked into the previous archive by accident.
 #
 # Restricted to admin_level 2-4 deliberately. ISO 3166 only defines country and
 # subdivision codes, so lower levels carry none: measured on central-america,
@@ -489,7 +492,7 @@ build_region() {
     | tippecanoe -o "$WORK/$r-admin.mbtiles" --force -z12 -Z12 -pf -pk \
         --no-simplification-of-shared-nodes --no-tiny-polygon-reduction \
         --temporary-directory="$TMPDIR" \
-        -y name -y name:en -y admin_level -y ISO3166-1 -y ISO3166-2 \
+        -y name -y name:en -y admin_level -y ISO3166-1:alpha2 -y ISO3166-1 -y ISO3166-2 \
         -l "$ADMIN_LAYER" /dev/stdin 2>"$WORK/$r.adm-tip.log"
   local -a adm_rc=("${PIPESTATUS[@]}")
   set -e
@@ -607,6 +610,25 @@ if [ ! -s "$WORK/planet-parks.pmtiles" ]; then
   echo "  FAILED: pmtiles convert produced no archive" >&2
   exit 1
 fi
+
+# Make the derivative-database notice part of every normal build. `pmtiles
+# edit --metadata` replaces the JSON metadata while preserving tile bytes, so
+# start from the converter's metadata to retain vector layer descriptions.
+echo "==> applying archive metadata"
+RAW_METADATA="$WORK/planet-parks.metadata.raw.json"
+FINAL_METADATA="$WORK/planet-parks.metadata.json"
+EDIT_TEMP="$WORK/planet-parks.pmtiles.tmp"
+if [ -e "$EDIT_TEMP" ]; then
+  echo "  removing stale metadata-edit temporary file: $EDIT_TEMP" >&2
+  rm -f "$EDIT_TEMP"
+fi
+pmtiles show "$WORK/planet-parks.pmtiles" --metadata > "$RAW_METADATA"
+node "$SCRIPT_DIR/archive-metadata.mjs" apply "$RAW_METADATA" "$FINAL_METADATA"
+pmtiles edit "$WORK/planet-parks.pmtiles" --metadata="$FINAL_METADATA"
+pmtiles show "$WORK/planet-parks.pmtiles" --metadata > "$RAW_METADATA"
+node "$SCRIPT_DIR/archive-metadata.mjs" check "$RAW_METADATA"
+rm -f "$RAW_METADATA" "$FINAL_METADATA"
+pmtiles verify "$WORK/planet-parks.pmtiles"
 
 ls -la "$WORK"/planet-parks.* 2>/dev/null
 echo "==> done"
