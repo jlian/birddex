@@ -20,6 +20,7 @@ struct OutingReviewView: View {
 
     @State private var locationName = ""
     @State private var isLoadingLocation = false
+    @State private var locationLookupState: LocationLookupState = .ok
     @State private var suggestedLocation = ""
     @State private var suggestedStateProvince: String?
     @State private var suggestedCountryCode: String?
@@ -52,6 +53,12 @@ struct OutingReviewView: View {
 
     /// Tracks whether the view has initiated geocoding for the current cluster.
     @State private var didInitialize = false
+
+    private enum LocationLookupState {
+        case ok
+        case empty
+        case error
+    }
 
     // MARK: - Computed
 
@@ -167,9 +174,9 @@ struct OutingReviewView: View {
         }
     }
 
-    /// One caption below the location controls: attribution, then what happens to coordinates.
+    /// Static provider attribution for reverse lookup and explicit place search.
     private var locationFooter: some View {
-        Text("Powered by [Geoapify](https://www.geoapify.com/) and [OpenStreetMap](https://www.openstreetmap.org/copyright). Coordinates are saved with your outing and rounded for lookups.")
+        Text("Powered by [Geoapify](https://www.geoapify.com/) and [OpenStreetMap](https://www.openstreetmap.org/copyright)")
             .font(.footnote)
             .foregroundStyle(Color.mutedText)
             .tint(Color.accentColor)
@@ -307,6 +314,27 @@ struct OutingReviewView: View {
                     restoreSuggestedLocation()
                 }
                 .font(.subheadline)
+            }
+
+            switch locationLookupState {
+            case .error:
+                HStack(spacing: 4) {
+                    Text("Location lookup failed.")
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("outing.locationLookupError")
+                    Button("Retry") {
+                        retryReverseGeocoding()
+                    }
+                    .accessibilityIdentifier("outing.locationRetry")
+                }
+                .font(.footnote)
+            case .empty:
+                Text("No named place found nearby. Tap above to name this outing.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.mutedText)
+                    .accessibilityIdentifier("outing.locationLookupEmpty")
+            case .ok:
+                EmptyView()
             }
         }
     }
@@ -472,6 +500,7 @@ struct OutingReviewView: View {
         matchingOuting = nil
         useExistingOuting = false
         isLoadingLocation = false
+        locationLookupState = .ok
     }
 
     /// Initialize location lookup and matching outing detection.
@@ -508,6 +537,7 @@ struct OutingReviewView: View {
         let roundedLat = (latitude * 1000).rounded() / 1000
         let roundedLon = (longitude * 1000).rounded() / 1000
         isLoadingLocation = true
+        locationLookupState = .ok
         defer {
             if cluster?.id == clusterID {
                 isLoadingLocation = false
@@ -523,7 +553,11 @@ struct OutingReviewView: View {
             }
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-failure") {
-            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .error)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-empty") {
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .empty)
             return
         }
         #endif
@@ -547,7 +581,8 @@ struct OutingReviewView: View {
                 applyCoordinateFallback(
                     latitude: roundedLat,
                     longitude: roundedLon,
-                    regionCodes: lookup.regionCodes
+                    regionCodes: lookup.regionCodes,
+                    state: .empty
                 )
             }
         } catch is CancellationError {
@@ -557,7 +592,16 @@ struct OutingReviewView: View {
             // failed suggestion never blocks the user or needs its own error row.
             log.error("Reverse geocoding failed")
             guard cluster?.id == clusterID else { return }
-            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .error)
+        }
+    }
+
+    private func retryReverseGeocoding() {
+        guard let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon else { return }
+        reverseGeocodingTask?.cancel()
+        let clusterID = cluster.id
+        reverseGeocodingTask = Task {
+            await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
         }
     }
 
@@ -569,7 +613,8 @@ struct OutingReviewView: View {
     private func applyCoordinateFallback(
         latitude: Double,
         longitude: Double,
-        regionCodes: GeocodingService.RegionCodes? = nil
+        regionCodes: GeocodingService.RegionCodes? = nil,
+        state: LocationLookupState
     ) {
         let fallback = viewModel.lastLocationName.isEmpty
             ? "\(latitude)deg, \(longitude)deg"
@@ -580,6 +625,7 @@ struct OutingReviewView: View {
         suggestedCountryCode = regionCodes?.countryCode
         inferredStateProvince = regionCodes?.stateProvince
         inferredCountryCode = regionCodes?.countryCode
+        locationLookupState = state
     }
 
     private func submitPlaceSearch() {

@@ -34,8 +34,12 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             scrollUntilVisible(locationName, in: app),
             "Resolved outing location was missing"
         )
-        XCTAssertFalse(locationValue(locationName).isEmpty, "Resolved outing location was empty")
-        XCTAssertNotEqual(locationValue(locationName), "Unknown Location")
+        XCTAssertEqual(
+            locationValue(locationName),
+            "Carkeek Park",
+            "Reverse geocoding did not resolve the known fixture coordinate"
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["outing.locationLookupError"].exists)
         continueButton.tap()
 
         // A sub-0.8 result routes to the crop prompt instead of the confirm step, and
@@ -249,6 +253,8 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
         XCTAssertEqual(locationValue(locationName), "47.712deg, -122.372deg")
+        XCTAssertTrue(app.descendants(matching: .any)["outing.locationLookupError"].exists)
+        XCTAssertTrue(app.buttons["outing.locationRetry"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
 
         locationName.tap()
@@ -264,6 +270,23 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             },
             "Static attribution disappeared after manual location entry"
         )
+    }
+
+    func testSuccessfulEmptyGeocodingExplainsCoordinateFallbackWithoutRetry() {
+        let app = launchApp(extraArguments: [
+            "--ui-test-geocoding-empty",
+            "--ui-test-clear-last-location",
+        ])
+        let continueButton = waitForOutingReview(in: app)
+        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
+
+        startNewOuting(in: app)
+        let locationName = app.textFields["outing.locationName"]
+        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
+        XCTAssertTrue(scrollUntilVisible(locationName, in: app))
+        XCTAssertEqual(locationValue(locationName), "47.712deg, -122.372deg")
+        XCTAssertTrue(app.descendants(matching: .any)["outing.locationLookupEmpty"].exists)
+        XCTAssertFalse(app.buttons["outing.locationRetry"].exists)
     }
 
     func testDismissingOutingReviewCancelsDelayedGeocoding() {

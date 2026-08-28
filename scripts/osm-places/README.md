@@ -14,7 +14,7 @@ what ships; the shipped design is summarised here.
 ## What ships
 
 - One PMTiles archive in R2, built by `build-global.sh`, uploaded by
-  `r2-upload.mjs` under the dated key `places-20260827.pmtiles`.
+  `r2-upload.mjs` under the dated key `places-20260828.pmtiles`.
 - Zoom 12, not the z13 used in the early spike. Measured over 20,000
   coordinates, z12 named MORE places at every buffer.
 - TWO layers: `parks` (what a place is called) and `admin` (ISO 3166 codes for
@@ -183,9 +183,8 @@ share-alike is engaged. That is a licensing obligation, not a hosting one.
 
 - **4.2(b)**, license notice travels with the derivative database: the PMTiles
   metadata carries `attribution`, `license` and `license_url`.
-- **4.3**, notice on the produced work: web and iOS show a linked
-  `(c) OpenStreetMap contributors, ODbL 1.0` caption, and the reverse route
-  returns the same string.
+- **4.3**, notice on the produced work: web and iOS link `OpenStreetMap` to its
+  copyright page, and the reverse route returns the full attribution string.
 - **4.4**, share alike: the archive is ODbL by construction and is not
   relicensed.
 - **4.6(b)**, offer the alterations OR the method: this directory IS the method.
@@ -199,8 +198,8 @@ Not legal advice; this is a reading of the license text.
 Done before shipping:
 
 - [x] ODbL notice for the derived tiles, in the `wrangler.toml` binding comment
-- [x] Attribution returned by the route as `(c) OpenStreetMap contributors,
-      ODbL 1.0` and shown under the location control
+- [x] Full attribution returned by the route, with linked OpenStreetMap credit
+  shown under the location control
 - [x] Row updated in `docs/CONTENT_RIGHTS_AND_ATTRIBUTION.md`
 
 Not legal advice. This is a reading of the license text.

@@ -18,6 +18,7 @@
  */
 import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs'
 import { PMTiles, ResolvedValueCache, TileType, bytesToHeader } from 'pmtiles'
+import { validateArchiveMetadata } from './archive-metadata.mjs'
 import {
   S3Client,
   CreateMultipartUploadCommand,
@@ -104,6 +105,7 @@ try {
     },
   }
   const metadata = await new PMTiles(source, new ResolvedValueCache()).getMetadata()
+  validateArchiveMetadata(metadata, 'source')
   const layers = metadata && typeof metadata === 'object' && 'vector_layers' in metadata
     ? metadata.vector_layers
     : undefined

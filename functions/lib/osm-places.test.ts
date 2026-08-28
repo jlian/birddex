@@ -856,6 +856,31 @@ describe('lookupRegionCodes', () => {
     })
   })
 
+  it('reads the canonical ISO3166-1:alpha2 country tag', async () => {
+    const pm = adminTile([
+      { props: { name: 'Cuba', 'ISO3166-1:alpha2': 'CU', admin_level: '2' }, ring: square(0, 0, EXTENT) },
+    ])
+    const [lat, lon] = coordAt(2000, 2000)
+    await expect(lookupRegionCodes(pm, lat, lon)).resolves.toEqual({
+      stateProvince: undefined,
+      countryCode: 'CU',
+    })
+  })
+
+  it('prefers ISO3166-1:alpha2 over the legacy country tag', async () => {
+    const pm = adminTile([
+      {
+        props: { name: 'Cuba', 'ISO3166-1:alpha2': 'CU', 'ISO3166-1': 'XX', admin_level: '2' },
+        ring: square(0, 0, EXTENT),
+      },
+    ])
+    const [lat, lon] = coordAt(2000, 2000)
+    await expect(lookupRegionCodes(pm, lat, lon)).resolves.toEqual({
+      stateProvince: undefined,
+      countryCode: 'CU',
+    })
+  })
+
   it('ignores a boundary that does not contain the point', async () => {
     const pm = adminTile([
       { props: { name: 'Elsewhere', 'ISO3166-2': 'CU-03', admin_level: '4' }, ring: square(0, 0, 500) },
