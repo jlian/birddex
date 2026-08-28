@@ -316,25 +316,29 @@ struct OutingReviewView: View {
                 .font(.subheadline)
             }
 
-            switch locationLookupState {
-            case .error:
-                HStack(spacing: 4) {
-                    Text("Location lookup failed.")
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("outing.locationLookupError")
-                    Button("Retry") {
-                        retryReverseGeocoding()
+            if locationName == suggestedLocation {
+                switch locationLookupState {
+                case .error:
+                    HStack(spacing: 4) {
+                        Text("Location lookup failed.")
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("outing.locationLookupError")
+                        Button("Retry") {
+                            retryReverseGeocoding()
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .accessibilityIdentifier("outing.locationRetry")
                     }
-                    .accessibilityIdentifier("outing.locationRetry")
-                }
-                .font(.footnote)
-            case .empty:
-                Text("No named place found nearby. Tap above to name this outing.")
                     .font(.footnote)
-                    .foregroundStyle(Color.mutedText)
-                    .accessibilityIdentifier("outing.locationLookupEmpty")
-            case .ok:
-                EmptyView()
+                case .empty:
+                    Text("No named place found nearby. Tap above to name this outing.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.mutedText)
+                        .accessibilityIdentifier("outing.locationLookupEmpty")
+                case .ok:
+                    EmptyView()
+                }
             }
         }
     }

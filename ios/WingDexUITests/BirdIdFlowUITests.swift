@@ -264,6 +264,10 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             waitUntil(timeout: 5) { locationValue(locationName) == "Manual Test Location" },
             "Manual location name was not applied"
         )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["outing.locationLookupError"].exists,
+            "Reverse lookup failure remained visible after manual location entry"
+        )
         XCTAssertTrue(
             waitUntil(timeout: 5) {
                 app.descendants(matching: .any)["outing.locationAttribution"].exists
@@ -287,6 +291,15 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         XCTAssertEqual(locationValue(locationName), "47.712deg, -122.372deg")
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationLookupEmpty"].exists)
         XCTAssertFalse(app.buttons["outing.locationRetry"].exists)
+
+        locationName.tap()
+        app.buttons["outing.locationClear"].tap()
+        locationName.typeText("Manual Test Location")
+        XCTAssertTrue(waitUntil(timeout: 5) { locationValue(locationName) == "Manual Test Location" })
+        XCTAssertFalse(
+            app.descendants(matching: .any)["outing.locationLookupEmpty"].exists,
+            "Empty lookup hint remained visible after manual location entry"
+        )
     }
 
     func testDismissingOutingReviewCancelsDelayedGeocoding() {
