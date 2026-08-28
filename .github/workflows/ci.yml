@@ -74,7 +74,19 @@ jobs:
       - name: E2E tests
         # D1 remains local and disposable. PLACES uses Wrangler mixed mode so
         # this existing suite also verifies the real PMTiles archive in R2.
-        run: npx playwright test --grep-invert @live
+        #
+        # `@remote-r2` is excluded when no Cloudflare token is available.
+        # GitHub withholds secrets from FORK pull requests, so those runs cannot
+        # reach the R2 archive and the test would fail on every fork regardless
+        # of the change being submitted. Everything else stays self-contained
+        # and still runs.
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            npx playwright test --grep-invert @live
+          else
+            echo "No Cloudflare credentials (likely a fork PR); skipping @remote-r2 tests"
+            npx playwright test --grep-invert "@live|@remote-r2"
+          fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
