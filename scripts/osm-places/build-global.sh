@@ -284,6 +284,16 @@ REGIONS=(
 # the last-resort names for rural coordinates. The deployed archive was built
 # with the bare form, so a default run must reproduce it rather than quietly
 # producing a narrower archive that looks the same.
+#
+# NOTE ON SCOPE: `wr/` is ways and relations only, so NODE-mapped places (many
+# hamlets, farms and isolated dwellings, and some towns and villages) are NOT
+# in the shipped archive, and the ranker's point-candidate path gets no input
+# from this layer yet. Switching to `nwr/place` was measured on central-america:
+# nulls fell from 441 to 396 of 1824 coords and the archive grew 14.7%, but the
+# added nodes exposed a ranking bug where a POI node 1748 m away outranked a
+# containing place polygon. That turns a null into a confidently wrong label,
+# which is worse, so the swap is deferred to a follow-up issue until the ranker
+# handles point candidates correctly.
 FILTER="${FILTER:-wr/leisure=park,nature_reserve,garden,golf_course wr/boundary=protected_area,national_park wr/landuse=forest,recreation_ground wr/natural wr/place wr/tourism}"
 
 # A SECOND, thin layer: administrative boundaries carrying ISO 3166 codes.
