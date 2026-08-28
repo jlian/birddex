@@ -142,10 +142,11 @@ export function ftsExpression(folded: string): string {
  * documented order returning the wrong answer for the most obvious query in the
  * golden set.
  *
- * `central park` matches 521 places EXACTLY. Two of them are tagged
- * `tourism=attraction` and therefore score 26, against 25 for a plain
- * `leisure=park`, so category-first ranking returns a park in Tajikistan ahead
- * of the one in New York, which carries importance 156 against their nothing.
+ * `central park` matches 521 places EXACTLY. Two of them score 26, the top
+ * tourism tier (`zoo`/`aquarium`/`theme_park`), against 25 for the 501 plain
+ * parks in that set, so category-first ranking returns parks in Tajikistan and
+ * Uzbekistan ahead of the one in New York, which carries importance 156 against
+ * their nothing.
  *
  * The reasoning: the category score answers "what KIND of place is this", which
  * is the right tie-breaker while candidates still differ by name. Once several

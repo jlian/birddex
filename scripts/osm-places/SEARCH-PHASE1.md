@@ -107,10 +107,16 @@ Step 12 orders category score before importance. For EXACT matches that returns
 the wrong answer, so the criterion was amended with John's agreement on
 2026-08-28.
 
-`central park` matches **521 places exactly**. Two are tagged
-`tourism=attraction` and therefore score 26, against 25 for a plain
-`leisure=park`, so category-first ranking put a park in Tajikistan above the one
-in New York, which carries importance 156 against their nothing.
+`central park` matches **521 places exactly**. Two of them score 26, which is
+the `tourism=zoo`/`aquarium`/`theme_park` tier, against 25 for the 501 plain
+parks in that set, so category-first ranking put a park in Tajikistan and one in
+Uzbekistan above the one in New York, which carries importance 156 against their
+nothing. Neither has any importance score at all.
+
+(An earlier draft blamed `tourism=attraction`. That tier scores 24, BELOW a
+park, so it could not have produced this. The winning rows carry the top tourism
+tier; the generated contract labels that tier `attraction` as its `kind`, which
+is what the mislabelling came from.)
 
 The category score answers "what KIND of place is this", which is the right
 tie-breaker while candidates still differ by name. Once several places share a
@@ -125,10 +131,14 @@ the reverse route resolves codes by reading the PMTiles `admin` layer for one
 coordinate, and doing that per result would mean up to five extra R2 range
 reads per search.
 
+Counted in the FINISHED database, against its 3,608,008 rows. The enrichment
+stage reports slightly higher numbers because it runs before deduplication, when
+border-overlapping features still appear once per regional extract.
+
 | Measure | Count | Share |
 | --- | --- | --- |
-| Records with a subdivision code | 3,618,465 | 98.6% |
-| Records with a country code | 3,645,165 | 99.3% |
+| Records with a subdivision code | 3,559,941 | 98.7% |
+| Records with a country code | 3,586,332 | 99.4% |
 
 Codes come from the same `boundary=administrative` polygons at admin_level 2-4
 that the reverse archive uses, so forward and reverse search cannot report
