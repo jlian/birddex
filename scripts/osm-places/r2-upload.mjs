@@ -16,7 +16,9 @@
  * per-part ceiling. Each part is streamed from disk, so memory stays flat
  * regardless of archive size.
  */
-import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs'
+import { closeSync, createReadStream, openSync, readSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { PMTiles, ResolvedValueCache, TileType, bytesToHeader } from 'pmtiles'
 import { validateArchiveMetadata } from './archive-metadata.mjs'
 import {
@@ -209,6 +211,34 @@ try {
     throw new Error('HEADER MISMATCH: remote PMTiles header differs from the local archive')
   }
   console.log('size and PMTiles v3 header match the local archive')
+
+  // Write the key the Worker reads, now that the object is verified present.
+  //
+  // This is the whole point of generating it. The caches in osm-places.ts are
+  // keyed on PLACES_KEY, and a hand-edit that gets forgotten does not fail
+  // loudly: warm isolates keep serving cached header and directory bytes whose
+  // offsets describe the PREVIOUS archive, so they throw on every lookup while
+  // cold isolates answer normally. Writing it here means the constant cannot
+  // disagree with what was published.
+  //
+  // Written AFTER verification so a failed upload never points the Worker at
+  // an object that is missing or truncated.
+  const keyFile = resolve(dirname(fileURLToPath(import.meta.url)), '../../functions/lib/places-key.ts')
+  writeFileSync(keyFile, `// GENERATED FILE. Do not edit by hand.
+//
+// Written by \`scripts/osm-places/r2-upload.mjs\` after an upload is verified,
+// so the key the Worker reads is always the key that was actually published.
+//
+// This exists because the constant used to be updated by hand, and the caches
+// in \`osm-places.ts\` are keyed on it. Forgetting the bump does not fail
+// loudly: a warm isolate keeps serving cached header and directory bytes whose
+// offsets describe the PREVIOUS archive, so every lookup in that isolate
+// throws until it recycles, while cold isolates answer normally. Generating
+// the value removes the chance to forget.
+export const PLACES_KEY = ${JSON.stringify(KEY)}
+`)
+  console.log(`wrote functions/lib/places-key.ts -> ${KEY}`)
+  console.log('commit that file with the deploy, or the Worker still reads the old archive')
 } catch (error) {
   console.error(error.message)
   // Only remove the object this invocation just completed. The ETag check
