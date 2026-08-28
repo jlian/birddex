@@ -106,9 +106,13 @@ function parseGeocodingResponse(body: unknown, stage: GeocodingStage): GeoapifyR
  * place a photo was actually taken in rather than the nearest postal address.
  * The route still applies WingDex's own abuse limit.
  *
- * It returns null when there is no bucket bound or the tile holds no named
- * place. There is no provider behind this any more, so null is the final
- * answer for that coordinate and the app renders its "no named place" state.
+ * It returns null ONLY when there is no bucket bound, which the reverse route
+ * turns into a 503 because a Worker with no archive is misconfigured rather
+ * than out of answers. A bound archive whose tile holds no named place returns
+ * an OBJECT with a null `result` instead, which is a successful lookup: there
+ * is no provider behind this any more, so that is the final answer for the
+ * coordinate and the app renders its "no named place" state. The route and its
+ * tests rely on that distinction, so the two must not be collapsed.
  *
  * A MISSING or CORRUPT archive throws instead, because that is a real fault
  * worth seeing rather than a quiet degradation to blank outing names. The
