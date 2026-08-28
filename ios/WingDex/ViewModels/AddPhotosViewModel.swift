@@ -242,6 +242,11 @@ final class AddPhotosViewModel {
             return .failed
         } catch is CancellationError {
             return .cancelled
+        } catch IncomingShareError.containerUnavailable {
+            // Without the app group there is no queue to read, so there is also
+            // nothing the person shared and nothing to report. Unsigned builds,
+            // which the simulator test job produces, always land here.
+            return .empty
         } catch {
             self.error = AppError.map(error, fallback: "Could not import the shared photos. Try again.")
             errorRecovery = .incomingShareImport
