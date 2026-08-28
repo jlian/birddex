@@ -793,6 +793,12 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
               candidates={currentCandidates}
               rangeAdjusted={rangeAdjusted}
               useGeoContext={useGeoContext}
+              inferenceCoordinates={resolveInferenceCoordinates(
+                useGeoContext,
+                fullCurrentPhoto.gps,
+                outingInferenceContext.current.coordinates,
+                outingInferenceContext.current.overridesPhotoGps,
+              )}
               photoIndex={currentPhotoIndex}
               totalPhotos={clusterPhotos.length}
               onConfirm={confirmCurrentPhoto}
@@ -939,6 +945,8 @@ interface PerPhotoConfirmProps {
    *  it is off, so the mark must stay silent too rather than showing a
    *  geographic conclusion they turned off. */
   useGeoContext?: boolean
+  /** The exact coordinates used by the range prior for this photo. */
+  inferenceCoordinates?: { lat: number; lon: number }
   photoIndex: number
   totalPhotos: number
   onConfirm: (
@@ -958,6 +966,7 @@ function PerPhotoConfirm({
   candidates,
   rangeAdjusted,
   useGeoContext,
+  inferenceCoordinates,
   photoIndex,
   totalPhotos,
   onConfirm,
@@ -984,8 +993,8 @@ function PerPhotoConfirm({
   // worse than one that is a day off at a month boundary.
   const exif = photo.exifTime ? new Date(photo.exifTime) : null
   const rankingMonth = exif && !Number.isNaN(exif.getTime()) ? exif.getMonth() + 1 : null
-  const photoLat = useGeoContext ? photo.gps?.lat : undefined
-  const photoLon = useGeoContext ? photo.gps?.lon : undefined
+  const photoLat = inferenceCoordinates?.lat
+  const photoLon = inferenceCoordinates?.lon
   const photoMonth = useGeoContext ? rankingMonth : null
   const resolveRarity = useRarityResolver(
     photoLat != null && photoLon != null && photoMonth != null)
