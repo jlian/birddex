@@ -21,6 +21,11 @@ export interface PhotoResult {
   count: number
 }
 
+export interface InferenceCoordinates {
+  lat: number
+  lon: number
+}
+
 // ─── Pure helpers ───────────────────────────────────────────
 
 /**
@@ -154,4 +159,23 @@ export function resolveInferenceLocationName(
   }
   const resolved = locationNameOverride ?? lastLocationName
   return resolved || undefined
+}
+
+/**
+ * Choose the coordinates used by the geographic bird-identification prior.
+ *
+ * A searched location is an explicit correction and therefore wins. Without
+ * one, per-photo EXIF is more precise for an outing that covers ground, while
+ * the confirmed outing coordinates are still a useful fallback for cameras
+ * that do not record GPS.
+ */
+export function resolveInferenceCoordinates(
+  useGeoContext: boolean,
+  photoCoordinates: InferenceCoordinates | undefined,
+  outingCoordinates: InferenceCoordinates | undefined,
+  outingOverridesPhotoGps: boolean,
+): InferenceCoordinates | undefined {
+  if (!useGeoContext) return undefined
+  if (outingOverridesPhotoGps && outingCoordinates) return outingCoordinates
+  return photoCoordinates ?? outingCoordinates
 }

@@ -733,7 +733,10 @@ struct OutingReviewView: View {
             viewModel.outingConfirmed(
                 outing: nil,
                 outingId: existing.id,
-                locationName: existing.locationName
+                locationName: existing.locationName,
+                lat: existing.lat,
+                lon: existing.lon,
+                outingOverridesPhotoGPS: false
             )
             return
         }
@@ -759,7 +762,10 @@ struct OutingReviewView: View {
         viewModel.outingConfirmed(
             outing: outing,
             outingId: outing.id,
-            locationName: finalLocationName
+            locationName: finalLocationName,
+            lat: effectiveLat,
+            lon: effectiveLon,
+            outingOverridesPhotoGPS: overriddenCoords != nil
         )
     }
 

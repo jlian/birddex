@@ -84,6 +84,11 @@ final class AddPhotosViewModel {
     /// The outing ID that the current cluster is being saved into.
     var currentOutingId = ""
 
+    /// Coordinates confirmed during outing review. Per-photo GPS normally wins,
+    /// but a searched location is an explicit correction and takes precedence.
+    private var outingInferenceLocation: (lat: Double, lon: Double)?
+    private var outingOverridesPhotoGPS = false
+
     // MARK: - Per-Photo Identification State
 
     /// Index of the photo currently being processed/confirmed within the current cluster.
@@ -464,11 +469,20 @@ final class AddPhotosViewModel {
     /// then starts the per-photo AI identification loop.
     /// Pass `outing` for a new outing, or nil when merging into one that already exists.
     /// Nothing is written until the cluster produces at least one sighting.
-    func outingConfirmed(outing: Outing?, outingId: String, locationName: String) {
+    func outingConfirmed(
+        outing: Outing?,
+        outingId: String,
+        locationName: String,
+        lat: Double?,
+        lon: Double?,
+        outingOverridesPhotoGPS: Bool
+    ) {
         guard (try? requireCurrentSession()) != nil else { return }
         let normalizedName = locationName.trimmingCharacters(in: .whitespacesAndNewlines)
         lastLocationName = normalizedName
         currentOutingId = outingId
+        outingInferenceLocation = if let lat, let lon { (lat: lat, lon: lon) } else { nil }
+        self.outingOverridesPhotoGPS = outingOverridesPhotoGPS
         pendingOuting = outing
         didCreatePhotos = false
         photoResults = []
@@ -547,12 +561,13 @@ final class AddPhotosViewModel {
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
 
         do {
-            let location: (lat: Double, lon: Double)? = {
-                guard useGeoContext, let lat = photo.gpsLat, let lon = photo.gpsLon else {
-                    return nil
-                }
-                return (lat: lat, lon: lon)
-            }()
+            let location = Self.resolveInferenceLocation(
+                useGeoContext: useGeoContext,
+                photoLat: photo.gpsLat,
+                photoLon: photo.gpsLon,
+                outingLocation: outingInferenceLocation,
+                outingOverridesPhotoGPS: outingOverridesPhotoGPS
+            )
             // 1-12. The old server API took 0-11, so this deliberately does NOT
             // subtract one: a 0 would be rejected by the v3 prior and silently
             // drop back to vision-only.
@@ -622,6 +637,24 @@ final class AddPhotosViewModel {
             rangeAdjusted = false
             currentStep = .perPhotoConfirm
         }
+    }
+
+    /// Select location context for the range prior.
+    ///
+    /// A searched outing location is an explicit correction and wins. Without
+    /// one, per-photo GPS is more precise, while the outing coordinate remains
+    /// a useful fallback for cameras that do not record GPS.
+    static func resolveInferenceLocation(
+        useGeoContext: Bool,
+        photoLat: Double?,
+        photoLon: Double?,
+        outingLocation: (lat: Double, lon: Double)?,
+        outingOverridesPhotoGPS: Bool
+    ) -> (lat: Double, lon: Double)? {
+        guard useGeoContext else { return nil }
+        if outingOverridesPhotoGPS, let outingLocation { return outingLocation }
+        if let photoLat, let photoLon { return (lat: photoLat, lon: photoLon) }
+        return outingLocation
     }
 
     // MARK: - Step 4: Per-Photo Confirmation
