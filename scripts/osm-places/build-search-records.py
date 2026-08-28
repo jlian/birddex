@@ -239,6 +239,19 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
         if not alias:
             continue
         imp = tags.get("importance")
+        # OSM has its OWN free-text `importance` tag (`national`, `regional`,
+        # `international`, and one entry reading `Bulgarian 100`), which
+        # collides with the numeric score the reverse archive bakes in. Keep
+        # only a clean integer in range; anything else is the OSM tag and must
+        # not be mistaken for a ranking value.
+        imp_out = ""
+        if imp not in (None, ""):
+            try:
+                n = int(str(imp).strip())
+            except ValueError:
+                n = -1
+            if 0 <= n <= 255:
+                imp_out = str(n)
         yield (
             f"{otype}{oid}",
             display.replace("\t", " ").replace("\n", " "),
@@ -246,7 +259,7 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
             f"{lon:.6f}",
             str(score),
             kind_of(tags),
-            str(imp) if imp not in (None, "") else "",
+            imp_out,
             tags.get("wikidata") or "",
             " ".join(alias),
         )
