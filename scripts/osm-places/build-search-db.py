@@ -255,7 +255,7 @@ def main() -> int:
         "  SELECT a.place_id AS id, 0.0 AS fts_rank FROM place_alias a"
         "  JOIN places pe ON pe.id = a.place_id"
         "  WHERE a.alias = ?"
-        "  ORDER BY COALESCE(pe.imp,0) DESC, pe.score DESC, pe.osm_id LIMIT ?"
+        "  ORDER BY pe.score DESC, COALESCE(pe.imp,0) DESC, pe.osm_id LIMIT ?"
         "), pool AS ("
         "  SELECT id, MIN(fts_rank) AS fts_rank FROM"
         "  (SELECT * FROM candidates UNION ALL SELECT * FROM exact) GROUP BY id"
@@ -265,8 +265,7 @@ def main() -> int:
         "  FROM pool JOIN places p ON p.id=pool.id"
         ") SELECT label, kind, score FROM ranked "
         "ORDER BY is_exact DESC, CASE WHEN is_exact THEN 0.0 ELSE fts_rank END, "
-        "CASE WHEN is_exact THEN -COALESCE(imp,0) ELSE -score END, "
-        "CASE WHEN is_exact THEN -score ELSE -COALESCE(imp,0) END, osm_id LIMIT ?"
+        "score DESC, COALESCE(imp,0) DESC, osm_id LIMIT ?"
     )
     for q in golden:
         term = fts_query(q)

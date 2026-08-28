@@ -134,22 +134,17 @@ export function ftsExpression(folded: string): string {
  * ranking ever saw it. Ordering by the same criteria the final sort uses makes
  * the cut deterministic and keeps the best rows.
  *
- * Within the exact group the FTS rank is deliberately neutralised, and
- * importance is weighed BEFORE the category score. Both orderings were wrong
- * on the real corpus, for the same query.
+ * Within the exact group the FTS rank is deliberately neutralised: `bm25`
+ * cannot separate 521 places whose names are all identical, and letting it try
+ * put a Czech park first because its shorter text scores better.
  *
- * `central park` matches 521 places exactly. Letting bm25 order them put a
- * Czech park first, because its shorter text scores better. Neutralising that
- * exposed the second problem: two obscure parks tagged `tourism=attraction`
- * score 26 against New York's 25, so a zoo in Tajikistan outranked the most
- * famous park on earth.
- *
- * The category score answers "what KIND of place is this", which is the right
- * tie-breaker when nothing else separates candidates. Once several places share
- * a name EXACTLY, the question becomes which one the searcher means, and
- * importance answers that directly. So importance leads inside the exact group
- * and the category score falls beneath it. Non-exact candidates keep the
- * original order, where text relevance still carries the signal.
+ * The order after that is the one #343 step 12 specifies: category score, then
+ * importance, then the stable id. An earlier version put importance first,
+ * because `central park` matches two obscure parks tagged `tourism=attraction`
+ * that score 26 against New York's 25, so the category score alone surfaces a
+ * zoo in Tajikistan. That is a real weakness, but changing the documented
+ * ranking contract is a scope decision rather than a fix, so it is raised for
+ * John instead of made unilaterally.
  *
  * The exact test uses `place_alias`, not `places.alias`. The latter
  * concatenates every alias, so equality there would only ever fire for places
@@ -168,7 +163,7 @@ const SEARCH_SQL = `
     FROM place_alias a
     JOIN places pe ON pe.id = a.place_id
     WHERE a.alias = ?1
-    ORDER BY COALESCE(pe.imp, 0) DESC, pe.score DESC, pe.osm_id
+    ORDER BY pe.score DESC, COALESCE(pe.imp, 0) DESC, pe.osm_id
     LIMIT ?3
   ),
   pool AS (
@@ -187,8 +182,8 @@ const SEARCH_SQL = `
   FROM ranked
   ORDER BY is_exact DESC,
            CASE WHEN is_exact THEN 0.0 ELSE fts_rank END,
-           CASE WHEN is_exact THEN -COALESCE(imp, 0) ELSE -score END,
-           CASE WHEN is_exact THEN -score ELSE -COALESCE(imp, 0) END,
+           score DESC,
+           COALESCE(imp, 0) DESC,
            osm_id
   LIMIT ?4
 `

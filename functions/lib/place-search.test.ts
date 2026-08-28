@@ -117,13 +117,11 @@ describe('searchPlacesLocal', () => {
     expect(results[0].label).toBe('Central Park')
   })
 
-  it('ranks the prominent place first when many share a name exactly', async () => {
-    // `central park` matches 521 places in the real corpus. Two obscure ones
-    // tagged `tourism=attraction` score 26 against New York's 25, so ordering
-    // exact matches by category score put a zoo in Tajikistan first. Inside
-    // the exact group, importance decides.
+  it('ranks identical exact names by category, then importance, per issue step 12', async () => {
+    // Text quality cannot separate names that are identical, so the documented
+    // order takes over: category score, then importance, then the stable id.
+    // Among equal-category rows, importance decides, so New York wins.
     const rows: Row[] = [
-      { osm_id: 'w20', label: 'Central Park', lat: 38.0, lon: 68.0, score: 26, kind: 'attraction', imp: null, aliases: ['central park'], country: 'TJ' },
       { osm_id: 'w21', label: 'Central Park', lat: 40.78, lon: -73.96, score: 25, kind: 'park', imp: 156, aliases: ['central park'], state: 'US-NY', country: 'US' },
       { osm_id: 'w22', label: 'Central Park', lat: 49.0, lon: 16.0, score: 25, kind: 'park', imp: 43, aliases: ['central park'], country: 'CZ' },
     ]
