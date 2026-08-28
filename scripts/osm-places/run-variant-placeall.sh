@@ -45,6 +45,10 @@ rm -rf "$work"
 mkdir -p "$work"
 t0=$SECONDS
 
+# Cleanup must run on every path, so the failure is recorded in `status` and
+# returned at the end. Otherwise the script exits 0 after a failed build and a
+# caller cannot tell that no archive was produced.
+status=0
 if FILTER="$FILTER_ALL" NAMED_ONLY=1 JOBS=2 WORK="$work" \
      TMPDIR=/mnt/ssdscratch/tmp "$BUILD" > "/home/jlian/variant-$name.log" 2>&1; then
   if [ -s "$work/planet-parks.pmtiles" ]; then
@@ -52,10 +56,13 @@ if FILTER="$FILTER_ALL" NAMED_ONLY=1 JOBS=2 WORK="$work" \
     say "DONE $name in $((SECONDS - t0))s -> $(du -h "$OUT/$name.pmtiles" | cut -f1)"
   else
     say "FAILED $name: no pmtiles produced"
+    status=1
   fi
 else
   say "FAILED $name: build exited non-zero"
+  status=1
 fi
 
 rm -rf "$work"
 say "=== place-all variant finished ==="
+exit "$status"
