@@ -28,6 +28,8 @@ const ZOOM = 12
 type Ring = [number, number][]
 interface Feat {
   props: Record<string, string>
+  type?: 1 | 3
+  points?: Ring
   // A simple single-ring polygon, or `rings` for an outer ring plus holes. MVT
   // winds a hole opposite to its outer ring, which the fixtures below do by
   // hand.
@@ -58,6 +60,19 @@ function ringsGeometry(rings: Ring[]): number[] {
   return g
 }
 
+/** MVT geometry commands for one point or multipoint feature. */
+function pointsGeometry(points: Ring): number[] {
+  const g = [1 | (points.length << 3)] // MoveTo, n points
+  let cx = 0
+  let cy = 0
+  for (const [x, y] of points) {
+    g.push(zigzag(x - cx), zigzag(y - cy))
+    cx = x
+    cy = y
+  }
+  return g
+}
+
 /** A single-layer vector tile named `parks`, which is the layer the code reads. */
 function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
   const keys: string[] = []
@@ -78,7 +93,11 @@ function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
       }
       tags.push(keyIndex.get(k)!, valueIndex.get(v)!)
     }
-    return { tags, geometry: ringsGeometry(f.rings ?? [f.ring!]) }
+    const type = f.type ?? 3
+    const geometry = type === 1
+      ? pointsGeometry(f.points!)
+      : ringsGeometry(f.rings ?? [f.ring!])
+    return { tags, geometry, type }
   })
 
   const w = new PbfWriter()
@@ -93,7 +112,7 @@ function buildTile(features: Feat[], layerName = 'parks'): Uint8Array {
           2,
           (_u, feat) => {
             feat.writePackedVarint(2, f.tags)
-            feat.writeVarintField(3, 3) // POLYGON
+            feat.writeVarintField(3, f.type)
             feat.writePackedVarint(4, f.geometry)
           },
           null,
@@ -328,6 +347,51 @@ describe('tile fixture', () => {
     expect(layer.extent).toBe(EXTENT)
     expect(layer.length).toBe(1)
     expect(layer.feature(0).properties).toEqual({ name: 'A', place: 'island' })
+  })
+})
+
+describe('point candidates', () => {
+  it('returns a nearby point-mapped hamlet as a proximity fallback', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Birders Hamlet', place: 'hamlet' },
+      type: 1,
+      points: [[2200, 2000]],
+    }]))
+    const [lat, lon] = coordAt(2000, 2000)
+
+    const hit = await lookupPlace(pm, lat, lon)
+
+    expect(hit?.name).toBe('Birders Hamlet')
+    expect(hit?.contained).toBe(false)
+    expect(hit?.distanceM).toBeGreaterThan(0)
+    expect(hit?.distanceM).toBeLessThan(NEAR_BAND_M * 10)
+  })
+
+  it('ignores a point outside the near-miss radius', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Distant Farm', place: 'farm' },
+      type: 1,
+      points: [[0, 0]],
+    }]))
+    const [lat, lon] = coordAt(4095, 4095)
+
+    await expect(lookupPlace(pm, lat, lon)).resolves.toBeNull()
+  })
+
+  it('uses the nearest vertex of a multipoint feature once', async () => {
+    const pm = pmtilesOf(buildTile([{
+      props: { name: 'Scattered Settlement', place: 'hamlet' },
+      type: 1,
+      points: [[0, 0], [2050, 2000], [4095, 4095]],
+    }]))
+    const [lat, lon] = coordAt(2000, 2000)
+
+    const hits = await lookupPlaces(pm, lat, lon)
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0].name).toBe('Scattered Settlement')
+    expect(hits[0].distanceM).toBeGreaterThan(0)
+    expect(hits[0].distanceM).toBeLessThan(NEAR_BAND_M)
   })
 })
 

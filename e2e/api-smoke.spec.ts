@@ -201,6 +201,33 @@ test.describe('API smoke (request context)', () => {
     await api.dispose()
   })
 
+  test('reverse geocoding reads the remote PMTiles archive @remote-r2', async () => {
+    const api = await request.newContext({ baseURL: API_BASE })
+    const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
+    expect(signIn.status()).toBe(200)
+    const token = signIn.headers()['set-auth-token']
+    expect(token).toBeTruthy()
+
+    const response = await api.post('/api/geocoding/reverse', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { lat: 47.712, lon: -122.372 },
+    })
+    expect(response.status(), await response.text()).toBe(200)
+
+    const body = await response.json() as {
+      result?: { label?: string }
+      nearby?: Array<{ label?: string }>
+      regionCodes?: { stateProvince?: string; countryCode?: string }
+      attribution?: string
+    }
+    expect(body.result?.label).toBe('Carkeek Park')
+    expect(body.nearby?.some(place => place.label === 'Carkeek Park')).toBe(true)
+    expect(body.regionCodes).toEqual({ stateProvince: 'US-WA', countryCode: 'US' })
+    expect(body.attribution).toBe('(c) OpenStreetMap contributors, ODbL 1.0')
+
+    await api.dispose()
+  })
+
   // Import needs a registered account, and the only way to get one is the passkey
   // ceremony, which needs a browser. These drive the API directly through the
   // promoted page's request context rather than a bare request context.

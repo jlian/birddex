@@ -4,7 +4,12 @@ import {
   type GeoapifyResponse,
   type GeocodingResult,
 } from './geocoding'
-import { getPMTiles, lookupPlacesWithRegion, type RegionCodes } from './osm-places'
+import {
+  getPMTiles,
+  lookupPlacesWithRegion,
+  type ReadonlyR2Bucket,
+  type RegionCodes,
+} from './osm-places'
 
 const GEOAPIFY_ORIGIN = 'https://api.geoapify.com'
 const GEOAPIFY_DEADLINE_MS = 5_000
@@ -124,7 +129,7 @@ function parseGeocodingResponse(body: unknown, stage: GeocodingStage): GeoapifyR
  * "no named place found" state is preserved.
  */
 export async function reverseGeocodeLocal(
-  bucket: R2Bucket | undefined,
+  bucket: ReadonlyR2Bucket | undefined,
   latitude: number,
   longitude: number,
 ): Promise<{

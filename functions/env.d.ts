@@ -17,7 +17,7 @@ interface Env {
   OPENAI_MODEL: string
   OPENAI_MODEL_STRONG?: string
   /** OSM place polygons (PMTiles) for local reverse geocoding, ODbL 1.0. */
-  PLACES?: R2Bucket
+  PLACES?: Pick<R2Bucket, 'get'>
   GEOAPIFY_KEY: string
   /** Burst limiter for the Geoapify-backed routes. See [[ratelimits]] in wrangler.toml. */
   GEOCODING_LIMITER: RateLimit
