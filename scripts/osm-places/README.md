@@ -174,6 +174,28 @@ Option (b) is satisfied by publishing this directory: the build commands above
 plus the exact Geofabrik source URL make the archive fully reproducible, so no
 derived data needs hosting.
 
+### ODbL obligations, and which clause each step satisfies
+
+The archive is a **Derivative Database**, not a Produced Work: ODbL 4.4(b) says
+extracting a substantial part of the contents into a new database creates one.
+Serving place names publicly from it counts as publicly using it, per 4.4(c), so
+share-alike is engaged. That is a licensing obligation, not a hosting one.
+
+- **4.2(b)**, license notice travels with the derivative database: the PMTiles
+  metadata carries `attribution`, `license` and `license_url`.
+- **4.3**, notice on the produced work: web and iOS show a linked
+  `(c) OpenStreetMap contributors, ODbL 1.0` caption, and the reverse route
+  returns the same string.
+- **4.4**, share alike: the archive is ODbL by construction and is not
+  relicensed.
+- **4.6(b)**, offer the alterations OR the method: this directory IS the method.
+  `build-global.sh` plus the named Geofabrik extract reproduces the archive
+  exactly, so the 1.5 GB file itself does not need to be downloadable. The
+  privacy policy links to it, which is what makes the offer visible to users
+  rather than merely available.
+
+Not legal advice; this is a reading of the license text.
+
 Done before shipping:
 
 - [x] ODbL notice for the derived tiles, in the `wrangler.toml` binding comment

@@ -567,8 +567,15 @@ function candidatesFromTile(
  *   carried every tag osmium exports by default and this one keeps only the
  *   nine the ranker reads. Lookups also got faster, 1.30 -> 0.98 ms.
  * - The current build adds the `admin` layer carrying ISO 3166 codes.
+ * - The 20260828 archive is the 20260827 one with corrected metadata, written
+ *   in place by `pmtiles edit` in under two seconds rather than rebuilt. It
+ *   now carries the ODbL attribution and license URI that ODbL 4.2(b) asks to
+ *   travel with a derivative database, and drops the tippecanoe
+ *   `generator_options` blob, which held build scratch paths and nothing a
+ *   consumer needs. Tile bytes are untouched: the same 11 worldwide lookups
+ *   return identical answers.
  */
-export const PLACES_KEY = 'places-20260827.pmtiles'
+export const PLACES_KEY = 'places-20260828.pmtiles'
 
 export function createPMTiles(bucket: ReadonlyR2Bucket, key = PLACES_KEY): PMTiles {
   // `ResolvedValueCache`, not the `SharedPromiseCache` default. Cloudflare
