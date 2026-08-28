@@ -54,6 +54,35 @@ INSERT INTO places_fts(rowid, alias) SELECT id, alias FROM places;
 """
 
 
+def fts_query(q: str) -> str:
+    """Build the FTS5 MATCH expression for a SUBMITTED query.
+
+    Every token is exact. That is a deliberate 13x win, measured, not a
+    limitation: a trailing `*` on a COMMON COMPLETE WORD is what made the slow
+    cases slow. `"park"*` matches 231,558 rows and costs 42 ms on its own,
+    while exact `park` matches 219,289 and costs 6.9 ms. The star buys 12,269
+    extra rows (`parkway`, `parkland`) that nobody searching for a park wants,
+    and pays 6x for them.
+
+    Full measurement over the golden set, all-prefix versus all-exact:
+
+        discovery park   86.14 ms -> 6.68 ms
+        central park     89.03 ms -> 11.33 ms
+        st martin        60.05 ms -> 0.59 ms
+        union bay         7.92 ms -> 0.61 ms
+
+    The top hit is IDENTICAL for every query in that set, so this costs no
+    result quality. It is sound here specifically because #343 states
+    autocomplete is not required: this runs on submitted search, where the
+    user has finished typing. Reintroducing prefix matching for autocomplete
+    would need this measured again.
+
+    Quoting each token also makes the input inert: FTS5 operators a user types
+    (`AND`, `NOT`, `*`, `^`) become literal text instead of query syntax.
+    """
+    return " ".join(f'"{t}"' for t in q.split() if t)
+
+
 def human(n: int) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024 or unit == "GB":
@@ -72,9 +101,27 @@ def fmt(n: int) -> str:
 
 def main() -> int:
     if len(sys.argv) < 3:
-        print("usage: build-search-db.py <all.tsv> <out.sqlite>", file=sys.stderr)
+        print("usage: build-search-db.py <all.tsv> <out.sqlite> [qid-importance.tsv]", file=sys.stderr)
         return 1
     src, out = sys.argv[1], sys.argv[2]
+    imp_table_path = sys.argv[3] if len(sys.argv) > 3 else None
+
+    # Join importance HERE rather than in the per-region export.
+    #
+    # The reverse archive joins it between `osmium export` and tippecanoe and
+    # then DROPS the QID, because for tiles the key is dead weight once used.
+    # Search keeps the QID as a column, so the join can happen once at load
+    # time against the whole corpus instead of once per region. Same source
+    # table as the archive, so a place cannot rank differently in forward and
+    # reverse search.
+    imp_table: dict[int, int] = {}
+    if imp_table_path:
+        with open(imp_table_path, encoding="ascii") as fh:
+            for line in fh:
+                qid, score = line.split("\t")
+                imp_table[int(qid)] = int(score)
+        print(f"  importance table: {len(imp_table):,} QIDs", file=sys.stderr)
+
     for suffix in ("", "-journal", "-wal"):
         if os.path.exists(out + suffix):
             os.remove(out + suffix)
@@ -84,6 +131,7 @@ def main() -> int:
 
     t0 = time.time()
     rows = 0
+    matched_imp = 0
     batch = []
     with open(src, encoding="utf-8") as fh:
         for line in fh:
@@ -91,8 +139,15 @@ def main() -> int:
             if len(parts) != 9:
                 continue
             osm_id, label, lat, lon, score, kind, imp, qid, alias = parts
+            imp_val = int(imp) if imp else None
+            if imp_val is None and qid and imp_table:
+                # QIDs arrive as `Q1563`; the table is keyed on the number.
+                if qid.startswith("Q") and qid[1:].isdigit():
+                    imp_val = imp_table.get(int(qid[1:]))
+                    if imp_val is not None:
+                        matched_imp += 1
             batch.append((osm_id, label, float(lat), float(lon), int(score), kind,
-                          int(imp) if imp else None, qid or None, alias))
+                          imp_val, qid or None, alias))
             if len(batch) >= 50_000:
                 db.executemany(
                     "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias)"
@@ -140,10 +195,13 @@ def main() -> int:
     oob = cur.execute("SELECT COUNT(*) FROM places WHERE lat<-90 OR lat>90 OR lon<-180 OR lon>180").fetchone()[0]
     noname = cur.execute("SELECT COUNT(*) FROM places WHERE label='' OR alias=''").fetchone()[0]
     withimp = cur.execute("SELECT COUNT(*) FROM places WHERE imp IS NOT NULL").fetchone()[0]
+    withqid = cur.execute("SELECT COUNT(*) FROM places WHERE qid IS NOT NULL").fetchone()[0]
     print(f"  duplicate osm_id     {dupes:,}")
     print(f"  out-of-bounds coords {oob:,}")
     print(f"  empty label/alias    {noname:,}")
-    print(f"  carrying importance  {withimp:,} ({100*withimp/max(rows,1):.1f}%)")
+    print(f"  carrying a QID       {withqid:,} ({100*withqid/max(rows,1):.1f}%)")
+    print(f"  carrying importance  {withimp:,} ({100*withimp/max(rows,1):.1f}%)"
+          f"  [{100*withimp/max(withqid,1):.1f}% of QIDs matched]")
 
     # An exact-match index. The ORDER BY leads with `alias = ?`, which without
     # this index means a scan of every candidate row the MATCH returned.
@@ -166,7 +224,7 @@ def main() -> int:
            "ORDER BY (p.alias = ?) DESC, bm25(places_fts), p.score DESC, "
            "COALESCE(p.imp,0) DESC, p.osm_id LIMIT 5")
     for q in golden:
-        term = " ".join(f'"{t}"*' for t in q.split())
+        term = fts_query(q)
         times = []
         top = None
         for _ in range(20):
