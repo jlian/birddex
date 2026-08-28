@@ -50,8 +50,6 @@ export default function OutingReview({
   onConfirm
 }: OutingReviewProps) {
   const hasGps = cluster.centerLat !== undefined && cluster.centerLon !== undefined
-  const roundedLat = hasGps ? Number(cluster.centerLat!.toFixed(3)) : undefined
-  const roundedLon = hasGps ? Number(cluster.centerLon!.toFixed(3)) : undefined
   const [locationName, setLocationName] = useState(defaultLocationName)
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
@@ -131,7 +129,11 @@ export default function OutingReview({
       state: 'empty' | 'error',
       regionCodes: { stateProvince?: string; countryCode?: string } = {},
     ) => {
-      const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
+      // A successful empty lookup proves that the previous outing's name does
+      // not describe these coordinates. Reuse that name only when a transient
+      // error prevented us from learning the result.
+      const coordinates = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
+      const fallback = state === 'error' ? defaultLocationNameRef.current || coordinates : coordinates
       setSuggestedLocation(fallback)
       setLocationName(fallback)
       setSuggestedStateProvince(regionCodes.stateProvince)
@@ -170,15 +172,15 @@ export default function OutingReview({
   // Automatically look up location name from GPS when enabled
   useEffect(() => {
     if (autoLookupGps && hasGps && !matchingOuting) {
-      void fetchLocationName(roundedLat!, roundedLon!)
+      void fetchLocationName(cluster.centerLat!, cluster.centerLon!)
     }
-  }, [autoLookupGps, hasGps, matchingOuting, fetchLocationName, roundedLat, roundedLon])
+  }, [autoLookupGps, hasGps, matchingOuting, fetchLocationName, cluster.centerLat, cluster.centerLon])
 
   useEffect(() => {
     if (autoLookupGps && hasGps && matchingOuting && !useExistingOuting) {
-      void fetchLocationName(roundedLat!, roundedLon!)
+      void fetchLocationName(cluster.centerLat!, cluster.centerLon!)
     }
-  }, [autoLookupGps, hasGps, matchingOuting, useExistingOuting, roundedLat, roundedLon, fetchLocationName])
+  }, [autoLookupGps, hasGps, matchingOuting, useExistingOuting, cluster.centerLat, cluster.centerLon, fetchLocationName])
 
   const doConfirm = async (name: string) => {
     if (isConfirming) return
@@ -581,7 +583,7 @@ export default function OutingReview({
                 <button
                   type="button"
                   className="font-medium underline underline-offset-2"
-                  onClick={() => void fetchLocationName(roundedLat!, roundedLon!)}
+                  onClick={() => void fetchLocationName(cluster.centerLat!, cluster.centerLon!)}
                 >
                   Retry
                 </button>

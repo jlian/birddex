@@ -408,7 +408,7 @@ describe('OutingReview reverse geocoding outcomes', () => {
 
   /** Stub the reverse-geocoding endpoint with one JSON body. */
   const stubReverse = (body: unknown) => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/api/geocoding/reverse')) {
         return new Response(JSON.stringify(body), {
@@ -417,15 +417,22 @@ describe('OutingReview reverse geocoding outcomes', () => {
         })
       }
       return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
   }
 
-  const renderWithGps = (data: WingDexDataStore, onConfirm = vi.fn(async () => undefined)) => {
+  const renderWithGps = (
+    data: WingDexDataStore,
+    onConfirm = vi.fn(async () => undefined),
+    defaultLocationName = '',
+  ) => {
     render(
       <OutingReview
         cluster={gpsCluster}
         data={data}
         userId="user-1"
+        defaultLocationName={defaultLocationName}
         autoLookupGps
         onConfirm={onConfirm}
       />,
@@ -436,7 +443,7 @@ describe('OutingReview reverse geocoding outcomes', () => {
   it('shows the no-retry message and keeps the name editable when nothing is named nearby', async () => {
     // A successful lookup that found no NAMED place. Retrying would return the
     // same nothing, so the UI must not offer a Retry button here.
-    stubReverse({ result: null, nearby: [], regionCodes: {} })
+    const fetchMock = stubReverse({ result: null, nearby: [], regionCodes: {} })
     renderWithGps(createDataStore())
 
     await waitFor(() => {
@@ -444,15 +451,21 @@ describe('OutingReview reverse geocoding outcomes', () => {
     })
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
 
+    const reverseCall = fetchMock.mock.calls.find(([input]) => String(input).includes('/api/geocoding/reverse'))
+    expect(reverseCall).toBeDefined()
+    expect(JSON.parse((reverseCall![1] as RequestInit).body as string)).toEqual({
+      lat: 48.9801,
+      lon: -122.7887,
+    })
+
     // The coordinate string is a usable fallback name. It renders in the
-    // name control, which is a button until tapped, and the lookup rounds to
-    // 3 decimals before querying, so the value shown is the rounded one.
-    const nameControl = screen.getByRole('button', { name: /48\.9800/ })
+    // name control, which is a button until tapped.
+    const nameControl = screen.getByRole('button', { name: /48\.9801/ })
     expect(nameControl).toBeInTheDocument()
 
     // Tapping it opens a real editable input, so the user is never blocked.
     fireEvent.click(nameControl)
-    const field = await screen.findByDisplayValue(/48\.9800/) as HTMLInputElement
+    const field = await screen.findByDisplayValue(/48\.9801/) as HTMLInputElement
     expect(field.readOnly).toBe(false)
   })
 
@@ -485,6 +498,16 @@ describe('OutingReview reverse geocoding outcomes', () => {
       expect.anything(),
       false,
     )
+  })
+
+  it('does not reuse an unrelated previous outing name after a successful empty lookup', async () => {
+    stubReverse({ result: null, nearby: [], regionCodes: {} })
+    renderWithGps(createDataStore(), undefined, 'Previous Seattle outing')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /48\.9801.*-122\.7887/ })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Previous Seattle outing')).not.toBeInTheDocument()
   })
 
   it('offers a retry when the lookup actually fails', async () => {
