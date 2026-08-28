@@ -8,6 +8,10 @@ final class ShareViewController: UIViewController {
     private let doneButton = UIButton(type: .system)
     private let cancelButton = UIButton(type: .system)
     private var stagingTask: Task<Void, Never>?
+    /// Set once the batch reaches `pending`, which is the point of no return:
+    /// the app will import it. Cancelling after that cannot unpublish it, so
+    /// Cancel must stop reporting cancellation and close instead.
+    private var hasPublishedBatch = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -97,6 +101,8 @@ final class ShareViewController: UIViewController {
             // cancelled share while the batch stays queued, so the next check
             // is deliberately absent.
             try await IncomingShareStore.stage(fileURLs: temporaryFiles)
+            hasPublishedBatch = true
+            cancelButton.configuration?.title = "Close"
             if await openHostApp() {
                 extensionContext?.completeRequest(returningItems: nil)
                 return
@@ -203,6 +209,13 @@ final class ShareViewController: UIViewController {
 
     @objc private func cancel() {
         cancelInFlightWork()
+        // The batch is already published and cannot be recalled, so reporting
+        // cancellation here would tell the person the share was cancelled while
+        // the app imports it anyway. Complete instead.
+        guard !hasPublishedBatch else {
+            extensionContext?.completeRequest(returningItems: nil)
+            return
+        }
         extensionContext?.cancelRequest(withError: CocoaError(.userCancelled))
     }
 
