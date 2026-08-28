@@ -101,14 +101,29 @@ def fold(s: str) -> str:
 
     NFKD then drop combining marks, so `Doñana` and `Donana` are the same
     token and a reader without the right keyboard can still find the place.
-    Case folding is `str.casefold`, not `lower`, because `lower` gets the
-    German sharp s wrong. Punctuation becomes a space rather than vanishing, so
-    `Saint-Louis` yields two tokens and matches a `Saint Louis` query.
+    Punctuation becomes a space rather than vanishing, so `Saint-Louis` yields
+    two tokens and matches a `Saint Louis` query.
+
+    Uses `str.lower`, NOT `str.casefold`, and that is deliberate.
+
+    `casefold` is the linguistically better choice in isolation: it folds the
+    German sharp s to `ss` and the Greek final sigma to an ordinary sigma. But
+    this function has a TWIN, `foldQuery()` in `functions/lib/place-search.ts`,
+    which folds the user's query at request time. JavaScript has no `casefold`,
+    only `toLowerCase`, so choosing `casefold` here means the index and the
+    query disagree, and the failure is silent: search returns nothing for a
+    name that plainly contains the words.
+
+    Auditing the whole BMP found 104 characters that reach this fold and differ under
+    the two rules, mostly Cherokee plus the sharp s and final sigma. Patching
+    the JavaScript to special-case them is a list that rots; matching the rule
+    that BOTH languages implement natively does not. `place-search-folding.test.ts`
+    runs this function and compares, so a future drift fails the build.
     """
     decomposed = unicodedata.normalize("NFKD", s)
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
     out = []
-    for ch in stripped.casefold():
+    for ch in stripped.lower():
         if ch.isalnum():
             out.append(ch)
         elif unicodedata.category(ch).startswith(("P", "Z", "S")):
