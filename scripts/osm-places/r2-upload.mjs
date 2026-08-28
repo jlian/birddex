@@ -35,6 +35,17 @@ import {
 const [, , SRC, KEY] = process.argv
 const BUCKET = process.env.R2_BUCKET || 'wingdex-places'
 
+// The archive is immutable and dated, so there is no promote step: the SAME
+// file goes to both buckets under the same key and the copies are identical.
+// Previews bind `wingdex-places-preview` because a binding grants runtime put
+// and delete, and CI deploys PR code with the preview environment.
+//
+// Only the production upload rewrites the generated key file. A preview upload
+// that also wrote it could point the Worker at a key that exists in preview and
+// NOT in production, which fails exactly where it matters most.
+const PRODUCTION_BUCKET = 'wingdex-places'
+const isProduction = BUCKET === PRODUCTION_BUCKET
+
 if (!SRC || !KEY) {
   console.error('usage: node r2-upload.mjs <file.pmtiles> places-YYYYMMDD.pmtiles')
   process.exit(1)
@@ -223,6 +234,12 @@ try {
   //
   // Written AFTER verification so a failed upload never points the Worker at
   // an object that is missing or truncated.
+  if (!isProduction) {
+    console.log(`uploaded to ${BUCKET}; leaving functions/lib/places-key.ts alone`)
+    console.log(`run again with R2_BUCKET=${PRODUCTION_BUCKET} to publish and bump the key`)
+    process.exit(0)
+  }
+
   const keyFile = resolve(dirname(fileURLToPath(import.meta.url)), '../../functions/lib/places-key.ts')
   writeFileSync(keyFile, `// GENERATED FILE. Do not edit by hand.
 //

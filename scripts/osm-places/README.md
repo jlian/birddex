@@ -34,10 +34,44 @@ the ignored `.r2.vars` file, not `.dev.vars`, because Wrangler exposes every
 `.dev.vars` entry to locally executed Worker code. Copy `.r2.vars.example`, fill
 it, then source it only when running `r2-upload.mjs`.
 
+## Two buckets, and why
+
 Cloudflare does not offer a runtime read-only mode for Worker R2 bindings. The
-application declares `PLACES` as get-only in TypeScript and treats dated archive
-keys as immutable, which prevents accidental writes but is not a security
-boundary for arbitrary Worker code.
+application declares `PLACES` as get-only in TypeScript, but that is a
+compile-time type that erases at runtime and constrains only our own code, so it
+is not a security boundary for arbitrary Worker code.
+
+That matters because CI deploys PULL REQUEST code with the preview environment,
+in two places:
+
+- `.github/workflows/ci.yml`, `versions upload --env preview`
+- `.github/workflows/release.yml`, `deploy --env preview`
+
+A binding grants `put` and `delete`, so a preview bound to production could
+overwrite or delete the only production archive and take LIVE reverse geocoding
+down. Separation is the only mechanism available:
+
+| environment | bucket |
+| --- | --- |
+| production | `wingdex-places` |
+| preview | `wingdex-places-preview` |
+
+**There is no promotion step.** The archive is immutable and dated, so the same
+build is uploaded to both buckets under the same key and the copies are
+byte-identical. Publishing is two invocations:
+
+```bash
+set -a; . ./.r2.vars; set +a
+R2_BUCKET=wingdex-places-preview node scripts/osm-places/r2-upload.mjs <file> places-YYYYMMDD.pmtiles
+node scripts/osm-places/r2-upload.mjs <file> places-YYYYMMDD.pmtiles
+```
+
+Only the production run rewrites `functions/lib/places-key.ts`. A preview
+upload that also wrote it could point the Worker at a key present in preview and
+absent from production, which fails exactly where it matters most. Commit that
+generated file with the deploy.
+
+Cost of the second copy is one extra 1.5 GB object, about 2 cents a month.
 
 Playwright runs use mixed mode so their Worker keeps D1 local while reading the
 real R2 archive. The iOS suite covers the same archive through the deployed PR
