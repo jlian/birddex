@@ -35,7 +35,8 @@ interface OutingReviewProps {
     outingId: string,
     locationName: string,
     lat?: number,
-    lon?: number
+    lon?: number,
+    outingOverridesPhotoGps?: boolean,
   ) => Promise<void>
 }
 
@@ -213,7 +214,14 @@ export default function OutingReview({
           })
         }
 
-        await onConfirm(null, matchingOuting.id, matchingOuting.locationName, matchingOuting.lat, matchingOuting.lon)
+        await onConfirm(
+          null,
+          matchingOuting.id,
+          matchingOuting.locationName,
+          matchingOuting.lat,
+          matchingOuting.lon,
+          false,
+        )
         return
       }
 
@@ -233,7 +241,14 @@ export default function OutingReview({
       }
 
       // Nothing is written until the cluster produces a sighting; see AddPhotosFlow.
-      await onConfirm(outing, outing.id, name || 'Unknown Location', effectiveLat, effectiveLon)
+      await onConfirm(
+        outing,
+        outing.id,
+        name || 'Unknown Location',
+        effectiveLat,
+        effectiveLon,
+        overriddenCoords !== null,
+      )
     } finally {
       setIsConfirming(false)
     }

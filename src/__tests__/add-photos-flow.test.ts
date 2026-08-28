@@ -8,6 +8,7 @@ import {
   friendlyErrorMessage,
   normalizeLocationName,
   resolveInferenceLocationName,
+  resolveInferenceCoordinates,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
 
@@ -213,5 +214,26 @@ describe('resolveInferenceLocationName', () => {
 
   it('returns undefined when no location is available', () => {
     expect(resolveInferenceLocationName(true, '')).toBeUndefined()
+  })
+})
+
+describe('resolveInferenceCoordinates', () => {
+  const exif = { lat: 48.9801, lon: -122.7887 }
+  const searched = { lat: 47.6615, lon: -122.4256 }
+
+  it('falls back to the searched outing location when the photo has no EXIF GPS', () => {
+    expect(resolveInferenceCoordinates(true, undefined, searched, true)).toEqual(searched)
+  })
+
+  it('uses an explicit searched-location correction over EXIF GPS', () => {
+    expect(resolveInferenceCoordinates(true, exif, searched, true)).toEqual(searched)
+  })
+
+  it('prefers per-photo EXIF GPS when the outing location was not overridden', () => {
+    expect(resolveInferenceCoordinates(true, exif, searched, false)).toEqual(exif)
+  })
+
+  it('uses no location when geographic context is disabled', () => {
+    expect(resolveInferenceCoordinates(false, exif, searched, true)).toBeUndefined()
   })
 })

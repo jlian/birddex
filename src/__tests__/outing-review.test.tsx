@@ -483,6 +483,7 @@ describe('OutingReview reverse geocoding outcomes', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
+      false,
     )
   })
 
@@ -568,6 +569,7 @@ describe('OutingReview coordinate display', () => {
     // A no-GPS outing that has been given coordinates by search is not the
     // same as one with no location at all, and the eBird export cares.
     stubSearch([{ label: 'Discovery Park, Seattle', lat: 47.6615, lon: -122.4256 }])
+    const onConfirm = vi.fn(async () => undefined)
     render(
       <OutingReview
         cluster={{
@@ -577,7 +579,7 @@ describe('OutingReview coordinate display', () => {
         } as unknown as Parameters<typeof OutingReview>[0]['cluster']}
         data={createDataStore()}
         userId="user-1"
-        onConfirm={vi.fn(async () => undefined)}
+        onConfirm={onConfirm}
       />,
     )
 
@@ -588,5 +590,16 @@ describe('OutingReview coordinate display', () => {
     })
     expect(screen.queryByText('No GPS data in photo')).not.toBeInTheDocument()
     expect(screen.getByText(/47\.6615, -122\.4256/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled())
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 47.6615, lon: -122.4256 }),
+      expect.anything(),
+      'Discovery Park, Seattle',
+      47.6615,
+      -122.4256,
+      true,
+    )
   })
 })

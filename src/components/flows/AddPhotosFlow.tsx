@@ -34,7 +34,7 @@ import {
   clusterHasSightings,
   groupResultsBySpecies,
   normalizeLocationName,
-  resolveInferenceLocationName,
+  resolveInferenceCoordinates,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
 import type { GalleryImage } from '@/lib/wikimedia'
@@ -73,8 +73,11 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   }, [])
 
   const [step, setStep] = useState<FlowStep>('upload')
-  // Survives the download screen so the resolved location name is not lost.
-  const pendingLocationName = useRef<string | undefined>(undefined)
+  // Survives the model-download screen and every photo in this cluster.
+  const outingInferenceContext = useRef<{
+    coordinates?: { lat: number; lon: number }
+    overridesPhotoGps: boolean
+  }>({ overridesPhotoGps: false })
   /// Held until the cluster turns out to have a sighting worth saving.
   const pendingOutingRef = useRef<Outing | null>(null)
   const pendingPhotosRef = useRef<Photo[]>([])
@@ -143,7 +146,6 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   const runSpeciesId = async (
     photoIdx: number,
     imageUrl?: string,
-    locationNameOverride?: string,
   ) => {
     const photo = getFullPhoto(photoIdx)
     if (!photo) return
@@ -169,7 +171,12 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
       const fastResult: BirdIdResult = await identifyBirdLocally(
         MODEL_ASSETS,
         analyzeUrl,
-        useGeoContext ? photo.gps : undefined,
+        resolveInferenceCoordinates(
+          useGeoContext,
+          photo.gps,
+          outingInferenceContext.current.coordinates,
+          outingInferenceContext.current.overridesPhotoGps,
+        ),
         photoMonth,
       )
 
@@ -537,12 +544,19 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   const handleOutingConfirmed = async (
     pendingOuting: Outing | null,
     outingId: string,
-    locationName: string
+    locationName: string,
+    lat?: number,
+    lon?: number,
+    outingOverridesPhotoGps = false,
   ) => {
     if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
     const normalizedLocationName = normalizeLocationName(locationName)
     setLastLocationName(normalizedLocationName)
     setCurrentOutingId(outingId)
+    outingInferenceContext.current = {
+      coordinates: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
+      overridesPhotoGps: outingOverridesPhotoGps,
+    }
 
     const cluster = clusters[currentClusterIndex]
     const updatedPhotos = cluster.photos.map((p: any) => {
@@ -578,9 +592,8 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
     // cache lookup, so on every later session this is a no-op and the user
     // goes straight to identifying.
     if (await modelReady()) {
-      runSpeciesId(0, undefined, normalizedLocationName)
+      runSpeciesId(0)
     } else {
-      pendingLocationName.current = normalizedLocationName
       setStep('model-download')
     }
   }
@@ -590,9 +603,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   // current state, so a useCallback with an empty dependency list would pin the
   // first render's copy and identify against stale photos.
   const handleModelReady = () => {
-    const name = pendingLocationName.current
-    pendingLocationName.current = undefined
-    void runSpeciesId(0, undefined, name)
+    void runSpeciesId(0)
   }
 
   // ─── Manual crop callback ───────────────────────────────

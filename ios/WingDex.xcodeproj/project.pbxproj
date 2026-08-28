@@ -115,6 +115,7 @@
 		CCB60C37FEB5B3C7781CF308 /* AppIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0885077F6EE158317DCAC6 /* AppIconView.swift */; };
 		D06B790CE07161BC845DF0C0 /* collage22.jpg in Resources */ = {isa = PBXBuildFile; fileRef = E86C671B60643DC2C811F15A /* collage22.jpg */; };
 		D13F7D493B35025989C835C0 /* collage7.jpg in Resources */ = {isa = PBXBuildFile; fileRef = C927A85FC167B684891346FD /* collage7.jpg */; };
+		D1C2AF592201DE9E785DA80A /* InferenceLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4B59465EA0A8A76E825C25 /* InferenceLocationTests.swift */; };
 		D23336CF295224BCB488B19B /* PhotoSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E027D5423D69EFC1429801 /* PhotoSelectionView.swift */; };
 		D84B4742492591DACE5278EA /* WingCLIP.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 8067616AAFB940F869E1FFAB /* WingCLIP.mlpackage */; };
 		D8DFA0C3C59C5D88AFA8A885 /* collage9.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 5C89383FC185DF939A030C0D /* collage9.jpg */; };
@@ -269,6 +270,7 @@
 		989AEA195C999B4857206090 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		9986F927C0C622E7A4DE4C2E /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
 		99DD81C22AA9F61ABDD60B50 /* collage11.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage11.jpg; sourceTree = "<group>"; };
+		9A4B59465EA0A8A76E825C25 /* InferenceLocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceLocationTests.swift; sourceTree = "<group>"; };
 		9E26C4686392C96AAB515199 /* CropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropView.swift; sourceTree = "<group>"; };
 		A167BA0320720274AA15EF34 /* EBirdImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EBirdImportView.swift; sourceTree = "<group>"; };
 		A42EC091D54C666B084E812C /* rarity.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = rarity.bin; sourceTree = "<group>"; };
@@ -534,6 +536,7 @@
 				2E72A9251EFB7534EA141B3E /* DataStoreCacheTests.swift */,
 				452C55049EB9AB7E09E62CA9 /* FunNamesTests.swift */,
 				4E6BAB4FEED37A66EB25CDB0 /* GeocodingServiceTests.swift */,
+				9A4B59465EA0A8A76E825C25 /* InferenceLocationTests.swift */,
 				721474DC157B206D90945C86 /* OccurrenceV4Tests.swift */,
 				1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */,
 				01E11C0BD94777FAA9D33933 /* PhotoDecoderTests.swift */,
@@ -987,6 +990,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				32E8B1249FDA37CF3CAAD493 /* DataStoreCacheTests.swift in Sources */,
 				E2DEFBDD3B36FEB4C7CFCC96 /* FunNamesTests.swift in Sources */,
 				50F4BCC128CEB199FEE961AB /* GeocodingServiceTests.swift in Sources */,
+				D1C2AF592201DE9E785DA80A /* InferenceLocationTests.swift in Sources */,
 				C6DF1D3BFC6E971A319E6672 /* OccurrenceV4Tests.swift in Sources */,
 				3EF5CB0983D37395F5272CFD /* Phase9FoundationTests.swift in Sources */,
 				61B05C30EE88054031D97717 /* PhotoDecoderTests.swift in Sources */,
