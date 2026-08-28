@@ -72,6 +72,8 @@ jobs:
           GEOAPIFY_KEY: ${{ secrets.GEOAPIFY_KEY }}
 
       - name: E2E tests
+        # D1 remains local and disposable. PLACES uses Wrangler mixed mode so
+        # this existing suite also verifies the real PMTiles archive in R2.
         run: npx playwright test --grep-invert @live
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

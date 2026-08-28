@@ -63,9 +63,11 @@ const DIRECTORY_CACHE = new Map<string, ArrayBuffer>()
 // data, which would be unbounded.
 const CACHEABLE_PREFIX_BYTES = 8 * 1024 * 1024
 
+export type ReadonlyR2Bucket = Pick<R2Bucket, 'get'>
+
 export class R2Source implements Source {
   constructor(
-    private bucket: R2Bucket,
+    private bucket: ReadonlyR2Bucket,
     private key: string,
   ) {}
 
@@ -398,13 +400,34 @@ function candidatesFromTile(
     const tagScore = scoreOf(props)
     if (tagScore === 0) continue
 
-    // MVT geometry type: 1 point, 2 linestring, 3 polygon. A line can never
-    // contain the point, but it can be NEAR it, and rivers, coastlines and
-    // trail networks are all mapped as lines. Skipping them left named features
-    // permanently unreachable: measured on central-america, the archive already
-    // holds 456 named boundary lines and 386 named leisure lines that the old
-    // `ring.length < 4` guard discarded without a trace.
+    // MVT geometry type: 1 point, 2 linestring, 3 polygon. Points and lines can
+    // never contain the coordinate, but they can be NEAR it. This matters most
+    // for point-heavy fallbacks such as hamlets, farms and isolated dwellings:
+    // without an explicit point path, `groupRings` discards their one-vertex
+    // geometry and those archived names are permanently unreachable.
+    const isPoint = feat.type === 1
     const isLine = feat.type === 2
+
+    if (isPoint) {
+      let nearestDistance = Infinity
+      for (const points of feat.loadGeometry()) {
+        for (const point of points) {
+          nearestDistance = Math.min(nearestDistance, Math.hypot(point.x - px, point.y - py))
+        }
+      }
+      if (nearestDistance <= nearMissUnits) {
+        near.push({
+          name,
+          score: nearScoreOf(props, tagScore),
+          area: 0,
+          contained: false,
+          distanceM: Math.round((nearestDistance / layer.extent) * tileSpanM),
+          kind: kindOf(props),
+          importance: importanceOf(props, importance),
+        })
+      }
+      continue
+    }
 
     if (isLine) {
       for (const ring of feat.loadGeometry()) {
@@ -545,9 +568,9 @@ function candidatesFromTile(
  *   nine the ranker reads. Lookups also got faster, 1.30 -> 0.98 ms.
  * - The current build adds the `admin` layer carrying ISO 3166 codes.
  */
-export const PLACES_KEY = 'places/place-all.20260827.pmtiles'
+export const PLACES_KEY = 'places-20260827.pmtiles'
 
-export function createPMTiles(bucket: R2Bucket, key = PLACES_KEY): PMTiles {
+export function createPMTiles(bucket: ReadonlyR2Bucket, key = PLACES_KEY): PMTiles {
   // `ResolvedValueCache`, not the `SharedPromiseCache` default. Cloudflare
   // Workers cannot share a promise across requests, and this instance is held
   // in a module-level map, so a later request that awaited a header or
@@ -563,7 +586,7 @@ export function createPMTiles(bucket: R2Bucket, key = PLACES_KEY): PMTiles {
  */
 const INSTANCES = new Map<string, PMTiles>()
 
-export function getPMTiles(bucket: R2Bucket, key = PLACES_KEY): PMTiles {
+export function getPMTiles(bucket: ReadonlyR2Bucket, key = PLACES_KEY): PMTiles {
   let pm = INSTANCES.get(key)
   if (!pm) {
     pm = createPMTiles(bucket, key)

@@ -14,13 +14,41 @@ what ships; the shipped design is summarised here.
 ## What ships
 
 - One PMTiles archive in R2, built by `build-global.sh`, uploaded by
-  `r2-upload.mjs` under a DATED key.
+  `r2-upload.mjs` under the dated key `places-20260827.pmtiles`.
 - Zoom 12, not the z13 used in the early spike. Measured over 20,000
   coordinates, z12 named MORE places at every buffer.
 - TWO layers: `parks` (what a place is called) and `admin` (ISO 3166 codes for
   the eBird export).
 - No provider fallback. A coordinate with no nearby named place returns null,
   and the app offers an editable coordinate string.
+
+## Local development
+
+The archive bucket stays private. The `PLACES` binding uses Wrangler's mixed
+local/remote mode: application code and D1 run locally, while R2 range reads go
+to the real archive. Sign in with `npx wrangler login`, then use the normal
+`npm run dev` or `npm start` command. Deployed Workers receive bindings without
+application secrets, and local remote mode uses the developer's Wrangler login.
+S3 credentials are not needed for reads. Keep the administration credentials in
+the ignored `.r2.vars` file, not `.dev.vars`, because Wrangler exposes every
+`.dev.vars` entry to locally executed Worker code. Copy `.r2.vars.example`, fill
+it, then source it only when running `r2-upload.mjs`.
+
+Cloudflare does not offer a runtime read-only mode for Worker R2 bindings. The
+application declares `PLACES` as get-only in TypeScript and treats dated archive
+keys as immutable, which prevents accidental writes but is not a security
+boundary for arbitrary Worker code.
+
+Use `npx wrangler dev --local` when deliberately testing without remote
+resources. That switches `PLACES` back to Miniflare's local R2 simulation; load
+an archive there with `r2-load.mjs` when an offline end-to-end lookup is needed.
+Playwright runs use mixed mode so their Worker keeps D1 local while reading the
+real R2 archive. The iOS suite covers the same archive through the deployed PR
+preview. Run Playwright with `WRANGLER_LOCAL_ONLY=true` only when an archive has
+been loaded into local R2 for an intentionally offline integration run.
+The bucket does not need an `r2.dev` URL or a custom domain: those expose raw
+objects over HTTP and do not exercise the private `R2Bucket.get()` path used in
+production.
 
 ## Spike history
 

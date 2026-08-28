@@ -80,8 +80,8 @@ echo "[dev] Building worker bundle..."
 npx wrangler pages functions build --outdir=./dist/worker/
 
 if ! npx wrangler whoami >/dev/null 2>&1; then
-  echo "[dev] Not logged into Cloudflare. Remote range priors may not work."
-  echo "[dev] Run 'npx wrangler login' to enable Cloudflare-backed range filtering."
+  echo "[dev] Not logged into Cloudflare. The remote PLACES archive will not work."
+  echo "[dev] Run 'npx wrangler login', or use 'npx wrangler dev --local' for local R2."
 fi
 
 echo "[dev] Starting Cloudflare Functions on :${API_PORT}..."

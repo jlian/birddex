@@ -46,5 +46,19 @@ printf 'y\n' | npx wrangler d1 migrations apply wingdex-db --local --persist-to 
 echo "[start] Building app..."
 npm run build
 
+if ! npx wrangler whoami >/dev/null 2>&1; then
+  echo "[start] Not logged into Cloudflare. The remote PLACES archive will not work."
+  echo "[start] Run 'npx wrangler login', or start Wrangler with --local for local R2."
+fi
+
 echo "[start] Starting full local app at ${BASE}..."
-exec npx wrangler dev --port "${PORT}" --persist-to "$HOME/.cache/wingdex/wrangler-state" --show-interactive-dev-session=false
+WRANGLER_ARGS=(
+  dev
+  --port "${PORT}"
+  --persist-to "$HOME/.cache/wingdex/wrangler-state"
+  --show-interactive-dev-session=false
+)
+if [[ "${WRANGLER_LOCAL_ONLY:-false}" == "true" ]]; then
+  WRANGLER_ARGS+=(--local)
+fi
+exec npx wrangler "${WRANGLER_ARGS[@]}"
