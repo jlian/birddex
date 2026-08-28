@@ -147,21 +147,6 @@ export function normalizeLocationName(locationName: string): string {
 }
 
 /**
- * Resolve which location name should be passed to AI for this inference call.
- */
-export function resolveInferenceLocationName(
-  useGeoContext: boolean,
-  lastLocationName: string,
-  locationNameOverride?: string,
-): string | undefined {
-  if (!useGeoContext) {
-    return undefined
-  }
-  const resolved = locationNameOverride ?? lastLocationName
-  return resolved || undefined
-}
-
-/**
  * Choose the coordinates used by the geographic bird-identification prior.
  *
  * A searched location is an explicit correction and therefore wins. Without

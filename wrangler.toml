@@ -145,5 +145,6 @@ namespace_id = "1004"
 [[env.preview.r2_buckets]]
 binding = "PLACES"
 bucket_name = "wingdex-places-preview"
+remote = true
 
 

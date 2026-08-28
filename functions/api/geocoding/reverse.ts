@@ -14,9 +14,10 @@ import { rateLimitKey } from '../../lib/rate-limit'
  * editable.
  *
  * Returning null beats calling a paid provider for the last few percent. It
- * removes an API key, a rate limit, a 5 second network deadline and a
- * third-party dependency from the path, and a wrong-but-confident address is
- * worse for naming a birding outing than an honest blank.
+ * removes the provider API key, provider quota, provider deadline and
+ * third-party network hop from the path. WingDex still applies its own abuse
+ * limit, and clients retain their request timeout. A wrong-but-confident
+ * address is worse for naming a birding outing than an honest blank.
  *
  * The archive has no third-party quota, but R2 reads and Worker CPU are still
  * finite resources. A dedicated limiter protects them without allowing reverse
@@ -24,6 +25,22 @@ import { rateLimitKey } from '../../lib/rate-limit'
  */
 export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/reverse/read', 'Application')
+
+  // Reject an exhausted caller before parsing even a valid-size JSON body.
+  // Middleware caps request size, while this ordering prevents repeated JSON
+  // parsing from bypassing the limiter's Worker CPU protection.
+  const user = (context.data as RequestData).user
+  const { success } = await context.env.REVERSE_GEOCODING_LIMITER.limit({
+    key: rateLimitKey(user, context.request),
+  })
+  if (!success) {
+    return route.failWithHeaders(
+      429,
+      'Too many requests',
+      { 'Retry-After': '60' },
+      'Reverse geocoding exceeded the rate limit for this account; retry after the window closes',
+    )
+  }
 
   // Validate the REQUEST before the deployment. A malformed body is the
   // caller's fault and must return 400 whether or not the archive is bound,
@@ -49,19 +66,6 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       503,
       'Geocoding service unavailable',
       'Reverse geocoding is unavailable because the place archive is not bound',
-    )
-  }
-
-  const user = (context.data as RequestData).user
-  const { success } = await context.env.REVERSE_GEOCODING_LIMITER.limit({
-    key: rateLimitKey(user, context.request),
-  })
-  if (!success) {
-    return route.failWithHeaders(
-      429,
-      'Too many requests',
-      { 'Retry-After': '60' },
-      'Reverse geocoding exceeded the rate limit for this account; retry after the window closes',
     )
   }
 

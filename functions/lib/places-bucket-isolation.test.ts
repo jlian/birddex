@@ -41,4 +41,10 @@ describe('preview R2 isolation', () => {
     expect(toml).toContain('[[env.preview.r2_buckets]]')
     expect(bucketFor('[[env.preview.r2_buckets]]')).toBeDefined()
   })
+
+  it('uses the real preview bucket during mixed-mode local CI', () => {
+    const start = toml.indexOf('[[env.preview.r2_buckets]]')
+    const block = toml.slice(start, start + 400)
+    expect(block).toMatch(/remote\s*=\s*true/)
+  })
 })

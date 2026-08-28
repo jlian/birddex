@@ -7,7 +7,6 @@ import {
   groupResultsBySpecies,
   friendlyErrorMessage,
   normalizeLocationName,
-  resolveInferenceLocationName,
   resolveInferenceCoordinates,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
@@ -195,25 +194,6 @@ describe('normalizeLocationName', () => {
   it('returns empty string for unknown location', () => {
     expect(normalizeLocationName('Unknown Location')).toBe('')
     expect(normalizeLocationName('   ')).toBe('')
-  })
-})
-
-describe('resolveInferenceLocationName', () => {
-  it('returns undefined when geo context is disabled', () => {
-    expect(resolveInferenceLocationName(false, 'Seattle, WA')).toBeUndefined()
-    expect(resolveInferenceLocationName(false, 'Seattle, WA', 'Portland, OR')).toBeUndefined()
-  })
-
-  it('prefers per-call override when provided', () => {
-    expect(resolveInferenceLocationName(true, 'Seattle, WA', 'Portland, OR')).toBe('Portland, OR')
-  })
-
-  it('falls back to last location name', () => {
-    expect(resolveInferenceLocationName(true, 'Seattle, WA')).toBe('Seattle, WA')
-  })
-
-  it('returns undefined when no location is available', () => {
-    expect(resolveInferenceLocationName(true, '')).toBeUndefined()
   })
 })
 

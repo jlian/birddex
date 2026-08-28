@@ -101,9 +101,10 @@ function parseGeocodingResponse(body: unknown, stage: GeocodingStage): GeoapifyR
  * Reverse geocode from the LOCAL OSM archive.
  *
  * Ordered first because it is better on every axis that matters here: no
- * per-call cost, no rate limit, no network hop (p50 18 ms measured against
- * local R2 versus a 5 s provider deadline), and it answers with the place a
- * photo was actually taken in rather than the nearest postal address.
+ * provider charge, provider quota, or provider network hop (p50 18 ms measured
+ * against local R2 versus a 5 s provider deadline), and it answers with the
+ * place a photo was actually taken in rather than the nearest postal address.
+ * The route still applies WingDex's own abuse limit.
  *
  * It returns null when there is no bucket bound or the tile holds no named
  * place. There is no provider behind this any more, so null is the final
