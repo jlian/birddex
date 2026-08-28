@@ -10,6 +10,7 @@
  * not.
  */
 import { PMTiles, ResolvedValueCache, type Source, type RangeResponse } from 'pmtiles'
+import { PLACES_KEY } from './places-key'
 import { VectorTile } from '@mapbox/vector-tile'
 import { PbfReader } from 'pbf'
 import { scoreOf, kindOf, capOversized, nearScoreOf, spansTile, rankCandidates, type Ranked } from './place-rank'
@@ -578,7 +579,10 @@ function candidatesFromTile(
  *   consumer needs. Tile bytes are untouched: the same 11 worldwide lookups
  *   return identical answers.
  */
-export const PLACES_KEY = 'places-20260828.pmtiles'
+// Re-exported from the generated file so every consumer keeps importing it
+// from here, while the VALUE is written by the upload script rather than by
+// hand. See places-key.ts for why that matters.
+export { PLACES_KEY } from './places-key'
 
 export function createPMTiles(bucket: ReadonlyR2Bucket, key = PLACES_KEY): PMTiles {
   // `ResolvedValueCache`, not the `SharedPromiseCache` default. Cloudflare
