@@ -58,6 +58,10 @@ if [ "${TMPNS:-0}" != "1" ]; then
             ADMIN_LEVELS='${ADMIN_LEVELS:-}' \
             ADMIN_LAYER='${ADMIN_LAYER:-}' \
             MIN_ADMIN_BYTES='${MIN_ADMIN_BYTES:-}' \
+            IMPORTANCE_JOIN='${IMPORTANCE_JOIN:-}' \
+            IMPORTANCE_TABLE='${IMPORTANCE_TABLE:-}' \
+            IMPORTANCE_TABLE_SCRIPT='${IMPORTANCE_TABLE_SCRIPT:-}' \
+            IMPORTANCE_URL='${IMPORTANCE_URL:-}' \
             PATH='${PATH}' \
             '$(readlink -f "$0")'"
   fi
@@ -149,7 +153,13 @@ KEEP="-y name -y name:en -y tourism -y leisure -y natural -y boundary -y landuse
 # tile bytes) while the quantised scores cost 28,512 (0.34%). Swapping one for
 # the other makes the archive about 20 MB SMALLER while adding the data, and it
 # removes a per-request lookup table from the Worker entirely.
-IMPORTANCE_JOIN="${IMPORTANCE_JOIN:-$(dirname "${BASH_SOURCE[0]}")/join-importance.py}"
+# Helper scripts live NEXT TO this one. Resolve them from BASH_SOURCE so a
+# checkout in any directory works, but fall back to the repo layout when the
+# script has been copied somewhere else (a region-limited test harness does
+# exactly that, and silently failing to find the reducer is a poor error).
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IMPORTANCE_JOIN="${IMPORTANCE_JOIN:-$_SCRIPT_DIR/join-importance.py}"
+IMPORTANCE_TABLE_SCRIPT="${IMPORTANCE_TABLE_SCRIPT:-$_SCRIPT_DIR/mk-importance-table.py}"
 IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
 IMPORTANCE_URL="${IMPORTANCE_URL:-https://nominatim.org/data/wikimedia-importance.csv.gz}"
 
@@ -564,7 +574,7 @@ export WORK SRC FILTER KEEP FCACHE TMPDIR MIN_MBTILES_BYTES NAMED_ONLY
 # The child `bash -c` shells need these too, or the admin layer silently builds
 # with an empty filter and the export config path resolves to nothing.
 export ADMIN_FILTER ADMIN_LEVELS ADMIN_LAYER EXPORT_CONFIG MIN_ADMIN_BYTES
-export IMPORTANCE_JOIN IMPORTANCE_TABLE
+export IMPORTANCE_JOIN IMPORTANCE_TABLE IMPORTANCE_TABLE_SCRIPT
 
 echo "==> fetching continent extracts"
 write_export_config
@@ -586,7 +596,12 @@ if [ ! -s "$IMPORTANCE_TABLE" ]; then
     fi
     mv "$_imp_gz.part" "$_imp_gz"
   fi
-  if ! python3 "$(dirname "$IMPORTANCE_JOIN")/mk-importance-table.py" "$_imp_gz" "$IMPORTANCE_TABLE.part"; then
+  if [ ! -s "$IMPORTANCE_TABLE_SCRIPT" ]; then
+    echo "  FAILED: importance reducer not found at $IMPORTANCE_TABLE_SCRIPT" >&2
+    echo "  set IMPORTANCE_TABLE_SCRIPT, or IMPORTANCE_TABLE to a prebuilt table" >&2
+    exit 1
+  fi
+  if ! python3 "$IMPORTANCE_TABLE_SCRIPT" "$_imp_gz" "$IMPORTANCE_TABLE.part"; then
     echo "  FAILED: could not reduce the importance table" >&2
     rm -f "$IMPORTANCE_TABLE.part"
     exit 1
