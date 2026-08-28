@@ -9,4 +9,4 @@
 // offsets describe the PREVIOUS archive, so every lookup in that isolate
 // throws until it recycles, while cold isolates answer normally. Generating
 // the value removes the chance to forget.
-export const PLACES_KEY = 'places-20260828.pmtiles'
+export const PLACES_KEY = 'places-20260829.pmtiles'

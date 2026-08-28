@@ -252,7 +252,7 @@ try {
 // offsets describe the PREVIOUS archive, so every lookup in that isolate
 // throws until it recycles, while cold isolates answer normally. Generating
 // the value removes the chance to forget.
-export const PLACES_KEY = ${JSON.stringify(KEY)}
+export const PLACES_KEY = '${KEY}'
 `)
   console.log(`wrote functions/lib/places-key.ts -> ${KEY}`)
   console.log('commit that file with the deploy, or the Worker still reads the old archive')
