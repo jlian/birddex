@@ -14,7 +14,9 @@ what ships; the shipped design is summarised here.
 ## What ships
 
 - One PMTiles archive in R2, built by `build-global.sh`, uploaded by
-  `r2-upload.mjs` under the dated key `places-20260828.pmtiles`.
+  `r2-upload.mjs` under a dated key. The key in use is generated into
+  `functions/lib/places-key.ts` by the upload itself, so that file is the
+  authoritative answer and this document does not repeat it.
 - Zoom 12, not the z13 used in the early spike. Measured over 20,000
   coordinates, z12 named MORE places at every buffer.
 - TWO layers: `parks` (what a place is called) and `admin` (ISO 3166 codes for
