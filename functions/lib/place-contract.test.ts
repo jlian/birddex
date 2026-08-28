@@ -158,7 +158,10 @@ print(json.dumps([{"score": m.score_of(c), "kind": m.kind_of(c)} for c in cases]
 
   it('excludes anything the contract scores zero', () => {
     const contract = buildContract()
-    expect(contract.highway).toBeUndefined()
+    // No rule may key on a tag the ranker does not score, so streets and
+    // addresses can never become searchable.
+    expect(contract.scoreRules.some((rule) => rule.key === 'highway')).toBe(false)
+    expect(contract.kindRules.some((rule) => rule.key === 'highway')).toBe(false)
     expect(resolveFromContract(contract, { highway: 'residential' }).score).toBe(0)
   })
 })

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { PbfWriter, PbfReader } from 'pbf'
 import { VectorTile } from '@mapbox/vector-tile'
 import { PMTiles, type Source, type RangeResponse } from 'pmtiles'
@@ -838,8 +838,11 @@ describe('extreme coordinates project safely', () => {
   for (const [label, lat] of [['north pole', 90], ['south pole', -90]] as const) {
     it(`returns no answer without requesting a tile at the ${label}`, async () => {
       const pm = pmtilesOf(buildTile([]))
-      const getZxy = vi.fn(pm.getZxy.bind(pm))
-      pm.getZxy = getZxy
+      // Track calls without replacing the implementation. `vi.fn` widens its
+      // result to `Mock<any>`, which does not satisfy `getZxy`'s precise
+      // signature, so a spy on the instance keeps both the types and the real
+      // behaviour.
+      const getZxy = vi.spyOn(pm, 'getZxy')
 
       await expect(lookupPlaces(pm, lat, 0, 5)).resolves.toEqual([])
       expect(getZxy).not.toHaveBeenCalled()
