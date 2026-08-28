@@ -503,3 +503,90 @@ describe('OutingReview reverse geocoding outcomes', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 })
+
+describe('OutingReview coordinate display', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const stubSearch = (results: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/geocoding/search')) {
+        return new Response(JSON.stringify({ results }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (url.includes('/api/geocoding/reverse')) {
+        return new Response(JSON.stringify({ result: null, nearby: [], regionCodes: {} }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }))
+  }
+
+  const pickFirstResult = async () => {
+    // The name control is a button labelled with the current location name,
+    // which here is either the coordinate fallback or the empty-state prompt.
+    fireEvent.click(await screen.findByRole('button', { name: /Tap to set location|deg|\u00b0/ }))
+    const input = screen.getByPlaceholderText('Search for a place...')
+    fireEvent.change(input, { target: { value: 'Discovery Park' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search locations' }))
+    fireEvent.click(await screen.findByText(/Discovery Park, Seattle/))
+  }
+
+  it('shows the searched coordinates, not the photo GPS, after an override', async () => {
+    // The saved outing uses the searched place, so displaying the original
+    // coordinate here would tell the user the override did not take.
+    stubSearch([{ label: 'Discovery Park, Seattle', lat: 47.6615, lon: -122.4256 }])
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+          centerLat: 48.9801,
+          centerLon: -122.7887,
+        } as unknown as Parameters<typeof OutingReview>[0]['cluster']}
+        data={createDataStore()}
+        userId="user-1"
+        onConfirm={vi.fn(async () => undefined)}
+      />,
+    )
+
+    expect(screen.getByText(/48\.9801, -122\.7887/)).toBeInTheDocument()
+    await pickFirstResult()
+    await waitFor(() => {
+      expect(screen.getByText(/47\.6615, -122\.4256/)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/48\.9801, -122\.7887/)).not.toBeInTheDocument()
+  })
+
+  it('stops claiming there is no GPS once a search has set the location', async () => {
+    // A no-GPS outing that has been given coordinates by search is not the
+    // same as one with no location at all, and the eBird export cares.
+    stubSearch([{ label: 'Discovery Park, Seattle', lat: 47.6615, lon: -122.4256 }])
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+        } as unknown as Parameters<typeof OutingReview>[0]['cluster']}
+        data={createDataStore()}
+        userId="user-1"
+        onConfirm={vi.fn(async () => undefined)}
+      />,
+    )
+
+    expect(screen.getByText('No GPS data in photo')).toBeInTheDocument()
+    await pickFirstResult()
+    await waitFor(() => {
+      expect(screen.getByText('Location set from search')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('No GPS data in photo')).not.toBeInTheDocument()
+    expect(screen.getByText(/47\.6615, -122\.4256/)).toBeInTheDocument()
+  })
+})

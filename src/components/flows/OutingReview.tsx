@@ -383,8 +383,24 @@ export default function OutingReview({
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle size={18} weight="fill" className="text-green-500" />
             <span className="text-green-600 dark:text-green-400 font-medium">GPS detected</span>
+            {/*
+              effectiveLat/Lon, not cluster.centerLat/Lon. Picking a search
+              result MOVES the outing's coordinates, and showing the original
+              here made that override invisible: the line kept displaying the
+              photo's GPS while the saved outing used the searched place.
+            */}
             <span className="text-muted-foreground">
-              ({cluster.centerLat?.toFixed(4)}, {cluster.centerLon?.toFixed(4)})
+              ({effectiveLat?.toFixed(4)}, {effectiveLon?.toFixed(4)})
+            </span>
+          </div>
+        ) : overriddenCoords ? (
+          // No EXIF GPS, but the user searched for a place, so the outing DOES
+          // have coordinates now. Saying "No GPS data" here would be false.
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle size={18} weight="fill" className="text-green-500" />
+            <span className="text-green-600 dark:text-green-400 font-medium">Location set from search</span>
+            <span className="text-muted-foreground">
+              ({overriddenCoords.lat.toFixed(4)}, {overriddenCoords.lon.toFixed(4)})
             </span>
           </div>
         ) : (
