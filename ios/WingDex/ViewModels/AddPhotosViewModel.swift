@@ -325,13 +325,30 @@ final class AddPhotosViewModel {
         for photo in candidatePhotos {
             appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
         }
-        if incomingShareID != nil, newPhotos.isEmpty, duplicatePhotos.isEmpty {
+        if let unreadableShareID = incomingShareID, newPhotos.isEmpty, duplicatePhotos.isEmpty {
+            // Every photo in the batch failed to decode. The staged files are
+            // immutable, so a retry reads the same bytes and fails again, and
+            // leaving the batch pending blocks every newer batch behind it in
+            // the FIFO queue. Accept it to drop it from the queue, and ask for
+            // a fresh share instead of offering a retry that cannot succeed.
+            _ = try? await IncomingShareStore.accept(id: unreadableShareID)
+            incomingShareID = nil
+            incomingSharedPhotos = []
             error = .message("No shared photos could be read. Share them again in a supported image format.")
-            errorRecovery = .sessionPreparation
+            errorRecovery = nil
             isProcessing = false
+            continuesShareQueueAfterDismissal = true
             return
         }
+        // Acceptance is the commit point for the batch: it removes the only
+        // durable copy, so nothing can replay it afterwards. Check the session
+        // immediately before accepting, which keeps the batch pending for the
+        // common case where the session changed earlier during extraction.
         if let incomingShareID {
+            guard isCurrentSession(sessionID) else {
+                cancelExtractionForSessionChange()
+                return
+            }
             do {
                 guard try await IncomingShareStore.accept(id: incomingShareID) else {
                     throw IncomingShareError.noLongerPending
@@ -346,12 +363,17 @@ final class AddPhotosViewModel {
                 return
             }
         }
+        // A session can still change while `accept` is suspended. The batch is
+        // consumed by then, so clear the id here rather than leave the view model
+        // holding one the queue no longer knows about. Dropping the photos is
+        // deliberate: writing them into a switched account would move one
+        // account's photos into another, which is worse than losing a share.
+        incomingShareID = nil
+        incomingSharedPhotos = []
         guard isCurrentSession(sessionID) else {
             cancelExtractionForSessionChange()
             return
         }
-        incomingShareID = nil
-        incomingSharedPhotos = []
 
         // Process camera-captured photos (no EXIF GPS; use the device location
         // captured at shot time, and the processing time as the timestamp).
