@@ -55,6 +55,11 @@ for r in "${REGIONS[@]}"; do
 done
 
 # Concatenate in a FIXED order so the combined file is reproducible.
+#
+# `cat` is checked explicitly rather than trusted. This script deliberately does
+# not use errexit, because the per-region loop reports which stage failed, so a
+# read error here would otherwise fall straight through to the completion marker
+# and publish a TRUNCATED global corpus as a finished build.
 : > "$OUT/all.tsv"
 for r in "${REGIONS[@]}"; do
   if [ ! -s "$OUT/$r.tsv" ]; then
@@ -62,7 +67,24 @@ for r in "${REGIONS[@]}"; do
     rm -f "$OUT/all.tsv"
     exit 1
   fi
-  cat "$OUT/$r.tsv" >> "$OUT/all.tsv"
+  if ! cat "$OUT/$r.tsv" >> "$OUT/all.tsv"; then
+    echo "  FAILED: could not append $OUT/$r.tsv to the global corpus" | tee -a "$LOG" >&2
+    rm -f "$OUT/all.tsv"
+    exit 1
+  fi
 done
-echo "TOTAL rows=$(wc -l < "$OUT/all.tsv") size=$(du -h "$OUT/all.tsv" | cut -f1)" | tee -a "$LOG"
+
+# The concatenated file must hold every region's rows. A short count means a
+# truncated read that still exited zero.
+expected=0
+for r in "${REGIONS[@]}"; do
+  expected=$(( expected + $(wc -l < "$OUT/$r.tsv") ))
+done
+actual=$(wc -l < "$OUT/all.tsv")
+if [ "$expected" -ne "$actual" ]; then
+  echo "  FAILED: global corpus has $actual rows, expected $expected" | tee -a "$LOG" >&2
+  rm -f "$OUT/all.tsv"
+  exit 1
+fi
+echo "TOTAL rows=$actual size=$(du -h "$OUT/all.tsv" | cut -f1)" | tee -a "$LOG"
 echo DONE > "$WORK/search-export.DONE"

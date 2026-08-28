@@ -95,12 +95,13 @@ describe('query folding matches the offline builder', () => {
 })
 
 describe('FTS expression building', () => {
-  it('keeps a prefix star on the LAST token only', () => {
-    // #343 requires token-prefix matching, so `discover par` must find
-    // Discovery Park. Starring EVERY token is what costs 6x, so the earlier
-    // tokens stay exact and narrow the candidate set first.
-    expect(ftsExpression('discovery park')).toBe('"discovery" "park"*')
-    expect(ftsExpression('discover par')).toBe('"discover" "par"*')
+  it('puts a prefix star on EVERY token', () => {
+    // #343 requires token-prefix matching. Starring only the last token looked
+    // like a cheap win but broke the requirement: `discover par` found nothing,
+    // because `discover` is not a token in `discovery park`. The bounded
+    // candidate stage is what pays for full prefix matching.
+    expect(ftsExpression('discovery park')).toBe('"discovery"* "park"*')
+    expect(ftsExpression('discover par')).toBe('"discover"* "par"*')
     expect(ftsExpression('tokyo')).toBe('"tokyo"*')
   })
 
@@ -108,7 +109,7 @@ describe('FTS expression building', () => {
     // Unquoted, `OR` and `NOT` are operators and would silently change the
     // query's meaning. Folding removes the star, and quoting makes the
     // remaining words literal.
-    expect(ftsExpression(foldQuery('park OR NOT lake'))).toBe('"park" "or" "not" "lake"*')
+    expect(ftsExpression(foldQuery('park OR NOT lake'))).toBe('"park"* "or"* "not"* "lake"*')
     expect(ftsExpression(foldQuery('park*'))).toBe('"park"*')
     expect(ftsExpression(foldQuery('^park'))).toBe('"park"*')
   })

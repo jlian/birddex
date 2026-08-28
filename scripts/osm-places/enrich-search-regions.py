@@ -91,7 +91,13 @@ def main() -> int:
             point = Point(float(parts[3]), float(parts[2]))
             hits = []
             for idx in tree.query(point):
-                if geometries[idx].contains(point):
+                # `covers`, not `contains`: `contains` EXCLUDES the boundary,
+                # and the record builder deliberately returns boundary vertices
+                # for lines and for degenerate polygons. A named coastline
+                # sitting exactly on a country outline would otherwise lose its
+                # codes, which is precisely the case most likely to sit on an
+                # administrative border.
+                if geometries[idx].covers(point):
                     hits.append(attributes[idx])
             state = country = ""
             if hits:

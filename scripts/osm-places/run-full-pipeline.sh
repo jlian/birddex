@@ -15,14 +15,37 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-/mnt/ssdscratch}"
 VENV_PY="${VENV_PY:-$WORK/venv/bin/python}"
 IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
-# Default to the exporter COMMITTED next to this script. Pointing at a copy
+# Default to the exporters COMMITTED next to this script. Pointing at copies
 # under the scratch directory meant a normal checkout could not rebuild, and
 # where such a copy did exist it could silently be older than the repository.
 EXPORT_SCRIPT="${EXPORT_SCRIPT:-$SCRIPT_DIR/run-search-export.sh}"
+ADMIN_SCRIPT="${ADMIN_SCRIPT:-$SCRIPT_DIR/run-admin-export.sh}"
+
+mkdir -p "$WORK"
+
+# Hold an exclusive lock for the WHOLE pipeline.
+#
+# Sequencing the stages inside one script stops them racing each other, but it
+# does nothing about two INVOCATIONS: both would truncate the same log and
+# rewrite all.tsv, all-enriched.tsv and the SQLite output, which is exactly the
+# mixed-artifact corruption this script claims to prevent. That has already
+# happened once here, and the corrupt result looked entirely plausible.
+exec 9> "$WORK/pipeline.lock"
+if ! flock -n 9; then
+  echo "another pipeline run holds $WORK/pipeline.lock; refusing to start" >&2
+  exit 1
+fi
 
 cd "$WORK"
 rm -f pipeline.DONE
 : > pipeline.log
+
+# The admin boundaries are an INPUT to enrichment and nothing else produces
+# them, so build them when they are absent rather than failing deep in the run.
+if [ ! -s search/admin-iso.geojsonseq ]; then
+  echo "== admin boundaries ==" | tee -a pipeline.log
+  "$ADMIN_SCRIPT" >> pipeline.log 2>&1
+fi
 
 echo "== export ==" | tee -a pipeline.log
 rm -f search-export.DONE

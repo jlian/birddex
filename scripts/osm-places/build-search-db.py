@@ -69,24 +69,24 @@ INSERT INTO places_fts(rowid, alias) SELECT id, alias FROM places;
 def fts_query(q: str) -> str:
     """Build the FTS5 MATCH expression for a SUBMITTED query.
 
-    Every token is exact EXCEPT the last, which keeps a trailing `*`.
+    EVERY token carries a trailing `*`.
 
-    That split is deliberate. #343 requires token-prefix matching, so a
-    submitted partial name like `discover par` has to find Discovery Park. But
-    a star on EVERY token is what made the slow queries slow: `"park"*` matches
-    231,558 rows and costs 42 ms alone, against 6.9 ms for exact `park`.
+    An earlier version starred only the final token, assuming a submitted query
+    has complete words except where the user stopped typing. That is wrong:
+    `discover par` returned nothing, because `"discover"` is not a token in
+    `discovery park`. #343 requires token-prefix matching, and abbreviating more
+    than one word is exactly that.
 
-    Starring only the final token keeps prefix search working where a user
-    actually stops typing, while the earlier tokens stay cheap and narrow the
-    candidate set first. Measured on the golden set, this recovers most of the
-    all-exact speed and still answers partial queries.
+    The cost is real: `"park"*` matches 231,558 rows against 219,289 for exact
+    `park`, at 42 ms rather than 6.9 ms. The bounded candidate stage is what
+    makes it affordable, rather than trimming the requirement to fit.
+
+    Mirrors `ftsExpression()` in functions/lib/place-search.ts.
     """
     tokens = [t for t in q.split() if t]
     if not tokens:
         return ""
-    head = " ".join(f'"{t}"' for t in tokens[:-1])
-    tail = f'"{tokens[-1]}"*'
-    return f"{head} {tail}".strip()
+    return " ".join(f'"{t}"*' for t in tokens)
 
 
 def human(n: int) -> str:

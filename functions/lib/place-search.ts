@@ -81,31 +81,32 @@ export function foldQuery(input: string): string {
 /**
  * Build the FTS5 MATCH expression for a submitted query.
  *
- * Every token is quoted and exact EXCEPT the last, which keeps a trailing `*`.
+ * EVERY token carries a trailing `*`.
  *
- * That split is deliberate. #343 requires token-prefix matching, so a submitted
- * partial name such as `discover par` has to find Discovery Park. But a star on
- * EVERY token is what makes a query slow: against the global index `"park"*`
- * matches 231,558 rows and costs 42 ms on its own, against 6.9 ms for exact
- * `park`, and the extra rows are `parkway` and `parkland`.
+ * An earlier version starred only the final token, on the theory that a
+ * submitted query has complete words except where the user stopped typing.
+ * That is wrong, and the test for the issue's own requirement caught it:
+ * `discover par` returned nothing, because `"discover"` is not a token in
+ * `discovery park`. #343 requires token-prefix matching, and a user who
+ * abbreviates more than one word is doing exactly that.
  *
- * Starring only the final token keeps prefix search where a user actually stops
- * typing, while the earlier tokens narrow the candidate set cheaply first.
+ * The cost is real and was measured: `"park"*` matches 231,558 rows against
+ * 219,289 for exact `park`, and costs 42 ms rather than 6.9 ms on the global
+ * index. That is why the candidate stage below is bounded BEFORE ranking; the
+ * bound is what makes full prefix matching affordable, rather than trimming
+ * the requirement to fit.
  *
- * Quoting is also what makes the input inert. FTS5 treats bare `AND`, `NOT`,
+ * Quoting is what makes the input inert. FTS5 treats bare `AND`, `NOT`,
  * `NEAR`, `*` and `^` as operators, so an unquoted user string is a query
  * injection: `a OR b` would silently widen the search and a lone `*` would
- * error. Quoted tokens are literal text.
+ * error. A quoted token followed by `*` is a literal prefix term.
  */
 export function ftsExpression(folded: string): string {
   const tokens = folded.split(' ').filter(Boolean)
   if (tokens.length === 0) return ''
   // A double quote is the only character with meaning inside a quoted FTS5
   // string, and it is escaped by doubling it.
-  const quote = (token: string) => `"${token.replace(/"/g, '""')}"`
-  const head = tokens.slice(0, -1).map(quote)
-  const tail = `${quote(tokens[tokens.length - 1])}*`
-  return [...head, tail].join(' ')
+  return tokens.map((token) => `"${token.replace(/"/g, '""')}"*`).join(' ')
 }
 
 /**
