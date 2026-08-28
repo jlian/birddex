@@ -331,12 +331,31 @@ final class AddPhotosViewModel {
             // leaving the batch pending blocks every newer batch behind it in
             // the FIFO queue. Accept it to drop it from the queue, and ask for
             // a fresh share instead of offering a retry that cannot succeed.
-            _ = try? await IncomingShareStore.accept(id: unreadableShareID)
+            do {
+                guard try await IncomingShareStore.accept(id: unreadableShareID) else {
+                    throw IncomingShareError.noLongerPending
+                }
+            } catch {
+                // The batch is still at the head of the queue, so it will be
+                // rescanned. Report a retryable queue failure rather than
+                // claiming the unreadable batch was cleared.
+                self.error = AppError.map(
+                    error,
+                    fallback: "Could not finish importing the shared photos. Try again."
+                )
+                errorRecovery = .sessionPreparation
+                isProcessing = false
+                return
+            }
             incomingShareID = nil
             incomingSharedPhotos = []
             error = .message("No shared photos could be read. Share them again in a supported image format.")
             errorRecovery = nil
             isProcessing = false
+            // Close is disabled while the step is `.extracting`, so return to a
+            // dismissible step. Otherwise dismissing the message strands the
+            // person on an idle extraction screen they cannot leave.
+            currentStep = .selectPhotos
             continuesShareQueueAfterDismissal = true
             return
         }
