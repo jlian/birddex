@@ -58,6 +58,10 @@ run_variant() {
   mkdir -p "$work"
 
   local t0=$SECONDS
+  # Cleanup runs on every path, so the outcome is held in `status` and returned
+  # at the end. Returning the status of `rm -rf` would report success after a
+  # failed build and let the sweep exit 0 with no archive.
+  local status=0
   if FILTER="$filter" NAMED_ONLY=1 JOBS=2 WORK="$work" \
        TMPDIR=/mnt/ssdscratch/tmp "$BUILD" > "/home/jlian/variant-$name.log" 2>&1; then
     if [ -s "$work/planet-parks.pmtiles" ]; then
@@ -65,14 +69,17 @@ run_variant() {
       say "DONE $name in $((SECONDS - t0))s -> $(du -h "$OUT/$name.pmtiles" | cut -f1)"
     else
       say "FAILED $name: no pmtiles produced"
+      status=1
     fi
   else
     say "FAILED $name: build exited non-zero (see variant-$name.log)"
+    status=1
   fi
 
   # Reclaim the per-region tilesets immediately. Four variants of intermediate
   # files would fill the volume; only the merged archive is worth keeping.
   rm -rf "$work"
+  return "$status"
 }
 
 say "=== variant sweep starting ==="
@@ -92,7 +99,9 @@ say "=== variant sweep starting ==="
 # both included. At a projected 3.6 GB there is no reason to build a smaller,
 # worse archive, and trimming natural would discard coastline and glacier, both
 # real birding habitat, to save space that is not needed.
-run_variant natural-admin "$NAT$ADMIN"
+sweep_status=0
+run_variant natural-admin "$NAT$ADMIN" || sweep_status=1
 
 say "=== variant sweep finished ==="
 ls -la "$OUT" | tee -a "$LOG"
+exit "$sweep_status"
