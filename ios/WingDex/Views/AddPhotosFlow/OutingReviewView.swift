@@ -207,10 +207,30 @@ struct OutingReviewView: View {
                 Label {
                     HStack(spacing: 4) {
                         Text("GPS detected")
-                        if let lat = cluster?.centerLat, let lon = cluster?.centerLon {
+                        // effectiveLat/Lon, NOT cluster.centerLat/Lon. Choosing a
+                        // search result moves the outing's coordinates, and the
+                        // save at `lat: effectiveLat` uses the moved ones. Showing
+                        // the originals here made the override look like it had
+                        // not taken effect.
+                        if let lat = effectiveLat, let lon = effectiveLon {
                             Text("(\(lat, specifier: "%.4f"), \(lon, specifier: "%.4f"))")
                                 .foregroundStyle(Color.foregroundText)
                         }
+                    }
+                } icon: {
+                    Image(systemName: "location.fill")
+                        .foregroundStyle(.green)
+                }
+                .font(.subheadline)
+            } else if let coords = overriddenCoords {
+                // No EXIF GPS, but a search has given the outing coordinates.
+                // Still claiming "No GPS data" would be false, and the eBird
+                // export uses these.
+                Label {
+                    HStack(spacing: 4) {
+                        Text("Location set from search")
+                        Text("(\(coords.latitude, specifier: "%.4f"), \(coords.longitude, specifier: "%.4f"))")
+                            .foregroundStyle(Color.foregroundText)
                     }
                 } icon: {
                     Image(systemName: "location.fill")
