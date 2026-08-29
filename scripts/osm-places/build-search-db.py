@@ -301,7 +301,11 @@ def main() -> int:
         ("skagit", "Skagit", "landuse"),
         ("tokyo", "Tokyo", "admin"),
         ("sydney", "Sydney", "admin"),
-        ("serengeti", "Serengeti-Park", "attraction"),
+        # A German safari park, label taken from `name:en`. It outranks
+        # Tanzania's Serengeti National Park for the bare token because that
+        # one's alias is the full three-word name, so this is also a check that
+        # exact-alias matching beats a longer partial.
+        ("serengeti", "Serengeti Park", "attraction"),
         ("st martin", "St Martin", "admin"),
         # Partial input: #343 requires token-prefix matching, so this has
         # to find Discovery Park.
