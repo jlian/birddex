@@ -191,8 +191,13 @@ jobs:
             exit 1
           fi
 
-          IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex CI" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+          simulator_name="WingDex CI $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          IOS_SIMULATOR_UDID=$(xcrun simctl create "$simulator_name Core" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
           echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
+          if [[ "${{ steps.accessibility.outputs.run }}" == "true" ]]; then
+            IOS_ACCESSIBILITY_SIMULATOR_UDID=$(xcrun simctl create "$simulator_name Accessibility" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+            echo "IOS_ACCESSIBILITY_SIMULATOR_UDID=$IOS_ACCESSIBILITY_SIMULATOR_UDID" >> "$GITHUB_ENV"
+          fi
 
       - name: Install XcodeGen
         run: ios/scripts/install-xcodegen.sh
@@ -226,7 +231,17 @@ jobs:
           echo "- Build for testing: $(( $(date +%s) - started_at ))s" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Boot iOS Simulator
-        run: xcrun simctl boot "$IOS_SIMULATOR_UDID"
+        run: |
+          xcrun simctl boot "$IOS_SIMULATOR_UDID" &
+          core_boot_pid=$!
+          if [[ -n "${IOS_ACCESSIBILITY_SIMULATOR_UDID:-}" ]]; then
+            xcrun simctl boot "$IOS_ACCESSIBILITY_SIMULATOR_UDID" &
+            accessibility_boot_pid=$!
+          fi
+          wait "$core_boot_pid"
+          if [[ -n "${accessibility_boot_pid:-}" ]]; then
+            wait "$accessibility_boot_pid"
+          fi
 
       - name: Select API backend
         env:
@@ -327,33 +342,94 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Wait for iOS Simulator
-        run: xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+        run: |
+          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b &
+          core_boot_pid=$!
+          if [[ -n "${IOS_ACCESSIBILITY_SIMULATOR_UDID:-}" ]]; then
+            xcrun simctl bootstatus "$IOS_ACCESSIBILITY_SIMULATOR_UDID" -b &
+            accessibility_boot_pid=$!
+          fi
+          wait "$core_boot_pid"
+          if [[ -n "${accessibility_boot_pid:-}" ]]; then
+            wait "$accessibility_boot_pid"
+          fi
 
       - name: Run tests
         working-directory: ios
         run: |
-          # xcodebuild does not create missing parents for -resultBundlePath, and
-          # ios/build does not exist in a clean checkout.
-          mkdir -p build
+          set -uo pipefail
+          mkdir -p build/logs
           started_at=$(date +%s)
-          test_targets=(
-            "-only-testing:WingDexTests"
-            "-only-testing:WingDexUITests"
-          )
-          if [[ "${{ steps.accessibility.outputs.run }}" == "true" ]]; then
-            test_targets+=("-only-testing:WingDexAccessibilityUITests")
+
+          xctestrun=""
+          xctestrun_count=0
+          while IFS= read -r candidate; do
+            xctestrun=$candidate
+            xctestrun_count=$((xctestrun_count + 1))
+          done < <(find "build/DerivedData/Build/Products" -maxdepth 2 -name '*.xctestrun' -type f)
+          if [[ "$xctestrun_count" != 1 ]]; then
+            echo "::error::Expected one .xctestrun file, found $xctestrun_count"
+            find "build/DerivedData/Build/Products" -maxdepth 2 -name '*.xctestrun' -type f
+            exit 1
           fi
+
+          core_pid=""
+          accessibility_pid=""
+          terminate_lanes() {
+            trap - INT TERM
+            [[ -z "$core_pid" ]] || kill "$core_pid" >/dev/null 2>&1 || true
+            [[ -z "$accessibility_pid" ]] || kill "$accessibility_pid" >/dev/null 2>&1 || true
+            [[ -z "$core_pid" ]] || wait "$core_pid" >/dev/null 2>&1 || true
+            [[ -z "$accessibility_pid" ]] || wait "$accessibility_pid" >/dev/null 2>&1 || true
+            exit 130
+          }
+          trap terminate_lanes INT TERM
+
           NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
-            -project WingDex.xcodeproj \
-            -scheme Dev \
+            -xctestrun "$xctestrun" \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
-            -derivedDataPath build/DerivedData \
-            -onlyUsePackageVersionsFromResolvedFile \
-            -resultBundlePath build/TestResults.xcresult \
             -parallel-testing-enabled NO \
-            "${test_targets[@]}" \
-            CODE_SIGNING_ALLOWED=NO 2>&1
-          echo "- Tests: $(( $(date +%s) - started_at ))s" >> "$GITHUB_STEP_SUMMARY"
+            -resultBundlePath build/CoreTests.xcresult \
+            -only-testing:WingDexTests \
+            -only-testing:WingDexUITests \
+            CODE_SIGNING_ALLOWED=NO > build/logs/core.log 2>&1 &
+          core_pid=$!
+
+          if [[ "${{ steps.accessibility.outputs.run }}" == "true" ]]; then
+            NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
+              -xctestrun "$xctestrun" \
+              -destination "platform=iOS Simulator,id=$IOS_ACCESSIBILITY_SIMULATOR_UDID" \
+              -parallel-testing-enabled NO \
+              -resultBundlePath build/AccessibilityTests.xcresult \
+              -only-testing:WingDexAccessibilityUITests \
+              CODE_SIGNING_ALLOWED=NO > build/logs/accessibility.log 2>&1 &
+            accessibility_pid=$!
+          fi
+
+          core_status=0
+          accessibility_status=0
+          wait "$core_pid" || core_status=$?
+          if [[ -n "$accessibility_pid" ]]; then
+            wait "$accessibility_pid" || accessibility_status=$?
+          fi
+          echo "$core_status" > build/logs/core.status
+          sed -u 's/^/[core] /' build/logs/core.log
+          if [[ -n "$accessibility_pid" ]]; then
+            echo "$accessibility_status" > build/logs/accessibility.status
+            sed -u 's/^/[accessibility] /' build/logs/accessibility.log
+          fi
+
+          {
+            echo "- Test wall time: $(( $(date +%s) - started_at ))s"
+            echo "- Core lane exit: $core_status"
+            if [[ -n "$accessibility_pid" ]]; then
+              echo "- Accessibility lane exit: $accessibility_status"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if ((core_status != 0 || accessibility_status != 0)); then
+            exit 1
+          fi
 
       - name: Summarize iOS test timing
         if: always()
@@ -375,7 +451,13 @@ jobs:
             {
               echo "#### $name"
               if [[ -n "$summary" ]]; then
-                jq -r '"- Tests: \(.totalTestCount), passed: \(.passedTests), failed: \(.failedTests), skipped: \(.skippedTests)"' <<< "$summary"
+                jq -r '
+                  "- Tests: \(.totalTestCount), passed: \(.passedTests), failed: \(.failedTests), skipped: \(.skippedTests)",
+                  (if (.startTime | type) == "number" and (.finishTime | type) == "number"
+                   then "- XCTest duration: \((.finishTime - .startTime) | floor)s"
+                   else empty
+                   end)
+                ' <<< "$summary"
               fi
             } >> "$GITHUB_STEP_SUMMARY"
           done
@@ -385,7 +467,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: iOS-test-diagnostics
-          path: ios/build/*.xcresult
+          path: |
+            ios/build/*.xcresult
+            ios/build/logs
           retention-days: 7
 
       - name: Clean up iOS simulators
@@ -393,7 +477,11 @@ jobs:
         run: |
           set +e
           xcrun simctl list devices -j \
-            | jq -r '.devices[][] | select(.name == "WingDex CI" or (.name | test("^Clone [0-9]+ of WingDex CI$"))) | .udid' \
+            | jq -r --arg prefix "WingDex CI $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" '
+                .devices[][]
+                | select(.name == ($prefix + " Core") or .name == ($prefix + " Accessibility"))
+                | .udid
+              ' \
             | while IFS= read -r udid; do
                 xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
                 xcrun simctl delete "$udid" >/dev/null 2>&1 || true

@@ -95,7 +95,6 @@ final class SettingsAccessibilityAuditUITests: BirdIdFlowUITestCase {
         app.launchArguments = [
             "--ui-test-fixture-populated",
             "--ui-test-open-settings",
-            "--ui-test-hide-avatar-options",
         ]
         app.launch()
         waitForDataSetup(in: app)
