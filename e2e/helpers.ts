@@ -84,12 +84,14 @@ export async function loadApp(page: Page, { promote = true } = {}) {
  * Promote the anonymous session to a real user so auth-gated features
  * (Settings, imports, uploads) are accessible.
  *
- * In CI (Wrangler), the app auto-creates an anonymous session.
- * This calls finalize-passkey to flip isAnonymous → false, then reloads.
- * In local dev without Wrangler the fallback user is already non-anonymous,
- * so this is a silent no-op.
+ * Registration upgrades the anonymous session in place, then reloads.
  */
 export async function promoteAnonymousUser(page: Page) {
+  await expect(
+    page.getByRole('button', { name: /^(Log in|Settings)$/ }),
+    'header identity never resolved',
+  ).toBeVisible({ timeout: 10_000 })
+
   const hasLoginButton = (await page.getByRole('button', { name: 'Log in' }).count()) > 0
   if (!hasLoginButton) {
     return
@@ -139,22 +141,12 @@ export async function seedViaCSVImport(page: Page) {
   // This is significantly faster since it skips all the UI round-trips.
   const csvBuffer = readFileSync(path.resolve('e2e/fixtures/ebird-import.csv'))
 
-  const preview = await page.request.post('/api/import/ebird-csv', {
+  const imported = await page.request.post('/api/import/ebird-csv', {
     multipart: {
       file: { name: 'ebird-import.csv', mimeType: 'text/csv', buffer: csvBuffer },
     },
   })
-  expect(preview.ok(), `CSV preview failed: ${preview.status()}`).toBe(true)
-
-  const { previews } = await preview.json()
-  const previewIds = previews
-    .map((e: { previewId?: string }) => e.previewId)
-    .filter(Boolean)
-
-  const confirm = await page.request.post('/api/import/ebird-csv/confirm', {
-    data: { previewIds },
-  })
-  expect(confirm.ok(), `CSV confirm failed: ${confirm.status()}`).toBe(true)
+  expect(imported.ok(), `CSV import failed: ${imported.status()}`).toBe(true)
 
   // Reload so the UI picks up the seeded data
   await page.reload()

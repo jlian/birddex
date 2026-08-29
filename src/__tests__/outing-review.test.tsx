@@ -40,6 +40,39 @@ describe('OutingReview', () => {
     vi.unstubAllGlobals()
   })
 
+  it('waits for session readiness before creating an outing', async () => {
+    const data = createDataStore()
+    let releaseSession: (ready: boolean) => void = () => undefined
+    const ensureSessionReady = vi.fn(() => new Promise<boolean>(resolve => {
+      releaseSession = resolve
+    }))
+    const onConfirm = vi.fn(async () => undefined)
+
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+        }}
+        data={data}
+        userId="anonymous-user"
+        defaultLocationName="Discovery Park"
+        ensureSessionReady={ensureSessionReady}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    await waitFor(() => expect(ensureSessionReady).toHaveBeenCalledOnce())
+    expect(onConfirm).not.toHaveBeenCalled()
+
+    releaseSession(true)
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce())
+    // The outing is handed over, not written: nothing is saved until the cluster has a sighting.
+    expect(data.addOuting).not.toHaveBeenCalled()
+  })
+
   it('does not offer a newly created outing as an existing outing while confirming', async () => {
     const data = createDataStore()
     data.addOuting = vi.fn(async (outing: Outing) => {
@@ -274,17 +307,14 @@ describe('OutingReview', () => {
       />,
     )
 
-    const attribution = await screen.findByRole('link', { name: 'Geoapify' })
-    expect(attribution).toHaveAttribute('href', 'https://www.geoapify.com/')
-    expect(attribution.closest('p')).toHaveTextContent('Location data from Geoapify, OpenStreetMap, and GeoNames.')
-    expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toHaveAttribute(
+    const osm = await screen.findByRole('link', { name: 'OpenStreetMap' })
+    expect(osm).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
+    expect(osm.closest('p')).toHaveTextContent('Powered by Geoapify and OpenStreetMap')
+    expect(screen.getByRole('link', { name: 'Geoapify' })).toHaveAttribute(
       'href',
-      'https://www.openstreetmap.org/copyright',
+      'https://www.geoapify.com/',
     )
-    expect(screen.getByRole('link', { name: 'GeoNames' })).toHaveAttribute(
-      'href',
-      'https://www.geonames.org/',
-    )
+    expect(screen.queryByRole('link', { name: 'GeoNames' })).not.toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: /Discovery Park, Seattle/ }))
     const searchInput = screen.getByPlaceholderText('Search for a place...')
@@ -292,8 +322,7 @@ describe('OutingReview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
 
     expect(screen.getByRole('link', { name: 'Geoapify' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'GeoNames' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
   })
 
   it('keeps static provider attribution visible when adding to an existing outing', () => {
@@ -324,7 +353,6 @@ describe('OutingReview', () => {
     expect(screen.getByRole('switch', { name: 'Add to existing outing?' })).toBeChecked()
     expect(screen.getByRole('link', { name: 'Geoapify' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'OpenStreetMap' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'GeoNames' })).toBeInTheDocument()
   })
 
   it('shows a compact retry action after a place search failure', async () => {
@@ -360,5 +388,241 @@ describe('OutingReview', () => {
     fireEvent.click(retry)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(screen.queryByText('Search failed.')).not.toBeInTheDocument()
+  })
+})
+describe('OutingReview reverse geocoding outcomes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  // The component reads centerLat/centerLon, not per-photo coordinates, and
+  // only starts a lookup when both are present.
+  const gpsCluster = {
+    photos: [],
+    startTime: new Date('2026-08-07T12:00:00Z'),
+    endTime: new Date('2026-08-07T13:00:00Z'),
+    centerLat: 48.9801,
+    centerLon: -122.7887,
+  } as unknown as Parameters<typeof OutingReview>[0]['cluster']
+
+  /** Stub the reverse-geocoding endpoint with one JSON body. */
+  const stubReverse = (body: unknown) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/api/geocoding/reverse')) {
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  const renderWithGps = (
+    data: WingDexDataStore,
+    onConfirm = vi.fn(async () => undefined),
+    defaultLocationName = '',
+  ) => {
+    render(
+      <OutingReview
+        cluster={gpsCluster}
+        data={data}
+        userId="user-1"
+        defaultLocationName={defaultLocationName}
+        autoLookupGps
+        onConfirm={onConfirm}
+      />,
+    )
+    return onConfirm
+  }
+
+  it('shows the no-retry message and keeps the name editable when nothing is named nearby', async () => {
+    // A successful lookup that found no NAMED place. Retrying would return the
+    // same nothing, so the UI must not offer a Retry button here.
+    const fetchMock = stubReverse({ result: null, nearby: [], regionCodes: {} })
+    renderWithGps(createDataStore())
+
+    await waitFor(() => {
+      expect(screen.getByText(/No named place found nearby/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
+
+    const reverseCall = fetchMock.mock.calls.find(([input]) => String(input).includes('/api/geocoding/reverse'))
+    expect(reverseCall).toBeDefined()
+    expect(JSON.parse((reverseCall![1] as RequestInit).body as string)).toEqual({
+      lat: 48.9801,
+      lon: -122.7887,
+    })
+
+    // The coordinate string is a usable fallback name. It renders in the
+    // name control, which is a button until tapped.
+    const nameControl = screen.getByRole('button', { name: /48\.9801/ })
+    expect(nameControl).toBeInTheDocument()
+
+    // Tapping it opens a real editable input, so the user is never blocked.
+    fireEvent.click(nameControl)
+    const field = await screen.findByDisplayValue(/48\.9801/) as HTMLInputElement
+    expect(field.readOnly).toBe(false)
+  })
+
+  it('keeps region codes from an empty lookup so the eBird export still gets them', async () => {
+    // The case this contract exists for: offshore and unmapped land often have
+    // a valid ISO code and no named place. The codes must survive onto the
+    // saved outing even though `result` is null.
+    stubReverse({
+      result: null,
+      nearby: [],
+      regionCodes: { stateProvince: 'US-WA', countryCode: 'US' },
+    })
+    const data = createDataStore()
+    const onConfirm = vi.fn(async () => undefined)
+    renderWithGps(data, onConfirm)
+
+    await waitFor(() => {
+      expect(screen.getByText(/No named place found nearby/i)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    // The outing is HANDED to onConfirm rather than written here: nothing is
+    // saved until the cluster has a sighting.
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled())
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ stateProvince: 'US-WA', countryCode: 'US' }),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      false,
+    )
+  })
+
+  it('does not reuse an unrelated previous outing name after a successful empty lookup', async () => {
+    stubReverse({ result: null, nearby: [], regionCodes: {} })
+    renderWithGps(createDataStore(), undefined, 'Previous Seattle outing')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /48\.9801.*-122\.7887/ })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Previous Seattle outing')).not.toBeInTheDocument()
+  })
+
+  it('offers a retry when the lookup actually fails', async () => {
+    // The other unhappy ending. A real failure IS worth retrying, so this path
+    // must stay distinguishable from the empty one.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/geocoding/reverse')) {
+        return new Response('Service Unavailable', { status: 503 })
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }))
+    renderWithGps(createDataStore())
+
+    await waitFor(() => {
+      expect(screen.getByText(/Location lookup failed/i)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  })
+})
+
+describe('OutingReview coordinate display', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const stubSearch = (results: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/geocoding/search')) {
+        return new Response(JSON.stringify({ results }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (url.includes('/api/geocoding/reverse')) {
+        return new Response(JSON.stringify({ result: null, nearby: [], regionCodes: {} }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }))
+  }
+
+  const pickFirstResult = async () => {
+    // The name control is a button labelled with the current location name,
+    // which here is either the coordinate fallback or the empty-state prompt.
+    fireEvent.click(await screen.findByRole('button', { name: /Tap to set location|deg|\u00b0/ }))
+    const input = screen.getByPlaceholderText('Search for a place...')
+    fireEvent.change(input, { target: { value: 'Discovery Park' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search locations' }))
+    fireEvent.click(await screen.findByText(/Discovery Park, Seattle/))
+  }
+
+  it('shows the searched coordinates, not the photo GPS, after an override', async () => {
+    // The saved outing uses the searched place, so displaying the original
+    // coordinate here would tell the user the override did not take.
+    stubSearch([{ label: 'Discovery Park, Seattle', lat: 47.6615, lon: -122.4256 }])
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+          centerLat: 48.9801,
+          centerLon: -122.7887,
+        } as unknown as Parameters<typeof OutingReview>[0]['cluster']}
+        data={createDataStore()}
+        userId="user-1"
+        onConfirm={vi.fn(async () => undefined)}
+      />,
+    )
+
+    expect(screen.getByText(/48\.9801, -122\.7887/)).toBeInTheDocument()
+    await pickFirstResult()
+    await waitFor(() => {
+      expect(screen.getByText(/47\.6615, -122\.4256/)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/48\.9801, -122\.7887/)).not.toBeInTheDocument()
+  })
+
+  it('stops claiming there is no GPS once a search has set the location', async () => {
+    // A no-GPS outing that has been given coordinates by search is not the
+    // same as one with no location at all, and the eBird export cares.
+    stubSearch([{ label: 'Discovery Park, Seattle', lat: 47.6615, lon: -122.4256 }])
+    const onConfirm = vi.fn(async () => undefined)
+    render(
+      <OutingReview
+        cluster={{
+          photos: [],
+          startTime: new Date('2026-08-07T12:00:00Z'),
+          endTime: new Date('2026-08-07T13:00:00Z'),
+        } as unknown as Parameters<typeof OutingReview>[0]['cluster']}
+        data={createDataStore()}
+        userId="user-1"
+        onConfirm={onConfirm}
+      />,
+    )
+
+    expect(screen.getByText('No GPS data in photo')).toBeInTheDocument()
+    await pickFirstResult()
+    await waitFor(() => {
+      expect(screen.getByText('Location set from search')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('No GPS data in photo')).not.toBeInTheDocument()
+    expect(screen.getByText(/47\.6615, -122\.4256/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled())
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 47.6615, lon: -122.4256 }),
+      expect.anything(),
+      'Discovery Park, Seattle',
+      47.6615,
+      -122.4256,
+      true,
+    )
   })
 })

@@ -149,7 +149,7 @@ async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise
   return response.json() as Promise<T>
 }
 
-export function useWingDexData(userId: string) {
+export function useWingDexData(userId: string, { hasSession = true }: { hasSession?: boolean } = {}) {
   const [isLoading, setIsLoading] = useState(true)
   const [storageMode, setStorageMode] = useState<StorageMode>('api')
   const [payload, setPayload] = useState<WingDexPayload>({
@@ -160,6 +160,7 @@ export function useWingDexData(userId: string) {
   })
 
   const payloadRef = useRef(payload)
+  const refreshGeneration = useRef(0)
   useEffect(() => {
     payloadRef.current = payload
   }, [payload])
@@ -179,8 +180,20 @@ export function useWingDexData(userId: string) {
   }, [userId])
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current
+    // A guest has no session yet, so this request can only 401. Skipping it keeps
+    // the console clean and avoids a pointless round trip; the effect below re-runs
+    // once an account exists, because `hasSession` and `userId` both change then.
+    //
+    // Clearing rather than returning: signing out must not leave the previous
+    // account's sightings on screen until the next reload.
+    if (!hasSession) {
+      setPayload({ outings: [], photos: [], observations: [], dex: [] })
+      return
+    }
     try {
       const next = await apiJson<WingDexPayload>('/api/data/all')
+      if (refreshGeneration.current !== generation) return
       setStorageMode('api')
       setPayload({
         outings: next.outings || [],
@@ -189,12 +202,13 @@ export function useWingDexData(userId: string) {
         dex: next.dex || [],
       })
     } catch {
+      if (refreshGeneration.current !== generation) return
       if (isLocalRuntime()) {
         setStorageMode('local')
         setPayload(readLocalData(userId))
       }
     }
-  }, [userId])
+  }, [userId, hasSession])
 
   useEffect(() => {
     let cancelled = false
@@ -208,6 +222,7 @@ export function useWingDexData(userId: string) {
 
     return () => {
       cancelled = true
+      refreshGeneration.current += 1
     }
   }, [refresh])
 

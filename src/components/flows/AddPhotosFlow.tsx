@@ -26,24 +26,30 @@ import { getDisplayName, getScientificName, cn } from '@/lib/utils'
 import { toLocalISOWithOffset } from '@/lib/timezone'
 import ImageCropDialog from '@/components/ui/image-crop-dialog'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
-import type { Photo, ObservationStatus } from '@/lib/types'
+import type { Photo, ObservationStatus, Outing } from '@/lib/types'
 import {
   needsCloseConfirmation,
   resolvePhotoResults,
   filterConfirmedResults,
+  clusterHasSightings,
   groupResultsBySpecies,
   normalizeLocationName,
-  resolveInferenceLocationName,
+  resolveInferenceCoordinates,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
 import type { GalleryImage } from '@/lib/wikimedia'
 import { useBirdGallery } from '@/hooks/use-bird-image'
 import { computePaddedSquareCropFromPercent } from '@/lib/crop-math'
 import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
+import { RarityMark } from '@/components/ui/rarity-mark'
+import { useRarityResolver } from '@/lib/rarity-client'
 
 interface AddPhotosFlowProps {
   data: WingDexDataStore
   onClose: () => void
+  /** Fired once the flow has persisted at least one outing. */
+  onOutingSaved?: () => void
+  ensureSessionReady: () => Promise<boolean>
   userId: string
 }
 
@@ -57,7 +63,7 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, ms))
 }
 
-export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowProps) {
+export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSessionReady, userId }: AddPhotosFlowProps) {
   // Object URLs stay alive until revoked, so track and release them. Without
   // this, every uploaded photo would pin its full blob for the page's lifetime.
   const objectUrls = useRef<string[]>([])
@@ -67,8 +73,14 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
   }, [])
 
   const [step, setStep] = useState<FlowStep>('upload')
-  // Survives the download screen so the resolved location name is not lost.
-  const pendingLocationName = useRef<string | undefined>(undefined)
+  // Survives the model-download screen and every photo in this cluster.
+  const outingInferenceContext = useRef<{
+    coordinates?: { lat: number; lon: number }
+    overridesPhotoGps: boolean
+  }>({ overridesPhotoGps: false })
+  /// Held until the cluster turns out to have a sighting worth saving.
+  const pendingOutingRef = useRef<Outing | null>(null)
+  const pendingPhotosRef = useRef<Photo[]>([])
   const [photos, setPhotos] = useState<PhotoWithCrop[]>([])
   const [currentClusterIndex, setCurrentClusterIndex] = useState(0)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
@@ -86,7 +98,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
   const [photoResults, setPhotoResults] = useState<PhotoResult[]>([])
   const [currentCandidates, setCurrentCandidates] = useState<
-    { species: string; confidence: number; plumage?: string; rangeStatus?: string }[]
+    { species: string; confidence: number; plumage?: string }[]
   >([])
   const [rangeAdjusted, setRangeAdjusted] = useState(false)
 
@@ -134,7 +146,6 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
   const runSpeciesId = async (
     photoIdx: number,
     imageUrl?: string,
-    locationNameOverride?: string,
   ) => {
     const photo = getFullPhoto(photoIdx)
     if (!photo) return
@@ -160,13 +171,32 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
       const fastResult: BirdIdResult = await identifyBirdLocally(
         MODEL_ASSETS,
         analyzeUrl,
-        useGeoContext ? photo.gps : undefined,
+        resolveInferenceCoordinates(
+          useGeoContext,
+          photo.gps,
+          outingInferenceContext.current.coordinates,
+          outingInferenceContext.current.overridesPhotoGps,
+        ),
         photoMonth,
       )
 
-      // Low confidence replaces the empty-candidate test. A classifier always
-      // returns 25 ranked species, so candidates.length is never 0 and that
-      // branch would be dead code. multipleBirds is gone with the GPT path.
+      // ABSTENTION FIRST. The bird/not-bird probe is the one thing that can
+      // empty the candidate list, and it means "this is probably not a bird"
+      // rather than "this bird is ambiguous". Those need different screens, so
+      // it is tested before the low-confidence crop prompt: the empty state
+      // already leads with Crop & Retry, which is the right action when the
+      // bird is simply too small in frame.
+      if (fastResult.candidates.length === 0) {
+        debug('bird-id', 'Below the bird probe threshold; abstaining')
+        setCurrentCandidates([])
+        setRangeAdjusted(false)
+        setStep('photo-confirm')
+        return;
+      }
+
+      // Low confidence, which is a DIFFERENT question from the one above: this
+      // is a bird, but which one is unclear. multipleBirds is gone with the
+      // GPT path.
       if (!imageUrl && shouldPromptForCrop(fastResult, false)) {
         debug('bird-id', 'Low confidence; requesting crop')
         // Keep the candidates rather than blanking them. The model always has
@@ -252,8 +282,21 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
   const uploadStatsRef = useRef({ newSpecies: 0, outings: 0, totalSpecies: 0, totalCount: 0, locationNames: [] as string[] })
 
+  // Order matters: observation has an FK to photo, and photo has one to outing.
+  const ensureOutingAndPhotosExist = async () => {
+    if (pendingOutingRef.current) {
+      await data.addOuting(pendingOutingRef.current)
+      pendingOutingRef.current = null
+    }
+    if (pendingPhotosRef.current.length > 0) {
+      await data.addPhotos(pendingPhotosRef.current)
+      pendingPhotosRef.current = []
+    }
+  }
+
   // ─── Save all observations and finish ────────────────────
   const saveOuting = async (allResults: PhotoResult[]) => {
+    if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
     const confirmed = filterConfirmedResults(allResults)
     const existingSpecies = new Set(data.dex.map(entry => entry.speciesName))
 
@@ -277,6 +320,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     let liferMessage = ''
 
     if (observations.length > 0) {
+      await ensureOutingAndPhotosExist()
       const persistObservations = data.addObservations(observations)
       const result = data.updateDex(currentOutingId, observations)
       await persistObservations
@@ -319,18 +363,22 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
       window.setTimeout(() => setShowConfetti(false), 1400)
     }
 
-    // Accumulate stats across all clusters
-    const outingName = data.outings.find(o => o.id === currentOutingId)?.locationName
-    const uniqueSpecies = new Set(confirmed.map(r => r.species)).size
-    const totalCount = confirmed.reduce((sum, r) => sum + r.count, 0)
-    const stats = uploadStatsRef.current
-    stats.newSpecies += newSpeciesCount
-    stats.outings += 1
-    stats.totalSpecies += uniqueSpecies
-    stats.totalCount += totalCount
-    if (outingName && !stats.locationNames.includes(outingName)) {
-      stats.locationNames.push(outingName)
+    // Accumulate stats across all clusters. A cluster where every photo was skipped saved
+    // nothing, so it must not count towards the summary or the sign-up prompt.
+    if (clusterHasSightings(allResults)) {
+      const outingName = data.outings.find(o => o.id === currentOutingId)?.locationName
+      const uniqueSpecies = new Set(confirmed.map(r => r.species)).size
+      const totalCount = confirmed.reduce((sum, r) => sum + r.count, 0)
+      const stats = uploadStatsRef.current
+      stats.newSpecies += newSpeciesCount
+      stats.outings += 1
+      stats.totalSpecies += uniqueSpecies
+      stats.totalCount += totalCount
+      if (outingName && !stats.locationNames.includes(outingName)) {
+        stats.locationNames.push(outingName)
+      }
     }
+    const stats = uploadStatsRef.current
 
     if (currentClusterIndex < clusters.length - 1) {
       setCurrentClusterIndex(prev => prev + 1)
@@ -344,6 +392,8 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
     window.sessionStorage.setItem('home:highlightOutingId', currentOutingId)
     window.dispatchEvent(new Event('home:highlightOuting'))
+
+    if (stats.outings > 0) onOutingSaved?.()
 
     // Show upload summary instead of closing immediately
     setUploadSummary({ ...stats })
@@ -492,12 +542,21 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
 
   // ─── Outing confirmed → start per-photo loop ────────────
   const handleOutingConfirmed = async (
+    pendingOuting: Outing | null,
     outingId: string,
-    locationName: string
+    locationName: string,
+    lat?: number,
+    lon?: number,
+    outingOverridesPhotoGps = false,
   ) => {
+    if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
     const normalizedLocationName = normalizeLocationName(locationName)
     setLastLocationName(normalizedLocationName)
     setCurrentOutingId(outingId)
+    outingInferenceContext.current = {
+      coordinates: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
+      overridesPhotoGps: outingOverridesPhotoGps,
+    }
 
     const cluster = clusters[currentClusterIndex]
     const updatedPhotos = cluster.photos.map((p: any) => {
@@ -515,7 +574,8 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
       fileHash: p.fileHash,
       fileName: p.fileName,
     }))
-    await data.addPhotos(photosForStorage as Photo[])
+    pendingOutingRef.current = pendingOuting
+    pendingPhotosRef.current = photosForStorage as Photo[]
     setPhotos(prev =>
       prev.map(p => {
         const updated = updatedPhotos.find((up: any) => up.id === p.id)
@@ -527,14 +587,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
     setCurrentCandidates([])
     setRangeAdjusted(false)
 
-    // The model is 61.66 MiB. Ask before the FIRST identification, never at
+    // The model download is 56.39 MiB. Ask before the FIRST identification, never at
     // page load, and never silently in the middle of one. modelReady() is a
     // cache lookup, so on every later session this is a no-op and the user
     // goes straight to identifying.
     if (await modelReady()) {
-      runSpeciesId(0, undefined, normalizedLocationName)
+      runSpeciesId(0)
     } else {
-      pendingLocationName.current = normalizedLocationName
       setStep('model-download')
     }
   }
@@ -544,9 +603,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
   // current state, so a useCallback with an empty dependency list would pin the
   // first render's copy and identify against stale photos.
   const handleModelReady = () => {
-    const name = pendingLocationName.current
-    pendingLocationName.current = undefined
-    void runSpeciesId(0, undefined, name)
+    void runSpeciesId(0)
   }
 
   // ─── Manual crop callback ───────────────────────────────
@@ -696,6 +753,7 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
               userId={userId}
               defaultLocationName={lastLocationName}
               autoLookupGps={useGeoContext}
+              ensureSessionReady={ensureSessionReady}
               onConfirm={handleOutingConfirmed}
             />
           )}
@@ -734,6 +792,13 @@ export default function AddPhotosFlow({ data, onClose, userId }: AddPhotosFlowPr
               photo={fullCurrentPhoto}
               candidates={currentCandidates}
               rangeAdjusted={rangeAdjusted}
+              useGeoContext={useGeoContext}
+              inferenceCoordinates={resolveInferenceCoordinates(
+                useGeoContext,
+                fullCurrentPhoto.gps,
+                outingInferenceContext.current.coordinates,
+                outingInferenceContext.current.overridesPhotoGps,
+              )}
               photoIndex={currentPhotoIndex}
               totalPhotos={clusterPhotos.length}
               onConfirm={confirmCurrentPhoto}
@@ -874,8 +939,14 @@ function AiZoomedPreview({
 
 interface PerPhotoConfirmProps {
   photo: PhotoWithCrop
-  candidates: { species: string; confidence: number; plumage?: string; rangeStatus?: string }[]
+  candidates: { species: string; confidence: number; plumage?: string }[]
   rangeAdjusted?: boolean
+  /** The user's Use Location and Time setting. Ranking drops GPS and month when
+   *  it is off, so the mark must stay silent too rather than showing a
+   *  geographic conclusion they turned off. */
+  useGeoContext?: boolean
+  /** The exact coordinates used by the range prior for this photo. */
+  inferenceCoordinates?: { lat: number; lon: number }
   photoIndex: number
   totalPhotos: number
   onConfirm: (
@@ -894,6 +965,8 @@ function PerPhotoConfirm({
   photo,
   candidates,
   rangeAdjusted,
+  useGeoContext,
+  inferenceCoordinates,
   photoIndex,
   totalPhotos,
   onConfirm,
@@ -909,6 +982,22 @@ function PerPhotoConfirm({
   const [selectedConfidence, setSelectedConfidence] = useState(topCandidate?.confidence ?? 0)
   const [selectedPlumage, setSelectedPlumage] = useState(topCandidate?.plumage)
   const isHighConfidence = selectedConfidence >= 0.8
+
+  // Resolved once for the whole candidate list: a hook cannot be called per
+  // candidate, because the count changes between photos.
+  //
+  // The month is derived the SAME way runSpeciesId derives it, in the browser
+  // timezone, rather than from the timestamp's own offset. Reading it the other
+  // way is arguably more correct but would let a photo ranked as February show
+  // a January verdict, and a mark that contradicts the ranking beside it is
+  // worse than one that is a day off at a month boundary.
+  const exif = photo.exifTime ? new Date(photo.exifTime) : null
+  const rankingMonth = exif && !Number.isNaN(exif.getTime()) ? exif.getMonth() + 1 : null
+  const photoLat = inferenceCoordinates?.lat
+  const photoLon = inferenceCoordinates?.lon
+  const photoMonth = useGeoContext ? rankingMonth : null
+  const resolveRarity = useRarityResolver(
+    photoLat != null && photoLon != null && photoMonth != null)
 
   // Reset selection when candidates change (new photo or async results)
   useEffect(() => {
@@ -981,6 +1070,7 @@ function PerPhotoConfirm({
   const displayName = getDisplayName(selectedSpecies)
   const scientificMatch = selectedSpecies.match(/\(([^)]+)\)/)
   const scientificName = scientificMatch ? scientificMatch[1] : ''
+  const refLabel = refImage?.plumage ? `Reference (${refImage.plumage})` : 'Reference'
 
   const plumageIcon = (p: string): string | null => {
     const l = p.toLowerCase()
@@ -1025,19 +1115,21 @@ function PerPhotoConfirm({
             loading={galleryLoading}
             onImageChange={setRefImage}
           />
-          {/* Most Commons photos are CC BY or CC BY-SA, so the creator has to be named. */}
-          <p className="text-xs text-muted-foreground text-center">
-            {refImage?.plumage ? `Reference (${refImage.plumage})` : 'Reference'}
-          </p>
-          {refImage?.artist && (
+          {/* Attribution rides on the file-page link, which CC 4.0 3(a)(2) accepts in place
+              of an inline creator/license line. Two lines are reserved so swiping to an image
+              with a different plumage tag cannot shift the photos. */}
+          {refImage?.descriptionUrl ? (
             <a
               href={refImage.descriptionUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[10px] text-muted-foreground/60 text-center underline text-balance"
+              aria-label={`${refLabel}. Photo credit and license on Wikimedia Commons`}
+              className="text-xs text-muted-foreground text-center underline line-clamp-2 min-h-8"
             >
-              {[refImage.artist, refImage.license].filter(Boolean).join(' / ')}
+              {refLabel}
             </a>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center line-clamp-2 min-h-8">{refLabel}</p>
           )}
         </div>
       </div>
@@ -1154,13 +1246,17 @@ function PerPhotoConfirm({
                         {c.plumage && (
                           <span className="ml-1 text-xs text-muted-foreground font-normal">({c.plumage})</span>
                         )}
+                        {/* Shown on every candidate, not just the selected one.
+                            When the top pick is a mega and the runner-up is the
+                            ordinary local bird, that contrast is the most useful
+                            thing on the screen. Dimmed when unselected so it
+                            informs without competing with the selection state. */}
+                        <RarityMark
+                          state={resolveRarity(c.species, photoLat, photoLon, photoMonth)}
+                          className={`ml-1.5 ${isSelected ? '' : 'opacity-45'}`}
+                        />
                       </span>
                       <span className="flex items-center gap-1.5">
-                        {c.rangeStatus && (c.rangeStatus === 'out-of-range' || c.rangeStatus === 'near-range') && (
-                          <span className={`text-[10px] font-medium ${c.rangeStatus === 'out-of-range' ? 'text-red-500 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                            {c.rangeStatus === 'out-of-range' ? 'Out of range' : 'Near range'}
-                          </span>
-                        )}
                         <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>
                       </span>
                     </button>

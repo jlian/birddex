@@ -37,8 +37,7 @@ stored only in the `verification` table (as a pending value) until verified.
 
 1. User enters email in auth gate modal
 2. Passkey created (email used as keychain label)
-3. `POST /api/auth/finalize-passkey` with `{ name: birdName }`: **no email
-   set on user** (only `isAnonymous = 0` and name updated)
+3. Passkey verification upgrades the anonymous user in place; no email is set
 4. `POST /api/auth/send-email-otp` with `{ email }`: generates OTP, stores in
    `verification` table, sends email via Resend
 5. Modal shows OTP input: "We sent a code to you@example.com"
@@ -213,7 +212,7 @@ This lets the full flow work locally without an email provider.
 - [ ] Add env vars to `functions/env.d.ts`
 - [ ] Implement `send-email-otp` endpoint
 - [ ] Implement `verify-email-otp` endpoint
-- [ ] Update `finalize-passkey` to stop setting unverified email on `user.email`
+- [ ] Keep real email out of `user.email` until OTP verification succeeds
 - [ ] Add OTP input step to auth gate modal (post-signup)
 - [ ] Add email verification UI to Settings page
 - [ ] Add `#verify-email` deep link handler

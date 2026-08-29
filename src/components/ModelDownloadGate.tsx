@@ -1,11 +1,11 @@
 /**
  * Model download gate.
  *
- * The model is 61.66 MiB. Three rules follow from that:
+ * The model download is 56.39 MiB. Three rules follow from that:
  *
- *  1. NEVER at page load. Most visits never identify a bird, and pulling 62 MiB
+ *  1. NEVER at page load. Most visits never identify a bird, and pulling 56 MiB
  *     to look at a life list would be indefensible.
- *  2. NEVER silently mid-identification. Discovering a 62 MiB download after
+ *  2. NEVER silently mid-identification. Discovering a 56 MiB download after
  *     picking a photo feels like the app broke.
  *  3. Once only. The Cache API keeps it, so this screen appears on first use
  *     and never again unless the user clears it.
@@ -73,7 +73,7 @@ export function ModelDownloadGate({ onReady }: { onReady: () => void }) {
     setError(null)
     try {
       await preloadModel(MODEL_ASSETS, p => { if (mounted.current) setProgress(p) })
-      // The user may have discarded the flow during the 62 MiB download.
+      // The user may have discarded the flow during the 56 MiB download.
       // Firing onReady now would start a decode and inference for a closed
       // workflow, so bail if we are no longer mounted.
       if (!mounted.current) return

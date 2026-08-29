@@ -7,7 +7,11 @@ import Foundation
 ///
 /// The iOS counterpart of src/lib/bird-id-local.ts. Everything is bundled, so
 /// there is no download step and no cache: 37 MiB Core ML tower, 8.2 MiB text
-/// classifier, 23 MiB occurrence prior.
+/// classifier, 33 MiB occurrence prior.
+///
+/// The prior is the v4 blob, bundled UNCOMPRESSED by
+/// ios/scripts/sync-birdid-assets.sh: 34,576,516 bytes = 32.97 MiB, from a
+/// 21.58 MiB .gz. The 23 MiB quoted here before was the v3 blob.
 ///
 /// Classification is a cosine similarity against a frozen 11,167 x 768 matrix
 /// of BioCLIP-2 text embeddings, so the text encoder never runs on device.
@@ -18,9 +22,16 @@ actor BirdIdEngine {
         let commonName: String
         let scientificName: String
         let taxonIdx: Int
+        /// Displayed confidence: P_cal * P(species | bird).
+        ///
+        /// The probe multiplier is the SAME positive scalar on every candidate
+        /// of one photo, so it cannot reorder them.
         let confidence: Double
         /// Nil when no geographic prior applied, so the caller can say so.
         let logP: Double?
+        /// Calibrated P(bird) for the whole photo. Identical across the
+        /// candidates of one identify() call.
+        let pBird: Double
     }
 
     enum EngineError: Error, CustomStringConvertible {
@@ -34,7 +45,7 @@ actor BirdIdEngine {
             case .missingResource(let n): "bird ID asset missing from the bundle: \(n)"
             case .badClassifierLength(let n): "text classifier length \(n) is not a multiple of 768"
             case .speciesCountMismatch(let c, let t):
-                "text classifier has \(c) species but taxonomy has \(t)"
+                "text classifier has \(c) species rows plus a probe row but taxonomy has \(t)"
             case .noEmbedding: "Core ML returned no embedding"
             }
         }
@@ -43,11 +54,34 @@ actor BirdIdEngine {
     /// Must match MODEL_ASSETS in src/lib/bird-id-local-adapter.ts. Pinned
     /// against the shared golden fixture in BirdIDParityTests, because a silent
     /// drift here re-weights the prior against similarity on every photo.
+    ///
+    /// REFITTED for the v4 blob at occFloor = 3e-5 and occBackoffK = 0.3.
+    /// Not transferable across either constant.
+    /// The probe values are the a060-int8 arm, matching BIRD_PROBE in the web
+    /// adapter byte for byte. See that file for what each was measured to do:
+    /// at this threshold, 0.45% of validation birds are flagged, 74.10% of hard
+    /// negatives and 84.90% of Imagenette are rejected, and 0.0375% of 8,000
+    /// unseen NABirds are rejected.
     static let calibration = BirdRanker.Calibration(
-        temperature: 0.007545354776084423,
-        beta: 0.5435083508491516
+        temperature: 0.007435,
+        beta: 1.1634,
+        probe: BirdRanker.BirdProbe(
+            bias: 1.7004907607405835,
+            plattA: 1.248338657716024,
+            plattB: 2.1821600341974303,
+            threshold: 0.3736373465
+        )
     )
     static let taxonomySha16 = "04951673b96b11bf"
+
+    /// Abstention threshold on the CALIBRATED P(bird) scale.
+    ///
+    /// Exposed because the gate lives in the caller, not in identify():
+    /// the engine reports pBird and the presentation layer decides to
+    /// abstain, which is the same split the web takes between
+    /// bird-id-local.ts and identifyBirdLocally in the adapter.
+    static var birdProbeThreshold: Double { calibration.probe.threshold }
+
 
     /// Prompt for a crop below this. Measured on 400 labelled held-out photos
     /// plus 393 Imagenette non-birds: 0.8 keeps 93% of real birds and rejects
@@ -81,7 +115,11 @@ actor BirdIdEngine {
 
     private struct Loaded {
         let model: MLModel
+        /// Species rows ONLY: the probe row is split off into `probeW` so the
+        /// vDSP_mmul below can never emit it as a candidate.
         let classifier: [Float]
+        /// Last row of the classifier file: the 768-d probe weights.
+        let probeW: [Float]
         let speciesCount: Int
         let names: [(common: String, scientific: String)]
         let occurrence: OccurrenceBlob
@@ -109,13 +147,22 @@ actor BirdIdEngine {
                                                   withExtension: "bin") else {
             throw EngineError.missingResource("text_classifier_int8.bin")
         }
-        let (classifier, speciesCount) = try Self.decodeInt8Rows(
+        let (rows, rowCount) = try Self.decodeInt8Rows(
             try Data(contentsOf: classifierURL), dim: Self.embedDim)
 
+        // The LAST row is the bird/not-bird probe, not a species. Splitting it
+        // off keeps the similarity matmul exactly as wide as the taxonomy.
+        //
+        // The count check is what catches a stale bundled classifier: an older
+        // 11,167-row file decodes fine and would otherwise silently hand its
+        // last SPECIES row to the probe.
+        let speciesCount = rowCount - 1
         let names = try Self.loadTaxonomyNames()
-        guard names.count == speciesCount else {
+        guard speciesCount > 0, names.count == speciesCount else {
             throw EngineError.speciesCountMismatch(classifier: speciesCount, taxonomy: names.count)
         }
+        let classifier = Array(rows[0..<(speciesCount * Self.embedDim)])
+        let probeW = Array(rows[(speciesCount * Self.embedDim)...])
 
         guard let priorURL = Bundle.main.url(forResource: "occurrence", withExtension: "bin") else {
             throw EngineError.missingResource("occurrence.bin")
@@ -123,7 +170,8 @@ actor BirdIdEngine {
         let occurrence = try OccurrenceBlob(raw: [UInt8](try Data(contentsOf: priorURL)),
                                             taxonomySha16: Self.taxonomySha16)
 
-        let l = Loaded(model: model, classifier: classifier, speciesCount: speciesCount,
+        let l = Loaded(model: model, classifier: classifier, probeW: probeW,
+                       speciesCount: speciesCount,
                        names: names, occurrence: occurrence)
         loaded = l
         return l
@@ -151,20 +199,31 @@ actor BirdIdEngine {
         let sims = similarities(embedding, l)
         let candidates = topCandidates(sims, count: Self.candidateCount)
 
+        // Bird/not-bird probe on the SAME normalised embedding. Deliberately
+        // OUTSIDE the species softmax: a "not a bird" class inside it would
+        // compete with the species and change which one wins, whereas a
+        // multiplier applied afterwards scales all of them equally.
+        let pBird = Self.birdProbability(embedding, l)
+
         let scored = BirdRanker.rank(candidates, calibration: Self.calibration,
                                      occurrence: l.occurrence, location: location, month: month)
         let probs = BirdRanker.scoresToProbs(scored)
 
         return scored.prefix(topK).enumerated().map { i, s in
+            // P_cal * P(species | bird). `scored` fixed the order before pBird
+            // was ever multiplied in.
             Result(commonName: l.names[s.idx].common,
                    scientificName: l.names[s.idx].scientific,
                    taxonIdx: s.idx,
-                   confidence: probs[i],
-                   logP: s.logP)
+                   confidence: pBird * probs[i],
+                   logP: s.logP,
+                   pBird: pBird)
         }
     }
 
     private func embed(_ pixels: [Float], model: MLModel) throws -> [Float] {
+        // Stays 224: preprocess() resizes the SHORTER side to 248 and then
+        // centre-crops 224, so only the resize target moved, not the tensor.
         let array = try MLMultiArray(shape: [1, 3, 224, 224], dataType: .float32)
         pixels.withUnsafeBufferPointer { src in
             let dst = array.dataPointer.bindMemory(to: Float.self, capacity: pixels.count)
@@ -178,6 +237,39 @@ actor BirdIdEngine {
         }
         let ptr = value.dataPointer.bindMemory(to: Float.self, capacity: value.count)
         return Array(UnsafeBufferPointer(start: ptr, count: value.count))
+    }
+
+    /// Calibrated P(bird) for one embedding.
+    ///
+    /// P_raw = sigmoid(w . e + bias) on the L2-normalised embedding, then
+    /// P_cal = sigmoid(plattA * logit(P_raw) + plattB). The logit is clamped at
+    /// 1e-7, matching the clip the Platt pair was fitted under: the probe
+    /// saturates on obvious birds and Float rounds those to exactly 1, where an
+    /// unclamped logit is infinite and the Platt map returns NaN.
+    private static func birdProbability(_ embedding: [Float], _ l: Loaded) -> Double {
+        return birdProbability(embedding, probeW: l.probeW)
+    }
+
+    /// The probe computation itself, taking the weight row directly.
+    ///
+    /// Split out from the  overload so a test can drive it with a known
+    /// embedding and the real bundled probe row, without a Core ML forward
+    /// pass. The accuracy tests only check species ORDER, and the probe is a
+    /// positive scalar multiplier that cannot change an order, so without a
+    /// golden on THIS function a wrong dot product, a swapped Platt pair or a
+    /// missing normalisation all still pass.
+    static func birdProbability(_ embedding: [Float], probeW: [Float]) -> Double {
+        var norm: Float = 0
+        vDSP_svesq(embedding, 1, &norm, vDSP_Length(embedDim))
+        norm = norm.squareRoot()
+        if norm == 0 { norm = 1 }
+        var dot: Float = 0
+        vDSP_dotpr(probeW, 1, embedding, 1, &dot, vDSP_Length(embedDim))
+        let raw = 1.0 / (1.0 + exp(-(Double(dot / norm) + calibration.probe.bias)))
+        let eps = 1e-7
+        let c = min(max(raw, eps), 1 - eps)
+        let z = log(c / (1 - c))
+        return 1.0 / (1.0 + exp(-(calibration.probe.plattA * z + calibration.probe.plattB)))
     }
 
     /// Full 11,167-way cosine, then the caller keeps the top 25.
@@ -215,8 +307,9 @@ actor BirdIdEngine {
         return best.map { BirdRanker.Candidate(idx: $0.idx, sim: Double($0.sim)) }
     }
 
-    /// Decode the int8 classifier: an int8 matrix followed by fp32 per-row
-    /// scales. Row s is q[s] * scale[s].
+    /// Decode the int8 rows: an int8 matrix followed by fp32 per-row
+    /// scales. Row s is q[s] * scale[s]. The LAST row is the probe, not a
+    /// species; the caller splits it off.
     ///
     /// Dequantised to Float up front, 34 MiB resident, because BLAS has no int8
     /// gemv and converting per row on every identify would cost more than the

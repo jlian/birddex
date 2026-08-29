@@ -41,6 +41,21 @@ def main():
     log("source %s  %.1f MiB" % (os.path.basename(args.src), src_mb))
 
     m = onnx.load(args.src)
+
+    # Provenance must survive the split, because the split file is the
+    # one that actually ships. If the source graph carries no
+    # wingdex.* props, say so rather than shipping an anonymous model.
+    have = set(p.key for p in m.metadata_props)
+    prov = sorted(k for k in have if k.startswith("wingdex."))
+    if prov:
+        log("provenance carried across the split:")
+        for p in m.metadata_props:
+            if p.key.startswith("wingdex."):
+                log("   %-38s %s" % (p.key, p.value))
+    else:
+        log("WARNING: source graph has NO wingdex.* provenance props.")
+        log("         Run ml/distill/check_provenance.py --stamp on it,")
+        log("         or re-export with the current export_onnx.py.")
     graph_path = os.path.join(args.out_dir, args.base + ".onnx")
     data_name = args.base + ".data"
 

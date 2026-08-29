@@ -363,10 +363,6 @@ export type GalleryImage = {
   title?: string
   /** Parsed plumage tag from caption/filename (e.g. "male", "female", "juvenile") */
   plumage?: string
-  /** Creator, as named on the file page. Commons returns this as HTML. */
-  artist?: string
-  /** Short license name, e.g. "CC BY-SA 4.0". */
-  license?: string
   /** Commons file page, which carries the full credit and license notice. */
   descriptionUrl?: string
 }
@@ -404,14 +400,52 @@ export async function getWikimediaGallery(
   if (existing) return existing.then(imgs => imgs.slice(0, limit))
 
   const promise = (async (): Promise<GalleryImage[]> => {
-    const images = await fetchCommonsGallery(common, limit)
-    galleryCache.set(cacheKey, images)
+    const [images, leadUrl] = await Promise.all([
+      fetchCommonsGallery(common, limit),
+      getWikimediaImage(speciesName),
+    ])
+    const withLead = promoteLeadImage(leadUrl, images)
+    galleryCache.set(cacheKey, withLead)
     trimGalleryCache()
-    return images
+    return withLead
   })()
 
   galleryInFlight.set(cacheKey, promise)
   try { return await promise } finally { galleryInFlight.delete(cacheKey) }
+}
+
+/** Commons file name from an upload URL or a file page URL, normalised for comparison. */
+function commonsFileKey(url: string | undefined): string | undefined {
+  if (!url) return undefined
+  const decoded = decodeURIComponent(url)
+  const filePage = decoded.split('/wiki/File:')[1]
+  const name = filePage
+    ?? (decoded.includes('/thumb/')
+      ? decoded.split('/').filter(Boolean).at(-2)
+      : decoded.split('/').filter(Boolean).at(-1))
+  return name?.replace(/_/g, ' ').toLowerCase()
+}
+
+/**
+ * Put the Wikipedia lead image first, absorbing the Commons copy of the same file when the
+ * search already returned it. Commons relevance ordering routinely opens on a nest or a
+ * female, while the lead image is the shot the species page already shows.
+ */
+function promoteLeadImage(leadUrl: string | undefined, images: GalleryImage[]): GalleryImage[] {
+  const leadKey = commonsFileKey(leadUrl)
+  if (!leadUrl || !leadKey) return images
+  const duplicate = images.find(image => commonsFileKey(image.descriptionUrl) === leadKey)
+  const rest = images.filter(image => commonsFileKey(image.descriptionUrl) !== leadKey)
+  return [
+    {
+      url: leadUrl,
+      caption: duplicate?.caption,
+      title: duplicate?.title,
+      plumage: duplicate?.plumage,
+      descriptionUrl: duplicate?.descriptionUrl ?? getFilePageUrl(leadUrl),
+    },
+    ...rest,
+  ]
 }
 
 /** Parse plumage from caption + filename text. */
@@ -435,7 +469,7 @@ async function fetchCommonsGallery(speciesName: string, limit: number): Promise<
   try {
     const query = encodeURIComponent(`"${speciesName}"`)
     const res = await fetch(
-      `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${query}&gsrnamespace=6&gsrlimit=${limit + 6}&prop=imageinfo&iiprop=extmetadata|url&iiurlwidth=500&format=json&origin=*`,
+      `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${query}&gsrnamespace=6&gsrlimit=${limit + 6}&prop=imageinfo&iiprop=extmetadata|url|mime&iiurlwidth=500&format=json&origin=*`,
       { headers: { 'Api-User-Agent': WIKIMEDIA_USER_AGENT } },
     )
     if (!res.ok) return []
@@ -446,11 +480,10 @@ async function fetchCommonsGallery(speciesName: string, limit: number): Promise<
         imageinfo?: Array<{
           thumburl?: string
           descriptionurl?: string
+          mime?: string
           extmetadata?: {
             ImageDescription?: { value?: string }
             Assessments?: { value?: string }
-            Artist?: { value?: string }
-            LicenseShortName?: { value?: string }
           }
         }>
       }> }
@@ -475,20 +508,22 @@ async function fetchCommonsGallery(speciesName: string, limit: number): Promise<
       const title = page.title ?? ''
       if (GALLERY_EXCLUDE_RE.test(title)) continue
       const ii = page.imageinfo?.[0]
+      // Commons bird photos are JPEG; the PNG and SVG hits are icons and diagrams.
+      if (ii?.mime !== 'image/jpeg') continue
       const url = ii?.thumburl
       if (!url) continue
       const rawDesc = ii?.extmetadata?.ImageDescription?.value ?? ''
       const caption = rawDesc.replace(/<[^>]*>/g, '')
-      // Skip non-photo content based on caption
-      if (/\beggs?\b|\bnest\b|\bskeleton\b|\bspecimen\b|\btaxiderm/i.test(caption)) continue
+      // Skip non-photo content. Spanish terms too: Commons captions the nest and chick shots
+      // that outrank the bird itself for several New World species.
+      const subject = `${caption} ${title}`.replace(/[_-]/g, ' ')
+      if (/\beggs?\b|\bnests?\b|\bskeleton\b|\bspecimen\b|\btaxiderm|\bnido\b|\bnidada\b|\bpolluelos?\b|\bhuevos?\b/i.test(subject)) continue
       const plumage = parsePlumage([caption, title].join(' '))
       results.push({
         url,
         caption: caption || undefined,
         title,
         plumage,
-        artist: stripHtml(ii?.extmetadata?.Artist?.value) || undefined,
-        license: stripHtml(ii?.extmetadata?.LicenseShortName?.value) || undefined,
         descriptionUrl: ii?.descriptionurl,
       })
       if (results.length >= limit) break

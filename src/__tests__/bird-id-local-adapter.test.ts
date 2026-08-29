@@ -9,6 +9,7 @@ describe('local bird identification result mapping', () => {
       taxonIdx: 0,
       confidence: 0.98,
       logP: -1.2,
+      pBird: 0.99,
     }])).toEqual({
       candidates: [{
         species: 'Chukar (Alectoris chukar)',
@@ -25,6 +26,7 @@ describe('local bird identification result mapping', () => {
       taxonIdx: 0,
       confidence: 0.98,
       logP: null,
+      pBird: 0.99,
     }]).rangeAdjusted).toBe(false)
   })
 })

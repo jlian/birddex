@@ -6,8 +6,8 @@ struct IntentDataProvider {
     func fetchAllData() async throws -> AllDataResponse {
         try ensureProtectedDataAvailable()
         do {
-            let auth = AuthService()
-            guard auth.isAuthenticated else { throw IntentDataError.notSignedIn }
+            let auth = AuthService.shared
+            try await auth.ensureAnonymousSession()
             return try await DataService(auth: auth).fetchAllData()
         } catch is CancellationError {
             throw CancellationError()
@@ -22,8 +22,9 @@ struct IntentDataProvider {
     func exportSightings() async throws -> Data {
         try ensureProtectedDataAvailable()
         do {
-            let auth = AuthService()
-            guard auth.isAuthenticated else { throw IntentDataError.notSignedIn }
+            let auth = AuthService.shared
+            _ = await auth.validateSession()
+            guard auth.isRegisteredAccount else { throw IntentDataError.notSignedIn }
             return try await DataService(auth: auth).exportSightingsCSV()
         } catch is CancellationError {
             throw CancellationError()

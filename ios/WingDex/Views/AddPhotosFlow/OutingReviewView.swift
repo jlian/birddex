@@ -20,6 +20,7 @@ struct OutingReviewView: View {
 
     @State private var locationName = ""
     @State private var isLoadingLocation = false
+    @State private var locationLookupState: LocationLookupState = .ok
     @State private var suggestedLocation = ""
     @State private var suggestedStateProvince: String?
     @State private var suggestedCountryCode: String?
@@ -49,11 +50,15 @@ struct OutingReviewView: View {
     /// Whether to add photos to an existing matching outing
     @State private var matchingOuting: Outing?
     @State private var useExistingOuting = false
-    @State private var isCreatingOuting = false
-    @State private var preparedOuting: Outing?
 
     /// Tracks whether the view has initiated geocoding for the current cluster.
     @State private var didInitialize = false
+
+    private enum LocationLookupState {
+        case ok
+        case empty
+        case error
+    }
 
     // MARK: - Computed
 
@@ -148,7 +153,7 @@ struct OutingReviewView: View {
                 }
                 .accessibilityLabel("Continue")
                 .buttonStyle(.borderedProminent)
-                .disabled(isLoadingLocation || isCreatingOuting)
+                .disabled(isLoadingLocation)
             }
         }
         .onAppear { initializeIfNeeded() }
@@ -169,9 +174,9 @@ struct OutingReviewView: View {
         }
     }
 
-    /// One caption below the location controls: attribution, then what happens to coordinates.
+    /// Static provider attribution for reverse lookup and explicit place search.
     private var locationFooter: some View {
-        Text("Location data by [Geoapify](https://www.geoapify.com/), [OpenStreetMap](https://www.openstreetmap.org/copyright), and [GeoNames](https://www.geonames.org/). Coordinates are saved with your outing and rounded for lookups.")
+        Text("Powered by [Geoapify](https://www.geoapify.com/) and [OpenStreetMap](https://www.openstreetmap.org/copyright)")
             .font(.footnote)
             .foregroundStyle(Color.mutedText)
             .tint(Color.accentColor)
@@ -202,10 +207,30 @@ struct OutingReviewView: View {
                 Label {
                     HStack(spacing: 4) {
                         Text("GPS detected")
-                        if let lat = cluster?.centerLat, let lon = cluster?.centerLon {
+                        // effectiveLat/Lon, NOT cluster.centerLat/Lon. Choosing a
+                        // search result moves the outing's coordinates, and the
+                        // save at `lat: effectiveLat` uses the moved ones. Showing
+                        // the originals here made the override look like it had
+                        // not taken effect.
+                        if let lat = effectiveLat, let lon = effectiveLon {
                             Text("(\(lat, specifier: "%.4f"), \(lon, specifier: "%.4f"))")
                                 .foregroundStyle(Color.foregroundText)
                         }
+                    }
+                } icon: {
+                    Image(systemName: "location.fill")
+                        .foregroundStyle(.green)
+                }
+                .font(.subheadline)
+            } else if let coords = overriddenCoords {
+                // No EXIF GPS, but a search has given the outing coordinates.
+                // Still claiming "No GPS data" would be false, and the eBird
+                // export uses these.
+                Label {
+                    HStack(spacing: 4) {
+                        Text("Location set from search")
+                        Text("(\(coords.latitude, specifier: "%.4f"), \(coords.longitude, specifier: "%.4f"))")
+                            .foregroundStyle(Color.foregroundText)
                     }
                 } icon: {
                     Image(systemName: "location.fill")
@@ -248,6 +273,9 @@ struct OutingReviewView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            // Matches the 44pt search button that replaces it, so the row does not grow when
+            // the lookup finishes.
+            .frame(minHeight: 44)
         } else {
             // The field is the outing name. Typing renames the outing; submitting
             // looks the name up so a matching place can also supply coordinates.
@@ -307,6 +335,34 @@ struct OutingReviewView: View {
                 }
                 .font(.subheadline)
             }
+
+            if locationName == suggestedLocation {
+                switch locationLookupState {
+                case .error:
+                    HStack(spacing: 4) {
+                        Text("Location lookup failed.")
+                            // System red nearly misses contrast against this
+                            // screen's dark card background. The explicit error
+                            // wording carries the state without relying on color.
+                            .foregroundStyle(Color.primary)
+                            .accessibilityIdentifier("outing.locationLookupError")
+                        Button("Retry") {
+                            retryReverseGeocoding()
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .accessibilityIdentifier("outing.locationRetry")
+                    }
+                    .font(.footnote)
+                case .empty:
+                    Text("No named place found nearby. Tap above to name this outing.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.mutedText)
+                        .accessibilityIdentifier("outing.locationLookupEmpty")
+                case .ok:
+                    EmptyView()
+                }
+            }
         }
     }
 
@@ -356,7 +412,11 @@ struct OutingReviewView: View {
                         }
                         ForEach(dropdownPlaces) { item in
                             Button {
-                                selectPlace(item)
+                                // A nearby result only changes the outing's name;
+                                // it still describes the original photo location.
+                                // A submitted search is an explicit coordinate
+                                // correction and therefore overrides photo EXIF GPS.
+                                selectPlace(item, overridesPhotoGPS: !isShowingNearby)
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.label)
@@ -471,8 +531,7 @@ struct OutingReviewView: View {
         matchingOuting = nil
         useExistingOuting = false
         isLoadingLocation = false
-        isCreatingOuting = false
-        preparedOuting = nil
+        locationLookupState = .ok
     }
 
     /// Initialize location lookup and matching outing detection.
@@ -509,6 +568,7 @@ struct OutingReviewView: View {
         let roundedLat = (latitude * 1000).rounded() / 1000
         let roundedLon = (longitude * 1000).rounded() / 1000
         isLoadingLocation = true
+        locationLookupState = .ok
         defer {
             if cluster?.id == clusterID {
                 isLoadingLocation = false
@@ -524,13 +584,20 @@ struct OutingReviewView: View {
             }
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-failure") {
-            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .error)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-empty") {
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .empty)
             return
         }
         #endif
 
         do {
-            let lookup = try await GeocodingService(auth: auth).reverse(latitude: roundedLat, longitude: roundedLon)
+            // This lookup stays inside WingDex, so preserve the photo cluster's
+            // exact coordinate. Rounding by three decimals can move a point
+            // across a park or administrative boundary.
+            let lookup = try await GeocodingService(auth: auth).reverse(latitude: latitude, longitude: longitude)
             try Task.checkCancellation()
             guard cluster?.id == clusterID else { return }
             nearbyPlaces = lookup.nearby
@@ -542,7 +609,15 @@ struct OutingReviewView: View {
                 inferredStateProvince = result.stateProvince
                 inferredCountryCode = result.countryCode
             } else {
-                applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+                // No NAMED place, but the jurisdiction is a separate question
+                // and often still answerable offshore or on unmapped land.
+                // Carry those codes through so the eBird export keeps them.
+                applyCoordinateFallback(
+                    latitude: roundedLat,
+                    longitude: roundedLon,
+                    regionCodes: lookup.regionCodes,
+                    state: .empty
+                )
             }
         } catch is CancellationError {
             return
@@ -551,20 +626,44 @@ struct OutingReviewView: View {
             // failed suggestion never blocks the user or needs its own error row.
             log.error("Reverse geocoding failed")
             guard cluster?.id == clusterID else { return }
-            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon)
+            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .error)
         }
     }
 
-    private func applyCoordinateFallback(latitude: Double, longitude: Double) {
-        let fallback = viewModel.lastLocationName.isEmpty
-            ? "\(latitude)deg, \(longitude)deg"
-            : viewModel.lastLocationName
+    private func retryReverseGeocoding() {
+        guard let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon else { return }
+        reverseGeocodingTask?.cancel()
+        let clusterID = cluster.id
+        reverseGeocodingTask = Task {
+            await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
+        }
+    }
+
+    /// Fall back to a coordinate string as the outing name.
+    ///
+    /// `regionCodes` is nil on the ERROR path, where nothing is known, and
+    /// carries the ISO codes on the successful-but-unnamed path, where the
+    /// jurisdiction resolved even though no place did.
+    private func applyCoordinateFallback(
+        latitude: Double,
+        longitude: Double,
+        regionCodes: GeocodingService.RegionCodes? = nil,
+        state: LocationLookupState
+    ) {
+        let coordinates = "\(latitude)deg, \(longitude)deg"
+        // A successful empty lookup proves that the previous outing's name
+        // does not describe this coordinate. Preserve it only when a transient
+        // error prevented the lookup from answering.
+        let fallback = state == .error && !viewModel.lastLocationName.isEmpty
+            ? viewModel.lastLocationName
+            : coordinates
         locationName = fallback
         suggestedLocation = fallback
-        suggestedStateProvince = nil
-        suggestedCountryCode = nil
-        inferredStateProvince = nil
-        inferredCountryCode = nil
+        suggestedStateProvince = regionCodes?.stateProvince
+        suggestedCountryCode = regionCodes?.countryCode
+        inferredStateProvince = regionCodes?.stateProvince
+        inferredCountryCode = regionCodes?.countryCode
+        locationLookupState = state
     }
 
     private func submitPlaceSearch() {
@@ -589,7 +688,23 @@ struct OutingReviewView: View {
                 }
             }
             do {
-                let results = try await GeocodingService(auth: auth).search(query: query)
+                let results: [GeocodingResult]
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--ui-test-place-search-result") {
+                    results = [GeocodingResult(
+                        label: "Discovery Park",
+                        context: "Seattle, Washington",
+                        latitude: 47.6573,
+                        longitude: -122.4066,
+                        stateProvince: "Washington",
+                        countryCode: "US"
+                    )]
+                } else {
+                    results = try await GeocodingService(auth: auth).search(query: query)
+                }
+                #else
+                results = try await GeocodingService(auth: auth).search(query: query)
+                #endif
                 try Task.checkCancellation()
                 guard placeSearchGeneration == generation,
                       cluster?.id == clusterID,
@@ -606,10 +721,12 @@ struct OutingReviewView: View {
         }
     }
 
-    private func selectPlace(_ result: GeocodingResult) {
+    private func selectPlace(_ result: GeocodingResult, overridesPhotoGPS: Bool) {
         let coordinate = CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude)
-        if CLLocationCoordinate2DIsValid(coordinate) {
+        if overridesPhotoGPS, CLLocationCoordinate2DIsValid(coordinate) {
             overriddenCoords = coordinate
+        } else {
+            overriddenCoords = nil
         }
         locationName = result.label
         inferredCountryCode = result.countryCode
@@ -627,10 +744,16 @@ struct OutingReviewView: View {
 
     /// Confirm the outing and proceed to species identification.
     private func handleConfirm() {
-        guard !isCreatingOuting else { return }
         if useExistingOuting, let existing = matchingOuting {
             // Merge into existing outing
-            viewModel.outingConfirmed(outingId: existing.id, locationName: existing.locationName)
+            viewModel.outingConfirmed(
+                outing: nil,
+                outingId: existing.id,
+                locationName: existing.locationName,
+                lat: existing.lat,
+                lon: existing.lon,
+                outingOverridesPhotoGPS: false
+            )
             return
         }
 
@@ -638,7 +761,7 @@ struct OutingReviewView: View {
         let formatter = ISO8601DateFormatter()
 
         let finalLocationName = trimmedLocationName.isEmpty ? "Unknown Location" : trimmedLocationName
-        let outing = preparedOuting ?? Outing(
+        let outing = Outing(
             id: "outing_\(UUID().uuidString)",
             userId: "",
             startTime: formatter.string(from: effectiveStartTime),
@@ -652,22 +775,14 @@ struct OutingReviewView: View {
             notes: "",
             createdAt: formatter.string(from: Date())
         )
-        preparedOuting = outing
-        isCreatingOuting = true
-
-        Task {
-            defer { isCreatingOuting = false }
-            do {
-                let saved = try await viewModel.createOuting(outing)
-                preparedOuting = nil
-                viewModel.outingConfirmed(outingId: saved.id, locationName: finalLocationName)
-            } catch is CancellationError {
-                return
-            } catch {
-                log.error("Failed to create outing")
-                viewModel.error = AppError.map(error, fallback: "Could not create this outing. Try again.")
-            }
-        }
+        viewModel.outingConfirmed(
+            outing: outing,
+            outingId: outing.id,
+            locationName: finalLocationName,
+            lat: effectiveLat,
+            lon: effectiveLon,
+            outingOverridesPhotoGPS: overriddenCoords != nil
+        )
     }
 
     /// Find an existing outing that matches this cluster by time and location.

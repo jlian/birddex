@@ -360,7 +360,7 @@ Migrate from the current 4-tab layout to the new architecture: 3 tabs left + det
 ### 3.5.2: SignInView Rework ✅
 
 - [x] **Remove ScrollView**: Centered VStack layout, no scroll
-- [x] **Title**: "Start your WingDex" (static, matching web)
+- [x] **Title**: "Start your WingDex" when empty, "Keep your WingDex" when anonymous data exists (matching web)
 - [x] **Social buttons**: GitHub, Apple, Google at top (all working)
 - [x] **Passkey section with border**: Bordered container with muted fill, key icon header
 - [x] **Two passkey buttons side-by-side**: "Log in" (filled) + "Sign up" (outlined)
@@ -901,9 +901,10 @@ Phase 9 contains the native platform work required for the iPhone 1.0 launch. Sh
 #### 9.1.1 Share Extension
 
 - [x] Accept single or multiple images from other apps
-- [x] Stage image bytes in the App Group for import on the main app's next activation
+- [x] Stage each share as an atomic App Group batch and import pending batches in FIFO order
+- [x] Accept each batch at most once before cleaning up its temporary files
 - [x] Preserve ordering, EXIF, and GPS while keeping authentication and identification in the main app
-- [x] Complete the extension normally and ask the user to open WingDex; do not depend on a Share Extension launching its containing app
+- [x] Keep a normal extension completion and manual-open fallback when automatic app opening is unavailable
 
 #### 9.1.2 System Sharing and Export
 

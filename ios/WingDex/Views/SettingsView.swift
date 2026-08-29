@@ -58,13 +58,11 @@ struct SettingsView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(ToastCenter.self) private var toasts
 
     @State private var editor: ProfileEditor?
 
     // Other state
-    @State private var isLoadingDemo = false
-    @State private var demoError: AppError?
-    @State private var showingDemoConfirmation = false
     @State private var showingEBirdImport = false
     @State private var isExporting = false
     @State private var exportError: AppError?
@@ -119,10 +117,6 @@ struct SettingsView: View {
             privacySection
             dataManagementSection
 
-            #if DEBUG
-            developmentSection
-            #endif
-
             logOutSection
 
             // Version info
@@ -157,12 +151,16 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showingEBirdImport) {
-            EBirdImportView(auth: auth) { newSpeciesCount, newSpeciesNames in
-                guard newSpeciesCount > 0 else { return }
-                celebration = LiferCelebration(
-                    newSpeciesCount: newSpeciesCount,
-                    speciesNames: newSpeciesNames
-                )
+            EBirdImportView(auth: auth) { response, newSpeciesNames in
+                if response.imported.newSpecies > 0 {
+                    celebration = LiferCelebration(
+                        newSpeciesCount: response.imported.newSpecies,
+                        speciesNames: newSpeciesNames,
+                        messageOverride: response.userMessage
+                    )
+                } else {
+                    toasts.show(response.userMessage)
+                }
             }
         }
         .sheet(item: $exportItem) { item in
@@ -330,7 +328,7 @@ struct SettingsView: View {
                 .font(.headline)
                 .foregroundStyle(Color.foregroundText)
         } footer: {
-            Text("Improves identification using photo location and month. Rounded coordinates may be sent to Geoapify to suggest outing names.")
+            Text("Improves identification using photo location and month. Outing name suggestions are looked up on WingDex servers, not sent to a third party.")
                 .font(.footnote)
                 .foregroundStyle(Color.mutedText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -369,60 +367,16 @@ struct SettingsView: View {
         .headerProminence(.increased)
     }
 
-    // MARK: - Development (DEBUG only)
-
-    #if DEBUG
-    @ViewBuilder
-    private var developmentSection: some View {
-        Section("Development") {
-            Button {
-                showingDemoConfirmation = true
-            } label: {
-                if isLoadingDemo {
-                    ProgressView()
-                } else {
-                    Label("Load Demo Data", systemImage: "sparkles")
-                }
-            }
-            .disabled(isLoadingDemo)
-
-            if let demoError {
-                Text(demoError.message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-        .headerProminence(.increased)
-        .alert(
-            "Load Demo Data?",
-            isPresented: $showingDemoConfirmation
-        ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Replace All Data", role: .destructive) {
-                isLoadingDemo = true
-                demoError = nil
-                Task {
-                    do {
-                        try await store.loadDemoData()
-                    } catch {
-                        demoError = AppError.map(error, fallback: "Could not load demo data. Try again.")
-                    }
-                    isLoadingDemo = false
-                }
-            }
-        } message: {
-            Text("This will replace all your current outings, observations, and WingDex entries with demo data. This cannot be undone.")
-        }
-    }
-    #endif
-
     // MARK: - Log Out
 
     @ViewBuilder
     private var logOutSection: some View {
         Section {
             Button("Log Out", role: .destructive) {
-                auth.signOut()
+                Task {
+                    await auth.signOut()
+                    toasts.show("Logged out")
+                }
             }
         }
     }
@@ -436,6 +390,7 @@ struct SettingsView: View {
             let service = DataService(auth: auth)
             let csvData = try await service.exportSightingsCSV()
             exportItem = try ExportFileFactory.sightings(data: csvData)
+            toasts.show("Sightings CSV exported")
         } catch {
             exportError = AppError.map(error, fallback: "Could not export sightings. Try again.")
         }
@@ -448,5 +403,6 @@ struct SettingsView: View {
     SettingsView()
         .environment(AuthService())
         .environment(previewStore())
+        .environment(ToastCenter())
 }
 #endif

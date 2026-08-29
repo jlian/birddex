@@ -1,10 +1,37 @@
 /**
- * CLIP preprocessing that matches open_clip / PIL exactly.
+ * CLIP preprocessing that matches the SHIPPED CHECKPOINT'S timm transform,
+ * resampled exactly as PIL does it.
  *
- * Resize(224, BICUBIC) then CenterCrop(224), then normalize. Resize takes the
- * SHORTER side to 224 and keeps aspect ratio; drawing straight into a 224x224
+ * Resize(248, BICUBIC) then CenterCrop(224), then normalize. Resize takes the
+ * SHORTER side to 248 and keeps aspect ratio; drawing straight into a 224x224
  * canvas squashes the image instead, which is a different picture and costs
  * accuracy silently.
+ *
+ * DO NOT "correct" the 248 back to 224. Generic open_clip really is 224 -> 224,
+ * so 224 looks right if you read the open_clip docs. This checkpoint is NOT
+ * generic open_clip: it is
+ * timm:vit_medium_patch16_clip_224.tinyclip_yfcc15m, whose timm
+ * pretrained_cfg is Resize(248, bicubic) -> CenterCrop(224), so the model sees
+ * the centre ~90% of the frame. Read it back off the checkpoint with
+ * Student(...).preprocess if in doubt.
+ *
+ * Resizing to 224 and then cropping 224 makes the crop a NO-OP, so the app fed
+ * the model a ~11% wider field of view than it was trained on. Measured on the
+ * validation half with the shipped scoring path (OCC_FLOOR log(3e-5), k 0.3,
+ * T 0.007435, beta 1.1634, v4 blob):
+ *
+ *   int8 (shipped ONNX path): 224 -> 93.78%,  248 -> 94.27%   (+0.49)
+ *   fp32:                     224 -> 93.76%,  248 -> 94.82%   (+1.06)
+ *
+ * McNemar on the fp32 arm: 65 photos fixed against 30 broken, p = 0.0005.
+ * Worst-case embedding cosine between the two transforms is 0.79 and top-1
+ * flips on about 4.8% of photos, so this is a real difference, not numerical
+ * noise. The offline calibration harness has ALWAYS used the timm 248
+ * transform, so T, beta, OCC_FLOOR and k were all fitted in 248 space; moving
+ * the client to 248 brings the app INTO alignment with its own calibration and
+ * needs no refit.
+ *
+ * The ONNX/CoreML input stays [1, 3, 224, 224]. Only the RESIZE target moved.
  *
  * The resampling is implemented here rather than delegated to canvas
  * drawImage. Canvas smoothing is implementation-defined and does not match
@@ -12,13 +39,25 @@
  *
  * PIL uses a=-0.5 in the bicubic kernel and, when downscaling, STRETCHES the
  * kernel by the scale factor so it averages over all source pixels. Using a
- * fixed 4-tap kernel when downscaling 6000px to 224px would sample about 4 of
- * every 27 pixels and alias badly.
+ * fixed 4-tap kernel when downscaling 6000px to 248px would sample about 4 of
+ * every 24 pixels and alias badly.
  */
 
 export const CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073] as const
 export const CLIP_STD = [0.26862954, 0.26130258, 0.27577711] as const
-export const CLIP_SIZE = 224
+/**
+ * Shorter-side resize target. 248, from the checkpoint's timm pretrained_cfg.
+ * Deliberately NOT equal to CLIP_CROP; see the file docstring.
+ */
+export const CLIP_RESIZE = 248
+/** Center-crop size, and the model's tensor size. Fixed by the ONNX input. */
+export const CLIP_CROP = 224
+/**
+ * @deprecated Ambiguous now that resize and crop differ. Kept as the CROP size,
+ * because that is the tensor dimension every caller actually meant. Use
+ * CLIP_RESIZE or CLIP_CROP explicitly.
+ */
+export const CLIP_SIZE = CLIP_CROP
 
 export type Rgb = {
   data: ArrayLike<number>
@@ -116,8 +155,8 @@ export function resizeShorterSide(img: Rgb, size: number): {
   const { width: w, height: h } = img
   let nw: number
   let nh: number
-  // torchvision Resize uses FLOOR, not round. For 1024x683 that is
-  // 1024*224/683 = 335.86 -> 335, where round gives 336. A one-pixel
+  // torchvision Resize uses FLOOR, not round. For 1024x683 at size 224 that
+  // is 1024*224/683 = 335.86 -> 335, where round gives 336. A one-pixel
   // difference shifts every subsequent pixel and silently wrecks parity.
   if (w <= h) {
     nw = size
@@ -181,10 +220,18 @@ export function centerCrop(
 /**
  * Full CLIP preprocess: resize, crop, scale to 0..1, normalize, to CHW.
  * Returns Float32Array of shape (1, 3, 224, 224).
+ *
+ * `resize` and `crop` are SEPARATE parameters on purpose. They used to be one
+ * constant, which silently made the crop a no-op; see the file docstring.
  */
-export function preprocess(img: Rgb, size = CLIP_SIZE): Float32Array {
-  const r = resizeShorterSide(img, size)
-  const c = centerCrop(r.data, r.width, r.height, size)
+export function preprocess(
+  img: Rgb,
+  resize = CLIP_RESIZE,
+  crop = CLIP_CROP,
+): Float32Array {
+  const size = crop
+  const r = resizeShorterSide(img, resize)
+  const c = centerCrop(r.data, r.width, r.height, crop)
   const out = new Float32Array(3 * size * size)
   for (let ch = 0; ch < 3; ch++) {
     const m = CLIP_MEAN[ch]

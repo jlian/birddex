@@ -17,6 +17,7 @@
  *   5. OAuth flow proceeds... ends at /api/auth/mobile/callback
  */
 import { createAuth } from '../../../lib/auth'
+import { accountMergeSourceBearer, type AccountMergeAuthMethod } from '../../../lib/account-merge-intent'
 import { createRouteResponder } from '../../../lib/log'
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -37,19 +38,34 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     )
   }
 
+  const mergeToken = url.searchParams.get('merge_token')
+  let sourceBearer: string | null = null
+  if (mergeToken) {
+    sourceBearer = await accountMergeSourceBearer(
+      context.env.DB,
+      mergeToken,
+      provider as AccountMergeAuthMethod,
+    )
+    if (!sourceBearer) {
+      return route.fail(401, 'Invalid account merge token', 'Mobile OAuth requires a live merge intent bound to the current anonymous session and provider')
+    }
+  }
+
   // Mobile social OAuth must start in hosted-oauth mode so the provider sees
   // the same public callback origin that is configured in the provider app.
   const auth = createAuth(context.env, { request: context.request, mode: 'hosted-oauth' })
 
   // Build a synthetic POST to Better Auth's sign-in/social endpoint
   const signInUrl = new URL('/api/auth/sign-in/social', url.origin)
+  const requestHeaders = new Headers({
+    'Content-Type': 'application/json',
+    Origin: url.origin,
+    Cookie: context.request.headers.get('Cookie') || '',
+  })
+  if (sourceBearer) requestHeaders.set('Authorization', `Bearer ${sourceBearer}`)
   const internalReq = new Request(signInUrl.toString(), {
     method: 'POST',
-    headers: new Headers({
-      'Content-Type': 'application/json',
-      Origin: url.origin,
-      Cookie: context.request.headers.get('Cookie') || '',
-    }),
+    headers: requestHeaders,
     body: JSON.stringify({
       provider,
       callbackURL: '/api/auth/mobile/callback',

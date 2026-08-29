@@ -96,6 +96,16 @@ enum DateFormatting {
 
     // MARK: - Internals
 
+    /// The 1-12 month in the date's OWN timezone, which is the month the rarity
+    /// asset is keyed by. Reading it in the device timezone would move an
+    /// evening outing near a month boundary into the wrong month.
+    static func localMonth(_ timeStr: String) -> Int? {
+        guard let comps = parseLocalComponents(timeStr), (1...12).contains(comps.month) else {
+            return nil
+        }
+        return comps.month
+    }
+
     private struct LocalComponents {
         let year: Int, month: Int, day: Int
         let hour: Int, minute: Int, second: Int
@@ -172,6 +182,7 @@ func getScientificName(_ speciesName: String) -> String? {
 private struct TaxonomyLookups: Sendable {
     var ebird: [String: String] = [:]
     var birdlife: [String: String] = [:]
+    var wikiThumb: [String: String] = [:]
     var order: [String: Int] = [:]
 }
 
@@ -192,6 +203,13 @@ private final class TaxonomyLookupStore {
             self.publicationTask = nil
         }
     }
+
+    #if DEBUG
+    func primeSynchronously() {
+        guard lookups.order.isEmpty else { return }
+        lookups = Self.loadFromBundle()
+    }
+    #endif
 
     func load() async {
         if !lookups.order.isEmpty { return }
@@ -215,6 +233,7 @@ private final class TaxonomyLookupStore {
         var lookups = TaxonomyLookups()
         lookups.ebird.reserveCapacity(rawEntries.count)
         lookups.birdlife.reserveCapacity(rawEntries.count)
+        lookups.wikiThumb.reserveCapacity(rawEntries.count)
         lookups.order.reserveCapacity(rawEntries.count)
 
         for (index, entry) in rawEntries.enumerated() {
@@ -224,6 +243,10 @@ private final class TaxonomyLookupStore {
 
             if entry.count > 2, let code = entry[2] as? String, !code.isEmpty {
                 lookups.ebird[key] = code
+            }
+            // taxonomy.json stores thumb paths relative to the Commons upload prefix.
+            if entry.count > 4, let thumbPath = entry[4] as? String, !thumbPath.isEmpty {
+                lookups.wikiThumb[key] = "https://upload.wikimedia.org/wikipedia/commons/" + thumbPath
             }
             if entry.count > 5, let id = entry[5] as? String, !id.isEmpty {
                 lookups.birdlife[key] = id
@@ -237,6 +260,19 @@ private final class TaxonomyLookupStore {
 func prewarmTaxonomyLookups() async {
     await TaxonomyLookupStore.shared.load()
 }
+
+#if DEBUG
+/// Prime the taxonomy synchronously, for SwiftUI previews only.
+///
+/// A preview snapshot is taken from the first frame, before any `.task` has
+/// resolved, so anything reading a taxonomy-derived value renders empty. The
+/// app never takes this path: parsing 11,167 rows of JSON belongs off the main
+/// thread, which is why `load()` is async.
+@MainActor
+func primeTaxonomyLookupsForPreview() {
+    TaxonomyLookupStore.shared.primeSynchronously()
+}
+#endif
 
 /// Return the bundled eBird taxonomy index for sorting, or Int.max when unknown.
 @MainActor
@@ -275,6 +311,15 @@ func getWikipediaURL(for wikiTitle: String?) -> URL? {
     guard let wikiTitle, !wikiTitle.isEmpty else { return nil }
     let encoded = wikiTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wikiTitle
     return URL(string: "https://en.wikipedia.org/wiki/\(encoded)")
+}
+
+/// The Wikipedia lead image for a stored species name, as bundled in taxonomy.json.
+@MainActor
+func getWikiThumbnailUrl(for speciesName: String) -> String? {
+    let commonName = getDisplayName(speciesName).trimmingCharacters(in: .whitespacesAndNewlines)
+    let store = TaxonomyLookupStore.shared
+    store.loadIfNeeded()
+    return store.lookups.wikiThumb[commonName.lowercased()]
 }
 
 /// Build the BirdLife DataZone factsheet URL for a stored species name.

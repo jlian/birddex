@@ -22,6 +22,13 @@ struct PerPhotoConfirmView: View {
     @State private var decodedCroppedImage: UIImage?
     @State private var decodedThumbnail: UIImage?
     @State private var decodeTask: Task<Void, Never>?
+    /// Set when a confirmed species turns out to be a mega, which is what makes
+    /// the mark ping. Nil the rest of the time, so nothing animates by default.
+    @State private var confirmedRarity: UUID?
+    /// True only while a mega's ping plays, so a second tap cannot confirm twice.
+    @State private var isAcknowledging = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var photo: ProcessedPhoto? { viewModel.currentPhoto }
     private var candidates: [IdentifiedCandidate] { viewModel.currentCandidates }
@@ -31,6 +38,24 @@ struct PerPhotoConfirmView: View {
     private var displayName: String { getDisplayName(selectedSpecies) }
     private var scientificName: String? { getScientificName(selectedSpecies) }
     private var selectedPlumage: String? { candidates.first { $0.species == selectedSpecies }?.plumage }
+
+    /// The verdict for one candidate on THIS photo.
+    ///
+    /// Gated on the same `useGeoContext` switch the ranker uses: a user who has
+    /// turned geographic context off has asked not to be told where a bird
+    /// belongs, and a mark would answer a question they declined.
+    private func rarity(for species: String) -> RarityState {
+        guard viewModel.useGeoContext, let photo else { return .none }
+        let location = viewModel.currentInferenceLocation
+        // Same month derivation the ranker used for this photo, so the mark can
+        // never contradict the ranking that produced the candidate.
+        return RarityStore.shared.state(
+            species: species,
+            lat: location?.lat,
+            lon: location?.lon,
+            month: photo.exifTime.map { Calendar.current.component(.month, from: $0) }
+        )
+    }
 
     private func plumageIcon(_ p: String) -> String? {
         let l = p.lowercased()
@@ -65,7 +90,8 @@ struct PerPhotoConfirmView: View {
                         Image(systemName: "checkmark")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(selectedSpecies.isEmpty)
+                    .accessibilityIdentifier("confirm.accept")
+                    .disabled(selectedSpecies.isEmpty || isAcknowledging)
                 } else {
                     Button("Skip", role: .destructive) {
                         viewModel.skipCurrentPhoto()
@@ -80,6 +106,7 @@ struct PerPhotoConfirmView: View {
                     } label: {
                         Image(systemName: "chevron.left")
                     }
+                    .disabled(isAcknowledging)
                 }
 
                 Spacer()
@@ -110,6 +137,7 @@ struct PerPhotoConfirmView: View {
                     } label: {
                         Image(systemName: "ellipsis")
                     }
+                    .disabled(isAcknowledging)
                 } else {
                     Button("Re-crop") {
                         viewModel.requestManualCrop()
@@ -169,7 +197,8 @@ struct PerPhotoConfirmView: View {
                 Spacer(minLength: 0)
 
                 VStack(spacing: 16) {
-                    // Top-aligned so a wrapped credit line cannot shift the photo it belongs to.
+                    // Top-aligned so a caption that wraps at large text sizes cannot shift the
+                    // photo it belongs to.
                     HStack(alignment: .top, spacing: 12) {
                         VStack(spacing: 6) {
                             aiCroppedUserPhoto(size: photoSize)
@@ -182,21 +211,22 @@ struct PerPhotoConfirmView: View {
                         VStack(spacing: 6) {
                             wikiSquareThumbnail(size: photoSize)
                             let credit = currentRefCredit
-                            Text(credit.label)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let text = credit.credit {
-                                Group {
-                                    if let url = credit.url {
-                                        Link(text, destination: url).underline()
-                                    } else {
-                                        Text(text)
-                                    }
+                            Group {
+                                if let url = credit.url {
+                                    Link(credit.label, destination: url).underline()
+                                } else {
+                                    Text(credit.label)
                                 }
-                                .font(.caption2)
-                                .foregroundStyle(Color.mutedText)
-                                .multilineTextAlignment(.center)
                             }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            // Reserved so swiping to an image with a different plumage tag
+                            // cannot change the column height and shift both photos.
+                            .lineLimit(2, reservesSpace: true)
+                            .accessibilityLabel(credit.url == nil
+                                ? credit.label
+                                : "\(credit.label). Photo credit and license on Wikimedia Commons")
                         }
                         .frame(width: photoSize)
                     }
@@ -282,15 +312,14 @@ struct PerPhotoConfirmView: View {
 
     private var allWikiURLs: [URL] { galleryItems.map(\.url) }
 
-    /// Caption for the current gallery image. The plumage label says what the photo
-    /// shows; the credit is what its license requires, so they stay on separate lines.
-    private var currentRefCredit: (label: String, credit: String?, url: URL?) {
+    /// Caption for the current gallery image. Attribution rides on the link to the Commons
+    /// file page, which CC 4.0 3(a)(2) accepts in place of an inline creator/license line.
+    private var currentRefCredit: (label: String, url: URL?) {
         let items = galleryItems
-        guard !items.isEmpty else { return ("Reference", nil, nil) }
+        guard !items.isEmpty else { return ("Reference", nil) }
         let item = items[min(max(galleryIndex, 0), items.count - 1)]
         let label = item.plumage.map { "Reference (\($0))" } ?? "Reference"
-        let credit = [item.artist, item.license].compactMap { $0 }.joined(separator: " / ")
-        return (label, credit.isEmpty ? nil : credit, item.descriptionUrl)
+        return (label, item.descriptionUrl)
     }
 
     private func wikiSquareThumbnail(size: CGFloat) -> some View {
@@ -366,6 +395,15 @@ struct PerPhotoConfirmView: View {
                                 .font(.subheadline)
                                 .accessibilityLabel(plumage)
                         }
+                        let state = rarity(for: selectedSpecies)
+                        if state != .none {
+                            RarityMark(state: state, pingTrigger: confirmedRarity)
+                                // The title stack is tighter than a list row, so
+                                // the mark makes up the difference and sits the
+                                // same distance from the name on both.
+                                .padding(.leading, 4)
+                                .accessibilityIdentifier("confirm.rarity")
+                        }
                     }
                     if let sci = scientificName {
                         Text(sci)
@@ -415,12 +453,17 @@ struct PerPhotoConfirmView: View {
                         .font(.caption)
                         .accessibilityLabel(plumage)
                 }
-                Spacer()
-                if let range = candidate.rangeStatus, range == "out-of-range" || range == "near-range" {
-                    Image(systemName: range == "out-of-range" ? "location.slash" : "location")
-                        .font(.system(size: 10))
-                        .foregroundStyle(range == "out-of-range" ? .red : .orange)
+                // Shown on every candidate, not just the selected one. When the
+                // top pick is a mega and the runner-up is the ordinary local
+                // bird, that contrast is the most useful thing on the screen.
+                // Dimmed when unselected so it informs without competing with
+                // the selection state.
+                let state = rarity(for: candidate.species)
+                if state != .none {
+                    RarityMark(state: state)
+                        .opacity(isSelected ? 1 : 0.45)
                 }
+                Spacer()
                 Text(BirdIdEngine.formatConfidence(candidate.confidence))
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -495,7 +538,44 @@ struct PerPhotoConfirmView: View {
     }
 
     private func confirmWith(status: ObservationStatus) {
-        viewModel.confirmCurrentPhoto(species: selectedSpecies, confidence: selectedConfidence, status: status, count: 1)
+        guard !isAcknowledging else { return }
+        // The mega gets its own beat before the wizard moves on: a ping on the
+        // mark and a soft two-tap, deliberately NOT the lifer confetti and NOT
+        // the lifer success haptic. If the bird is also a lifer, that
+        // celebration fires on save and this stays the smaller, earlier moment.
+        //
+        // Advancing immediately would unmount the mark mid-animation, so the
+        // wizard waits. Pausing to acknowledge IS the moment, and at 1 in 208
+        // confirmations it is not a tax on the common path.
+        let commit = {
+            viewModel.confirmCurrentPhoto(species: selectedSpecies,
+                                          confidence: selectedConfidence,
+                                          status: status, count: 1)
+        }
+        guard rarity(for: selectedSpecies) == .both else { return commit() }
+
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
+        guard !reduceMotion else { return commit() }
+        // Two beats, not one. A single tap is indistinguishable from the tap the
+        // user just made on the confirm button.
+        Task {
+            try? await Task.sleep(for: .milliseconds(130))
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
+        }
+        confirmedRarity = UUID()
+        isAcknowledging = true
+        // Back, Skip, Re-identify, Re-crop and Close all stay reachable during
+        // the hold, and every one of them moves the wizard. Committing blind
+        // afterwards would file this species against whatever photo is showing
+        // by then, so the commit is bound to the photo it was made for. The
+        // toolbar is disabled too, which is the cheaper half of the fix.
+        let confirmedPhotoID = photo?.id
+        Task {
+            try? await Task.sleep(for: .milliseconds(900))
+            isAcknowledging = false
+            guard let confirmedPhotoID, viewModel.currentPhoto?.id == confirmedPhotoID else { return }
+            commit()
+        }
     }
 
     private func fetchWikiImage() {
@@ -505,11 +585,17 @@ struct PerPhotoConfirmView: View {
         guard !species.isEmpty else { galleryItems = []; galleryIndex = 0; return }
 
         let displayName = getDisplayName(species)
+        // Commons relevance ordering routinely opens on a nest or a female, so the taxonomy
+        // lead image goes first: it is the shot the species page already shows.
+        let leadThumb = getWikiThumbnailUrl(for: species)
+        let leadImageUrl = cardImageUrl(fromThumbnail: leadThumb) ?? leadThumb
         isLoadingWikiImage = true
         galleryItems = []
 
         // Single Wikimedia Commons search: returns thumbnails + descriptions in one call
-        galleryTask = Task { await performCommonsGalleryFetch(displayName: displayName) }
+        galleryTask = Task {
+            await performCommonsGalleryFetch(displayName: displayName, leadImageUrl: leadImageUrl)
+        }
     }
 
     private struct CommonsResponse: Codable {
@@ -523,34 +609,21 @@ struct PerPhotoConfirmView: View {
         struct ImageInfo: Codable {
             let thumburl: String?
             let descriptionurl: String?
+            let mime: String?
             let extmetadata: ExtMetadata?
         }
         struct ExtMetadata: Codable {
             let ImageDescription: MetaValue?
             let Assessments: MetaValue?
-            let Artist: MetaValue?
-            let LicenseShortName: MetaValue?
         }
         struct MetaValue: Codable { let value: String? }
     }
 
-    /// One reference photo plus the credit its license requires.
+    /// One reference photo plus the file page its license notice lives on.
     private struct GalleryItem {
         let url: URL
         let plumage: String?
-        let artist: String?
-        let license: String?
         let descriptionUrl: URL?
-    }
-
-    /// Commons returns Artist and license fields as HTML fragments.
-    private static func stripHTML(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let text = value
-            .replacingOccurrences(of: "<[^>]*>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? nil : text
     }
 
     private static let excludeRE = try! NSRegularExpression(
@@ -558,9 +631,43 @@ struct PerPhotoConfirmView: View {
         options: .caseInsensitive
     )
     private static let captionExcludeRE = try! NSRegularExpression(
-        pattern: "\\beggs?\\b|\\bnest\\b|\\bskeleton\\b|\\bspecimen\\b|\\btaxiderm",
+        // Spanish terms too: Commons captions the nest and chick shots that outrank the bird
+        // itself for several New World species.
+        pattern: "\\beggs?\\b|\\bnests?\\b|\\bskeleton\\b|\\bspecimen\\b|\\btaxiderm|\\bnido\\b|\\bnidada\\b|\\bpolluelos?\\b|\\bhuevos?\\b",
         options: .caseInsensitive
     )
+
+    /// Commons file name from an upload URL or a file page URL, normalised for comparison.
+    private static func commonsFileKey(_ urlString: String?) -> String? {
+        guard let urlString, let decoded = urlString.removingPercentEncoding else { return nil }
+        let name: String?
+        if let marker = decoded.range(of: "/wiki/File:") {
+            name = String(decoded[marker.upperBound...])
+        } else if decoded.contains("/thumb/") {
+            name = decoded.split(separator: "/").dropLast().last.map(String.init)
+        } else {
+            name = decoded.split(separator: "/").last.map(String.init)
+        }
+        return name?.replacingOccurrences(of: "_", with: " ").lowercased()
+    }
+
+    /// Put the lead image first, absorbing the Commons copy of the same file when the search
+    /// already returned it.
+    private static func promotingLead(_ leadImageUrl: String?, in items: [GalleryItem]) -> [GalleryItem] {
+        guard let leadImageUrl,
+              let leadURL = URL(string: leadImageUrl),
+              let leadKey = commonsFileKey(leadImageUrl)
+        else { return items }
+        let duplicate = items.first { commonsFileKey($0.descriptionUrl?.absoluteString) == leadKey }
+        let rest = items.filter { commonsFileKey($0.descriptionUrl?.absoluteString) != leadKey }
+        let lead = GalleryItem(
+            url: leadURL,
+            plumage: duplicate?.plumage,
+            descriptionUrl: duplicate?.descriptionUrl
+                ?? wikimediaFilePageUrl(fromImage: leadImageUrl).flatMap(URL.init(string:))
+        )
+        return [lead] + rest
+    }
 
     /// Parse plumage from caption + filename text (matches web logic).
     private func parseGalleryPlumage(_ text: String) -> String? {
@@ -575,10 +682,10 @@ struct PerPhotoConfirmView: View {
         return tags.isEmpty ? nil : tags.joined(separator: ", ")
     }
 
-    private func performCommonsGalleryFetch(displayName: String) async {
+    private func performCommonsGalleryFetch(displayName: String, leadImageUrl: String?) async {
         do {
             let query = "\"\(displayName)\"".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? displayName
-            let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl&iiurlwidth=500&format=json&origin=*"
+            let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl%7Cmime&iiurlwidth=500&format=json&origin=*"
             guard let url = URL(string: urlStr) else {
                 log.debug("Commons gallery: invalid URL: \(urlStr)")
                 await MainActor.run { isLoadingWikiImage = false }
@@ -610,18 +717,20 @@ struct PerPhotoConfirmView: View {
                 let title = entry.page.title ?? ""
                 let titleRange = NSRange(title.startIndex..., in: title)
                 if Self.excludeRE.firstMatch(in: title, range: titleRange) != nil { continue }
-                guard let thumbStr = entry.page.imageinfo?.first?.thumburl,
-                      let thumbURL = URL(string: thumbStr) else { continue }
-                let rawDesc = entry.page.imageinfo?.first?.extmetadata?.ImageDescription?.value ?? ""
-                let desc = rawDesc.replacingOccurrences(of: "<[^>]*>", with: "", options: String.CompareOptions.regularExpression)
-                let descRange = NSRange(desc.startIndex..., in: desc)
-                if Self.captionExcludeRE.firstMatch(in: desc, range: descRange) != nil { continue }
                 let info = entry.page.imageinfo?.first
+                // Commons bird photos are JPEG; the PNG and SVG hits are icons and diagrams.
+                guard info?.mime == "image/jpeg" else { continue }
+                guard let thumbStr = info?.thumburl,
+                      let thumbURL = URL(string: thumbStr) else { continue }
+                let rawDesc = info?.extmetadata?.ImageDescription?.value ?? ""
+                let desc = rawDesc.replacingOccurrences(of: "<[^>]*>", with: "", options: String.CompareOptions.regularExpression)
+                let subject = "\(desc) \(title)"
+                    .replacingOccurrences(of: "[_-]", with: " ", options: String.CompareOptions.regularExpression)
+                let subjectRange = NSRange(subject.startIndex..., in: subject)
+                if Self.captionExcludeRE.firstMatch(in: subject, range: subjectRange) != nil { continue }
                 items.append(GalleryItem(
                     url: thumbURL,
                     plumage: parseGalleryPlumage([desc, title].joined(separator: " ")),
-                    artist: Self.stripHTML(info?.extmetadata?.Artist?.value),
-                    license: Self.stripHTML(info?.extmetadata?.LicenseShortName?.value),
                     descriptionUrl: info?.descriptionurl.flatMap(URL.init(string:))
                 ))
                 if items.count >= 6 { break }
@@ -629,13 +738,16 @@ struct PerPhotoConfirmView: View {
             guard !Task.isCancelled else { return }
             log.debug("Commons gallery: \(items.count) URLs after filtering")
             await MainActor.run {
-                galleryItems = sortedByPlumage(items)
+                galleryItems = Self.promotingLead(leadImageUrl, in: sortedByPlumage(items))
                 isLoadingWikiImage = false
             }
         } catch is CancellationError { /* expected */ }
         catch {
             log.debug("Commons gallery fetch failed")
-            await MainActor.run { isLoadingWikiImage = false }
+            await MainActor.run {
+                galleryItems = Self.promotingLead(leadImageUrl, in: [])
+                isLoadingWikiImage = false
+            }
         }
     }
 }
@@ -655,8 +767,8 @@ struct PerPhotoConfirmView: View {
                     confidence: 0.95, status: .confirmed, count: 1
                 )]
                 vm.currentCandidates = [
-                    IdentifiedCandidate(species: "Bald Eagle (Haliaeetus leucocephalus)", confidence: 0.92, wikiTitle: "Bald_eagle", plumage: nil, rangeStatus: nil),
-                    IdentifiedCandidate(species: "Golden Eagle (Aquila chrysaetos)", confidence: 0.06, wikiTitle: "Golden_eagle", plumage: nil, rangeStatus: nil),
+                    IdentifiedCandidate(species: "Bald Eagle (Haliaeetus leucocephalus)", confidence: 0.92, wikiTitle: "Bald_eagle", plumage: nil),
+                    IdentifiedCandidate(species: "Golden Eagle (Aquila chrysaetos)", confidence: 0.06, wikiTitle: "Golden_eagle", plumage: nil),
                 ]
             }
     }
@@ -670,9 +782,9 @@ struct PerPhotoConfirmView: View {
                 vm.clusters = [PreviewData.sampleCluster(photoCount: 5)]
                 vm.currentPhotoIndex = 2
                 vm.currentCandidates = [
-                    IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil, rangeStatus: nil),
-                    IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil, rangeStatus: nil),
-                    IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil, rangeStatus: nil),
+                    IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil),
+                    IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil),
+                    IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil),
                 ]
             }
     }
@@ -698,9 +810,9 @@ struct PerPhotoConfirmView: View {
             vm.clusters = [PreviewData.sampleCluster(photoCount: 5)]
             vm.currentPhotoIndex = 2
             vm.currentCandidates = [
-                IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil, rangeStatus: nil),
-                IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil, rangeStatus: nil),
-                IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil, rangeStatus: nil),
+                IdentifiedCandidate(species: "Northern Cardinal (Cardinalis cardinalis)", confidence: 0.55, wikiTitle: "Northern_cardinal", plumage: nil),
+                IdentifiedCandidate(species: "Vermilion Flycatcher (Pyrocephalus rubinus)", confidence: 0.30, wikiTitle: "Vermilion_flycatcher", plumage: nil),
+                IdentifiedCandidate(species: "Summer Tanager (Piranga rubra)", confidence: 0.10, wikiTitle: "Summer_tanager", plumage: nil),
             ]
         }
 }

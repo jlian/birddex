@@ -36,26 +36,25 @@ npm run dev
 
 Then run the iOS app in the simulator pointing at `http://localhost:5000`.
 
-## Launch with demo data
+## Debug sign-in
 
-Automatic sign-in and demo-data loading are available in Debug builds only.
+Automatic anonymous sign-in is available in Debug builds only.
 
 In Xcode:
 
 1. Select the `Dev` scheme and an iPhone Simulator.
 2. Open **Product > Scheme > Edit Scheme > Run > Arguments**.
-3. Add and enable `--auto-sign-in` and `--auto-demo-data`.
+3. Add and enable `--auto-sign-in`.
 4. Run the app.
 
 `--auto-sign-in` creates an anonymous account against `https://dev.wingdex.app`.
-`--auto-demo-data` imports the bundled demo CSV when that account's WingDex is empty.
 Use the `Localhost` scheme instead if the local backend is running.
 
 The equivalent command-line launch for an already-built Debug app is:
 
 ```bash
 xcrun simctl launch --terminate-running-process booted app.wingdex \
-	--auto-sign-in --auto-demo-data
+	--auto-sign-in
 ```
 
 Build and install the `Dev Debug` configuration first when the Simulator does not

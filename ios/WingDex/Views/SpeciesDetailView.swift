@@ -44,6 +44,12 @@ struct SpeciesDetailView: View {
         store.sightings(for: speciesName)
     }
 
+    /// Several photos of the same bird on one outing are stored as separate observations, so
+    /// the list shows one row per outing and certainty with the counts added up.
+    private var mergedSightings: [(observation: BirdObservation, outing: Outing)] {
+        mergeSightingsByOuting(sightings)
+    }
+
     /// Read through to the cache so a preview-populated summary is available on the first
     /// render, before `.task` has a chance to run.
     private var cachedSummary: WikiSummary? {
@@ -87,7 +93,7 @@ struct SpeciesDetailView: View {
 
             // Sightings section
             Section {
-                ForEach(sightings, id: \.observation.id) { item in
+                ForEach(mergedSightings, id: \.observation.id) { item in
                     NavigationLink(value: item.outing) {
                         OutingRow(outing: item.outing, store: store, observation: item.observation)
                     }
@@ -415,6 +421,7 @@ struct SpeciesDetailView: View {
         NavigationStack {
             SpeciesDetailView(speciesName: PreviewData.sampleSpecies)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
     .preferredColorScheme(.light)
@@ -425,6 +432,7 @@ struct SpeciesDetailView: View {
         NavigationStack {
             SpeciesDetailView(speciesName: PreviewData.sampleSpecies)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
     .preferredColorScheme(.dark)

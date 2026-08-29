@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
 import { ListRow } from '@/components/ui/list-row'
+import { RarityMark } from '@/components/ui/rarity-mark'
+import { useRarity, localMonth } from '@/lib/rarity-client'
 import { getDisplayName, getScientificName } from '@/lib/utils'
 
 interface BirdRowProps {
@@ -11,11 +13,16 @@ interface BirdRowProps {
   onClick: () => void
   /** Optional right-side actions rendered after the row content */
   actions?: React.ReactNode
+  /** The place and date this row belongs to, which is what a rarity verdict
+   *  needs. Omitted on the life list, where an entry spans many places and
+   *  months and has no single answer. */
+  outing?: { lat?: number | null; lon?: number | null; startTime?: string | null }
 }
 
-export const BirdRow = memo(function BirdRow({ speciesName, imageUrl, subtitle, onClick, actions }: BirdRowProps) {
+export const BirdRow = memo(function BirdRow({ speciesName, imageUrl, subtitle, onClick, actions, outing }: BirdRowProps) {
   const displayName = getDisplayName(speciesName)
   const scientificName = getScientificName(speciesName)
+  const rarity = useRarity(speciesName, outing?.lat, outing?.lon, localMonth(outing?.startTime))
 
   return (
     <ListRow
@@ -36,8 +43,12 @@ export const BirdRow = memo(function BirdRow({ speciesName, imageUrl, subtitle, 
       actions={actions}
     >
       <div className="md:flex md:items-baseline md:gap-2">
-        <p className="font-serif font-semibold text-sm text-foreground truncate">
-          {displayName}
+        {/* The mark sits OUTSIDE the truncating element. Inside it, a long
+            species name would ellipsize the verdict away on exactly the narrow
+            rows where truncation kicks in. */}
+        <p className="font-serif font-semibold text-sm text-foreground flex items-baseline gap-1.5 min-w-0">
+          <span className="truncate">{displayName}</span>
+          <RarityMark state={rarity} />
         </p>
         {scientificName && (
           <p className="text-xs text-muted-foreground italic truncate">

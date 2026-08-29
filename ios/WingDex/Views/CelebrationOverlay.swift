@@ -9,9 +9,10 @@ struct LiferCelebration: Equatable, Identifiable {
     var newSpeciesCount: Int
     /// Display names of the newly added species. May be empty when only a count is known.
     var speciesNames: [String]
+    var messageOverride: String?
 
     var bannerMessage: String {
-        Self.bannerMessage(newSpeciesCount: newSpeciesCount, speciesNames: speciesNames)
+        messageOverride ?? Self.bannerMessage(newSpeciesCount: newSpeciesCount, speciesNames: speciesNames)
     }
 
     /// Build the banner text. Pure function so it can be unit tested.
@@ -27,12 +28,82 @@ struct LiferCelebration: Equatable, Identifiable {
     }
 }
 
+struct TransientNotice: Equatable, Identifiable {
+    let id = UUID()
+    let message: String
+    var symbol = "checkmark.circle.fill"
+}
+
+/// App-wide transient notices, so a view can report success without owning a banner and a
+/// toast raised inside a sheet still reads out once rather than per presenter.
+@MainActor
+@Observable
+final class ToastCenter {
+    private(set) var notice: TransientNotice?
+    @ObservationIgnored private var dismissTask: Task<Void, Never>?
+
+    func show(_ message: String, symbol: String = "checkmark.circle.fill") {
+        let next = TransientNotice(message: message, symbol: symbol)
+        notice = next
+        UIAccessibility.post(notification: .announcement, argument: message)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        dismissTask?.cancel()
+        dismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled, self?.notice?.id == next.id else { return }
+            self?.notice = nil
+        }
+    }
+}
+
 extension View {
     /// Present a lifer celebration (banner + confetti + success haptic) when the
     /// bound value becomes non-nil. Auto-dismisses after a few seconds. Respects
     /// Reduce Motion by skipping confetti and fading the banner in gently.
     func celebration(_ celebration: Binding<LiferCelebration?>) -> some View {
         modifier(CelebrationModifier(celebration: celebration))
+    }
+
+    func transientNotice(_ notice: Binding<TransientNotice?>) -> some View {
+        modifier(TransientNoticeModifier(notice: notice))
+    }
+
+    /// Render whatever the `ToastCenter` is currently showing. Safe to apply in more than one
+    /// presentation context; the center owns dismissal, announcement and haptics.
+    func toastPresenter(_ notice: TransientNotice?) -> some View {
+        overlay(alignment: .top) {
+            if let notice {
+                StatusBanner(message: notice.message, symbol: notice.symbol)
+                    .padding(.horizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: notice)
+    }
+}
+
+private struct TransientNoticeModifier: ViewModifier {
+    @Binding var notice: TransientNotice?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .top) {
+                if let notice {
+                    StatusBanner(message: notice.message, symbol: notice.symbol)
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: notice)
+            .sensoryFeedback(.success, trigger: notice)
+            .onChange(of: notice) { _, newValue in
+                guard let newValue else { return }
+                UIAccessibility.post(notification: .announcement, argument: newValue.message)
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    if notice?.id == newValue.id { notice = nil }
+                }
+            }
     }
 }
 
@@ -56,7 +127,7 @@ private struct CelebrationModifier: ViewModifier {
             }
             .overlay(alignment: .top) {
                 if let celebration {
-                    LiferBanner(message: celebration.bannerMessage)
+                    StatusBanner(message: celebration.bannerMessage, symbol: "sparkles")
                         .padding(.horizontal)
                         .transition(
                             reduceMotion
@@ -95,8 +166,9 @@ private struct CelebrationModifier: ViewModifier {
 
 // MARK: - Banner
 
-private struct LiferBanner: View {
+private struct StatusBanner: View {
     let message: String
+    let symbol: String
 
     var body: some View {
         Label {
@@ -105,14 +177,12 @@ private struct LiferBanner: View {
                 .foregroundStyle(Color.foregroundText)
                 .multilineTextAlignment(.leading)
         } icon: {
-            Image(systemName: "sparkles")
+            Image(systemName: symbol)
                 .foregroundStyle(Color.accentColor)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
-        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+        .glassEffect(.regular, in: Capsule())
         .padding(.top, 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(message)

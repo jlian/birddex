@@ -16,13 +16,31 @@ private let log = Logger(subsystem: Config.bundleID, category: "Passkey")
 /// sent as an `Authorization: Bearer` header, validated by Better Auth's bearer plugin.
 final class PasskeyService: NSObject, @unchecked Sendable {
 
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        return URLSession(configuration: configuration)
+    }()
+
     // MARK: - Public Types
+
+    struct UserResult: Sendable {
+        let id: String
+        let name: String?
+        let email: String?
+        let image: String?
+        let isAnonymous: Bool
+    }
 
     struct AuthResult {
         let token: String
         let signedToken: String?
-        let userId: String
-        let expiresAt: Date?
+        let user: UserResult
+        let expiresAt: Date
+
+        var userId: String { user.id }
     }
 
     struct PasskeyInfo: Decodable, Identifiable {
@@ -39,7 +57,7 @@ final class PasskeyService: NSObject, @unchecked Sendable {
     /// 2. Present the system passkey sheet
     /// 3. Verify the assertion with the server
     /// Returns a session token on success.
-    func authenticate() async throws -> AuthResult {
+    func authenticate(signedToken: String? = nil) async throws -> AuthResult {
         // Step 1 - Fetch authentication options (no auth needed - user not signed in yet)
         let optionsURL = Config.apiBaseURL.appendingPathComponent("api/auth/passkey/generate-authenticate-options")
         var optionsRequest = URLRequest(url: optionsURL)
@@ -47,7 +65,7 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         AuthenticatedRequest.instrument(&optionsRequest)
 
         let (optionsData, optionsResponse) = try await AuthenticatedRequest.data(
-            for: optionsRequest,
+            for: optionsRequest, session: Self.session,
             context: "Passkey authentication options", logger: log
         )
 
@@ -88,18 +106,17 @@ final class PasskeyService: NSObject, @unchecked Sendable {
                 "clientExtensionResults": [String: Any](),
             ] as [String: Any],
         ]
-        var verifyRequest = URLRequest(url: verifyURL)
-        verifyRequest.httpMethod = "POST"
-        verifyRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        verifyRequest.setValue(Config.apiBaseURL.absoluteString, forHTTPHeaderField: "Origin")
-        if let cookies = challengeCookies {
-            verifyRequest.setValue(cookies, forHTTPHeaderField: "Cookie")
-        }
-        verifyRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
-        AuthenticatedRequest.instrument(&verifyRequest)
+        let verifyRequest = AuthenticatedRequest.withCookieOnly(
+            url: verifyURL,
+            signedToken: signedToken,
+            additionalCookies: challengeCookies,
+            method: "POST",
+            body: try JSONSerialization.data(withJSONObject: body),
+            contentType: "application/json"
+        )
 
         let (verifyData, verifyResponse) = try await AuthenticatedRequest.data(
-            for: verifyRequest,
+            for: verifyRequest, session: Self.session,
             context: "Passkey authentication verify", logger: log
         )
 
@@ -108,38 +125,51 @@ final class PasskeyService: NSObject, @unchecked Sendable {
             context: "Passkey authentication failed", logger: log
         )
 
-        // Response shape: { session: { token, userId, expiresAt, ... } }
-        guard let json = try JSONSerialization.jsonObject(with: verifyData) as? [String: Any],
-              let session = json["session"] as? [String: Any],
-              let userId = session["userId"] as? String
-        else {
-            throw PasskeyError.invalidResponse
-        }
-
-        // Raw token for Bearer auth, signed token for cookie auth on passkey endpoints
-        let rawToken = session["token"] as? String
-        let signedToken = verifyHttp.value(forHTTPHeaderField: "set-auth-token")
-        guard let resolvedToken = rawToken ?? signedToken else {
-            throw PasskeyError.invalidResponse
-        }
-
-        var expiresAt: Date?
-        if let expiresAtString = session["expiresAt"] as? String {
-            expiresAt = ISO8601DateFormatter().date(from: expiresAtString)
-        }
-
-        return AuthResult(token: resolvedToken, signedToken: signedToken, userId: userId, expiresAt: expiresAt)
+        return try Self.decodeAuthResult(data: verifyData, response: verifyHttp)
     }
 
     // MARK: - Registration (Add Passkey)
+
+    func registerAccount(
+        deviceName: String,
+        displayName: String?,
+        signedToken: String?
+    ) async throws -> AuthResult {
+        guard let result = try await registerPasskey(
+            name: nil,
+            accountDeviceName: deviceName,
+            signedToken: signedToken,
+            displayName: displayName,
+            createSession: true
+        ), result.signedToken != nil else {
+            throw PasskeyError.invalidResponse
+        }
+        return result
+    }
 
     /// Register a new passkey for the currently authenticated user.
     /// - signedToken: HMAC-signed token for cookie auth on passkey verify endpoint
     /// - displayName: Override for the Keychain "User Name" field (defaults to server value)
     func register(name: String, signedToken: String?, displayName: String? = nil) async throws {
+        _ = try await registerPasskey(
+            name: name,
+            accountDeviceName: nil,
+            signedToken: signedToken,
+            displayName: displayName,
+            createSession: false
+        )
+    }
+
+    private func registerPasskey(
+        name: String?,
+        accountDeviceName: String?,
+        signedToken: String?,
+        displayName: String?,
+        createSession: Bool
+    ) async throws -> AuthResult? {
         log.info("Passkey registration started")
         do {
-        guard let signed = signedToken else {
+        if !createSession && signedToken == nil {
             throw PasskeyError.serverError(
                 "Missing signed session token for passkey registration",
                 traceID: nil
@@ -157,10 +187,10 @@ final class PasskeyService: NSObject, @unchecked Sendable {
             URLQueryItem(name: "authenticatorAttachment", value: "platform"),
         ]
         let optionsURL = components.url!
-        let optionsRequest = AuthenticatedRequest.withCookieOnly(url: optionsURL, signedToken: signed)
+        let optionsRequest = AuthenticatedRequest.withCookieOnly(url: optionsURL, signedToken: signedToken)
 
         let (optionsData, optionsResponse) = try await AuthenticatedRequest.data(
-            for: optionsRequest,
+            for: optionsRequest, session: Self.session,
             context: "Passkey registration options", logger: log
         )
 
@@ -172,6 +202,18 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         let challengeCookies = AuthenticatedRequest.extractCookies(from: httpResponse, for: optionsURL)
         log.info("Registration options received, challenge cookie: \(challengeCookies != nil)")
         let options = try JSONDecoder().decode(RegistrationOptions.self, from: optionsData)
+        let credentialDisplayName = displayName ?? options.user.displayName
+        let resolvedName: String
+        if let name {
+            resolvedName = name
+        } else if let accountDeviceName {
+            resolvedName = Self.accountPasskeyName(
+                deviceName: accountDeviceName,
+                displayName: credentialDisplayName
+            )
+        } else {
+            throw PasskeyError.invalidResponse
+        }
 
         guard let challengeData = Data(base64URLEncoded: options.challenge) else {
             throw PasskeyError.invalidChallenge
@@ -184,7 +226,7 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         let registration = try await performRegistration(
             challenge: challengeData,
             rpId: options.rp.id,
-            userName: displayName ?? options.user.name,
+            userName: credentialDisplayName,
             userID: userIDData
         )
 
@@ -204,11 +246,12 @@ final class PasskeyService: NSObject, @unchecked Sendable {
                 "authenticatorAttachment": "platform",
                 "clientExtensionResults": [String: Any](),
             ] as [String: Any],
-            "name": name,
+            "name": resolvedName,
+            "createSession": createSession,
         ]
         let verifyRequest = AuthenticatedRequest.withCookieOnly(
             url: verifyURL,
-            signedToken: signed,
+            signedToken: signedToken,
             additionalCookies: challengeCookies,
             method: "POST",
             body: try JSONSerialization.data(withJSONObject: registrationBody),
@@ -217,15 +260,18 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         log.debug("Verify request: challenge=\(challengeCookies != nil)")
 
         let (verifyData, verifyResponse) = try await AuthenticatedRequest.data(
-            for: verifyRequest,
+            for: verifyRequest, session: Self.session,
             context: "Passkey registration verify", logger: log
         )
 
-        try AuthenticatedRequest.validateHTTP(
+        let verifyHTTP = try AuthenticatedRequest.validateHTTP(
             verifyResponse, data: verifyData,
             context: "Passkey registration failed", logger: log
         )
         log.info("Passkey registration succeeded")
+        return createSession
+            ? try Self.decodeAuthResult(data: verifyData, response: verifyHTTP)
+            : nil
         } catch {
             let reference = AuthenticatedRequest.referenceSuffix(
                 traceID: (error as? PasskeyError)?.traceID
@@ -235,6 +281,43 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         }
     }
 
+    nonisolated static func decodeAuthResult(
+        data: Data,
+        response: HTTPURLResponse
+    ) throws -> AuthResult {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let session = json["session"] as? [String: Any],
+              let user = json["user"] as? [String: Any],
+              let token = session["token"] as? String,
+              let userID = user["id"] as? String,
+              let isAnonymous = user["isAnonymous"] as? Bool,
+              let expiresAtString = session["expiresAt"] as? String,
+              let expiresAt = AuthService.parseISO8601(expiresAtString)
+        else {
+            throw PasskeyError.invalidResponse
+        }
+
+        return AuthResult(
+            token: token,
+            signedToken: response.value(forHTTPHeaderField: "set-auth-token"),
+            user: UserResult(
+                id: userID,
+                name: user["name"] as? String,
+                email: user["email"] as? String,
+                image: user["image"] as? String,
+                isAnonymous: isAnonymous
+            ),
+            expiresAt: expiresAt
+        )
+    }
+
+    nonisolated static func accountPasskeyName(
+        deviceName: String,
+        displayName: String
+    ) -> String {
+        "\(deviceName) (\(displayName))"
+    }
+
     // MARK: - List Passkeys
 
     func listPasskeys(signedToken: String) async throws -> [PasskeyInfo] {
@@ -242,7 +325,7 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         let request = AuthenticatedRequest.withCookieOnly(url: url, signedToken: signedToken)
 
         let (data, response) = try await AuthenticatedRequest.data(
-            for: request,
+            for: request, session: Self.session,
             context: "List passkeys", logger: log
         )
 
@@ -269,7 +352,7 @@ final class PasskeyService: NSObject, @unchecked Sendable {
         )
 
         let (data, response) = try await AuthenticatedRequest.data(
-            for: request,
+            for: request, session: Self.session,
             context: "Delete passkey", logger: log
         )
 

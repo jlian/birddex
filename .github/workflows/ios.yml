@@ -38,6 +38,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # DerivedData is toolchain-specific, so a cache restored across an Xcode
+      # bump would be stale. Key on the installed xcodebuild version too.
+      - name: Read Xcode cache version
+        id: xcode-cache-version
+        run: |
+          echo "value=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      # SPM checkouts and DerivedData survive across runs on the same
+      # Package.resolved, so a warm cache skips dependency resolution and
+      # lets xcodebuild reuse module/index artifacts.
+      - name: Cache SwiftPM and DerivedData
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ios/build/DerivedData
+          key: ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml') }}
+          restore-keys: |
+            ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-
+
       - name: Start iOS Simulator
         run: |
           set -euo pipefail
@@ -87,9 +107,7 @@ jobs:
           xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
       - name: Install XcodeGen
-        run: |
-          ios/scripts/install-xcodegen.sh
-          xcbeautify --version
+        run: ios/scripts/install-xcodegen.sh
 
       - name: Generate Xcode project
         working-directory: ios
@@ -98,20 +116,27 @@ jobs:
       - name: Build for Simulator
         working-directory: ios
         run: |
-          set -o pipefail
-          mkdir -p build/logs
-          xcodebuild build-for-testing \
+          # The app icon is an Icon Composer bundle: layered SVGs with gradient
+          # fill specializations and light/dark variants. Rasterizing it into
+          # every size and appearance took 145s of a 5m31s build on the runner,
+          # and no test looks at the icon. Release builds archive through
+          # ios-release.yml and are unaffected.
+          NSUnbufferedIO=YES xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/logs/build.log | xcbeautify
+            -showBuildTimingSummary \
+            ASSETCATALOG_COMPILER_APPICON_NAME="" \
+            ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=NO \
+            CODE_SIGNING_ALLOWED=NO 2>&1
 
       - name: Select API backend
         env:
-          DEV_URL: https://dev.wingdex.app
+          # The zone's Bot Fight Mode challenges GitHub runner IPs; workers.dev is the same Worker.
+          DEV_URL: https://wingdex-app-preview.lianguanlun.workers.dev
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.head_ref }}
@@ -121,9 +146,17 @@ jobs:
           set -euo pipefail
 
           probe_backend() {
-            local response
-            response=$(curl -fsS --max-time 15 "$1/api/health" 2>/dev/null) || return 1
-            jq -e '.status == "ok" and .db == "ok"' <<< "$response" > /dev/null
+            local response http_status body
+            response=$(curl -sS --max-time 15 -w '\n%{http_code}' "$1/api/health" 2>&1) || {
+              echo "  $1/api/health could not be reached: $(printf '%s' "$response" | tr '\n' ' ' | cut -c1-200)"
+              return 1
+            }
+            http_status=${response##*$'\n'}
+            body=${response%$'\n'*}
+            if [ "$http_status" != "200" ] || ! jq -e '.status == "ok" and .db == "ok"' <<< "$body" > /dev/null 2>&1; then
+              echo "  $1/api/health returned HTTP $http_status: $(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)"
+              return 1
+            fi
           }
 
           wait_for_backend() {
@@ -204,27 +237,24 @@ jobs:
       - name: Run tests
         working-directory: ios
         run: |
-          set -o pipefail
           # xcodebuild does not create missing parents for -resultBundlePath, and
           # ios/build does not exist in a clean checkout.
           mkdir -p build
-          TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
+          NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
             -project WingDex.xcodeproj \
             -scheme Dev \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile \
             -resultBundlePath build/TestResults.xcresult \
             -only-testing:WingDexTests \
             -only-testing:WingDexUITests \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/logs/test.log | xcbeautify
+            CODE_SIGNING_ALLOWED=NO 2>&1
 
       - name: Upload iOS test diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: iOS-test-diagnostics
-          path: |
-            ios/build/TestResults.xcresult
-            ios/build/logs/
+          path: ios/build/TestResults.xcresult
           retention-days: 7

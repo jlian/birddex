@@ -22,7 +22,7 @@ The account starts empty. The App Store build does not contain a reviewer-only d
 
 Bird-photo identification runs entirely on the device after the model is available. Photo image contents are not uploaded to WingDex.
 
-When **Use Location and Time** is enabled, WingDex uses photo location and month on the device to improve identification. Exact coordinates may be saved with the outing and photo metadata. Rounded coordinates may be sent through WingDex to Geoapify to suggest a location name. The location editor always shows a linked **Location data by Geoapify, OpenStreetMap, and GeoNames** caption.
+When **Use Location and Time** is enabled, WingDex uses photo location and month on the device to improve identification. Exact coordinates may be saved with the outing and photo metadata. Outing name suggestions are resolved on WingDex servers from an OpenStreetMap-derived database; coordinates are not sent to a third party for this. Typed place searches are still forwarded to Geoapify. The location editor always shows a linked **Powered by Geoapify and OpenStreetMap** caption.
 
 ## Account deletion
 
@@ -40,7 +40,7 @@ To test the share extension:
 
 1. Select one or more images in Photos.
 2. Open the system share sheet and choose **WingDex**.
-3. Wait for the extension to finish staging the photos, tap **Done**, then open WingDex.
+3. Wait for the extension to finish staging the photos. If WingDex does not open automatically, tap **Done** and open it.
 4. WingDex opens the normal photo review and identification flow with the shared images.
 
-Shared image files are staged locally in the WingDex app group for this handoff. They are not uploaded for bird identification.
+Shared image files are staged locally as atomic batches in the WingDex app group for this handoff. Batches are imported in order and accepted once before their temporary files are removed. They are not uploaded for bird identification.

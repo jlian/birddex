@@ -39,6 +39,8 @@ vi.mock('@/components/ui/tabs', () => ({
 vi.mock('@/lib/fun-names', () => ({
   generateBirdName: () => 'test-bird-name',
   getEmojiAvatarColor: () => '',
+  emojiForBirdName: () => '🐦',
+  emojiAvatarDataUrl: () => 'data:image/svg+xml;utf8,bird',
 }))
 
 vi.mock('@/components/ui/avatar', () => ({
@@ -62,6 +64,9 @@ vi.mock('@phosphor-icons/react', () => ({
   UserPlus: () => <span>UserPlus</span>,
   ArrowsClockwise: () => <span>ArrowsClockwise</span>,
   ArrowLeft: () => <span>ArrowLeft</span>,
+  // A local guest is now anonymous until something needs an account, so the
+  // header renders the sign-in affordance that previously never appeared here.
+  UserCircle: () => <span>UserCircle</span>,
 }))
 
 vi.mock('@/components/ui/bird-logo', () => ({

@@ -1,9 +1,9 @@
-/** Write the JS preprocessed tensors so Python can score them. */
+/** Write the JS preprocessed tensors so Python and Swift can be checked against them. */
 import { readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { preprocess } from './clip-preprocess.ts'
+import { join, resolve } from 'path'
+import { preprocess } from '../../../src/lib/clip-preprocess.ts'
 
-const DIR = process.argv[2]
+const DIR = process.argv[2] ?? resolve(import.meta.dirname, '..')
 const meta = JSON.parse(readFileSync(join(DIR, "meta.json"), "utf8"))
 for (const ph of meta.photos) {
   const tag = String(ph.i).padStart(3, "0")

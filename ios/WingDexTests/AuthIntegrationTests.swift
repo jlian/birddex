@@ -70,6 +70,44 @@ final class AuthIntegrationTests: XCTestCase {
         XCTAssertNotNil(user?["id"], "get-session should return user with id")
     }
 
+    func testAnonymousBearerLifecycleIncludesIdentityExpiryAndRevocation() async throws {
+        let signIn = try await signInAnonymouslyWithResponse()
+        XCTAssertFalse(signIn.token.isEmpty)
+        XCTAssertNotNil(
+            signIn.response.value(forHTTPHeaderField: "set-auth-token"),
+            "Native clients need the bearer plugin's signed token header"
+        )
+
+        let sessionURL = baseURL.appendingPathComponent("api/auth/get-session")
+        var sessionRequest = URLRequest(url: sessionURL)
+        sessionRequest.setValue("Bearer \(signIn.token)", forHTTPHeaderField: "Authorization")
+        let (sessionData, sessionResponse) = try await URLSession.shared.data(for: sessionRequest)
+        XCTAssertEqual(try XCTUnwrap(sessionResponse as? HTTPURLResponse).statusCode, 200)
+
+        let sessionJSON = try XCTUnwrap(try JSONSerialization.jsonObject(with: sessionData) as? [String: Any])
+        let user = try XCTUnwrap(sessionJSON["user"] as? [String: Any])
+        let session = try XCTUnwrap(sessionJSON["session"] as? [String: Any])
+        XCTAssertEqual(user["isAnonymous"] as? Bool, true)
+        let expiryString = try XCTUnwrap(session["expiresAt"] as? String)
+        let expiry = try XCTUnwrap(AuthService.parseISO8601(expiryString))
+        let days = expiry.timeIntervalSinceNow / 86_400
+        XCTAssertGreaterThan(days, 300)
+        XCTAssertLessThan(days, 400)
+
+        var signOutRequest = URLRequest(url: baseURL.appendingPathComponent("api/auth/sign-out"))
+        signOutRequest.httpMethod = "POST"
+        signOutRequest.setValue("Bearer \(signIn.token)", forHTTPHeaderField: "Authorization")
+        signOutRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        signOutRequest.httpBody = Data("{}".utf8)
+        let (_, signOutResponse) = try await URLSession.shared.data(for: signOutRequest)
+        XCTAssertEqual(try XCTUnwrap(signOutResponse as? HTTPURLResponse).statusCode, 200)
+
+        var revokedRequest = URLRequest(url: baseURL.appendingPathComponent("api/data/all"))
+        revokedRequest.setValue("Bearer \(signIn.token)", forHTTPHeaderField: "Authorization")
+        let (_, revokedResponse) = try await URLSession.shared.data(for: revokedRequest)
+        XCTAssertEqual(try XCTUnwrap(revokedResponse as? HTTPURLResponse).statusCode, 401)
+    }
+
     func testBearerCRUDRoundtrip() async throws {
         let token = try await signInAnonymously()
 
@@ -195,10 +233,12 @@ final class AuthIntegrationTests: XCTestCase {
         let exportURL = baseURL.appendingPathComponent("api/export/outing/\(outingId)")
         var exportRequest = URLRequest(url: exportURL)
         exportRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (exportData, exportResponse) = try await URLSession.shared.data(for: exportRequest)
-        XCTAssertEqual(try XCTUnwrap(exportResponse as? HTTPURLResponse).statusCode, 200)
-        let csv = try XCTUnwrap(String(data: exportData, encoding: .utf8))
-        XCTAssertTrue(csv.contains(common), "CSV should contain the confirmed species")
+        let (_, exportResponse) = try await URLSession.shared.data(for: exportRequest)
+        XCTAssertEqual(
+            try XCTUnwrap(exportResponse as? HTTPURLResponse).statusCode,
+            403,
+            "Anonymous outing export should remain registered-only"
+        )
 
         var rejectRequest = URLRequest(url: observationsURL)
         rejectRequest.httpMethod = "PATCH"
@@ -227,6 +267,10 @@ final class AuthIntegrationTests: XCTestCase {
 
     /// Sign in anonymously and return the raw session token.
     private func signInAnonymously() async throws -> String {
+        try await signInAnonymouslyWithResponse().token
+    }
+
+    private func signInAnonymouslyWithResponse() async throws -> (token: String, response: HTTPURLResponse) {
         let url = baseURL.appendingPathComponent("api/auth/sign-in/anonymous")
 
         // Clear stale session cookies so Better Auth doesn't reject with
@@ -254,6 +298,6 @@ final class AuthIntegrationTests: XCTestCase {
             for cookie in cookies { HTTPCookieStorage.shared.deleteCookie(cookie) }
         }
 
-        return token
+        return (token, http)
     }
 }

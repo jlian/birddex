@@ -56,16 +56,17 @@ struct AddPhotosFlow: View {
                     if needsCloseConfirmation {
                         showCloseConfirm = true
                     } else {
-                        dismissWizard()
+                        dismissWizard(stopShareQueue: viewModel.currentStep != .done)
                     }
                 } label: {
                     Image(systemName: "xmark")
                 }
+                .disabled(viewModel.currentStep == .extracting)
                 .accessibilityLabel("Close")
             }
         }
         .alert("Discard progress?", isPresented: $showCloseConfirm) {
-            Button("Discard", role: .destructive) { dismissWizard() }
+            Button("Discard", role: .destructive) { dismissWizard(stopShareQueue: true) }
             Button("Continue Uploading", role: .cancel) {}
         } message: {
             Text("Your upload is still in progress. If you close now, any unsaved changes will be lost.")
@@ -93,7 +94,7 @@ struct AddPhotosFlow: View {
         .alert("Could Not Continue", isPresented: addPhotosErrorBinding) {
             if viewModel.canRetryError {
                 Button("Retry") { viewModel.retryCurrentError() }
-                Button("Close Upload", role: .destructive) { dismissWizard() }
+                Button("Close Upload", role: .destructive) { dismissWizard(stopShareQueue: true) }
             } else {
                 Button("OK", role: .cancel) { viewModel.error = nil }
             }
@@ -106,15 +107,34 @@ struct AddPhotosFlow: View {
                     newSpeciesCount: viewModel.newSpeciesNames.count,
                     speciesNames: viewModel.newSpeciesNames
                 )
-            } else if step == .selectPhotos,
-                      viewModel.clusters.isEmpty,
-                      !viewModel.showDuplicateConfirm {
+            } else if shouldDismissAfterReturningToSelectPhotos(step) {
                 dismiss()
             }
+        }
+        .onChange(of: viewModel.error == nil) { _, hasNoError in
+            // A step change that carries an error keeps the cover presented so
+            // the alert can be read. Dismissing is deferred until the person
+            // acknowledges it, which clears the error and lands here.
+            guard hasNoError,
+                  shouldDismissAfterReturningToSelectPhotos(viewModel.currentStep)
+            else { return }
+            dismiss()
         }
         .onChange(of: viewModel.flowDismissalRequestID) { _, _ in
             dismiss()
         }
+    }
+
+    /// A return to `.selectPhotos` with nothing staged means the flow is over.
+    /// An active error is the exception: dismissing then would tear down the
+    /// alert with it, so the flow stays up until the error is acknowledged.
+    private func shouldDismissAfterReturningToSelectPhotos(
+        _ step: AddPhotosViewModel.Step
+    ) -> Bool {
+        step == .selectPhotos
+            && viewModel.clusters.isEmpty
+            && !viewModel.showDuplicateConfirm
+            && viewModel.error == nil
     }
 
     private var addPhotosErrorBinding: Binding<Bool> {
@@ -126,7 +146,10 @@ struct AddPhotosFlow: View {
 
     /// Dismiss the wizard full-screen cover. The onDismiss handler in
     /// MainTabView resets the view model and returns to the photo selection tab.
-    private func dismissWizard() {
+    private func dismissWizard(stopShareQueue: Bool) {
+        if stopShareQueue {
+            viewModel.stopShareQueueAfterDismissal()
+        }
         viewModel.currentStep = .selectPhotos
         dismiss()
     }
@@ -328,13 +351,14 @@ struct AddPhotosFlow: View {
 
             // Done button
             Button {
-                dismissWizard()
+                dismissWizard(stopShareQueue: false)
             } label: {
                 Text("Done")
                     .font(.system(size: 16, weight: .medium))
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("upload.done")
             .padding(.horizontal, 32)
 
             Spacer()

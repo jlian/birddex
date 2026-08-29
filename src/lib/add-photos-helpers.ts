@@ -21,6 +21,11 @@ export interface PhotoResult {
   count: number
 }
 
+export interface InferenceCoordinates {
+  lat: number
+  lon: number
+}
+
 // ─── Pure helpers ───────────────────────────────────────────
 
 /**
@@ -50,6 +55,14 @@ export function filterConfirmedResults(
   return allResults.filter(
     r => r.status === 'confirmed' || r.status === 'possible',
   )
+}
+
+/**
+ * Whether a cluster earned its outing. Nothing is written for a cluster the user skipped
+ * their way through, so this also decides whether it counts towards the upload summary.
+ */
+export function clusterHasSightings(allResults: PhotoResult[]): boolean {
+  return filterConfirmedResults(allResults).length > 0
 }
 
 export interface SpeciesGroup {
@@ -134,16 +147,20 @@ export function normalizeLocationName(locationName: string): string {
 }
 
 /**
- * Resolve which location name should be passed to AI for this inference call.
+ * Choose the coordinates used by the geographic bird-identification prior.
+ *
+ * A searched location is an explicit correction and therefore wins. Without
+ * one, per-photo EXIF is more precise for an outing that covers ground, while
+ * the confirmed outing coordinates are still a useful fallback for cameras
+ * that do not record GPS.
  */
-export function resolveInferenceLocationName(
+export function resolveInferenceCoordinates(
   useGeoContext: boolean,
-  lastLocationName: string,
-  locationNameOverride?: string,
-): string | undefined {
-  if (!useGeoContext) {
-    return undefined
-  }
-  const resolved = locationNameOverride ?? lastLocationName
-  return resolved || undefined
+  photoCoordinates: InferenceCoordinates | undefined,
+  outingCoordinates: InferenceCoordinates | undefined,
+  outingOverridesPhotoGps: boolean,
+): InferenceCoordinates | undefined {
+  if (!useGeoContext) return undefined
+  if (outingOverridesPhotoGps && outingCoordinates) return outingCoordinates
+  return photoCoordinates ?? outingCoordinates
 }

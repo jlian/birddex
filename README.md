@@ -53,7 +53,7 @@ The same model, priors, and preprocessing ship on both platforms, and a golden-v
 | Styling | Tailwind CSS 4, Radix UI primitives, Phosphor Icons |
 | Auth | better-auth (anonymous, passkeys, GitHub/Google/Apple OAuth) |
 | Identification | WingCLIP-0.3 via ONNX Runtime Web (browser) and Core ML (iOS) |
-| Geocoding | WingDex proxy backed by Geoapify (results may incorporate OpenStreetMap data) |
+| Geocoding | Reverse (coordinate to place name) from a local OpenStreetMap PMTiles archive in R2; forward place search proxied to Geoapify |
 | Bird imagery | Wikipedia REST API |
 | Testing | Vitest (unit), Playwright (e2e), XCTest (iOS) |
 | iOS | Swift, XcodeGen |
@@ -71,6 +71,12 @@ npm run dev
 ```
 
 `npm run dev` serves Vite on `:5000` with Wrangler behind `/api/*` on `:8787`, and creates `.dev.vars` from the example on first run. `npm stop` clears stale ports. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
+
+Reverse geocoding reads the private production place archive through a remote
+R2 binding while the Worker and D1 stay local. Run `npx wrangler login` before
+starting development. Local and CI Playwright runs keep D1 local but read the
+real archive through the same remote binding; reverse-geocoding integration
+tests do not support an offline local-R2 mode.
 
 Run `npm run check` (lint, typecheck, unit) before pushing, and `npm run check:all` (adds e2e and a production build) when the change touches `functions/`, `e2e/`, routing, auth, or data flow. Everything runnable is in `package.json` under `scripts`.
 

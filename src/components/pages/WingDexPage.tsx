@@ -8,9 +8,12 @@ import {
   ArrowUp, ArrowDown, Camera, Hash, TextAa, Leaf
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
+import { birdObjectPosition } from '@/components/ui/wiki-bird-thumbnail'
 import { useBirdSummary } from '@/hooks/use-bird-image'
 import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
+import { RarityMark, RARITY_LABELS } from '@/components/ui/rarity-mark'
+import { useRarityResolver, localMonth } from '@/lib/rarity-client'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { getDisplayName, getScientificName } from '@/lib/utils'
@@ -355,6 +358,8 @@ function SpeciesDetail({
 }) {
   const displayName = getDisplayName(entry.speciesName)
   const scientificName = getScientificName(entry.speciesName)
+  // Taken once for the whole sightings list rather than per row.
+  const resolveRarity = useRarityResolver()
   const { summary } = useBirdSummary(entry.speciesName, { wikiTitle: entry.wikiTitle })
   const [ebirdUrl, setEbirdUrl] = useState(() => getEbirdUrl(displayName))
   const [birdlifeUrl, setBirdlifeUrl] = useState<string | undefined>(undefined)
@@ -387,15 +392,32 @@ function SpeciesDetail({
   }, [entry.speciesName, displayName])
 
   // Find all sightings of this species across outings
-  const sightings: Array<{ observation: Observation; outing: { id: string; locationName: string; startTime: string } }> = []
+  const sightings: Array<{ observation: Observation; outing: { id: string; locationName: string; startTime: string; lat?: number | null; lon?: number | null } }> = []
   for (const outing of data.outings) {
     const obs = data.getOutingObservations(outing.id)
     for (const o of obs) {
       if (o.speciesName === entry.speciesName && o.certainty !== 'rejected') {
-        sightings.push({ observation: o, outing: { id: outing.id, locationName: outing.locationName, startTime: outing.startTime } })
+        sightings.push({ observation: o, outing: { id: outing.id, locationName: outing.locationName, startTime: outing.startTime, lat: outing.lat, lon: outing.lon } })
       }
     }
   }
+
+  // Several photos of the same bird on one outing are stored as separate observations, so
+  // the list shows one row per outing and certainty with the counts added up.
+  const sightingsByOuting = new Map<string, (typeof sightings)[number]>()
+  for (const sighting of sightings) {
+    const key = `${sighting.outing.id}|${sighting.observation.certainty}`
+    const existing = sightingsByOuting.get(key)
+    if (existing) {
+      existing.observation = {
+        ...existing.observation,
+        count: existing.observation.count + sighting.observation.count,
+      }
+    } else {
+      sightingsByOuting.set(key, sighting)
+    }
+  }
+  const mergedSightings = Array.from(sightingsByOuting.values())
 
   const thumbnailUrl = entry.thumbnailUrl
   // Derived from the thumbnail so the hero has its final URL on first render instead of
@@ -403,6 +425,8 @@ function SpeciesDetail({
   const fullResUrl = getHeroImageUrl(thumbnailUrl) ?? summary?.imageUrl
   const baseImageUrl = thumbnailUrl || fullResUrl
   const [fullResLoaded, setFullResLoaded] = useState(false)
+  // Both layers render the same file, so the base layer settles the crop anchor for both.
+  const [heroPortrait, setHeroPortrait] = useState(false)
   const hasDistinctFullRes = !!(fullResUrl && thumbnailUrl && fullResUrl !== thumbnailUrl)
   const canShowOverlay = hasDistinctFullRes
   const fullResRevealToken = useRef(0)
@@ -424,6 +448,7 @@ function SpeciesDetail({
   useEffect(() => {
     fullResRevealToken.current += 1
     setFullResLoaded(false)
+    setHeroPortrait(false)
   }, [entry.speciesName])
 
   // The hero is an individually licensed Commons photo, so it needs its own credit.
@@ -456,7 +481,9 @@ function SpeciesDetail({
               src={baseImageUrl}
               alt={canShowOverlay ? '' : displayName}
               aria-hidden={canShowOverlay}
-              className={`absolute inset-0 w-full h-full object-cover object-[center_10%] ${canShowOverlay ? 'blur-md scale-105' : ''}`}
+              onLoad={e => setHeroPortrait(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)}
+              style={{ objectPosition: birdObjectPosition(heroPortrait) }}
+              className={`absolute inset-0 w-full h-full object-cover ${canShowOverlay ? 'blur-md scale-105' : ''}`}
             />
           )}
           {/* Full-res overlay fades in over the base layer */}
@@ -465,7 +492,8 @@ function SpeciesDetail({
               src={fullResUrl}
               alt={displayName}
               onLoad={revealFullRes}
-              className={`absolute inset-0 w-full h-full object-cover object-[center_10%] transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
+              style={{ objectPosition: birdObjectPosition(heroPortrait) }}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
             />
           )}
           {!baseImageUrl && (
@@ -546,7 +574,7 @@ function SpeciesDetail({
               Sightings ({sightings.length})
             </h3>
             <div>
-              {sightings.map(({ observation, outing }) => (
+              {mergedSightings.map(({ observation, outing }) => (
                 <ListRow
                   key={observation.id}
                   icon={<CalendarBlank size={16} className="text-muted-foreground/60" />}
@@ -560,6 +588,20 @@ function SpeciesDetail({
                     {observation.count > 1 && ` · x${observation.count}`}
                     {' · '}
                     {observation.certainty.charAt(0).toUpperCase() + observation.certainty.slice(1)}
+                    {(() => {
+                      // Species detail is the one screen with room for the word,
+                      // which is where the issue asks for a fuller label.
+                      const state = resolveRarity(entry.speciesName, outing.lat, outing.lon, localMonth(outing.startTime))
+                      if (state === 'none') return null
+                      return (
+                        <span className="text-amber-700 dark:text-amber-400">
+                          {' · '}
+                          <RarityMark state={state} />
+                          {' '}
+                          {RARITY_LABELS[state]}
+                        </span>
+                      )
+                    })()}
                   </p>
                 </ListRow>
               ))}

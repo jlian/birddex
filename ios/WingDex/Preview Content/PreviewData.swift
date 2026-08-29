@@ -421,6 +421,7 @@ struct PreviewTabs<Content: View>: View {
                 Label("Add", systemImage: "camera.fill")
             }
         }
+        .environment(ToastCenter())
     }
 }
 

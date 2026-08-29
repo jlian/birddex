@@ -29,11 +29,14 @@ interface OutingReviewProps {
   defaultLocationName?: string
   /** Automatically look up location name from GPS when available */
   autoLookupGps?: boolean
+  ensureSessionReady?: () => Promise<boolean>
   onConfirm: (
+    outing: Outing | null,
     outingId: string,
     locationName: string,
     lat?: number,
-    lon?: number
+    lon?: number,
+    outingOverridesPhotoGps?: boolean,
   ) => Promise<void>
 }
 
@@ -43,22 +46,32 @@ export default function OutingReview({
   userId,
   defaultLocationName = '',
   autoLookupGps = false,
+  ensureSessionReady = async () => true,
   onConfirm
 }: OutingReviewProps) {
   const hasGps = cluster.centerLat !== undefined && cluster.centerLon !== undefined
-  const roundedLat = hasGps ? Number(cluster.centerLat!.toFixed(3)) : undefined
-  const roundedLon = hasGps ? Number(cluster.centerLon!.toFixed(3)) : undefined
   const [locationName, setLocationName] = useState(defaultLocationName)
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
-  const preparedOutingRef = useRef<Outing | null>(null)
   const defaultLocationNameRef = useRef(defaultLocationName)
   const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
   const [suggestedStateProvince, setSuggestedStateProvince] = useState<string | undefined>(undefined)
   const [suggestedCountryCode, setSuggestedCountryCode] = useState<string | undefined>(undefined)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
-  const [locationLookupFailed, setLocationLookupFailed] = useState(false)
+  /**
+   * Why three states rather than one boolean.
+   *
+   * A reverse-geocode call has two very different unhappy endings, and
+   * collapsing them into "failed" produced a misleading UI. `'error'` means the
+   * request genuinely broke: a 500, a timeout, a network drop. Retrying that is
+   * sensible. `'empty'` means the lookup SUCCEEDED and there is no named place
+   * near the coordinate, which is common in rural areas: 18.5% of 20,000
+   * iNaturalist coordinates have no named OSM feature within 2 km. Retrying
+   * that is guaranteed to return the same nothing, so offering a Retry button
+   * invites the user to click something that cannot help them.
+   */
+  const [lookupState, setLookupState] = useState<'ok' | 'empty' | 'error'>('ok')
 
   // Compute observation-local ISO string for display and manual editing.
   // cluster.startTime is a UTC-correct Date (exifTime is offset-aware),
@@ -99,12 +112,48 @@ export default function OutingReview({
 
   const fetchLocationName = useCallback(async (lat: number, lon: number) => {
     setIsLoadingLocation(true)
-    setLocationLookupFailed(false)
+    setLookupState('ok')
+
+    // Used for both unhappy endings: the coordinate string is a usable name and
+    // the field stays editable, so the user is never blocked either way.
+    //
+    // NOT named `useFallback`: the `use` prefix makes ESLint's
+    // react-hooks/rules-of-hooks treat a plain closure as a Hook, so calling it
+    // inside a callback fails lint.
+    //
+    // `regionCodes` is carried even on the empty path: a coordinate can have an
+    // ISO state/country code with no named place (offshore, unmapped land), and
+    // the eBird export still wants those. They are independent of the name, so
+    // an 'empty' lookup can still infer a region while showing no place name.
+    const applyFallback = (
+      state: 'empty' | 'error',
+      regionCodes: { stateProvince?: string; countryCode?: string } = {},
+    ) => {
+      // A successful empty lookup proves that the previous outing's name does
+      // not describe these coordinates. Reuse that name only when a transient
+      // error prevented us from learning the result.
+      const coordinates = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
+      const fallback = state === 'error' ? defaultLocationNameRef.current || coordinates : coordinates
+      setSuggestedLocation(fallback)
+      setLocationName(fallback)
+      setSuggestedStateProvince(regionCodes.stateProvince)
+      setSuggestedCountryCode(regionCodes.countryCode)
+      setInferredStateProvince(regionCodes.stateProvince)
+      setInferredCountryCode(regionCodes.countryCode)
+      setLookupState(state)
+    }
+
     try {
       debug('geocoding', 'Starting reverse geocoding')
-      const result = await reverseGeocode(lat, lon)
-      if (!result) throw new Error('No location name returned')
-      
+      const { result, regionCodes } = await reverseGeocode(lat, lon)
+      if (!result) {
+        // A successful lookup with no nearby named place. Not an error. Region
+        // codes may still be present, so carry them through.
+        debug('geocoding', 'No named place near this coordinate')
+        applyFallback('empty', regionCodes)
+        return
+      }
+
       debug('geocoding', 'Location identified')
       setSuggestedLocation(result.label)
       setLocationName(result.label)
@@ -112,18 +161,9 @@ export default function OutingReview({
       setSuggestedCountryCode(result.countryCode)
       setInferredStateProvince(result.stateProvince)
       setInferredCountryCode(result.countryCode)
-    } catch (error) {
-      debug('geocoding', 'Reverse geocoding failed')
-      // Fall back to default location or coordinate string
-      const fallback = defaultLocationNameRef.current || `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
-      debug('geocoding', 'Using location fallback')
-      setSuggestedLocation(fallback)
-      setLocationName(fallback)
-      setSuggestedStateProvince(undefined)
-      setSuggestedCountryCode(undefined)
-      setInferredStateProvince(undefined)
-      setInferredCountryCode(undefined)
-      setLocationLookupFailed(true)
+    } catch {
+      debug('geocoding', 'Reverse geocoding request failed')
+      applyFallback('error')
     } finally {
       setIsLoadingLocation(false)
     }
@@ -132,20 +172,21 @@ export default function OutingReview({
   // Automatically look up location name from GPS when enabled
   useEffect(() => {
     if (autoLookupGps && hasGps && !matchingOuting) {
-      void fetchLocationName(roundedLat!, roundedLon!)
+      void fetchLocationName(cluster.centerLat!, cluster.centerLon!)
     }
-  }, [autoLookupGps, hasGps, matchingOuting, fetchLocationName, roundedLat, roundedLon])
+  }, [autoLookupGps, hasGps, matchingOuting, fetchLocationName, cluster.centerLat, cluster.centerLon])
 
   useEffect(() => {
     if (autoLookupGps && hasGps && matchingOuting && !useExistingOuting) {
-      void fetchLocationName(roundedLat!, roundedLon!)
+      void fetchLocationName(cluster.centerLat!, cluster.centerLon!)
     }
-  }, [autoLookupGps, hasGps, matchingOuting, useExistingOuting, roundedLat, roundedLon, fetchLocationName])
+  }, [autoLookupGps, hasGps, matchingOuting, useExistingOuting, cluster.centerLat, cluster.centerLon, fetchLocationName])
 
   const doConfirm = async (name: string) => {
     if (isConfirming) return
     setIsConfirming(true)
     try {
+      if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
       if (useExistingOuting && matchingOuting) {
         // Merge into existing outing, expand its time window if needed.
         // cluster.startTime is a proper UTC instant (exifTime is offset-aware),
@@ -175,11 +216,18 @@ export default function OutingReview({
           })
         }
 
-        await onConfirm(matchingOuting.id, matchingOuting.locationName, matchingOuting.lat, matchingOuting.lon)
+        await onConfirm(
+          null,
+          matchingOuting.id,
+          matchingOuting.locationName,
+          matchingOuting.lat,
+          matchingOuting.lon,
+          false,
+        )
         return
       }
 
-      const outing = preparedOutingRef.current ?? {
+      const outing = {
         id: `outing_${crypto.randomUUID()}`,
         userId: userId.toString(),
         startTime: dateToLocalISOWithOffset(effectiveStartTime, effectiveLat, effectiveLon),
@@ -193,11 +241,16 @@ export default function OutingReview({
         notes: '',
         createdAt: new Date().toISOString()
       }
-      preparedOutingRef.current = outing
 
-      await data.addOuting(outing)
-      await onConfirm(outing.id, name || 'Unknown Location', effectiveLat, effectiveLon)
-      preparedOutingRef.current = null
+      // Nothing is written until the cluster produces a sighting; see AddPhotosFlow.
+      await onConfirm(
+        outing,
+        outing.id,
+        name || 'Unknown Location',
+        effectiveLat,
+        effectiveLon,
+        overriddenCoords !== null,
+      )
     } finally {
       setIsConfirming(false)
     }
@@ -263,6 +316,10 @@ export default function OutingReview({
     setPlaceResults([])
     setIsEditingLocation(false)
     setLocationSearchQuery('')
+    // The name is no longer the reverse-geocode fallback, so the "no named
+    // place found nearby" hint would be both false and confusing: it asks the
+    // user to tap the field they just filled in.
+    setLookupState('ok')
   }
 
   const useEnteredLocation = () => {
@@ -277,6 +334,9 @@ export default function OutingReview({
     setLocationSearchQuery('')
     setPlaceResults([])
     setPlaceSearchFailed(false)
+    // Same reason as selectPlace: the user has named this outing, so the
+    // reverse-geocode hint no longer describes the current value.
+    setLookupState('ok')
   }
 
 
@@ -340,8 +400,24 @@ export default function OutingReview({
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle size={18} weight="fill" className="text-green-500" />
             <span className="text-green-600 dark:text-green-400 font-medium">GPS detected</span>
+            {/*
+              effectiveLat/Lon, not cluster.centerLat/Lon. Picking a search
+              result MOVES the outing's coordinates, and showing the original
+              here made that override invisible: the line kept displaying the
+              photo's GPS while the saved outing used the searched place.
+            */}
             <span className="text-muted-foreground">
-              ({cluster.centerLat?.toFixed(4)}, {cluster.centerLon?.toFixed(4)})
+              ({effectiveLat?.toFixed(4)}, {effectiveLon?.toFixed(4)})
+            </span>
+          </div>
+        ) : overriddenCoords ? (
+          // No EXIF GPS, but the user searched for a place, so the outing DOES
+          // have coordinates now. Saying "No GPS data" here would be false.
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle size={18} weight="fill" className="text-green-500" />
+            <span className="text-green-600 dark:text-green-400 font-medium">Location set from search</span>
+            <span className="text-muted-foreground">
+              ({overriddenCoords.lat.toFixed(4)}, {overriddenCoords.lon.toFixed(4)})
             </span>
           </div>
         ) : (
@@ -501,35 +577,37 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
-            {locationLookupFailed && hasGps && (
+            {lookupState === 'error' && hasGps && (
               <p className="text-xs text-destructive">
                 Location lookup failed.{' '}
                 <button
                   type="button"
                   className="font-medium underline underline-offset-2"
-                  onClick={() => void fetchLocationName(roundedLat!, roundedLon!)}
+                  onClick={() => void fetchLocationName(cluster.centerLat!, cluster.centerLon!)}
                 >
                   Retry
                 </button>
+              </p>
+            )}
+            {lookupState === 'empty' && hasGps && (
+              // Deliberately no Retry: the lookup worked, and the answer is that
+              // nothing named is nearby, so a retry returns the same result.
+              <p className="text-xs text-muted-foreground">
+                No named place found nearby. Tap above to name this outing.
               </p>
             )}
           </div>
           )}
 
           <p className="text-xs text-muted-foreground">
-            Location data from{' '}
+            Powered by{' '}
             <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
               Geoapify
             </a>
-            {', '}
+            {' and '}
             <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2">
               OpenStreetMap
             </a>
-            {', and '}
-            <a href="https://www.geonames.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              GeoNames
-            </a>
-            .
           </p>
 
           <div className="space-y-2">

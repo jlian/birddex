@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createAuth } from './auth'
+import { accountMergeAuthMethod, createAuth } from './auth'
 import type { LogFields, Logger } from './log'
 
 type LoggedEvent = { level: string; operationName: string; fields?: LogFields }
@@ -26,6 +26,15 @@ const testEnv = {
 } as Env
 
 describe('auth routes', () => {
+  it('derives merge methods only from supported Better Auth callback paths and bodies', () => {
+    expect(accountMergeAuthMethod({ path: '/callback/github' })).toBe('github')
+    expect(accountMergeAuthMethod({ path: '/callback/google' })).toBe('google')
+    expect(accountMergeAuthMethod({ path: '/callback/apple' })).toBe('apple')
+    expect(accountMergeAuthMethod({ path: '/passkey/verify-authentication' })).toBe('passkey')
+    expect(accountMergeAuthMethod({ path: '/sign-in/social', body: { provider: 'apple' } })).toBe('apple')
+    expect(accountMergeAuthMethod({ path: '/callback/private-provider' })).toBeNull()
+  })
+
   it('does not expose Better Auth built-in account deletion', async () => {
     const request = new Request('https://wingdex.app/api/auth/delete-user', { method: 'POST' })
     const auth = createAuth(testEnv, { request })
@@ -46,8 +55,8 @@ describe('auth routes', () => {
     const accountAfter = hooks?.account?.create?.after
     const sessionAfter = hooks?.session?.create?.after
 
-    await userAfter?.({ id: 'user-private', isAnonymous: false } as Parameters<NonNullable<typeof userAfter>>[0], null)
-    await accountAfter?.({ userId: 'user-private', providerId: 'github' } as Parameters<NonNullable<typeof accountAfter>>[0], null)
+    await userAfter?.({ id: 'user-private', isAnonymous: false } as unknown as Parameters<NonNullable<typeof userAfter>>[0])
+    await accountAfter?.({ userId: 'user-private', providerId: 'github' } as Parameters<NonNullable<typeof accountAfter>>[0])
     await sessionAfter?.({ userId: 'user-private' } as Parameters<NonNullable<typeof sessionAfter>>[0], null)
 
     expect(events).toEqual([
@@ -94,9 +103,9 @@ describe('auth routes', () => {
     const sessionCreateAfter = hooks?.session?.create?.after
     const sessionDeleteAfter = hooks?.session?.delete?.after
 
-    await userAfter?.({ id: 'anonymous-private', isAnonymous: true } as Parameters<NonNullable<typeof userAfter>>[0], null)
+    await userAfter?.({ id: 'anonymous-private', isAnonymous: true } as unknown as Parameters<NonNullable<typeof userAfter>>[0])
     await sessionCreateAfter?.({ userId: 'anonymous-private' } as Parameters<NonNullable<typeof sessionCreateAfter>>[0], null)
-    await accountAfter?.({ userId: 'existing-private', providerId: 'apple' } as Parameters<NonNullable<typeof accountAfter>>[0], null)
+    await accountAfter?.({ userId: 'existing-private', providerId: 'apple' } as Parameters<NonNullable<typeof accountAfter>>[0])
     await sessionCreateAfter?.(
       { userId: 'existing-private' } as Parameters<NonNullable<typeof sessionCreateAfter>>[0],
       { path: '/passkey/verify-authentication' } as Parameters<NonNullable<typeof sessionCreateAfter>>[1],
@@ -131,7 +140,6 @@ describe('auth routes', () => {
 
     await accountAfter?.(
       { userId: 'private-user', providerId: 'private-provider-value' } as Parameters<NonNullable<typeof accountAfter>>[0],
-      null,
     )
 
     expect(events[0]?.fields?.resultDescription).toBe(

@@ -11,10 +11,11 @@ export const onRequestDelete: PagesFunction<Env> = async context => {
     await context.env.DB.batch([
       context.env.DB.prepare('DELETE FROM outing WHERE userId = ?').bind(userId),
       context.env.DB.prepare('DELETE FROM dex_meta WHERE userId = ?').bind(userId),
+      context.env.DB.prepare('DELETE FROM importIdentity WHERE userId = ?').bind(userId),
     ])
-    route.succeeded('Cleared all outings, cascaded observations and photos, and dex metadata for the authenticated account')
+    route.succeeded('Cleared all outings, cascaded observations and photos, dex metadata, and import receipts for the authenticated account')
 
-    return route.complete(Response.json({ cleared: true }), 'Cleared all outings, cascaded observations and photos, and dex metadata for the authenticated account')
+    return route.complete(Response.json({ cleared: true }), 'Cleared all outings, cascaded observations and photos, dex metadata, and import receipts for the authenticated account')
   } catch {
     return route.fail(500, 'Internal server error', 'Account data clear failed before the outings and dex metadata deletion batch committed')
   }

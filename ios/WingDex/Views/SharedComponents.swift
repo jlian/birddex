@@ -41,13 +41,15 @@ struct OutingActionDestination: Identifiable, Hashable {
 
 private struct OutingRowActionsModifier: ViewModifier {
     let outing: Outing
+    @Binding var pendingDeletion: Outing?
     let onView: () -> Void
     let onEditLocation: () -> Void
 
+    @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
-    @State private var confirmsDeletion = false
     @State private var operationError: String?
 
     private var observations: [BirdObservation] {
@@ -61,17 +63,19 @@ private struct OutingRowActionsModifier: ViewModifier {
                     Label("Edit Location", systemImage: "pencil")
                 }
                 .disabled(!store.hasLoadedAll)
-                Button {
-                    Task { await exportOuting() }
-                } label: {
-                    Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting() }
+                    } label: {
+                        Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(observations.isEmpty || isExporting)
                 }
-                .disabled(observations.isEmpty || isExporting)
                 ShareLink(item: SharePayload.outing(outing, observations: observations)) {
                     Label("Share Summary", systemImage: "text.bubble")
                 }
                 Button(role: .destructive) {
-                    confirmsDeletion = true
+                    pendingDeletion = outing
                 } label: {
                     Label("Delete Outing", systemImage: "trash")
                 }
@@ -80,20 +84,23 @@ private struct OutingRowActionsModifier: ViewModifier {
                 NavigationStack {
                     OutingDetailView(outingId: outing.id)
                 }
+                .environment(auth)
                 .environment(store)
             }
             .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                Button {
-                    Task { await exportOuting() }
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting() }
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                    .tint(.accentColor)
+                    .disabled(observations.isEmpty || isExporting)
                 }
-                .tint(.accentColor)
-                .disabled(observations.isEmpty || isExporting)
             }
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
-                    confirmsDeletion = true
+                    pendingDeletion = outing
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
@@ -101,14 +108,6 @@ private struct OutingRowActionsModifier: ViewModifier {
             }
             .sheet(item: $exportItem) { item in
                 ActivityView(item: item)
-            }
-            .alert("Delete this outing?", isPresented: $confirmsDeletion) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete Outing", role: .destructive) {
-                    Task { await deleteOuting() }
-                }
-            } message: {
-                Text("This will permanently delete this outing and all its observations.")
             }
             .alert("Could Not Complete Action", isPresented: operationErrorBinding) {
                 Button("OK", role: .cancel) { operationError = nil }
@@ -126,15 +125,59 @@ private struct OutingRowActionsModifier: ViewModifier {
         do {
             let data = try await store.exportOutingCSV(outingId: outing.id)
             exportItem = try ExportFileFactory.outing(data: data, outing: outing)
+            toasts.show("Outing exported in eBird Record CSV format")
         } catch {
             operationError = AppError.map(error, fallback: "Could not export outing. Try again.")?.message
         }
     }
 
+    private var operationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )
+    }
+}
+
+/// Hosts the outing delete confirmation above the list rather than on the row. An alert
+/// anchored to a row is torn down with the swipe container before it can present, so the
+/// confirmation appeared and vanished in the same frame.
+private struct OutingDeletionConfirmationModifier: ViewModifier {
+    @Binding var outing: Outing?
+
+    @Environment(DataStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
+    @State private var operationError: String?
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Delete this outing?", isPresented: isPresented, presenting: outing) { target in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete Outing", role: .destructive) {
+                    Task { await delete(target) }
+                }
+            } message: { _ in
+                Text("This will permanently delete this outing and all its observations.")
+            }
+            .alert("Could Not Complete Action", isPresented: operationErrorBinding) {
+                Button("OK", role: .cancel) { operationError = nil }
+            } message: {
+                Text(operationError ?? "Something went wrong. Try again.")
+            }
+    }
+
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { outing != nil },
+            set: { if !$0 { outing = nil } }
+        )
+    }
+
     @MainActor
-    private func deleteOuting() async {
+    private func delete(_ target: Outing) async {
         do {
-            try await store.deleteOuting(id: outing.id)
+            try await store.deleteOuting(id: target.id)
+            toasts.show("Outing deleted")
         } catch {
             operationError = AppError.map(error, fallback: "Could not delete outing. Try again.")?.message
         }
@@ -151,14 +194,20 @@ private struct OutingRowActionsModifier: ViewModifier {
 extension View {
     func outingRowActions(
         outing: Outing,
+        pendingDeletion: Binding<Outing?>,
         onView: @escaping () -> Void,
         onEditLocation: @escaping () -> Void
     ) -> some View {
         modifier(OutingRowActionsModifier(
             outing: outing,
+            pendingDeletion: pendingDeletion,
             onView: onView,
             onEditLocation: onEditLocation
         ))
+    }
+
+    func outingDeletionConfirmation(_ outing: Binding<Outing?>) -> some View {
+        modifier(OutingDeletionConfirmationModifier(outing: outing))
     }
 }
 
@@ -195,8 +244,13 @@ func presentActivitySheet(items: [Any], sourceView: UIView? = nil) {
 
 // MARK: - Bird Thumbnail
 
-/// Portrait-aware bird thumbnail that crops tall images near the top (head area).
-/// Uses an in-memory cache for smooth scrolling.
+/// Crop anchor for a `.scaledToFill()` bird photo. Tall sources are cropped from the top so
+/// the head survives; wide ones are centered. Same rule as the web `wiki-bird-thumbnail.tsx`.
+func birdFillAlignment(for image: UIImage) -> Alignment {
+    image.size.height > image.size.width ? .top : .center
+}
+
+/// Orientation-aware bird thumbnail. Uses an in-memory cache for smooth scrolling.
 struct BirdThumbnail: View {
     let url: String?
     var size: CGFloat = 48
@@ -209,7 +263,7 @@ struct BirdThumbnail: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: size, height: size, alignment: .top)
+                    .frame(width: size, height: size, alignment: birdFillAlignment(for: uiImage))
             } else {
                 placeholder
             }
@@ -273,6 +327,13 @@ struct BirdHeroImage: View {
     private var awaitingFullRes: Bool { fullImageUrl == nil || fullImageUrl != thumbnailUrl }
     private var targetPoints: CGFloat { max(width, height) }
 
+    /// Both layers render the same file, so resolving the anchor once keeps the cross-fade
+    /// from shifting the framing mid-transition.
+    private var fillAlignment: Alignment {
+        guard let image = thumbnailImage ?? fullImage else { return .center }
+        return birdFillAlignment(for: image)
+    }
+
     var body: some View {
         ZStack {
             if let thumbnailImage {
@@ -309,7 +370,7 @@ struct BirdHeroImage: View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .frame(width: width, height: height, alignment: .top)
+            .frame(width: width, height: height, alignment: fillAlignment)
             .clipped()
     }
 
@@ -344,16 +405,31 @@ struct BirdRow: View {
     var thumbnailUrl: String?
     var subtitle: String?
     var count: Int?
+    /// Supplied wherever the row belongs to one place and one date, which is
+    /// what a rarity verdict needs. The row resolves its own mark from it, so
+    /// no caller has to know the rules. Omitted on the WingDex grid on purpose:
+    /// a life-list entry spans many places and months and has no single answer.
+    var outing: Outing?
+
+    private var rarity: RarityState {
+        guard let outing else { return .none }
+        return RarityStore.shared.state(species: speciesName, outing: outing)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             BirdThumbnail(url: thumbnailUrl, size: 48)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(getDisplayName(speciesName))
-                    .font(.system(.body, design: .serif, weight: .semibold))
-                    .foregroundStyle(Color.foregroundText)
-                    .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(getDisplayName(speciesName))
+                        .font(.system(.body, design: .serif, weight: .semibold))
+                        .foregroundStyle(Color.foregroundText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if rarity != .none {
+                        RarityMark(state: rarity)
+                    }
+                }
 
                 if let sci = getScientificName(speciesName) {
                     Text(sci)
@@ -361,13 +437,14 @@ struct BirdRow: View {
                         .italic()
                         .foregroundStyle(Color.mutedText)
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let count, count > 1 {
@@ -388,14 +465,33 @@ struct BirdRow: View {
 // MARK: - Species Card
 
 /// Square image card for the Home recent-species carousel.
-/// The UIKit carousel cell owns its scalable caption and accessibility behavior.
+/// The UIKit carousel cell owns the accessibility behavior; this is the visual only.
 struct SpeciesCard: View {
     let entry: DexEntry
     var size: CGFloat = 120
 
     var body: some View {
-        BirdThumbnail(url: entry.thumbnailUrl, size: size, cornerRadius: 0)
+        BirdThumbnail(
+            url: cardImageUrl(fromThumbnail: entry.thumbnailUrl) ?? entry.thumbnailUrl,
+            size: size,
+            cornerRadius: 0
+        )
         .frame(width: size, height: size)
+        .overlay {
+            LinearGradient(
+                colors: [.clear, .clear, .black.opacity(0.6)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .overlay(alignment: .bottomLeading) {
+            Text(getDisplayName(entry.speciesName))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+        }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -422,6 +518,13 @@ struct OutingRow: View {
     let store: DataStore
     var observation: BirdObservation?
 
+    /// Only a per-species row can carry a verdict. The location rows in Home and
+    /// Outings cover many species at once and have no single answer.
+    private var rarity: RarityState {
+        guard let observation else { return .none }
+        return RarityStore.shared.state(species: observation.speciesName, outing: outing)
+    }
+
     var body: some View {
         let confirmed = store.confirmedObservations(outing.id)
         let speciesNames = Array(Set(confirmed.map(\.speciesName))).sorted()
@@ -433,7 +536,7 @@ struct OutingRow: View {
                 Text(outing.locationName.isEmpty ? "Outing" : outing.locationName)
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .foregroundStyle(Color.foregroundText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let observation {
                     HStack(spacing: 4) {
@@ -445,6 +548,15 @@ struct OutingRow: View {
                         Text("\u{00B7}")
                         Text(observation.certainty.rawValue.capitalized)
                             .foregroundStyle(observation.certainty == .possible ? .orange : Color.mutedText)
+                        // Species detail is the one screen where the mark has
+                        // room for its word, and the issue asks for a fuller
+                        // label exactly here.
+                        if let label = rarity.shortLabel {
+                            Text("\u{00B7}")
+                            RarityMark(state: rarity)
+                            Text(label)
+                                .foregroundStyle(Color.rarityMark)
+                        }
                     }
                     .font(.caption)
                     .foregroundStyle(Color.mutedText)
@@ -452,6 +564,7 @@ struct OutingRow: View {
                     Text("\(DateFormatting.formatDate(outing.startTime, style: .medium)) \u{00B7} \(speciesNames.count) species")
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if observation == nil, !speciesNames.isEmpty {
@@ -461,13 +574,30 @@ struct OutingRow: View {
                     )
                     .font(.caption)
                     .foregroundStyle(Color.mutedText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .contentShape(Rectangle())
         .padding(.vertical, 2)
         .frame(minHeight: 56)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        let location = outing.locationName.isEmpty ? "Outing" : outing.locationName
+        let date = DateFormatting.formatDate(outing.startTime, style: .medium)
+        if let observation {
+            return "\(location), \(date), \(getDisplayName(observation.speciesName)), \(observation.certainty.rawValue)"
+                + (rarity.accessibilityLabel.map { ", \($0)" } ?? "")
+        }
+        let speciesCount = store.confirmedObservations(outing.id)
+            .map(\.speciesName)
+            .reduce(into: Set<String>()) { $0.insert($1) }
+            .count
+        return "\(location), \(date), \(speciesCount) species"
     }
 
     @ViewBuilder
@@ -553,25 +683,39 @@ private struct MiniMapSnapshot: View {
 
 #if DEBUG
 #Preview("BirdRow") {
-    ScrollView {
-        BirdRow(
-            speciesName: "Northern Cardinal (Cardinalis cardinalis)",
-            thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Cardinal_-_3679055844.jpg/320px-Cardinal_-_3679055844.jpg",
-            subtitle: "3 outings · 5 seen · Jan 12, 2026"
-        )
-        .padding(.horizontal)
-        BirdRow(
-            speciesName: "Blue Jay (Cyanocitta cristata)",
-            thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Blue_jay_in_PP_%2830960%29.jpg/320px-Blue_jay_in_PP_%2830960%29.jpg",
-            count: 3
-        )
-        .padding(.horizontal)
-        BirdRow(
-            speciesName: "Bald Eagle (Haliaeetus leucocephalus)",
-            thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/About_to_Launch_%2826075320352%29.jpg/320px-About_to_Launch_%2826075320352%29.jpg",
-            subtitle: "2 outings · 2 seen · Jan 12, 2026"
-        )
-        .padding(.horizontal)
+    // Real verdicts from the bundled asset, not hardcoded states. Both lookups
+    // are primed synchronously because a preview snapshot comes from the first
+    // frame, before any `.task` resolves.
+    primeTaxonomyLookupsForPreview()
+    // The --ui-test-seed-csv rarity outing. These four species land on all four
+    // verdicts here, and ml/distill/verify_rarity_blob.py asserts exactly that.
+    let seattle = Outing(
+        id: "preview", userId: "preview",
+        startTime: "2026-01-18T08:30:00-08:00", endTime: "2026-01-18T10:30:00-08:00",
+        locationName: "Carkeek Park, Seattle", lat: 47.61, lon: -122.33,
+        notes: "", createdAt: "2026-01-18T08:30:00-08:00"
+    )
+    let commons = "https://upload.wikimedia.org/wikipedia/commons/thumb/"
+    let birds = [
+        ("American Robin (Turdus migratorius)",
+         commons + "b/b8/Turdus-migratorius-002.jpg/320px-Turdus-migratorius-002.jpg"),
+        ("Rufous Hummingbird (Selasphorus rufus)",
+         commons + "5/5b/Rufous_Hummingbird.jpg/320px-Rufous_Hummingbird.jpg"),
+        ("Tundra Swan (Cygnus columbianus)",
+         commons + "6/6a/Cygnus_columbianus_-Richmond%2C_British_Columbia%2C_Canada-8.jpg/320px-Cygnus_columbianus_-Richmond%2C_British_Columbia%2C_Canada-8.jpg"),
+        ("Northern Cardinal (Cardinalis cardinalis)",
+         commons + "4/45/Cardinal_-_3679055844.jpg/320px-Cardinal_-_3679055844.jpg"),
+    ]
+    return ScrollView {
+        ForEach(birds, id: \.0) { name, thumb in
+            BirdRow(
+                speciesName: name,
+                thumbnailUrl: thumb,
+                subtitle: "Jan 18, 2026",
+                outing: seattle
+            )
+            .padding(.horizontal)
+        }
     }
     .background(Color.pageBg)
 }

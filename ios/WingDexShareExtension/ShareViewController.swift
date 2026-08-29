@@ -8,15 +8,15 @@ final class ShareViewController: UIViewController {
     private let doneButton = UIButton(type: .system)
     private let cancelButton = UIButton(type: .system)
     private var stagingTask: Task<Void, Never>?
+    /// Set once the batch reaches `pending`, which is the point of no return:
+    /// the app will import it. Cancelling after that cannot unpublish it, so
+    /// Cancel must stop reporting cancellation and close instead.
+    private var hasPublishedBatch = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
         configureUI()
         stagingTask = Task { await stageSharedPhotos() }
-    }
-
-    deinit {
-        stagingTask?.cancel()
     }
 
     private func configureUI() {
@@ -95,7 +95,18 @@ final class ShareViewController: UIViewController {
             }
 
             try Task.checkCancellation()
-            try await stageInBackground(fileURLs: temporaryFiles)
+            // Publication is the commit point. `stage` moves the batch into
+            // `pending` atomically, so once it returns the app will import the
+            // batch. Checking for cancellation after that point would report a
+            // cancelled share while the batch stays queued, so the next check
+            // is deliberately absent.
+            try await IncomingShareStore.stage(fileURLs: temporaryFiles)
+            hasPublishedBatch = true
+            cancelButton.configuration?.title = "Close"
+            if await openHostApp() {
+                extensionContext?.completeRequest(returningItems: nil)
+                return
+            }
             statusLabel.text = providers.count == 1
                 ? "Saved to WingDex. Tap Done, then open WingDex to continue."
                 : "Saved \(providers.count) photos to WingDex. Tap Done, then open WingDex to continue."
@@ -113,15 +124,23 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func stageInBackground(fileURLs: [URL]) async throws {
-        let stagingTask = Task.detached(priority: .userInitiated) {
-            try await IncomingShareStore.stage(fileURLs: fileURLs)
+    /// Matches the app's `CFBundleURLSchemes` entry and the `share-import` host it handles.
+    private static let hostAppShareImportURL = URL(string: "wingdex://share-import")
+
+    /// This works on current iOS releases but is undocumented for Share extensions,
+    /// so the extension must keep the manual-open fallback when it fails.
+    private func openHostApp() async -> Bool {
+        guard let url = Self.hostAppShareImportURL else { return false }
+        var responder: UIResponder? = self
+        while let current = responder {
+            if let scene = current as? UIScene {
+                return await withCheckedContinuation { continuation in
+                    scene.open(url, options: nil) { continuation.resume(returning: $0) }
+                }
+            }
+            responder = current.next
         }
-        try await withTaskCancellationHandler {
-            try await stagingTask.value
-        } onCancel: {
-            stagingTask.cancel()
-        }
+        return false
     }
 
     private func inputProviders() -> [NSItemProvider] {
@@ -190,6 +209,13 @@ final class ShareViewController: UIViewController {
 
     @objc private func cancel() {
         cancelInFlightWork()
+        // The batch is already published and cannot be recalled, so reporting
+        // cancellation here would tell the person the share was cancelled while
+        // the app imports it anyway. Complete instead.
+        guard !hasPublishedBatch else {
+            extensionContext?.completeRequest(returningItems: nil)
+            return
+        }
         extensionContext?.cancelRequest(withError: CocoaError(.userCancelled))
     }
 

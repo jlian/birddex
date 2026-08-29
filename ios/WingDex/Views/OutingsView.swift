@@ -8,6 +8,7 @@ struct OutingsView: View {
     @State private var sortField: OutingSortField = .date
     @State private var sortAscending = false
     @State private var actionDestination: OutingActionDestination?
+    @State private var outingPendingDeletion: Outing?
 
     // MARK: - Sort Options
 
@@ -99,10 +100,14 @@ struct OutingsView: View {
                             .glassEffect(.regular.interactive())
 
                             Button { showSettings() } label: {
-                                AvatarView(imageURL: auth.userImage, name: auth.userName, size: 40)
-                                    .accessibilityElement(children: .ignore)
-                                    .accessibilityLabel("Settings")
+                                AccountAvatarView(size: 40)
                             }
+                            .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
+                            .accessibilityValue(
+                                auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
+                                    ? "These sightings are only on this device"
+                                    : ""
+                            )
                         }
                         .padding(.trailing, -12)
                     }
@@ -202,6 +207,7 @@ struct OutingsView: View {
             }
             .outingRowActions(
                 outing: outing,
+                pendingDeletion: $outingPendingDeletion,
                 onView: {
                     actionDestination = OutingActionDestination(
                         outing: outing,
@@ -219,6 +225,7 @@ struct OutingsView: View {
         .listStyle(.plain)
         .listSectionSeparator(.hidden, edges: .top)
         .scrollContentBackground(.hidden)
+        .outingDeletionConfirmation($outingPendingDeletion)
     }
 }
 

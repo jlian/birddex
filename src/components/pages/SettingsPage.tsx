@@ -9,16 +9,15 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Download, Upload, Info, Database, CaretDown, Sun, Moon, Desktop, Trash, GlobeHemisphereWest, Key, SignOut, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
+import { Download, Upload, Info, CaretDown, Sun, Moon, Desktop, Trash, GlobeHemisphereWest, Key, SignOut, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
 import { authClient } from '@/lib/auth-client'
-import { fetchWithLocalAuthRetry, isLocalRuntime } from '@/lib/local-auth-fetch'
+import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
 import { assertWingDexApiResponse, getWingDexApiErrorMessage } from '@/lib/api-error'
 import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '@/lib/fun-names'
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike, toStandardPasskeyLabel } from '@/lib/passkey-label'
 import { toast } from 'sonner'
 import { logClientFailure } from '@/lib/client-log'
 import { generateTraceparent } from '@/lib/trace'
-import demoCsv from '@/assets/ebird-import.csv?raw'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 
 function errCode(err: { code?: string; message?: string }): string | undefined {
@@ -179,57 +178,32 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         return formData
       }
 
-      const postPreview = () => fetchWithLocalAuthRetry('/api/import/ebird-csv', {
+      const importResponse = await fetchWithLocalAuthRetry('/api/import/ebird-csv', {
         method: 'POST',
         credentials: 'include',
         body: makePreviewFormData(),
       })
 
-      let previewResponse = await postPreview()
-      if (previewResponse.status === 401 && isLocalRuntime()) {
-        const signInResult = await authClient.signIn.anonymous()
-        if (!signInResult.error) {
-          previewResponse = await postPreview()
-        }
-      }
+      await assertWingDexApiResponse(importResponse, 'Import failed')
 
-      await assertWingDexApiResponse(previewResponse, 'Preview failed')
-
-      const previewPayload = await previewResponse.json() as {
-        previews: Array<{ previewId: string; speciesName: string; conflict?: 'new' | 'duplicate' | 'update_dates' }>
-      }
-
-      const selectedPreviewIds = previewPayload.previews
-        .filter(preview => preview.conflict !== 'duplicate')
-        .map(preview => preview.previewId)
-
-      if (selectedPreviewIds.length === 0) {
-        toast.error('No valid data found in CSV')
-        return
-      }
-
-      const confirmResponse = await fetchWithLocalAuthRetry('/api/import/ebird-csv/confirm', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ previewIds: selectedPreviewIds }),
-      })
-
-      await assertWingDexApiResponse(confirmResponse, 'Confirmation failed')
-
-      const confirmPayload = await confirmResponse.json() as {
+      const importPayload = await importResponse.json() as {
         imported: { outings: number; newSpecies: number }
+        skipped?: { rows: number }
       }
 
-      if (confirmPayload.imported.newSpecies > 0) {
+      if (importPayload.imported.newSpecies > 0) {
         setShowConfetti(true)
         setTimeout(() => setShowConfetti(false), 3500)
       }
 
-      toast.success(
-        `Imported eBird data across ${confirmPayload.imported.outings} outings` +
-        (confirmPayload.imported.newSpecies > 0 ? ` (${confirmPayload.imported.newSpecies} new!)` : '')
-      )
+      if (importPayload.imported.outings === 0 && (importPayload.skipped?.rows ?? 0) > 0) {
+        toast.success('Already imported: nothing new in that file')
+      } else {
+        toast.success(
+          `Imported eBird data across ${importPayload.imported.outings} outings` +
+          (importPayload.imported.newSpecies > 0 ? ` (${importPayload.imported.newSpecies} new!)` : '')
+        )
+      }
 
       await data.refresh()
     } catch (error) {
@@ -288,6 +262,8 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
 
       {!user.isAnonymous && (
       <Card className="p-4 space-y-4">
+        {/* Keep nickname generation and editing as explicit server writes so the
+          display name and avatar are saved through one profile path. */}
         <div className="space-y-2">
           <h3 className="font-semibold text-foreground">Profile</h3>
           <p className="text-sm text-muted-foreground flex items-center gap-1.5">
@@ -493,6 +469,9 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
         </div>
       </Card>
 
+        {/* Ordinary import/export is account-only. Anonymous sightings export is
+          reserved for recovery; middleware enforces the same registered-account
+          boundary for the Settings surface. */}
       {!user.isAnonymous && (
       <Card className="p-4 space-y-4">
         <div className="space-y-2">
@@ -648,8 +627,8 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
               Use Location and Time
             </label>
             <p className="text-xs text-muted-foreground">
-              Improves identification using photo location and month. Rounded coordinates may be
-              sent to Geoapify to suggest outing names.
+              Improves identification using photo location and month. Outing name
+              suggestions are looked up on WingDex servers, not sent to a third party.
             </p>
           </div>
           <Switch
@@ -673,72 +652,6 @@ export default function SettingsPage({ data, user, onSignIn, onSignedOut, onProf
           </p>
         </div>
         <div className="space-y-3">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Database size={20} className="mr-2" />
-                Load Demo Data
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Load demo data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will replace all your current outings, observations,
-                  and WingDex entries with demo data. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={async () => {
-                    try {
-                      data.clearAllData()
-
-                      const formData = new FormData()
-                      formData.append('file', new Blob([demoCsv], { type: 'text/csv' }), 'demo.csv')
-
-                      const previewRes = await fetchWithLocalAuthRetry('/api/import/ebird-csv', {
-                        method: 'POST',
-                        credentials: 'include',
-                        body: formData,
-                      })
-                      await assertWingDexApiResponse(previewRes, 'Preview failed')
-
-                      const { previews } = await previewRes.json() as {
-                        previews: Array<{ previewId: string }>
-                      }
-
-                      const confirmRes = await fetchWithLocalAuthRetry('/api/import/ebird-csv/confirm', {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ previewIds: previews.map(p => p.previewId) }),
-                      })
-                      await assertWingDexApiResponse(confirmRes, 'Confirmation failed')
-
-                      const { imported } = await confirmRes.json() as {
-                        imported: { outings: number; newSpecies: number }
-                      }
-
-                      await data.refresh()
-                      toast.success(`Demo data loaded: ${imported.outings} outings, ${imported.newSpecies} species`)
-                    } catch (error) {
-                      const detail = getWingDexApiErrorMessage(error, 'Please try again.')
-                      toast.error(`Failed to load demo data: ${detail}`)
-                      logClientFailure('demo/data/import', error)
-                    }
-                  }}
-                >
-                  Load Demo Data
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
           <AlertDialog open={deleteStep !== null} onOpenChange={open => { if (!open) setDeleteStep(null) }}>
             <AlertDialogTrigger asChild>
               <Button

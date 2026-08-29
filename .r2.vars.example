@@ -1,0 +1,6 @@
+# R2 S3 credentials for archive administration only.
+# Copy to .r2.vars, fill the values, then source it before running r2-upload.mjs.
+
+export CF_ACCOUNT_ID=
+export R2_ACCESS_KEY_ID=
+export R2_SECRET_ACCESS_KEY=

@@ -1,4 +1,25 @@
 import SwiftUI
+import os
+
+private let appLog = Logger(subsystem: Config.bundleID, category: "App")
+
+enum SignupPromptStore {
+    private static let prefix = "wingdex.signupPrompted."
+
+    static func hasPrompted(userID: String, defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: prefix + userID)
+    }
+
+    static func markPrompted(userID: String, defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: prefix + userID)
+    }
+
+    static func reset(defaults: UserDefaults = .standard) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+}
 
 // MARK: - App Entry Point
 
@@ -8,9 +29,10 @@ struct WingDexApp: App {
     @State private var authService: AuthService
     @State private var dataStore: DataStore
     @State private var navigation = AppNavigationModel.shared
+    @State private var toasts = ToastCenter()
 
     init() {
-        let auth = AuthService()
+        let auth = AuthService.shared
         let cache = try? AccountDataCache()
         _authService = State(initialValue: auth)
         _dataStore = State(initialValue: DataStore(
@@ -31,6 +53,7 @@ struct WingDexApp: App {
                 .environment(authService)
                 .environment(dataStore)
                 .environment(navigation)
+                .environment(toasts)
                 .onOpenURL { url in
                     guard url.scheme == Config.oauthCallbackScheme,
                           url.host == "share-import"
@@ -43,42 +66,31 @@ struct WingDexApp: App {
 
 // MARK: - Root Content View
 
-/// Root view that shows either auth or the main tab interface.
+/// Root view that keeps the main interface available with or without an account.
 struct ContentView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(AppNavigationModel.self) private var navigation
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var isValidating = true
+    private var blocksForAccountMerge: Bool {
+        auth.isRegisteredAccount
+            && (auth.hasPendingAccountMergeForCurrentAccount || auth.accountMergeState != .none)
+    }
 
     var body: some View {
-        Group {
-            if isValidating {
-                SessionValidationView()
-            } else if auth.isAuthenticated {
-                MainTabView()
-                    .transition(.opacity)
-            } else {
-                SignInView()
-                    .transition(.opacity)
-                    #if DEBUG
-                    .task {
-                        if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
-                           !auth.isAuthenticated {
-                            try? await auth.signInAnonymously()
-                        }
-                    }
-                    #endif
+        // Render the shell immediately, but do not activate restored account
+        // cache until session validation says valid or offline.
+        ZStack {
+            MainTabView()
+                .disabled(blocksForAccountMerge)
+            if blocksForAccountMerge {
+                AccountMergeRecoveryView()
             }
         }
         .background(Color.pageBg.ignoresSafeArea())
-        .animation(.easeInOut(duration: 0.25), value: auth.isAuthenticated)
-        .onChange(of: auth.isAuthenticated) { _, isAuthenticated in
-            if isAuthenticated, let accountID = auth.userId {
-                store.activate(accountID: accountID)
-            } else if !isAuthenticated {
-                navigation.setMainInterfaceReady(false)
+        .onChange(of: auth.identity) { _, identity in
+            if identity == .none {
                 store.clearActiveAccount()
                 if let accountID = auth.consumeDiscardedAccountID() {
                     store.clearCachedAccount(accountID: accountID)
@@ -86,46 +98,83 @@ struct ContentView: View {
             }
         }
         .onChange(of: auth.userId) { _, accountID in
-            guard auth.isAuthenticated, let accountID else { return }
+            guard auth.hasSession, !blocksForAccountMerge, let accountID else { return }
             store.activate(accountID: accountID)
+            Task { try? await store.ensureLoaded() }
+        }
+        .onChange(of: auth.accountMergeState) { _, state in
+            guard state == .none,
+                  auth.isRegisteredAccount,
+                  let accountID = auth.userId
+            else { return }
+            store.activate(accountID: accountID)
+            Task { try? await store.ensureLoaded() }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, auth.isAuthenticated, !isValidating else { return }
+            guard phase == .active, auth.hasSession else { return }
             Task { await auth.validateSession(force: false) }
         }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
-                auth.signOut()
+                await auth.signOut()
+            }
+            if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
+               !auth.hasSession {
+                try? await auth.ensureAnonymousSession()
             }
             #endif
             if let discardedAccountID = auth.consumeDiscardedAccountID() {
                 store.clearCachedAccount(accountID: discardedAccountID)
             }
-            if auth.isAuthenticated, let accountID = auth.userId {
-                store.activate(accountID: accountID)
-                isValidating = false
-                await auth.validateSession()
-            } else {
-                isValidating = false
+            if auth.hasSession, let accountID = auth.userId {
+                let validation = await auth.validateSession()
+                if validation != .rejected,
+                   auth.userId == accountID {
+                          if auth.isRegisteredAccount,
+                              !(await auth.resumePendingAccountMerge()) {
+                        return
+                    }
+                    store.activate(accountID: accountID)
+                    try? await store.ensureLoaded()
+                }
             }
         }
     }
 }
 
-private struct SessionValidationView: View {
+private struct AccountMergeRecoveryView: View {
+    @Environment(AuthService.self) private var auth
+
     var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Checking your session...")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 18) {
+            AppIconView()
+                .frame(width: 64, height: 64)
+            Text("Keeping your WingDex...")
+                .font(.title2.bold())
+            if auth.accountMergeState == .failed {
+                Text("Your original sightings are safe. Retry to finish adding them to this account.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry") {
+                    Task { await auth.resumePendingAccountMerge() }
+                }
+                .buttonStyle(.glassProminent)
+                .buttonSizing(.flexible)
+                Button("Sign out") {
+                    Task { await auth.signOut() }
+                }
+                .buttonStyle(.glass)
+                .buttonSizing(.flexible)
+            } else {
+                ProgressView()
+            }
         }
+        .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.pageBg.ignoresSafeArea())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Checking your session")
+        .background(.regularMaterial)
+        .accessibilityIdentifier("accountMerge.recovery")
     }
 }
 
@@ -136,13 +185,24 @@ struct MainTabView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(AppNavigationModel.self) private var navigation
+    @Environment(ToastCenter.self) private var toasts
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
+    @State private var showingAccount = false
     @State private var addPhotosVM = AddPhotosViewModel()
     @State private var showingWizard = false
-    @State private var initialDataLoaded = false
+    @State private var incomingShareImportInFlight = false
+    @State private var incomingShareImportRequested = false
+    @State private var incomingShareImportDeferred = false
+    @State private var incomingShareImportTask: Task<Void, Never>?
+    @State private var incomingShareImportTaskID: UUID?
     #if DEBUG
+    private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
+    private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-ignore-shares")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
+    #else
+    private let uiTestForcesSettings = false
+    private let uiTestIgnoresPendingShare = false
     #endif
 
     var body: some View {
@@ -162,6 +222,8 @@ struct MainTabView: View {
             }
 
             Tab(value: AppTab.add, role: .search) {
+                // Add is a real tab, not a modal trigger. Its own stack keeps
+                // picker navigation scoped to the tab when it is reselected.
                 NavigationStack {
                     PhotoSelectionView(viewModel: addPhotosVM)
                         .navigationTitle("Add Photos")
@@ -181,6 +243,7 @@ struct MainTabView: View {
                 Label("Add", systemImage: "camera.fill")
             }
         }
+        .toastPresenter(toasts.notice)
         #if DEBUG
         .accessibilityIdentifier(uiTestDataSetupIdentifier)
         #endif
@@ -190,14 +253,31 @@ struct MainTabView: View {
             }
         }
         .fullScreenCover(isPresented: $showingWizard, onDismiss: {
+            let shouldContinueShareQueue = addPhotosVM.continuesShareQueueAfterDismissal
+            let explicitlyStoppedShareQueue = addPhotosVM.stoppedShareQueueAfterDismissal
+            let shouldPrompt = auth.identity == .anonymous
+                && addPhotosVM.savedOutingCount > 0
+                && auth.userId.map { !SignupPromptStore.hasPrompted(userID: $0) } == true
+            incomingShareImportTask?.cancel()
+            incomingShareImportTask = nil
+            incomingShareImportTaskID = nil
             addPhotosVM.cancelSession()
             addPhotosVM = AddPhotosViewModel()
             addPhotosVM.configure(
                 auth: auth,
                 dataStore: store
             )
-            if IncomingShareStore.hasPendingShare {
-                Task { await importIncomingShareIfAvailable() }
+            if explicitlyStoppedShareQueue {
+                incomingShareImportDeferred = false
+            } else if shouldPrompt {
+                incomingShareImportDeferred = shouldContinueShareQueue || incomingShareImportDeferred
+            } else if shouldContinueShareQueue || incomingShareImportDeferred {
+                incomingShareImportDeferred = false
+                scheduleIncomingShareImport()
+            }
+            if shouldPrompt {
+                if let userID = auth.userId { SignupPromptStore.markPrompted(userID: userID) }
+                showingAccount = true
             }
         }) {
             NavigationStack {
@@ -206,30 +286,62 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+                .toastPresenter(toasts.notice)
+        }
+        .onChange(of: auth.identity) { _, identity in
+            if identity != .registered && !uiTestForcesSettings {
+                showingSettings = false
+            }
+        }
+        .fullScreenCover(isPresented: $showingAccount) {
+            AccountAccessView()
+        }
+        .onChange(of: showingAccount) { _, isShowing in
+            if !isShowing, incomingShareImportDeferred {
+                incomingShareImportDeferred = false
+                scheduleIncomingShareImport()
+            }
         }
         .task {
             navigation.setMainInterfaceReady(true)
-            async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
-            await store.loadAll()
             #if DEBUG
-            // loadDemoData clears the account first, so the reset flag gives UI tests the
-            // same starting data no matter what earlier runs left behind. Tests that never
-            // read the demo dex use the clear flag instead, because importing the CSV
-            // delays everything that follows in this task.
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-reset-signup-prompt") {
+                SignupPromptStore.reset()
+            }
+            #endif
+            async let taxonomyWarmup: Void = prewarmTaxonomyLookups()
+            // Rows resolve their mark synchronously, so pay the 2 MiB read here
+            // rather than on the first scroll.
+            RarityStore.shared.warmUp()
+            #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             do {
-                if arguments.contains("--ui-test-clear-data") {
-                    try await store.clearAll()
-                } else if arguments.contains("--ui-test-reset-data")
-                    || (arguments.contains("--auto-demo-data") && store.dex.isEmpty) {
-                    try await store.loadDemoData()
+                if arguments.contains("--ui-test-reset-share-store") {
+                    try await IncomingShareStore.resetForUITests()
+                }
+                try await prepareUITestData(arguments: arguments)
+                if arguments.contains("--ui-test-stage-share") {
+                    try await stageUITestSharePhoto()
+                }
+                if arguments.contains("--ui-test-open-settings") {
+                    showingSettings = true
+                    await Task.yield()
                 }
                 uiTestDataSetupIdentifier = "ui-test.dataSetupComplete"
             } catch {
                 uiTestDataSetupIdentifier = "ui-test.dataSetupFailed"
             }
             #endif
-            await completeInitialLoadIfReady()
+            scheduleIncomingShareImport()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-stage-share-after-launch") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1))
+                    try? await stageUITestSharePhoto()
+                    navigation.handleIncomingShare()
+                }
+            }
+            #endif
             _ = await taxonomyWarmup
             #if DEBUG
             await startUITestIdentificationIfRequested()
@@ -237,50 +349,224 @@ struct MainTabView: View {
         }
         .onChange(of: store.hasLoadedAll) { _, hasLoadedAll in
             guard hasLoadedAll else { return }
-            Task {
-                await completeInitialLoadIfReady()
-                await addPhotosVM.processSelectedPhotos()
-            }
+            Task { await addPhotosVM.processSelectedPhotos() }
+        }
+        .onChange(of: auth.userId) {
+            addPhotosVM.configure(auth: auth, dataStore: store)
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, initialDataLoaded, IncomingShareStore.hasPendingShare else { return }
-            navigation.route(to: .addPhotos())
-            Task { await importIncomingShareIfAvailable() }
+            guard !uiTestIgnoresPendingShare,
+                  phase == .active
+            else { return }
+            scheduleIncomingShareImport()
         }
         .onDisappear {
             navigation.setMainInterfaceReady(false)
+            incomingShareImportTask?.cancel()
+            incomingShareImportTask = nil
+            incomingShareImportTaskID = nil
             addPhotosVM.cancelSession()
         }
-        .task(id: navigation.incomingShareRequestID) {
-            guard initialDataLoaded else { return }
-            await importIncomingShareIfAvailable()
+        .onChange(of: navigation.incomingShareRequestID) {
+            scheduleIncomingShareImport()
         }
         .environment(\.showAddPhotos) { navigation.route(to: .addPhotos()) }
-        .environment(\.showSettings) { showingSettings = true }
+        .environment(\.showSettings) {
+            if auth.isRegisteredAccount {
+                showingSettings = true
+            } else {
+                showingAccount = true
+            }
+        }
         .environment(\.showWingDex) { navigation.route(to: .wingdex()) }
         .environment(\.showHome) { navigation.route(to: .home) }
         .environment(\.showOutings) { navigation.route(to: .outings) }
     }
 
-    private func importIncomingShareIfAvailable() async {
-        guard initialDataLoaded, IncomingShareStore.hasPendingShare else { return }
-        addPhotosVM.configure(
-            auth: auth,
-            dataStore: store
-        )
-        await addPhotosVM.importIncomingShareIfAvailable()
+    #if DEBUG
+    private func prepareUITestData(arguments: [String]) async throws {
+        let needsAccount = arguments.contains("--ui-test-clear-data")
+            || arguments.contains("--ui-test-seed-csv")
+            || arguments.contains("--ui-test-open-settings")
+        guard needsAccount else { return }
+
+        var lastError: Error = AuthError.notAuthenticated
+        for attempt in 1...3 {
+            var stage = "anonymous session"
+            do {
+                if attempt == 1,
+                   arguments.contains("--ui-test-transient-data-setup-failure") {
+                    stage = "injected transient failure"
+                    throw URLError(.timedOut)
+                }
+                try await auth.ensureAnonymousSession()
+                guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
+                if store.activeAccountID != accountID { store.activate(accountID: accountID) }
+
+                stage = "initial account load"
+                try await store.ensureLoaded()
+
+                if arguments.contains("--ui-test-clear-data")
+                    || arguments.contains("--ui-test-seed-csv") {
+                    stage = "account data clear"
+                    try await store.clearAll()
+                }
+
+                if let seedFlag = arguments.firstIndex(of: "--ui-test-seed-csv"),
+                   arguments.index(after: seedFlag) < arguments.endIndex {
+                    stage = "seed outing write"
+                    let service = DataService(auth: auth, expectedAccountID: accountID)
+                    let outingID = "ui-test-seeded-outing-\(accountID)"
+                    // Coordinates matter: rarity is keyed by cell and month, so an
+                    // outing without them renders no rarity mark at all. This
+                    // fixture had none, which quietly made every seeded screen
+                    // untestable for that feature.
+                    _ = try await service.createOuting(Outing(
+                        id: outingID,
+                        userId: accountID,
+                        startTime: "2026-02-12T06:58:00-03:00",
+                        endTime: "2026-02-12T07:58:00-03:00",
+                        locationName: "Parque Ibirapuera, Sao Paulo",
+                        lat: -23.5875,
+                        lon: -46.6575,
+                        notes: "UI test seed",
+                        createdAt: "2026-02-12T06:58:00-03:00"
+                    ))
+                    stage = "seed observation write"
+                    _ = try await service.createObservations([
+                        BirdObservation(
+                            id: "ui-test-chalk-browed-\(accountID)",
+                            outingId: outingID,
+                            speciesName: "Chalk-browed Mockingbird (Mimus saturninus)",
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        ),
+                        BirdObservation(
+                            id: "ui-test-eared-dove-\(accountID)",
+                            outingId: outingID,
+                            speciesName: "Eared Dove (Zenaida auriculata)",
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        ),
+                    ])
+
+                    // A second outing whose four species land on all four rarity
+                    // verdicts, so every state is reachable from one launch. The
+                    // expectations are locked by ml/distill/verify_rarity_blob.py
+                    // against the shipped asset; change one and that check fails.
+                    stage = "seed rarity outing write"
+                    let rarityOutingID = "ui-test-seeded-rarity-outing-\(accountID)"
+                    _ = try await service.createOuting(Outing(
+                        id: rarityOutingID,
+                        userId: accountID,
+                        startTime: "2026-01-18T08:30:00-08:00",
+                        endTime: "2026-01-18T10:30:00-08:00",
+                        locationName: "Carkeek Park, Seattle",
+                        lat: 47.61,
+                        lon: -122.33,
+                        notes: "UI test seed, rarity states",
+                        createdAt: "2026-01-18T08:30:00-08:00"
+                    ))
+                    stage = "seed rarity observation write"
+                    let rarities: [(String, String)] = [
+                        ("robin", "American Robin (Turdus migratorius)"),
+                        ("rufous", "Rufous Hummingbird (Selasphorus rufus)"),
+                        ("tundra-swan", "Tundra Swan (Cygnus columbianus)"),
+                        ("cardinal", "Northern Cardinal (Cardinalis cardinalis)"),
+                    ]
+                    _ = try await service.createObservations(rarities.map { slug, name in
+                        BirdObservation(
+                            id: "ui-test-\(slug)-\(accountID)",
+                            outingId: rarityOutingID,
+                            speciesName: name,
+                            count: 1,
+                            certainty: .confirmed,
+                            notes: ""
+                        )
+                    })
+                    stage = "seeded account reload"
+                    await store.loadAll()
+                    guard store.hasLoadedAll else { throw store.error ?? AuthError.notAuthenticated }
+                }
+                return
+            } catch {
+                lastError = error
+                appLog.warning("UI test data setup failed during \(stage, privacy: .public), attempt \(attempt)")
+                if attempt < 3 { try? await Task.sleep(for: .seconds(attempt)) }
+            }
+        }
+        throw lastError
+    }
+    #endif
+
+    private func requestIncomingShareImport() async {
+        guard !uiTestIgnoresPendingShare else { return }
+        guard !incomingShareImportInFlight else {
+            incomingShareImportRequested = true
+            return
+        }
+        incomingShareImportInFlight = true
+        defer { incomingShareImportInFlight = false }
+        repeat {
+            incomingShareImportRequested = false
+            addPhotosVM.configure(
+                auth: auth,
+                dataStore: store
+            )
+            let result = await addPhotosVM.importIncomingShareIfAvailable()
+            guard !Task.isCancelled else { return }
+            if result == .accepted {
+                navigation.route(to: .addPhotos())
+            } else if result == .failed {
+                navigation.route(to: .addPhotos())
+                showingWizard = true
+            } else if result == .busy {
+                incomingShareImportDeferred = true
+            }
+        } while incomingShareImportRequested
     }
 
-    private func completeInitialLoadIfReady() async {
-        guard !initialDataLoaded, auth.isAuthenticated, store.hasLoadedAll else { return }
-        initialDataLoaded = true
-        if IncomingShareStore.hasPendingShare {
-            navigation.route(to: .addPhotos())
-            await importIncomingShareIfAvailable()
+    private func scheduleIncomingShareImport() {
+        if showingAccount {
+            incomingShareImportDeferred = true
+            return
+        }
+        if incomingShareImportTask != nil {
+            incomingShareImportRequested = true
+            return
+        }
+        let requestID = UUID()
+        incomingShareImportTaskID = requestID
+        incomingShareImportTask = Task {
+            await requestIncomingShareImport()
+            if incomingShareImportTaskID == requestID {
+                incomingShareImportTask = nil
+                incomingShareImportTaskID = nil
+            }
         }
     }
 
     #if DEBUG
+    private func stageUITestSharePhoto() async throws {
+        let size = CGSize(width: 320, height: 240)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor.systemYellow.setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 110, y: 70, width: 100, height: 100))
+        }
+        guard let data = image.jpegData(compressionQuality: 0.9) else {
+            throw IncomingShareError.stagingFailed
+        }
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ui-test-share-\(UUID().uuidString).jpg")
+        try data.write(to: source, options: Data.WritingOptions.atomic)
+        defer { try? FileManager.default.removeItem(at: source) }
+        try await IncomingShareStore.stage(fileURLs: [source])
+    }
+
     /// Feeds a bird photo straight into the add-photos flow so UI tests can exercise
     /// on-device identification. The system photo picker runs out of process and is
     /// invisible to the accessibility tree, so it cannot be driven from a test. The
@@ -314,6 +600,25 @@ struct MainTabView: View {
     #endif
 }
 
+private struct AccountAccessView: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            SignInView()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark") { dismiss() }
+                    }
+                }
+        }
+        .onChange(of: auth.isRegisteredAccount) { _, isRegistered in
+            if isRegistered { dismiss() }
+        }
+    }
+}
+
 // MARK: - Avatar View
 
 /// Renders a user avatar - emoji (from SVG data URL), remote image, or fallback initial.
@@ -321,6 +626,7 @@ struct AvatarView: View {
     let imageURL: String?
     let name: String?
     let size: CGFloat
+    @Environment(\.displayScale) private var displayScale
 
     private var emojiInfo: (emoji: String, color: Color)? {
         guard let url = imageURL,
@@ -350,10 +656,10 @@ struct AvatarView: View {
 
     @ViewBuilder
     private var avatar: some View {
-        if let info = emojiInfo {
-            Text(info.emoji)
-                .font(.system(size: size * 0.6))
-                .minimumScaleFactor(0.5)
+        if let info = emojiInfo, let image = renderedEmoji(info.emoji) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
                 .frame(width: size, height: size)
                 .background(info.color)
                 .clipShape(Circle())
@@ -375,6 +681,16 @@ struct AvatarView: View {
         }
     }
 
+    private func renderedEmoji(_ emoji: String) -> UIImage? {
+        let renderer = ImageRenderer(
+            content: Text(emoji)
+                .font(.system(size: size * 0.6))
+                .frame(width: size, height: size)
+        )
+        renderer.scale = displayScale
+        return renderer.uiImage
+    }
+
     private var fallbackView: some View {
         Image(systemName: "person.fill")
             .font(.system(size: size * 0.42, weight: .medium))
@@ -385,11 +701,33 @@ struct AvatarView: View {
     }
 }
 
-#if DEBUG
-#Preview("App - Session Validation") {
-    SessionValidationView()
+struct AccountAvatarView: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(DataStore.self) private var store
+    let size: CGFloat
+
+    private var hasAnonymousData: Bool {
+        auth.identity == .anonymous
+            && (!store.outings.isEmpty || !store.observations.isEmpty)
+    }
+
+    var body: some View {
+        AvatarView(imageURL: auth.avatarImage, name: auth.userName, size: size)
+            .overlay(alignment: .bottomTrailing) {
+                if hasAnonymousData {
+                    Circle()
+                        .fill(.yellow)
+                        .frame(width: size * 0.25, height: size * 0.25)
+                        .overlay(Circle().stroke(Color.pageBg, lineWidth: 2))
+                        .offset(x: 1, y: 1)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHidden(true)
+    }
 }
 
+#if DEBUG
 #Preview("App - Authenticated") {
     ContentView()
         .environment(AuthService())

@@ -14,8 +14,16 @@
  *                  better than a threshold does.
  *   empty results  The server returned zero candidates for "no bird". A
  *                  classifier ALWAYS returns 25 ranked species, so an empty
- *                  list can never mean "no bird found". Callers must switch to
- *                  the confidence gate below.
+ *                  list can never mean "no bird found" ON ITS OWN. That is now
+ *                  supplied by an explicit abstention signal rather than by an
+ *                  empty list: the bird/not-bird probe below returns P(bird),
+ *                  and identifyBirdLocally drops the candidates when it falls
+ *                  under BIRD_PROBE.threshold. The AddPhotosFlow empty state is
+ *                  therefore REACHABLE on this path.
+ *
+ *                  The probe is fitted in the shipped int8 embedding space.
+ *                  With alpha fixed at 0.60, fp32-to-int8 threshold transfer
+ *                  moves the bird flag rate by at most 0.18 pp.
  *
  * CONFIDENCE. `confidence` is the post-rerank softmax, which is what the gate
  * should read. Measured on the 3,322-photo validation split: at 0.7 it keeps
@@ -25,6 +33,7 @@
 
 import { BirdIdEngine, type EngineAssets, type IdentifyResult } from './bird-id-local'
 import { assetsCached, type AssetProgress } from './model-cache'
+import { TAXONOMY_SHA16 } from './taxonomy-hash'
 import taxonomy from './taxonomy.json'
 
 interface VisionResult {
@@ -32,7 +41,6 @@ interface VisionResult {
   confidence: number
   wikiTitle?: string
   plumage?: string
-  rangeStatus?: 'present' | 'near-range' | 'out-of-range' | 'no-data'
 }
 
 /** Shape the add-photos flow consumes. Named for the server response it replaced. */
@@ -41,6 +49,12 @@ export interface BirdIdResult {
   cropBox?: { x: number; y: number; width: number; height: number }
   multipleBirds?: boolean
   rangeAdjusted?: boolean
+  /**
+   * Calibrated P(bird) for the photo, or null when the engine did not produce
+   * one. An empty `candidates` with a pBird below BIRD_PROBE.threshold is an
+   * abstention; an empty one without it is an upstream failure.
+   */
+  pBird?: number | null
 }
 
 export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
@@ -65,21 +79,36 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
  * (`cat wingclip_visual_int8.onnx wingclip_visual_int8.data
  * text_classifier_int8.bin | sha256sum`).
  */
-export const MODEL_VERSION = "cb8f129a"
+export const MODEL_VERSION = "62a76a30"
 
 /**
- * The four served assets, 61.66 MiB total. Versioned so a new model can never
+ * The four served assets, 56.39 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
+ * new model can never
  * be served from a stale immutable cache entry: the prior carries its CONTENT
  * HASH in the file name, and the three model files carry MODEL_VERSION as a
  * query string that changes the Cache API key. Taxonomy is bundled rather than
  * fetched: it is already in the app, and the prior blob carries a hash of it so
  * a mismatch throws instead of silently mis-keying every species.
+ *
+ * MODEL_VERSION is deliberately NOT bumped for the v4 prior. It is defined as
+ * the combined hash of the three MODEL files, and those bytes are unchanged;
+ * the prior moved to a new content-hashed file name, which already gives it a
+ * fresh cache key. Bumping it here would evict 52 MiB of correctly cached
+ * model data to deliver an identical model.
+ *
+ * It IS bumped for the probe row. text_classifier_int8.bin gained a 772-byte
+ * 11,168th row, so the model bytes genuinely changed and a stale immutable
+ * cache entry would hand an existing user an 11,167-row file. That file still
+ * decodes and still matches the taxonomy count, so the mismatch would NOT
+ * throw: the engine would simply read a species row as the probe and gate on
+ * noise. This is exactly the silent-staleness case the version query exists
+ * for.
  */
 export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
   `/models/wingclip_visual_int8.data?v=${MODEL_VERSION}`,
   `/models/text_classifier_int8.bin?v=${MODEL_VERSION}`,
-  "/priors/occurrence.1fb61779.bin.gz",
+  "/priors/occurrence.4f5c1a15.bin.gz",
 ]
 
 /**
@@ -90,8 +119,20 @@ export const MODEL_ASSET_URLS = [
  * already gzipped on disk, so the real download is well under what `ls` shows.
  * The earlier figure counted only the prior's compression and overstated this
  * by 22 percent. Production may negotiate brotli and send less again.
+ *
+ * The v4 prior is 21.58 MiB against v3's 15.71 MiB, so the bundle grows by
+ * 5.87 MiB (+10.4 percent of the total download). That pays for the pooled
+ * per-cell slice and the n_cm table, which are what let the backoff strength
+ * live on the client instead of being frozen into the asset.
+ *
+ * TWO TOTALS, NEVER INTERCHANGEABLE. This constant is 59,131,045 bytes =
+ * 56.39 MiB and is the only one that describes a download. MODEL_DECODED_BYTES
+ * below is 70,797,545 = 67.52 MiB and describes bytes seen by the fetch reader
+ * AFTER transport decoding. Quoting the decoded figure as a download size is
+ * the specific error that made an earlier gate claim 72 MB for a 53 MB
+ * transfer. Neither total is 61.66 MiB; that figure matches nothing here.
  */
-export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 16_478_112
+export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_621_696 + 22_623_826
 
 /**
  * Bytes exposed to the fetch reader across the four assets.
@@ -100,16 +141,88 @@ export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_620_924 + 16_478_112
  * is already a .gz file served without Content-Encoding, so it stays compressed.
  * This progress total is deliberately not shown to the user: quoting decoded
  * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
+ *
+ * 70,797,545 bytes = 67.52 MiB. This is NOT the served or downloaded size.
+ * Use MODEL_BYTES (56.39 MiB) for anything user-facing or for release notes.
  */
-export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_620_924 + 16_478_112
+export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_621_696 + 22_623_826
+
+/**
+ * Bird/not-bird probe: the abstention signal, and the only thing that can make
+ * this path return zero candidates.
+ *
+ * The 768-d weight vector is NOT here. It is the LAST row of
+ * text_classifier_int8.bin (row 11167, after the 11,167 species rows), which
+ * already stores int8 rows plus fp32 per-row scales, so it fits with no format
+ * change for 772 bytes. These four scalars are inlined for the same reason
+ * temperature and beta are: they MUST match those bytes, and a fifth request is
+ * one more thing to get out of sync.
+ *
+ * FITTED IN THE int8 SPACE, deliberately. The app embeds through the int8 ONNX
+ * tower, so both the probe and this Platt pair come from the a060-int8 arm.
+ * Taking them from the fp32 arm would require the threshold to transfer across
+ * quantization, and although that transfer was re-measured as small (at most
+ * 0.18 pp of bird flag rate, with alpha held fixed), not depending on it at all
+ * is free.
+ *
+ * bias      Completes P_raw = sigmoid(w . e + bias) on the L2-normalised
+ *           embedding. From the logistic regression fitted on the FIT half
+ *           only: 7,745 birds against 10,125 hard negatives and 6,697
+ *           Imagenette non-birds. AUROC 0.9941 against both negative sets.
+ *
+ * plattA    P_cal = sigmoid(plattA * logit(P_raw) + plattB). Fitted by the
+ * plattB    mixture objective at pi_fit 0.10, NOT by maximum likelihood on the
+ *           raw probe output: the objective is the binary NLL of the DISPLAYED
+ *           confidence against top-1 correctness, which is what the user reads.
+ *           It improves bird calibration against the same-model no-probe
+ *           baseline: ECE(15) 0.0157 -> 0.0073 in int8, 0.0109 -> 0.0083 in
+ *           fp32. Mean P_cal is 0.985 on validation birds and 0.996 on 8,000
+ *           NABirds that the model never saw, against 0.248 on hard negatives
+ *           and 0.145 on Imagenette.
+ *
+ * threshold On the CALIBRATED scale. Derived as the 0.5% quantile of FIT-half
+ *           bird P_raw computed with the QUANTIZED weight row, so the shipped
+ *           scorer sits at bird_q 0.5% by construction rather than inheriting
+ *           an fp32 number and drifting; raw 0.1032229138 maps through the
+ *           Platt pair to this value. Measured at that point: 0.45% of
+ *           validation birds flagged, 74.10% of hard negatives rejected,
+ *           84.90% of Imagenette rejected, and 0.0375% of the 8,000 NABirds
+ *           rejected. Species top-1 over the photos that still pass is 93.68%
+ *           against 93.95% ungated, so the gate costs 0.27 pp of accuracy.
+ *
+ *           Per 1,000 uploads that is about 4 real birds wrongly sent to the
+ *           empty state and about 740 hard non-birds caught.
+ *
+ * WHAT THIS IS NOT MEASURED TO DO. 74% hard-negative rejection is an UPPER
+ * BOUND for non-bird types the probe never saw. Rejection measured across
+ * negative SETS rather than within one collapses by about 3.14x, so a novel
+ * kind of non-bird photo should be expected to pass far more often than these
+ * numbers suggest. The gate is a cheap filter on the common case, not a
+ * detector.
+ */
+export const BIRD_PROBE = {
+  bias: 1.7004907607405835,
+  plattA: 1.248338657716024,
+  plattB: 2.1821600341974303,
+  threshold: 0.3736373465,
+} as const
 
 /**
  * The full asset bundle the engine needs.
  *
  * Calibration is inlined rather than fetched. It is 200 bytes, it MUST match
  * the model and the blob version, and shipping it as a fifth request is one
- * more thing to get out of sync. temperature and beta are the k=0 month fit,
- * which scored 94.94 percent absolute top-1 on the held-out split.
+ * more thing to get out of sync.
+ *
+ * temperature and beta are REFITTED for the v4 blob at OCC_FLOOR = 3e-5 and
+ * OCC_BACKOFF_K = 0.3. They are not transferable across either constant: T
+ * sets the scale on which similarity trades against the prior, and both the
+ * floor and k change the scale of logP. The previous pair
+ * (0.007545354776084423 / 0.5435083508491516) was the k = 0 month fit at
+ * floor 1e-12 and MUST NOT be used with backoff enabled.
+ *
+ * Measured on the validation split through the shipped a0.60/int8/248 path:
+ * species top-1 is 94.27 percent.
  */
 export const MODEL_ASSETS: EngineAssets = {
   modelUrl: MODEL_ASSET_URLS[0],
@@ -117,8 +230,8 @@ export const MODEL_ASSETS: EngineAssets = {
   textClassifierUrl: MODEL_ASSET_URLS[2],
   occurrenceUrl: MODEL_ASSET_URLS[3],
   taxonomy: taxonomy as EngineAssets["taxonomy"],
-  taxonomySha16: "04951673b96b11bf",
-  calibration: { temperature: 0.007545354776084423, beta: 0.5435083508491516 },
+  taxonomySha16: TAXONOMY_SHA16,
+  calibration: { temperature: 0.007435, beta: 1.1634, probe: BIRD_PROBE },
 }
 
 /**
@@ -163,7 +276,7 @@ export function modelReady(): Promise<boolean> {
 /**
  * Download the model without identifying anything.
  *
- * Exists so the UI can pull 61.66 MiB behind a progress bar at a moment the
+ * Exists so the UI can pull 56.39 MiB behind a progress bar at a moment the
  * user chose, instead of discovering it mid-identification. Calling it twice
  * is safe: the second call resolves off the cache.
  */
@@ -175,7 +288,7 @@ export function preloadModel(
 }
 
 /**
- * Load the engine once per session. The assets are 61.66 MiB, so this is
+ * Load the engine once per session. The assets are 56.39 MiB, so this is
  * called on first identify rather than at page load, and the browser cache
  * makes every later session free.
  */
@@ -262,9 +375,17 @@ async function decodeScaled(dataUrl: string): Promise<ImageBitmap | HTMLImageEle
 
 /**
  * Longest side we ask the decoder for. The model sees 224x224 after a resize
- * to 224 on the SHORTER side, so anything above ~500 is detail the tensor
- * throws away. 500 also matches the size the model was trained and calibrated
- * on: the iNat corpus is "medium", 500px on the long side.
+ * to 248 on the SHORTER side (see clip-preprocess.ts: the checkpoint's timm
+ * config is 248 -> 224, not 224 -> 224), so anything above ~500 is detail the
+ * tensor throws away. 500 also matches the size the model was trained and
+ * calibrated on: the iNat corpus is "medium", 500px on the long side.
+ *
+ * Deliberately UNCHANGED by the 224 -> 248 resize fix. 500 is a LONG-side cap
+ * and the resize target is a SHORT-side target, so the cap only starts
+ * discarding useful detail once the aspect ratio exceeds 500/248 = 2.02,
+ * against 500/224 = 2.23 before. Both are past the point where a bird photo is
+ * mostly sky, and the training-corpus argument for 500 is the stronger one
+ * anyway.
  */
 const DECODE_CAP = 500
 
@@ -337,10 +458,24 @@ export async function identifyBirdLocally(
     5,
   )
 
-  // rangeStatus is BirdLife vocabulary. The Bayesian prior has no notion of
-  // present or out-of-range, only a probability, so it is omitted rather than
-  // faked from a threshold. cropBox and multipleBirds are absent by design.
-  return mapIdentifyResults(results)
+  // cropBox and multipleBirds are absent by design.
+  const mapped = mapIdentifyResults(results)
+
+  // ABSTENTION. Below the probe threshold this is very likely not a bird, so
+  // the candidates are dropped and the caller gets the empty list that the
+  // AddPhotosFlow empty state keys off. Note the ranked species are discarded
+  // rather than shown with a low confidence: at P_cal 0.37 the top species is
+  // still a confident-looking guess at what KIND of bird it would be if it
+  // were one, and dogs come back as African Penguin. Offering that list would
+  // invite the user to pick from it.
+  //
+  // pBird is left on the result either way so a caller can tell an abstention
+  // apart from a genuinely empty upstream response.
+  const pBird = results.length > 0 ? results[0].pBird : null
+  if (pBird !== null && pBird < assets.calibration.probe.threshold) {
+    return { candidates: [], rangeAdjusted: false, pBird }
+  }
+  return { ...mapped, pBird }
 }
 
 /**
@@ -357,6 +492,13 @@ export function shouldPromptForCrop(
   alreadyPrompted: boolean,
 ): boolean {
   if (alreadyPrompted) return false
+  // An abstention already routes to the empty state, which offers Crop & Retry
+  // as its primary action. Returning true here as well would send it to the
+  // manual-crop step instead and the empty state would never be seen.
+  if (result.pBird !== null && result.pBird !== undefined &&
+      result.pBird < BIRD_PROBE.threshold) {
+    return false
+  }
   const top = result.candidates[0]
   if (!top) return true
   return top.confidence < CONFIDENCE_PROMPT_THRESHOLD

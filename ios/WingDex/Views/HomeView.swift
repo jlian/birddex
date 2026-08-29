@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var committedSpeciesEntry: DexEntry?
     @State private var actionDestination: OutingActionDestination?
+    @State private var outingPendingDeletion: Outing?
 
     var body: some View {
         NavigationStack {
@@ -27,10 +28,20 @@ struct HomeView: View {
                 .toolbarTitleDisplayMode(.inlineLarge)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { showSettings() } label: {
-                            AvatarView(imageURL: auth.userImage, name: auth.userName, size: 40)
-                                .accessibilityElement(children: .ignore)
-                                .accessibilityLabel("Settings")
+                        // WHY HStack around a single button: the other tabs group the avatar
+                        // with a sort button, and that custom container drops the toolbar
+                        // button style's content insets. Without the same container here the
+                        // avatar sits further from the trailing edge than on every other tab.
+                        HStack(spacing: 5) {
+                            Button { showSettings() } label: {
+                                AccountAvatarView(size: 40)
+                            }
+                            .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
+                            .accessibilityValue(
+                                auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
+                                    ? "These sightings are only on this device"
+                                    : ""
+                            )
                         }
                         // WHY negative padding: shifts the avatar closer to the trailing edge
                         // to match Apple Music's profile button position. Without this, the
@@ -141,9 +152,13 @@ struct HomeView: View {
                     Image(systemName: "camera.fill")
                         .font(.body)
                 }
+                .font(.body.weight(.medium))
                 .frame(maxWidth: .infinity, minHeight: 44)
+                .padding(.vertical, 10)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
+            .buttonSizing(.flexible)
+            .tint(Color(red: 0.0, green: 0.28, blue: 0.14))
             .padding(.horizontal, 32)
 
             Spacer()
@@ -236,6 +251,7 @@ struct HomeView: View {
                         }
                         .outingRowActions(
                             outing: outing,
+                            pendingDeletion: $outingPendingDeletion,
                             onView: {
                                 actionDestination = OutingActionDestination(
                                     outing: outing,
@@ -256,6 +272,7 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .listSectionSeparator(.hidden, edges: .top)
+        .outingDeletionConfirmation($outingPendingDeletion)
     }
 
     private func speciesContextMenu(for entry: DexEntry) -> UIMenu {

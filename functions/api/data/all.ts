@@ -42,6 +42,7 @@ type ObservationRow = {
   aiConfidence?: number | null
   speciesComments?: string | null
   notes: string
+  submissionId?: string | null
 }
 
 function countLabel(count: number, singular: string, plural = `${singular}s`): string {
@@ -62,6 +63,10 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     const observationSpeciesCommentsSelect = supportsSpeciesComments
       ? 'speciesComments'
       : 'NULL as speciesComments'
+    const supportsSubmissionId = await hasObservationColumn(db, 'submissionId')
+    const observationSubmissionIdSelect = supportsSubmissionId
+      ? 'submissionId'
+      : 'NULL as submissionId'
 
     stage = 'concurrent outing, photo, observation, and dex reads'
     const [outingsResult, photosResult, observationsResult, dex] = await Promise.all([
@@ -69,7 +74,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       db.prepare('SELECT id, outingId, exifTime, gpsLat, gpsLon, fileHash, fileName FROM photo WHERE userId = ?')
         .bind(userId)
         .all<PhotoRow>(),
-      db.prepare(`SELECT id, outingId, speciesName, count, certainty, representativePhotoId, aiConfidence, ${observationSpeciesCommentsSelect}, notes FROM observation WHERE userId = ?`)
+      db.prepare(`SELECT id, outingId, speciesName, count, certainty, representativePhotoId, aiConfidence, ${observationSpeciesCommentsSelect}, ${observationSubmissionIdSelect}, notes FROM observation WHERE userId = ?`)
         .bind(userId)
         .all<ObservationRow>(),
       computeDex(db, userId),
@@ -106,6 +111,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       representativePhotoId: observation.representativePhotoId || undefined,
       aiConfidence: observation.aiConfidence ?? undefined,
       speciesComments: observation.speciesComments || undefined,
+      submissionId: observation.submissionId || undefined,
     }))
 
     return route.complete(Response.json({

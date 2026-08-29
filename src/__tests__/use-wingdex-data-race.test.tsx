@@ -64,8 +64,8 @@ function jsonResponse(body: unknown): Response {
   })
 }
 
-function Harness({ userId, onChange }: { userId: string; onChange: (store: WingDexDataStore) => void }) {
-  const store = useWingDexData(userId)
+function Harness({ userId, hasSession = true, onChange }: { userId: string; hasSession?: boolean; onChange: (store: WingDexDataStore) => void }) {
+  const store = useWingDexData(userId, { hasSession })
 
   useEffect(() => {
     onChange(store)
@@ -81,6 +81,28 @@ describe('useWingDexData addOuting race handling', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('ignores a delayed account response after sign-out', async () => {
+    const staleResponse = deferred<Response>()
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(staleResponse.promise)
+    let latest: WingDexDataStore | undefined
+    const onChange = (store: WingDexDataStore) => { latest = store }
+    const view = render(<Harness userId="account-a" onChange={onChange} />)
+
+    await waitFor(() => expect(latest?.isLoading).toBe(true))
+    view.rerender(<Harness userId="guest" hasSession={false} onChange={onChange} />)
+    await waitFor(() => expect(latest?.isLoading).toBe(false))
+
+    staleResponse.resolve(jsonResponse({
+      outings: [{ id: 'private-outing' }],
+      photos: [],
+      observations: [],
+      dex: [],
+    }))
+    await act(async () => { await staleResponse.promise })
+
+    expect(latest?.outings).toEqual([])
   })
 
   it('re-inserts saved outing when a stale refresh overwrote optimistic state', async () => {

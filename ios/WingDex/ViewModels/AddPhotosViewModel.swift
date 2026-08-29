@@ -18,6 +18,14 @@ private let log = Logger(subsystem: Config.bundleID, category: "AddPhotos")
 @Observable
 final class AddPhotosViewModel {
 
+    enum IncomingShareImportResult: Equatable {
+        case accepted
+        case busy
+        case empty
+        case failed
+        case cancelled
+    }
+
     enum CropPromptContext: Equatable {
         case manualRecrop
         case lowConfidence
@@ -48,6 +56,8 @@ final class AddPhotosViewModel {
 
     var currentStep: Step = .selectPhotos
     private(set) var flowDismissalRequestID = UUID()
+    private(set) var continuesShareQueueAfterDismissal = false
+    private(set) var stoppedShareQueueAfterDismissal = false
 
     // MARK: - Photo Selection
 
@@ -83,6 +93,19 @@ final class AddPhotosViewModel {
     /// The outing ID that the current cluster is being saved into.
     var currentOutingId = ""
 
+    /// Coordinates confirmed during outing review. Per-photo GPS normally wins,
+    /// but a searched location is an explicit correction and takes precedence.
+    private var outingInferenceLocation: (lat: Double, lon: Double)?
+    private var outingOverridesPhotoGPS = false
+
+    /// The exact coordinates used by the range prior for the current photo.
+    /// The confirmation UI reuses this value so its rarity mark cannot describe
+    /// a different location from the one that ranked the candidates.
+    var currentInferenceLocation: (lat: Double, lon: Double)? {
+        guard let photo = currentPhoto else { return nil }
+        return inferenceLocation(for: photo)
+    }
+
     // MARK: - Per-Photo Identification State
 
     /// Index of the photo currently being processed/confirmed within the current cluster.
@@ -109,6 +132,10 @@ final class AddPhotosViewModel {
     var totalCount = 0
     var extractionProgress: Double = 0
     var error: AppError?
+    /// The outing for the current cluster, held here until the cluster turns out to have a
+    /// sighting worth saving. Nil when merging into an outing that already exists.
+    private var pendingOuting: Outing?
+    private var didCreatePhotos = false
     private var errorRecovery: ErrorRecovery?
     private var preparedObservations: [BirdObservation]?
 
@@ -118,6 +145,7 @@ final class AddPhotosViewModel {
 
     var pendingNewPhotos: [ProcessedPhoto] = []
     var pendingDuplicatePhotos: [ProcessedPhoto] = []
+    private var pendingRejectedSharedPhotoCount = 0
     var showDuplicateConfirm = false
 
     // MARK: - Results After Save
@@ -134,6 +162,7 @@ final class AddPhotosViewModel {
 
     private var dataService: DataService?
     private var dataStore: DataStore?
+    private var authService: AuthService?
     private var accountID: String?
     private var sessionGeneration = UUID()
 
@@ -143,6 +172,7 @@ final class AddPhotosViewModel {
             sessionGeneration = UUID()
         }
         self.accountID = accountID
+        authService = auth
         dataService = DataService(auth: auth, expectedAccountID: accountID)
         self.dataStore = dataStore
         // Initialize lastLocationName from the most recent outing
@@ -157,16 +187,14 @@ final class AddPhotosViewModel {
     func cancelSession() {
         sessionGeneration = UUID()
         accountID = nil
+        authService = nil
         dataService = nil
         dataStore = nil
     }
 
-    func createOuting(_ outing: Outing) async throws -> Outing {
-        let sessionID = try requireCurrentSession()
-        guard let service = dataService else { throw AuthError.notAuthenticated }
-        let saved = try await service.createOuting(outing)
-        guard isCurrentSession(sessionID) else { throw CancellationError() }
-        return saved
+    func stopShareQueueAfterDismissal() {
+        continuesShareQueueAfterDismissal = false
+        stoppedShareQueueAfterDismissal = true
     }
 
     // MARK: - Convenience
@@ -192,15 +220,37 @@ final class AddPhotosViewModel {
         cameraPhotos.append((image: image, lat: lat, lon: lon))
     }
 
-    func importIncomingShareIfAvailable() async {
-        guard currentStep == .selectPhotos else { return }
+    func importIncomingShareIfAvailable() async -> IncomingShareImportResult {
+        guard currentStep == .selectPhotos,
+              !isProcessing,
+              !showDuplicateConfirm,
+              pendingNewPhotos.isEmpty,
+              pendingDuplicatePhotos.isEmpty,
+              incomingShareID == nil
+        else { return .busy }
         do {
-            guard let snapshot = try IncomingShareStore.pendingShare() else { return }
+            guard let snapshot = try await IncomingShareStore.oldestPendingShare() else {
+                return .empty
+            }
             incomingShareID = snapshot.id
             incomingSharedPhotos = snapshot.photos
             await processSelectedPhotos()
+            if incomingShareID == nil {
+                continuesShareQueueAfterDismissal = true
+                return .accepted
+            }
+            return .failed
+        } catch is CancellationError {
+            return .cancelled
+        } catch IncomingShareError.containerUnavailable {
+            // Without the app group there is no queue to read, so there is also
+            // nothing the person shared and nothing to report. Unsigned builds,
+            // which the simulator test job produces, always land here.
+            return .empty
         } catch {
             self.error = AppError.map(error, fallback: "Could not import the shared photos. Try again.")
+            errorRecovery = .incomingShareImport
+            return .failed
         }
     }
 
@@ -209,7 +259,7 @@ final class AddPhotosViewModel {
     /// Load photos from the picker and camera, extract EXIF, generate thumbnails, cluster.
     func processSelectedPhotos() async {
         guard !selectedItems.isEmpty || !cameraPhotos.isEmpty || !incomingSharedPhotos.isEmpty else { return }
-        guard let sessionID = try? requireCurrentSession() else { return }
+        guard !isProcessing else { return }
         isProcessing = true
         error = nil
         currentStep = .extracting
@@ -217,11 +267,13 @@ final class AddPhotosViewModel {
         processedCount = 0
         extractionProgress = 0
         processingMessage = "Reading photo data..."
+        async let preparedSession = prepareCurrentSession()
 
         // Reset accumulated stats for this upload session
         uploadSummary = nil
         newSpeciesNames = []
 
+        var candidatePhotos: [ProcessedPhoto] = []
         var newPhotos: [ProcessedPhoto] = []
         var duplicatePhotos: [ProcessedPhoto] = []
         var rejectedSharedFileNames: [String] = []
@@ -229,12 +281,8 @@ final class AddPhotosViewModel {
         for item in selectedItems {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else { continue }
-                guard isCurrentSession(sessionID) else {
-                    cancelExtractionForSessionChange()
-                    return
-                }
                 if let photo = makeProcessedPhoto(data: data, fileName: nil) {
-                    appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+                    candidatePhotos.append(photo)
                 }
             } catch {
                 log.error("Failed to load a selected photo")
@@ -244,14 +292,10 @@ final class AddPhotosViewModel {
         }
 
         for sharedPhoto in incomingSharedPhotos {
-            guard isCurrentSession(sessionID) else {
-                cancelExtractionForSessionChange()
-                return
-            }
             do {
                 let data = try await readSharedPhotoData(from: sharedPhoto.fileURL)
                 if let photo = makeProcessedPhoto(data: data, fileName: sharedPhoto.fileName) {
-                    appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+                    candidatePhotos.append(photo)
                 } else {
                     log.error("Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
                     rejectedSharedFileNames.append(sharedPhoto.fileName)
@@ -263,15 +307,92 @@ final class AddPhotosViewModel {
             processedCount += 1
             extractionProgress = Double(processedCount) / Double(totalCount) * 100
         }
+
+        processingMessage = "Preparing your WingDex..."
+        let sessionID: UUID
+        do {
+            sessionID = try await preparedSession
+        } catch {
+            self.error = AppError.map(error, fallback: "Could not start a WingDex session. Try again.")
+            errorRecovery = .sessionPreparation
+            isProcessing = false
+            return
+        }
         guard isCurrentSession(sessionID) else {
             cancelExtractionForSessionChange()
             return
         }
-        if let incomingShareID {
-            try? IncomingShareStore.completePendingShare(id: incomingShareID)
+        for photo in candidatePhotos {
+            appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
         }
+        if let unreadableShareID = incomingShareID, newPhotos.isEmpty, duplicatePhotos.isEmpty {
+            // Every photo in the batch failed to decode. The staged files are
+            // immutable, so a retry reads the same bytes and fails again, and
+            // leaving the batch pending blocks every newer batch behind it in
+            // the FIFO queue. Accept it to drop it from the queue, and ask for
+            // a fresh share instead of offering a retry that cannot succeed.
+            do {
+                guard try await IncomingShareStore.accept(id: unreadableShareID) else {
+                    throw IncomingShareError.noLongerPending
+                }
+            } catch {
+                // The batch is still at the head of the queue, so it will be
+                // rescanned. Report a retryable queue failure rather than
+                // claiming the unreadable batch was cleared.
+                self.error = AppError.map(
+                    error,
+                    fallback: "Could not finish importing the shared photos. Try again."
+                )
+                errorRecovery = .sessionPreparation
+                isProcessing = false
+                return
+            }
+            incomingShareID = nil
+            incomingSharedPhotos = []
+            error = .message("No shared photos could be read. Share them again in a supported image format.")
+            errorRecovery = nil
+            isProcessing = false
+            // Close is disabled while the step is `.extracting`, so return to a
+            // dismissible step. Otherwise dismissing the message strands the
+            // person on an idle extraction screen they cannot leave.
+            currentStep = .selectPhotos
+            continuesShareQueueAfterDismissal = true
+            return
+        }
+        // Acceptance is the commit point for the batch: it removes the only
+        // durable copy, so nothing can replay it afterwards. Check the session
+        // immediately before accepting, which keeps the batch pending for the
+        // common case where the session changed earlier during extraction.
+        if let incomingShareID {
+            guard isCurrentSession(sessionID) else {
+                cancelExtractionForSessionChange()
+                return
+            }
+            do {
+                guard try await IncomingShareStore.accept(id: incomingShareID) else {
+                    throw IncomingShareError.noLongerPending
+                }
+            } catch {
+                self.error = AppError.map(
+                    error,
+                    fallback: "Could not finish importing the shared photos. Try again."
+                )
+                errorRecovery = .sessionPreparation
+                isProcessing = false
+                return
+            }
+        }
+        // A session can still change while `accept` is suspended. The batch is
+        // consumed by then, so clear the id here rather than leave the view model
+        // holding one the queue no longer knows about. Dropping the photos is
+        // deliberate: writing them into a switched account would move one
+        // account's photos into another, which is worse than losing a share.
         incomingShareID = nil
         incomingSharedPhotos = []
+        guard isCurrentSession(sessionID) else {
+            cancelExtractionForSessionChange()
+            return
+        }
 
         // Process camera-captured photos (no EXIF GPS; use the device location
         // captured at shot time, and the processing time as the timestamp).
@@ -309,6 +430,7 @@ final class AddPhotosViewModel {
         if !duplicatePhotos.isEmpty {
             pendingNewPhotos = newPhotos
             pendingDuplicatePhotos = duplicatePhotos
+            pendingRejectedSharedPhotoCount = rejectedSharedFileNames.count
             currentStep = .selectPhotos
             isProcessing = false
             showDuplicateConfirm = true
@@ -400,16 +522,33 @@ final class AddPhotosViewModel {
             : pendingNewPhotos
         pendingNewPhotos = []
         pendingDuplicatePhotos = []
+        let rejectedSharedPhotoCount = pendingRejectedSharedPhotoCount
+        pendingRejectedSharedPhotoCount = 0
 
         if finalPhotos.isEmpty {
             selectedItems = []
             currentStep = .selectPhotos
-            flowDismissalRequestID = UUID()
+            if rejectedSharedPhotoCount > 0 {
+                error = .message(
+                    rejectedSharedPhotoCount == 1
+                        ? "One shared photo could not be read. Share it again in a supported image format."
+                        : "\(rejectedSharedPhotoCount) shared photos could not be read. Share them again in a supported image format."
+                )
+            } else {
+                flowDismissalRequestID = UUID()
+            }
             return
         }
 
         currentStep = .extracting
         finishExtraction(photos: finalPhotos)
+        if rejectedSharedPhotoCount > 0 {
+            error = .message(
+                rejectedSharedPhotoCount == 1
+                    ? "One shared photo could not be read. Share it again in a supported image format."
+                    : "\(rejectedSharedPhotoCount) shared photos could not be read. Share them again in a supported image format."
+            )
+        }
     }
 
     private func finishExtraction(photos: [ProcessedPhoto]) {
@@ -440,33 +579,45 @@ final class AddPhotosViewModel {
     /// Called when the user confirms the outing in OutingReviewView.
     /// Creates photo metadata on the server immediately (matching web flow),
     /// then starts the per-photo AI identification loop.
-    func outingConfirmed(outingId: String, locationName: String) {
-        guard let sessionID = try? requireCurrentSession() else { return }
+    /// Pass `outing` for a new outing, or nil when merging into one that already exists.
+    /// Nothing is written until the cluster produces at least one sighting.
+    func outingConfirmed(
+        outing: Outing?,
+        outingId: String,
+        locationName: String,
+        lat: Double?,
+        lon: Double?,
+        outingOverridesPhotoGPS: Bool
+    ) {
+        guard (try? requireCurrentSession()) != nil else { return }
         let normalizedName = locationName.trimmingCharacters(in: .whitespacesAndNewlines)
         lastLocationName = normalizedName
         currentOutingId = outingId
+        outingInferenceLocation = if let lat, let lon { (lat: lat, lon: lon) } else { nil }
+        self.outingOverridesPhotoGPS = outingOverridesPhotoGPS
+        pendingOuting = outing
+        didCreatePhotos = false
         photoResults = []
         currentCandidates = []
         rangeAdjusted = false
         cropPromptContext = .manualRecrop
         currentPhotoIndex = 0
 
-        // Save photo metadata to server BEFORE AI identification starts.
-        // The observation table has a FK to photo(id), so photos must exist first.
-        Task {
-            do {
-                try await createPhotoMetadata(outingId: outingId, sessionID: sessionID)
-                await runSpeciesId(photoIndex: 0)
-            } catch is CancellationError {
-                return
-            } catch {
-                log.error("Failed to save photo metadata")
-                self.error = AppError.map(error, fallback: "Could not save photo details. Try again.")
-                errorRecovery = .photoMetadata
-                processingMessage = "Photo details could not be saved"
-                currentStep = .photoProcessing
-            }
+        Task { await runSpeciesId(photoIndex: 0) }
+    }
+
+    /// Create the outing and its photo rows, the first time the cluster has something to save.
+    /// Order matters: observation has an FK to photo, and photo has one to outing.
+    private func ensureOutingAndPhotosExist(sessionID: UUID) async throws {
+        guard let service = dataService else { throw AuthError.notAuthenticated }
+        if let outing = pendingOuting {
+            _ = try await service.createOuting(outing)
+            guard isCurrentSession(sessionID) else { throw CancellationError() }
+            pendingOuting = nil
         }
+        guard !didCreatePhotos else { return }
+        try await createPhotoMetadata(outingId: currentOutingId, sessionID: sessionID)
+        didCreatePhotos = true
     }
 
     /// Persist photo metadata for the current cluster to the server.
@@ -522,12 +673,7 @@ final class AddPhotosViewModel {
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
 
         do {
-            let location: (lat: Double, lon: Double)? = {
-                guard useGeoContext, let lat = photo.gpsLat, let lon = photo.gpsLon else {
-                    return nil
-                }
-                return (lat: lat, lon: lon)
-            }()
+            let location = inferenceLocation(for: photo)
             // 1-12. The old server API took 0-11, so this deliberately does NOT
             // subtract one: a 0 would be rejected by the v3 prior and silently
             // drop back to vision-only.
@@ -543,28 +689,41 @@ final class AddPhotosViewModel {
             )
             guard isCurrentSession(sessionID) else { return }
 
-            let candidates = results.map {
+            let mapped = results.map {
                 IdentifiedCandidate(
                     species: "\($0.commonName) (\($0.scientificName))",
                     confidence: $0.confidence,
                     wikiTitle: nil,
-                    plumage: nil,
-                    // rangeStatus is BirdLife vocabulary. The Bayesian prior has
-                    // no notion of present or out-of-range, only a probability,
-                    // so it is omitted rather than faked from a threshold.
-                    rangeStatus: nil
+                    plumage: nil
                 )
             }
 
-            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)")
-            rangeAdjusted = results.contains { $0.logP != nil }
+            // ABSTENTION. Below the probe threshold this is very likely not a
+            // bird, so the candidates are DROPPED and the flow falls through to
+            // the no-candidates empty state. Mirrors identifyBirdLocally in
+            // src/lib/bird-id-local-adapter.ts, so both platforms abstain on
+            // exactly the same photos.
+            //
+            // The ranked species are discarded rather than shown at a low
+            // confidence: at P_cal 0.37 the top species is still a
+            // confident-looking guess at what KIND of bird it would be if it
+            // were one, and dogs come back as African Penguin. Offering that
+            // list would invite the user to pick from it.
+            let pBird = results.first?.pBird
+            let abstained = pBird.map { $0 < BirdIdEngine.birdProbeThreshold } ?? false
+            let candidates = abstained ? [] : mapped
+
+            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)\(abstained ? " (abstained on the bird probe)" : "")")
+            rangeAdjusted = !abstained && results.contains { $0.logP != nil }
             currentCandidates = candidates
 
-            // The classifier always returns candidates, so an empty list can
-            // never mean "no bird". Low confidence is the only signal, and
-            // cropping an already-cropped photo would loop forever because
-            // confidence tracks SPECIES AMBIGUITY, not framing.
-            if !isCropped, shouldPromptForCrop(candidates) {
+            // An abstention already routes to the empty state, which offers
+            // Crop & Retry as its primary action. Prompting for a crop here as
+            // well would send it to the manual-crop step instead and the empty
+            // state would never be seen. Otherwise low confidence is the only
+            // signal, and cropping an already-cropped photo would loop forever
+            // because confidence tracks SPECIES AMBIGUITY, not framing.
+            if !isCropped, !abstained, shouldPromptForCrop(candidates) {
                 cropPromptContext = .lowConfidence
                 currentStep = .manualCrop
             } else {
@@ -584,6 +743,34 @@ final class AddPhotosViewModel {
             rangeAdjusted = false
             currentStep = .perPhotoConfirm
         }
+    }
+
+    /// Select location context for the range prior.
+    ///
+    /// A searched outing location is an explicit correction and wins. Without
+    /// one, per-photo GPS is more precise, while the outing coordinate remains
+    /// a useful fallback for cameras that do not record GPS.
+    static func resolveInferenceLocation(
+        useGeoContext: Bool,
+        photoLat: Double?,
+        photoLon: Double?,
+        outingLocation: (lat: Double, lon: Double)?,
+        outingOverridesPhotoGPS: Bool
+    ) -> (lat: Double, lon: Double)? {
+        guard useGeoContext else { return nil }
+        if outingOverridesPhotoGPS, let outingLocation { return outingLocation }
+        if let photoLat, let photoLon { return (lat: photoLat, lon: photoLon) }
+        return outingLocation
+    }
+
+    private func inferenceLocation(for photo: ProcessedPhoto) -> (lat: Double, lon: Double)? {
+        Self.resolveInferenceLocation(
+            useGeoContext: useGeoContext,
+            photoLat: photo.gpsLat,
+            photoLon: photo.gpsLon,
+            outingLocation: outingInferenceLocation,
+            outingOverridesPhotoGPS: outingOverridesPhotoGPS
+        )
     }
 
     // MARK: - Step 4: Per-Photo Confirmation
@@ -668,8 +855,12 @@ final class AddPhotosViewModel {
             currentCandidates = []
             rangeAdjusted = false
             cropPromptContext = .manualRecrop
+            // Leave the confirm screen in the same update that clears the candidates, or it
+            // renders its empty state for a frame and flashes a question mark.
+            currentStep = .photoProcessing
             Task { await runSpeciesId(photoIndex: nextIdx) }
         } else {
+            currentStep = .saving
             Task { await saveCurrentCluster() }
         }
     }
@@ -685,7 +876,7 @@ final class AddPhotosViewModel {
         error = nil
         errorRecovery = nil
 
-        let confirmed = photoResults.filter { $0.status == .confirmed || $0.status == .possible }
+        let confirmed = sightingResults(photoResults)
         let existingSpecies = Set(store.dex.map(\.speciesName))
 
         // Group by species, sum counts
@@ -720,52 +911,51 @@ final class AddPhotosViewModel {
 
         do {
             if !observations.isEmpty {
+                try await ensureOutingAndPhotosExist(sessionID: sessionID)
                 let response = try await service.createObservations(observations)
                 guard isCurrentSession(sessionID) else { return }
                 if let dexUpdates = response.dexUpdates {
                     store.dex = dexUpdates
                 }
-            }
 
-            // Photo metadata was already created in outingConfirmed() before AI started
-
-            // Count new species
-            var clusterNewSpecies = 0
-            for obs in observations where !existingSpecies.contains(obs.speciesName) {
-                clusterNewSpecies += 1
-                newSpeciesNames.append(getDisplayName(obs.speciesName))
-            }
-            newSpeciesCount += clusterNewSpecies
-            savedOutingCount += 1
-            savedObservationCount += observations.count
-
-            // Accumulate upload summary
-            let outingName = store.outings.first(where: { $0.id == currentOutingId })?.locationName ?? ""
-            let uniqueSpecies = Set(confirmed.map(\.species)).count
-            let totalCount = confirmed.reduce(0) { $0 + $1.count }
-            if var summary = uploadSummary {
-                summary.newSpecies += clusterNewSpecies
-                summary.outings += 1
-                summary.totalSpecies += uniqueSpecies
-                summary.totalCount += totalCount
-                if !outingName.isEmpty && !summary.locationNames.contains(outingName) {
-                    summary.locationNames.append(outingName)
+                // Count new species
+                var clusterNewSpecies = 0
+                for obs in observations where !existingSpecies.contains(obs.speciesName) {
+                    clusterNewSpecies += 1
+                    newSpeciesNames.append(getDisplayName(obs.speciesName))
                 }
-                uploadSummary = summary
-            } else {
-                uploadSummary = UploadSummary(
-                    newSpecies: clusterNewSpecies,
-                    outings: 1,
-                    totalSpecies: uniqueSpecies,
-                    totalCount: totalCount,
-                    locationNames: outingName.isEmpty ? [] : [outingName]
-                )
-            }
+                newSpeciesCount += clusterNewSpecies
+                savedOutingCount += 1
+                savedObservationCount += observations.count
 
-            // Brief "saved" notice before advancing
-            processingMessage = "Outing saved!"
-            try? await Task.sleep(for: .milliseconds(1200))
-            guard isCurrentSession(sessionID) else { return }
+                // Accumulate upload summary
+                let outingName = store.outings.first(where: { $0.id == currentOutingId })?.locationName ?? ""
+                let uniqueSpecies = Set(confirmed.map(\.species)).count
+                let totalCount = confirmed.reduce(0) { $0 + $1.count }
+                if var summary = uploadSummary {
+                    summary.newSpecies += clusterNewSpecies
+                    summary.outings += 1
+                    summary.totalSpecies += uniqueSpecies
+                    summary.totalCount += totalCount
+                    if !outingName.isEmpty && !summary.locationNames.contains(outingName) {
+                        summary.locationNames.append(outingName)
+                    }
+                    uploadSummary = summary
+                } else {
+                    uploadSummary = UploadSummary(
+                        newSpecies: clusterNewSpecies,
+                        outings: 1,
+                        totalSpecies: uniqueSpecies,
+                        totalCount: totalCount,
+                        locationNames: outingName.isEmpty ? [] : [outingName]
+                    )
+                }
+
+                // Brief "saved" notice before advancing
+                processingMessage = "Outing saved!"
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard isCurrentSession(sessionID) else { return }
+            }
 
             // Move to next cluster or finish
             if currentClusterIndex < clusters.count - 1 {
@@ -797,19 +987,10 @@ final class AddPhotosViewModel {
         error = nil
         errorRecovery = nil
         switch recovery {
-        case .photoMetadata:
-            Task {
-                do {
-                    let sessionID = try requireCurrentSession()
-                    try await createPhotoMetadata(outingId: currentOutingId, sessionID: sessionID)
-                    await runSpeciesId(photoIndex: currentPhotoIndex)
-                } catch is CancellationError {
-                    return
-                } catch {
-                    self.error = AppError.map(error, fallback: "Could not save photo details. Try again.")
-                    errorRecovery = .photoMetadata
-                }
-            }
+        case .incomingShareImport:
+            Task { _ = await importIncomingShareIfAvailable() }
+        case .sessionPreparation:
+            Task { await processSelectedPhotos() }
         case .speciesIdentification(let photoIndex, let croppedImageData):
             Task { await runSpeciesId(photoIndex: photoIndex, croppedImageData: croppedImageData) }
         case .saveCluster:
@@ -827,6 +1008,19 @@ final class AddPhotosViewModel {
             throw AuthError.notAuthenticated
         }
         return sessionGeneration
+    }
+
+    private func prepareCurrentSession() async throws -> UUID {
+        guard let authService, let dataStore else { throw AuthError.notAuthenticated }
+        try await authService.ensureAnonymousSession()
+        guard let resolvedAccountID = authService.userId else { throw AuthError.notAuthenticated }
+
+        if dataStore.activeAccountID != resolvedAccountID {
+            dataStore.activate(accountID: resolvedAccountID)
+        }
+        try await dataStore.ensureLoaded()
+        configure(auth: authService, dataStore: dataStore)
+        return try requireCurrentSession()
     }
 
     private func isCurrentSession(_ sessionID: UUID) -> Bool {
@@ -878,8 +1072,15 @@ final class AddPhotosViewModel {
     }
 }
 
+/// Photos that count as a sighting. A cluster with none of these earned no outing, so it is
+/// neither written nor counted towards the upload summary.
+func sightingResults(_ results: [PhotoResult]) -> [PhotoResult] {
+    results.filter { $0.status == .confirmed || $0.status == .possible }
+}
+
 private enum ErrorRecovery {
-    case photoMetadata
+    case incomingShareImport
+    case sessionPreparation
     case speciesIdentification(photoIndex: Int, croppedImageData: Data?)
     case saveCluster
 }
@@ -923,7 +1124,6 @@ struct IdentifiedCandidate {
     let confidence: Double
     let wikiTitle: String?
     let plumage: String?
-    let rangeStatus: String?
 }
 
 /// AI crop box in percentage coordinates (0-100).

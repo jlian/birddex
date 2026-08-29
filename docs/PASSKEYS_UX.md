@@ -62,8 +62,8 @@ Reddit-style dual-mode dialog:
 
 **Sign-up flow:**
 1. User clicks "Sign up with a Passkey"
-2. `addPasskey({ name: birdName })` via WebAuthn create (auto-generated bird name as keychain label)
-3. `POST /api/auth/finalize-passkey` promotes anonymous user to real
+2. `addPasskey({ createSession: true })` runs the WebAuthn ceremony
+3. Better Auth upgrades the anonymous user in place and returns the durable session
 
 **Log-in flow:**
 1. User clicks "Log in with a Passkey"
@@ -139,7 +139,6 @@ implemented first. See [EMAIL_VERIFICATION.md](EMAIL_VERIFICATION.md).
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| POST | `/api/auth/finalize-passkey` | Session | Promote anon to real user (name only) |
 
 ## Implementation status
 

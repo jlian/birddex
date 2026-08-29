@@ -4,6 +4,7 @@ import SwiftUI
 /// Displays the user's registered passkeys with options to add or remove them.
 struct PasskeyManagementView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(ToastCenter.self) private var toasts
     @State private var passkeys: [PasskeyService.PasskeyInfo] = []
     @State private var isLoading = true
     @State private var errorMessage: AppError?
@@ -125,6 +126,7 @@ struct PasskeyManagementView: View {
             let finalName = name.isEmpty ? Self.defaultPasskeyName(displayName: auth.userName) : name
             try await auth.registerPasskey(name: finalName)
             await loadPasskeys()
+            toasts.show("Passkey added")
         } catch {
             errorMessage = AppError.map(error, fallback: "Could not add this passkey. Try again.")
         }
@@ -155,6 +157,7 @@ struct PasskeyManagementView: View {
         do {
             try await auth.deletePasskey(id: id)
             passkeys.removeAll { $0.id == id }
+            toasts.show("Passkey removed")
         } catch {
             errorMessage = AppError.map(error, fallback: "Could not delete this passkey. Try again.")
         }

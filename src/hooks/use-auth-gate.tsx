@@ -3,8 +3,7 @@ import { Key, GithubLogo, AppleLogo, GoogleChromeLogo } from '@phosphor-icons/re
 import { toast } from 'sonner'
 
 import { authClient } from '@/lib/auth-client'
-import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
-import { assertWingDexApiResponse } from '@/lib/api-error'
+import { discardPendingAccountMergeToken, finalizeAccountMerge, prepareAccountMerge } from '@/lib/account-merge'
 import { logClientFailure } from '@/lib/client-log'
 import { generateBirdName } from '@/lib/fun-names'
 import { buildPasskeyName, getDeviceLabelFromNavigator, isPasskeyCancellationLike } from '@/lib/passkey-label'
@@ -12,7 +11,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 
 /** Safely extract error code from Better Auth error union */
 function errCode(err: { code?: string; message?: string }): string | undefined {
@@ -21,76 +19,64 @@ function errCode(err: { code?: string; message?: string }): string | undefined {
 
 interface AuthGateOptions {
   isAnonymous: boolean
+  hasUnsavedSightings?: boolean
   onUpgraded: () => void | Promise<void>
-  demoDataEnabled?: boolean
-  onSetDemoDataEnabled?: (enabled: boolean) => Promise<void> | void
 }
 
 /**
  * Hook that gates actions behind authentication.
- * Returns `requireAuth(callback)` -- if user is anonymous, opens auth modal.
+ * Returns `openSignIn()` to open the auth modal. Nothing gates on having an
+ * account: identification runs on-device, so signing up is about making data
+ * durable rather than unlocking a feature.
  * If user is already authenticated, runs the callback immediately.
  * Also returns `authGateModal` element to render once in the tree.
  */
-export function useAuthGate({ isAnonymous, onUpgraded, demoDataEnabled, onSetDemoDataEnabled }: AuthGateOptions) {
+export function useAuthGate({ isAnonymous, hasUnsavedSightings, onUpgraded }: AuthGateOptions) {
   const [open, setOpen] = useState(false)
-  const pendingCallback = useRef<(() => void) | null>(null)
-
-  const requireAuth = useCallback((callback: () => void) => {
-    if (!isAnonymous) {
-      callback()
-      return
-    }
-    pendingCallback.current = callback
-    setOpen(true)
-  }, [isAnonymous])
 
   const openSignIn = useCallback(() => {
-    pendingCallback.current = null
     setOpen(true)
   }, [])
 
   const handleUpgraded = useCallback(async () => {
     setOpen(false)
     await onUpgraded()
-    const callback = pendingCallback.current
-    pendingCallback.current = null
-    callback?.()
   }, [onUpgraded])
 
   const modal = (
     <AuthGateModal
       open={open}
       onOpenChange={setOpen}
+      isAnonymous={isAnonymous}
+      hasUnsavedSightings={hasUnsavedSightings}
       onUpgraded={handleUpgraded}
-      demoDataEnabled={demoDataEnabled}
-      onSetDemoDataEnabled={onSetDemoDataEnabled}
     />
   )
 
-  return { requireAuth, openSignIn, authGateModal: modal }
+  return { openSignIn, authGateModal: modal }
 }
 
 // -- Modal ------------------------------------------------
 
+type SignInIntent = { kind: 'passkey' } | { kind: 'social'; provider: 'github' | 'apple' | 'google' }
+
 interface AuthGateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  isAnonymous: boolean
+  hasUnsavedSightings?: boolean
   onUpgraded: () => void
-  demoDataEnabled?: boolean
-  onSetDemoDataEnabled?: (enabled: boolean) => Promise<void> | void
 }
 
 function AuthGateModal({
   open,
   onOpenChange,
+  isAnonymous,
+  hasUnsavedSightings,
   onUpgraded,
-  demoDataEnabled,
-  onSetDemoDataEnabled,
 }: AuthGateModalProps) {
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isTogglingDemo, setIsTogglingDemo] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const visibleProviders = ['github', 'apple', 'google'] as const
 
@@ -102,20 +88,43 @@ function AuthGateModal({
     return `/?${params.toString()}`
   }
 
+  const prepareCurrentAnonymousMerge = async (
+    authMethod: 'github' | 'apple' | 'google' | 'passkey',
+  ): Promise<string | null> => {
+    if (!isAnonymous) return null
+    const current = await authClient.getSession()
+    const currentIsAnonymous = Boolean(
+      (current.data?.user as { isAnonymous?: boolean } | undefined)?.isAnonymous,
+    )
+    return currentIsAnonymous ? prepareAccountMerge(authMethod) : null
+  }
+
   const handleSignUpWithPasskey = async () => {
     setErrorMessage(null)
     setIsLoading(true)
 
-    // Create account: the current session is already anonymous, so just
-    // register a passkey on it and finalize.
+    let mergeToken: string | null = null
+    try {
+      mergeToken = await prepareCurrentAnonymousMerge('passkey')
+    } catch (error) {
+      logClientFailure('auth/account-merge/prepare', error)
+      setIsLoading(false)
+      setErrorMessage('Could not prepare your WingDex for account setup. Please try again.')
+      return
+    }
+
+    // Better Auth creates a sessionless account transactionally, or promotes
+    // the current anonymous owner in place when one already exists.
     const birdName = generateBirdName()
     const passkeyName = buildPasskeyName(getDeviceLabelFromNavigator(), birdName)
 
     const passkeyResult = await authClient.passkey.addPasskey({
       name: passkeyName,
       authenticatorAttachment: 'platform',
+      createSession: true,
     })
     if (passkeyResult.error) {
+      discardPendingAccountMergeToken()
       setIsLoading(false)
       if (isPasskeyCancellationLike(passkeyResult.error)) {
         return
@@ -127,31 +136,24 @@ function AuthGateModal({
       return
     }
 
-    const passkeyId = (
-      typeof (passkeyResult.data as { id?: unknown } | undefined)?.id === 'string'
-        ? (passkeyResult.data as { id: string }).id.trim()
-        : ''
-    )
-
-    // Finalize -- flip anonymous -> real user
-    const finalizeRes = await fetchWithLocalAuthRetry('/api/auth/finalize-passkey', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: birdName,
-        ...(passkeyId ? { passkeyId } : {}),
-      }),
-    })
-    try {
-      await assertWingDexApiResponse(finalizeRes, 'Account setup failed')
-    } catch (error) {
-      logClientFailure('auth/passkey/finalize', error)
+    // A cancelled or failed sessionless ceremony leaves no account behind. An
+    // existing anonymous account remains unchanged until verification succeeds.
+    const created = passkeyResult.data as { session?: unknown; user?: unknown } | undefined
+    if (!created?.session || !created?.user) {
+      logClientFailure('auth/passkey/register', new Error('verify-registration returned no session'))
       setIsLoading(false)
       setErrorMessage('Account setup failed. Please try again.')
       return
     }
 
+    try {
+      if (mergeToken) await finalizeAccountMerge(mergeToken)
+    } catch (error) {
+      logClientFailure('auth/account-merge/finalize', error)
+      setIsLoading(false)
+      setErrorMessage('Your account is ready, but your WingDex still needs to be kept. Please try again.')
+      return
+    }
     setIsLoading(false)
     toast.success('Signed up with passkey')
     onUpgraded()
@@ -161,8 +163,18 @@ function AuthGateModal({
     setErrorMessage(null)
     setIsLoading(true)
 
+    let mergeToken: string | null
+    try {
+      mergeToken = await prepareCurrentAnonymousMerge('passkey')
+    } catch (error) {
+      logClientFailure('auth/account-merge/prepare', error)
+      setIsLoading(false)
+      setErrorMessage('Could not prepare your WingDex for login. Please try again.')
+      return
+    }
     const result = await authClient.signIn.passkey({ autoFill: false })
     if (result.error) {
+      discardPendingAccountMergeToken()
       setIsLoading(false)
       if (isPasskeyCancellationLike(result.error)) {
         return
@@ -170,6 +182,17 @@ function AuthGateModal({
         setErrorMessage(result.error.message || 'Passkey sign-in failed.')
       }
       return
+    }
+
+    if (mergeToken) {
+      try {
+        await finalizeAccountMerge(mergeToken)
+      } catch (error) {
+        logClientFailure('auth/account-merge/finalize', error)
+        setIsLoading(false)
+        setErrorMessage('Signed in, but your WingDex still needs to be kept. Please try again.')
+        return
+      }
     }
 
     // Verify it's a real (non-anonymous) session
@@ -189,27 +212,34 @@ function AuthGateModal({
     onUpgraded()
   }
 
-  const handleSocialSignIn = (provider: 'github' | 'apple' | 'google') => {
+  const handleSocialSignIn = async (provider: 'github' | 'apple' | 'google') => {
     setErrorMessage(null)
-    void authClient.signIn.social({
-      provider,
-      callbackURL: buildSocialCallbackURL(provider),
-      errorCallbackURL: '/',
-    })
+    setIsLoading(true)
+    try {
+      await prepareCurrentAnonymousMerge(provider)
+      await authClient.signIn.social({
+        provider,
+        callbackURL: buildSocialCallbackURL(provider),
+        errorCallbackURL: '/',
+      })
+    } catch (error) {
+      discardPendingAccountMergeToken()
+      logClientFailure('auth/social/sign-in', error)
+      setIsLoading(false)
+      setErrorMessage('Could not continue with that provider. Please try again.')
+    }
   }
 
-  const handleDemoToggle = async (enabled: boolean) => {
-    if (!onSetDemoDataEnabled) return
-    setIsTogglingDemo(true)
-    setErrorMessage(null)
-    try {
-      await onSetDemoDataEnabled(enabled)
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Unknown error'
-      setErrorMessage(`Demo data update failed: ${detail}`)
-    } finally {
-      setIsTogglingDemo(false)
+  const requestSignIn = (intent: SignInIntent) => {
+    runSignIn(intent)
+  }
+
+  const runSignIn = (intent: SignInIntent) => {
+    if (intent.kind === 'passkey') {
+      void handlePasskeySignIn()
+      return
     }
+    void handleSocialSignIn(intent.provider)
   }
 
   return (
@@ -225,7 +255,16 @@ function AuthGateModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Start your WingDex</DialogTitle>
+          <DialogTitle>
+            {hasUnsavedSightings ? 'Keep your WingDex' : 'Start your WingDex'}
+          </DialogTitle>
+          {hasUnsavedSightings && (
+            <p className="text-sm text-muted-foreground">
+              Your sightings are saved, but only in this browser. They go away if you
+              clear your cookies or switch devices. An account keeps them, and unlocks
+              import and export. It takes one tap and no email.
+            </p>
+          )}
           <DialogDescription>
             By continuing you accept{' '}
             <a
@@ -254,7 +293,7 @@ function AuthGateModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => handleSocialSignIn('github')}
+                  onClick={() => requestSignIn({ kind: 'social', provider: 'github' })}
                   disabled={isLoading}
                 >
                   <GithubLogo size={18} className="mr-2" />
@@ -265,7 +304,7 @@ function AuthGateModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => handleSocialSignIn('apple')}
+                  onClick={() => requestSignIn({ kind: 'social', provider: 'apple' })}
                   disabled={isLoading}
                 >
                   <AppleLogo size={18} className="mr-2" />
@@ -276,7 +315,7 @@ function AuthGateModal({
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => handleSocialSignIn('google')}
+                  onClick={() => requestSignIn({ kind: 'social', provider: 'google' })}
                   disabled={isLoading}
                 >
                   <GoogleChromeLogo size={18} className="mr-2" />
@@ -307,7 +346,7 @@ function AuthGateModal({
             <div className="grid grid-cols-2 gap-2">
               <Button
                 className="w-full"
-                onClick={() => void handlePasskeySignIn()}
+                onClick={() => requestSignIn({ kind: 'passkey' })}
                 disabled={isLoading}
               >
                 {isLoading ? 'Working…' : 'Log in'}
@@ -324,23 +363,6 @@ function AuthGateModal({
           </div>
 
           {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
-
-          {typeof demoDataEnabled === 'boolean' && onSetDemoDataEnabled && (
-            <div className="pt-1">
-              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Demo data</p>
-                  <p className="text-xs text-muted-foreground">Preview WingDex with sample sightings</p>
-                </div>
-                <Switch
-                  checked={demoDataEnabled}
-                  onCheckedChange={(checked) => void handleDemoToggle(checked)}
-                  disabled={isLoading || isTogglingDemo}
-                  aria-label="Toggle demo data"
-                />
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

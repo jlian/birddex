@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createAuth, normalizeAuthRequest } from '../../functions/lib/auth'
+import { anonymousAccountPolicy, createAuth, normalizeAuthRequest } from '../../functions/lib/auth'
+import { passkeyRegistrationAction } from '../../functions/lib/auth'
 
 const mockEnv = {
   DB: {} as D1Database,
@@ -20,6 +21,13 @@ const mockEnv = {
 } satisfies Env
 
 describe('auth config', () => {
+describe('passkey registration action', () => {
+  it('upgrades only anonymous sessions', () => {
+    expect(passkeyRegistrationAction({ id: 'user-1', isAnonymous: true }, 'user-1')).toBe('upgrade')
+    expect(passkeyRegistrationAction({ id: 'user-1', isAnonymous: false }, 'user-1')).toBe('reuse')
+    expect(passkeyRegistrationAction(undefined, 'user-1')).toBe('create')
+  })
+})
   it('exposes account linking options', () => {
     const auth = createAuth(mockEnv)
     expect(auth.options.account?.accountLinking?.enabled).toBe(true)
@@ -27,6 +35,15 @@ describe('auth config', () => {
     expect(auth.options.account?.accountLinking?.trustedProviders).toContain('apple')
     expect(auth.options.account?.accountLinking?.trustedProviders).toContain('google')
     expect(auth.options.account?.accountLinking?.allowDifferentEmails).toBe(true)
+    // Preserve the long-standing verified same-email linking behavior. This is
+    // distinct from exposing an explicit provider-linking control in Settings.
+    expect(auth.options.account?.accountLinking?.disableImplicitLinking).not.toBe(true)
+  })
+
+  it('keeps sessions alive for a year', () => {
+    const auth = createAuth(mockEnv)
+    // Under Chrome's 400-day cookie cap, which silently rewrites anything above it.
+    expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24 * 365)
   })
 
   it('includes passkey and anonymous plugins', () => {
@@ -36,6 +53,12 @@ describe('auth config', () => {
     expect(apiKeys.some((k) => k.toLowerCase().includes('passkey'))).toBe(true)
     // Anonymous plugin adds signInAnonymous
     expect(apiKeys.some((k) => k.toLowerCase().includes('anonymous'))).toBe(true)
+    const pluginIds = auth.options.plugins?.map(plugin => plugin.id) ?? []
+    expect(pluginIds.indexOf('bearer')).toBeLessThan(pluginIds.indexOf('anonymous'))
+  })
+
+  it('does not delete anonymous WingDex data when social login switches accounts', () => {
+    expect(anonymousAccountPolicy.disableDeleteAnonymousUser).toBe(true)
   })
 
   it('registers GitHub callback route when credentials are set', () => {

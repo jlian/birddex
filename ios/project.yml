@@ -1,6 +1,8 @@
 name: WingDex
 options:
   bundleIdPrefix: app.wingdex
+  # Product minimum: the UI uses iOS 26 Tab and Liquid Glass APIs. CI should
+  # install the matching runtime rather than lower this target.
   deploymentTarget:
     iOS: "26.0"
   xcodeVersion: "26.3"
@@ -45,12 +47,19 @@ targets:
         inputFiles:
           - "$(SRCROOT)/scripts/sync-birdid-assets.sh"
           - "$(SRCROOT)/../public/models/text_classifier_int8.bin"
-          - "$(SRCROOT)/../public/priors/occurrence.1fb61779.bin.gz"
+          - "$(SRCROOT)/../public/priors/occurrence.4f5c1a15.bin.gz"
+          - "$(SRCROOT)/../public/priors/rarity.2c02a406.bin.gz"
+          # The script READS these two to learn the shipped asset filenames.
+          # Under ENABLE_USER_SCRIPT_SANDBOXING an undeclared input is denied,
+          # so leaving one out makes the script fail at the grep.
+          - "$(SRCROOT)/../src/lib/bird-id-local-adapter.ts"
+          - "$(SRCROOT)/../src/lib/rarity.ts"
           - "$(SRCROOT)/../src/lib/taxonomy.json"
           - "$(SRCROOT)/WingDex/Resources/taxonomy.json"
         outputFiles:
           - "$(SRCROOT)/WingDex/Resources/BirdID/text_classifier_int8.bin"
           - "$(SRCROOT)/WingDex/Resources/BirdID/occurrence.bin"
+          - "$(SRCROOT)/WingDex/Resources/BirdID/rarity.bin"
         basedOnDependencyAnalysis: false
     sources:
       - path: WingDex
@@ -104,7 +113,7 @@ targets:
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         NSCameraUsageDescription: "WingDex uses the camera so you can take bird photos for identification."
-        NSLocationWhenInUseUsageDescription: "WingDex uses your location to tag where bird photos were taken. Exact coordinates are saved by WingDex with your outings and photo metadata, and WingDex may forward rounded coordinates to Geoapify to suggest a location name."
+        NSLocationWhenInUseUsageDescription: "WingDex uses your location to tag where bird photos were taken and suggest outing names. Exact coordinates are saved with outings and photo metadata. Reverse lookup runs on WingDex servers; typed place searches are sent to Geoapify."
         NSPhotoLibraryUsageDescription: "WingDex uses your photo library so you can choose bird photos to identify."
         NSPhotoLibraryAddUsageDescription: "WingDex may save captured bird photos to your library when you choose to keep them."
         UISupportedInterfaceOrientations:
@@ -172,7 +181,7 @@ targets:
     sources:
       - path: WingDexTests
         # Parity fixtures are read from disk via #filePath, never from the test
-        # bundle. Letting xcodegen sweep them in makes the 23 MiB prior a test
+        # bundle. Letting xcodegen sweep them in makes the 33 MiB prior a test
         # resource, which rewrites the Resources build phases and drops
         # Assets.xcassets from the app target, breaking the AppIcon lookup.
         excludes:
@@ -206,13 +215,9 @@ schemes:
         WingDex: all
     run:
       config: Localhost Debug
-      # On by default: Localhost points at a throwaway local backend, so a run
-      # should land in a signed-in app with data rather than an empty one.
-      # Untick in Xcode for a cold-start run, but change it here to make it
-      # stick, since xcodegen rewrites the scheme.
       commandLineArguments:
-        "--auto-sign-in": true
-        "--auto-demo-data": true
+        # Localhost starts sessionless; individual tests opt into identities.
+        "--auto-sign-in": false
     test:
       config: Localhost Debug
       targets:
@@ -233,7 +238,6 @@ schemes:
       config: Dev Debug
       commandLineArguments:
         "--auto-sign-in": false
-        "--auto-demo-data": false
     test:
       config: Dev Debug
       targets:

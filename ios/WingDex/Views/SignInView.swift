@@ -34,6 +34,7 @@ private let signInDarkenDark: Double = 0.7
 /// Full-screen sign-in view.
 struct SignInView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(ToastCenter.self) private var toasts
     @Environment(DataStore.self) private var store
 
     @Environment(\.colorScheme) private var colorScheme
@@ -44,6 +45,11 @@ struct SignInView: View {
     @State private var errorMessage: String?
     @State private var parallaxOffset: CGSize = .zero
     @State private var collageCache = CollageImageCache.shared
+
+    private var hasAnonymousData: Bool {
+        auth.identity == .anonymous
+            && (!store.hasLoadedAll || !store.outings.isEmpty || !store.observations.isEmpty)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -103,40 +109,11 @@ struct SignInView: View {
             // Foreground content
             ScrollView {
             VStack(spacing: 0) {
-                // Top bar
-                HStack {
-                    AppIconView()
-                        .frame(width: 44, height: 44)
-                    Spacer()
-                    #if DEBUG
-                    Menu {
-                        Button {
-                            signIn {
-                                try await auth.signInAnonymously()
-                                try await store.loadDemoData()
-                            }
-                        } label: {
-                            Label("Try with Demo Data", systemImage: "sparkles")
-                        }
-                    } label: {
-                        Image(systemName: "sparkles")
-                            .font(.title3)
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .menuStyle(.borderlessButton)
-                    .buttonStyle(.plain)
-                    #endif
-                }
-                .padding(.horizontal, 28)
-                .padding(.top, 8)
-
                 Spacer()
 
                 // Big left-aligned title
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Start your")
+                    Text(hasAnonymousData ? "Keep your" : "Start your")
                         .font(.system(size: titleSize, weight: .bold, design: .serif))
                     Text("WingDex")
                         .font(.system(size: titleSize, weight: .bold, design: .serif))
@@ -148,6 +125,15 @@ struct SignInView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 32)
 
+                if hasAnonymousData {
+                    Text("Your sightings are saved only on this device. They can disappear if the app's data is removed or you switch devices. An account keeps them and unlocks import and export. It takes one tap and no email.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 20)
+                }
+
                 // Social sign-in buttons
                 let btnHeight: CGFloat = 44
                 let iconSize: CGFloat = btnHeight * 0.32
@@ -155,9 +141,9 @@ struct SignInView: View {
                 VStack(spacing: 12) {
                     // Apple -- native SignInWithAppleButton
                     SignInWithAppleButton(.continue) { request in
-                        request.requestedScopes = [.fullName, .email]
+                        auth.configureAppleSignInRequest(request)
                     } onCompletion: { result in
-                        signIn {
+                        requestSignIn {
                             let authorization = try result.get()
                             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
                                 throw URLError(.userAuthenticationRequired)
@@ -172,7 +158,7 @@ struct SignInView: View {
 
                     // Google -- neutral style per branding guidelines
                     Button {
-                        signIn { try await auth.signInWithGoogle() }
+                        requestSignIn { try await auth.signInWithGoogle() }
                     } label: {
                         HStack(spacing: 6) {
                             Image("GoogleIcon")
@@ -192,7 +178,7 @@ struct SignInView: View {
 
                     // GitHub -- neutral style matching Google
                     Button {
-                        signIn { try await auth.signInWithGitHub() }
+                        requestSignIn { try await auth.signInWithGitHub() }
                     } label: {
                         HStack(spacing: 6) {
                             Image("GitHubIcon")
@@ -235,9 +221,11 @@ struct SignInView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white)
 
+                    // Both controls use prominent material for reliable contrast
+                    // over the moving collage; tint distinguishes login/signup.
                     HStack(spacing: 12) {
                         Button {
-                            signIn { try await auth.signInWithPasskey() }
+                            requestSignIn { try await auth.signInWithPasskey() }
                         } label: {
                             Text("Log in")
                                 .font(.body.weight(.medium))
@@ -246,18 +234,19 @@ struct SignInView: View {
                         .buttonStyle(.glassProminent)
                         .buttonSizing(.flexible)
                         .tint(Color(red: 0.0, green: 0.28, blue: 0.14))
+                        .accessibilityIdentifier("auth.passkeyLogin")
 
                         Button {
-                            signIn { try await auth.signUpWithPasskey() }
+                            signIn(successMessage: "Signed up with passkey") { try await auth.signUpWithPasskey() }
                         } label: {
                             Text("Sign up")
                                 .font(.body.weight(.medium))
                                 .frame(minHeight: glassLabelHeight)
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.glassProminent)
                         .buttonSizing(.flexible)
-                        .colorScheme(colorScheme == .dark ? .light : .dark)
-                        .background(Color.black.opacity(0.72), in: Capsule())
+                        .foregroundStyle(.white)
+                        .tint(Color.black.opacity(0.82))
                     }
                 }
                 .padding(16)
@@ -333,6 +322,8 @@ struct SignInView: View {
               !manager.isDeviceMotionActive
         else { return }
         gravityBaseline = nil
+        // 30 Hz is deliberate: 60 Hz caused excess render churn, while 15 Hz
+        // made the parallax visibly choppy.
         manager.deviceMotionUpdateInterval = 1.0 / 30.0
         manager.startDeviceMotionUpdates(to: .main) { motion, _ in
             guard let gravity = motion?.gravity else { return }
@@ -364,12 +355,20 @@ struct SignInView: View {
 
     // MARK: - Sign-In Handler
 
-    private func signIn(action: @escaping () async throws -> Void) {
+    private func requestSignIn(action: @escaping () async throws -> Void) {
+        signIn(action: action)
+    }
+
+    private func signIn(
+        successMessage: String = "Signed in",
+        action: @escaping () async throws -> Void
+    ) {
         isSigningIn = true
         errorMessage = nil
         Task {
             do {
                 try await action()
+                toasts.show(successMessage)
             } catch {
                 errorMessage = AppError.map(error, fallback: "Authentication failed. Try again.")?.message
                 log.debug("Sign-in attempt failed")
@@ -438,6 +437,7 @@ private struct SignInCollage: View {
     SignInView()
         .environment(AuthService())
         .environment(previewStore(empty: true))
+        .environment(ToastCenter())
         .preferredColorScheme(.light)
 }
 
@@ -445,6 +445,7 @@ private struct SignInCollage: View {
     SignInView()
         .environment(AuthService())
         .environment(previewStore(empty: true))
+        .environment(ToastCenter())
         .preferredColorScheme(.dark)
 }
 #endif

@@ -4,6 +4,7 @@ import MapKit
 struct OutingDetailView: View {
     let outingId: String
     var beginsLocationEditing = false
+    @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var showDeleteConfirm = false
@@ -22,8 +23,12 @@ struct OutingDetailView: View {
     @State private var exportItem: ExportFileItem?
     @State private var isExporting = false
     @State private var operationError: String?
+    /// Held so the view keeps rendering the outing between the delete landing in the store
+    /// and the dismiss animation finishing, instead of flashing "Outing not found".
+    @State private var deletedOuting: Outing?
+    @Environment(ToastCenter.self) private var toasts
 
-    private var outing: Outing? { store.outing(id: outingId) }
+    private var outing: Outing? { store.outing(id: outingId) ?? deletedOuting }
     private var confirmed: [BirdObservation] { store.confirmedObservations(outingId) }
     private var possible: [BirdObservation] { store.possibleObservations(outingId) }
 
@@ -57,9 +62,12 @@ struct OutingDetailView: View {
             Button("Delete Outing", role: .destructive) {
                 Task {
                     do {
+                        deletedOuting = outing
                         try await store.deleteOuting(id: outingId)
                         dismiss()
+                        toasts.show("Outing deleted")
                     } catch {
+                        deletedOuting = nil
                         showError(error, fallback: "Could not delete outing. Try again.")
                     }
                 }
@@ -110,21 +118,23 @@ struct OutingDetailView: View {
 
             // Actions
             Section {
-                Button {
-                    Task { await exportOuting(outing) }
-                } label: {
-                    if isExporting {
-                        HStack {
-                            ProgressView()
-                                .controlSize(.mini)
-                            Text("Exporting...")
+                if auth.isRegisteredAccount {
+                    Button {
+                        Task { await exportOuting(outing) }
+                    } label: {
+                        if isExporting {
+                            HStack {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                Text("Exporting...")
+                            }
+                        } else {
+                            Label("Export eBird CSV", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(Color.accentColor)
                         }
-                    } else {
-                        Label("Export eBird CSV", systemImage: "square.and.arrow.up")
-                            .foregroundStyle(Color.accentColor)
                     }
+                    .disabled(confirmed.isEmpty || isExporting)
                 }
-                .disabled(confirmed.isEmpty || isExporting)
 
                 Button(role: .destructive) {
                     showDeleteConfirm = true
@@ -322,7 +332,8 @@ struct OutingDetailView: View {
                         BirdRow(
                             speciesName: speciesName,
                             thumbnailUrl: entry?.thumbnailUrl,
-                            count: totalCount
+                            count: totalCount,
+                            outing: outing
                         )
                     }
                     .contextMenu {
@@ -388,7 +399,8 @@ struct OutingDetailView: View {
                         BirdRow(
                             speciesName: speciesName,
                             thumbnailUrl: entry?.thumbnailUrl,
-                            count: totalCount
+                            count: totalCount,
+                            outing: outing
                         )
                     }
                     .contextMenu {
@@ -481,6 +493,7 @@ struct OutingDetailView: View {
                             do {
                                 try await store.updateOuting(id: outingId, fields: OutingUpdate(notes: notesText))
                                 editingNotes = false
+                                toasts.show("Notes saved")
                             } catch {
                                 showError(error, fallback: "Could not save notes. Try again.")
                             }
@@ -586,6 +599,7 @@ struct OutingDetailView: View {
                 fields: OutingUpdate(locationName: newName, defaultLocationName: defaultName)
             )
             editingLocation = false
+            toasts.show(trimmed.isEmpty ? "Outing name reset" : "Outing name saved")
         } catch {
             showError(error, fallback: "Could not save outing name. Try again.")
         }
@@ -646,6 +660,7 @@ struct OutingDetailView: View {
             try await store.addObservation(observation)
             resetSpeciesForm()
             showingAddSpecies = false
+            toasts.show("\(displayName) added")
         } catch {
             showError(error, fallback: "Could not add \(displayName). Try again.")
         }
@@ -663,6 +678,7 @@ struct OutingDetailView: View {
     private func removeSpecies(displayName: String, observationIds: [String]) async {
         do {
             try await store.rejectObservations(ids: observationIds)
+            toasts.show("\(displayName) removed")
         } catch {
             showError(error, fallback: "Could not remove \(displayName). Try again.")
         }
@@ -673,6 +689,7 @@ struct OutingDetailView: View {
         do {
             let csvData = try await store.exportOutingCSV(outingId: outing.id)
             exportItem = try ExportFileFactory.outing(data: csvData, outing: outing)
+            toasts.show("Outing exported in eBird Record CSV format")
         } catch {
             showError(error, fallback: "Could not export outing. Try again.")
         }
@@ -698,6 +715,7 @@ struct OutingDetailView: View {
         NavigationStack {
             OutingDetailView(outingId: PreviewData.sampleOutingId)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
 }
@@ -707,6 +725,7 @@ struct OutingDetailView: View {
         NavigationStack {
             OutingDetailView(outingId: PreviewData.richOutingId)
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
 }
@@ -716,6 +735,7 @@ struct OutingDetailView: View {
         NavigationStack {
             OutingDetailView(outingId: "nonexistent")
                 .environment(previewStore())
+                .environment(ToastCenter())
         }
     }
 }

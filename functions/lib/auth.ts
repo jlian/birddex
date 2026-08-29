@@ -4,7 +4,17 @@ import { passkey } from '@better-auth/passkey'
 import { Kysely } from 'kysely'
 import { D1Dialect } from 'kysely-d1'
 import type { Logger } from './log'
+import { accountMergeFinalizationEnabled, finalizePendingAccountMerge } from './account-merge'
 import { allowlistedProvider } from './provider-revocation'
+import { generateBirdName, emojiForBirdName, emojiAvatarDataUrl } from '../../src/lib/fun-names'
+
+export function passkeyRegistrationAction(
+  sessionUser: { id?: string; isAnonymous?: boolean } | null | undefined,
+  resolvedUserId: string,
+): 'upgrade' | 'reuse' | 'create' {
+  if (!sessionUser?.id || sessionUser.id !== resolvedUserId) return 'create'
+  return sessionUser.isAnonymous === true ? 'upgrade' : 'reuse'
+}
 
 type CreateAuthOptions = {
   request?: Request
@@ -13,6 +23,11 @@ type CreateAuthOptions = {
   // same public callback domain that is registered in their app settings.
   mode?: 'default' | 'hosted-oauth'
   log?: Logger
+  // Called when the registration transaction asked to upgrade an anonymous
+  // account. It is only a request, not an outcome: the passkey and session
+  // writes can still fail and roll the update back, so the caller emits the
+  // durable event once the route itself succeeds.
+  onAnonymousUpgradeRequested?: () => void
 }
 
 type SocialProviderConfig = {
@@ -22,6 +37,24 @@ type SocialProviderConfig = {
 }
 
 type CreatedUserKind = 'anonymous' | 'authenticated'
+
+export function accountMergeAuthMethod(context: { path?: unknown; body?: unknown }): 'github' | 'google' | 'apple' | 'passkey' | null {
+  const path = typeof context.path === 'string' ? context.path : ''
+  if (path.endsWith('/passkey/verify-authentication')) return 'passkey'
+  for (const provider of ['github', 'google', 'apple'] as const) {
+    if (path.endsWith(`/callback/${provider}`)) return provider
+  }
+  const body = context.body && typeof context.body === 'object'
+    ? context.body as { provider?: unknown }
+    : null
+  return body?.provider === 'github' || body?.provider === 'google' || body?.provider === 'apple'
+    ? body.provider
+    : null
+}
+
+export const anonymousAccountPolicy = {
+  disableDeleteAnonymousUser: true,
+} as const
 
 function hookPath(context: { path?: unknown } | null): string | null {
   return typeof context?.path === 'string' ? context.path : null
@@ -215,6 +248,12 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
     advanced: {
       useSecureCookies,
     },
+    session: {
+      // Chrome silently rewrites anything over 400 days, so a year sits
+      // comfortably under the cap instead of on it. updateAge (1 day) still
+      // rolls this forward, so an active user effectively never expires.
+      expiresIn: 60 * 60 * 24 * 365,
+    },
     ...(Object.keys(socialProviders).length > 0 ? { socialProviders } : {}),
     user: {
       deleteUser: {
@@ -288,12 +327,116 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
       },
     } : undefined,
     plugins: [
-      anonymous(),
+      // Native social requests carry the anonymous source as a bearer token.
+      // Normalize it to Better Auth's signed session cookie before the
+      // anonymous plugin captures source identity in OAuth state.
       bearer(),
+      // Without this the plugin names every anonymous user "Anonymous". The bird
+      // name is the display name from the moment the account exists, and signup
+      // keeps it, so the identity a visitor sees never changes underneath them.
+      // WingDex owns anonymous-source deletion so it happens only after the
+      // account merge batch has transferred all durable data.
+      anonymous({
+        generateName: () => generateBirdName(),
+        ...anonymousAccountPolicy,
+        onLinkAccount: async ({ anonymousUser, newUser, ctx }) => {
+          if (!accountMergeFinalizationEnabled(env)) return
+          const authMethod = accountMergeAuthMethod(ctx)
+          if (!authMethod) return
+          try {
+            const result = await finalizePendingAccountMerge(
+              env.DB,
+              anonymousUser.user.id,
+              anonymousUser.session.id,
+              authMethod,
+              newUser.user.id,
+            )
+            if (!result) return
+            options.log?.info('auth/account/merge', {
+              category: 'Application',
+              resultType: 'Succeeded',
+              resultDescription: result.promoted
+                ? 'Promoted the anonymous WingDex account after successful authentication'
+                : `Merged ${result.outings} outings, ${result.observations} observations, and ${result.photos} photos into the authenticated account`,
+            })
+          } catch {
+            options.log?.error('auth/account/merge', {
+              category: 'Application',
+              resultType: 'Failed',
+              resultDescription: 'Automatic account merge did not complete; the anonymous source and retry intent were preserved',
+            })
+          }
+        },
+      }),
       passkey({
         rpName: 'WingDex',
         rpID: new URL(passkeyOrigin).hostname,
         origin: passkeyOrigin,
+        registration: {
+          // Sessionless signup and anonymous promotion both use the plugin's
+          // createSession transaction, so failed ceremonies leave no partial
+          // user/passkey/session state.
+          requireSession: false,
+
+          // Used only when no session exists. This stub is not persisted;
+          // afterVerification creates the durable user inside the registration
+          // transaction after WebAuthn verification succeeds.
+          resolveUser: async () => ({
+            id: crypto.randomUUID(),
+            name: generateBirdName(),
+          }),
+
+          // rc.4 calls this as afterVerification({ ctx, verification, user,
+          // clientData, context }). Note `context` is NOT the auth context: it
+          // is the opaque caller-supplied string from ?context=, round-tripped
+          // through the stored challenge. The adapter lives on ctx.context.
+          afterVerification: async ({ ctx, user }) => {
+            const sessionUser = ctx.context.session?.user
+            const sessionUserId = sessionUser?.id
+            const action = passkeyRegistrationAction(sessionUser, user.id)
+
+            if (action === 'reuse') {
+              return { userId: sessionUserId! }
+            }
+
+            // Upgrade in place. The plugin already resolved `user` to the
+            // session user, so this is the anonymous account being made
+            // durable: clear the anonymous flag, keeping the id and therefore
+            // every row that points at it. Runs inside the plugin's
+            // registration transaction, so a failed ceremony rolls the flag
+            // back along with the passkey and session.
+            if (action === 'upgrade' && sessionUserId) {
+              // `user.name` here is the WebAuthn handle, which the plugin sets
+              // to the account's email. Writing that would make the temp
+              // anonymous address the display name, so keep the bird name the
+              // account already has. Legacy rows predate generateName.
+              const existingName = sessionUser?.name
+              const name = existingName && existingName !== 'Anonymous' ? existingName : generateBirdName()
+              // Anonymous users have no stored image; the client derives one
+              // from the name. Persist it here so the account keeps the same
+              // avatar and Settings has a value to show as selected.
+              await ctx.context.internalAdapter.updateUser(sessionUserId, {
+                name,
+                image: emojiAvatarDataUrl(emojiForBirdName(name)),
+                isAnonymous: false,
+              })
+              options.onAnonymousUpgradeRequested?.()
+              return { userId: sessionUserId }
+            }
+
+            const createdName = user.name || generateBirdName()
+            const created = await ctx.context.internalAdapter.createUser(
+              {
+                name: createdName,
+                image: emojiAvatarDataUrl(emojiForBirdName(createdName)),
+                email: `${user.id}@passkey.wingdex.app`,
+                emailVerified: false,
+              },
+              { method: 'passkey' },
+            )
+            return { userId: created.id }
+          },
+        },
       }),
     ],
   })

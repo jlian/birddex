@@ -4,6 +4,7 @@ import { RESULT_DESCRIPTION_HEADER } from './log'
 
 const dependencies = vi.hoisted(() => ({
   computeDex: vi.fn(),
+  parseEBirdCSV: vi.fn(),
   groupPreviewsIntoOutings: vi.fn(),
   getOutingColumnNames: vi.fn(),
   hasObservationColumn: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('./dex-query', () => ({
 }))
 
 vi.mock('./ebird', () => ({
+  parseEBirdCSV: dependencies.parseEBirdCSV,
   groupPreviewsIntoOutings: dependencies.groupPreviewsIntoOutings,
 }))
 
@@ -29,7 +31,7 @@ import { onRequestPost as createObservations, onRequestPatch as patchObservation
 import { onRequestDelete as deleteOuting } from '../api/data/outings/[id]'
 import { onRequestPost as reverseGeocode } from '../api/geocoding/reverse'
 import { onRequestPost as searchGeocoding } from '../api/geocoding/search'
-import { onRequestPost as confirmEBirdImport } from '../api/import/ebird-csv/confirm'
+import { onRequestPost as importEBirdCSV } from '../api/import/ebird-csv'
 
 type CapturedEvent = { operationName: string; fields?: LogFields }
 
@@ -60,6 +62,12 @@ function jsonRequest(body: unknown): Request {
   })
 }
 
+function csvRequest(csv: string): Request {
+  const form = new FormData()
+  form.append('file', new File([csv], 'export.csv', { type: 'text/csv' }))
+  return new Request('https://wingdex.test/api/import/ebird-csv', { method: 'POST', body: form })
+}
+
 function routeContext(request: Request, db: D1Database, log: Logger, params: Record<string, string> = {}) {
   return {
     request,
@@ -67,6 +75,8 @@ function routeContext(request: Request, db: D1Database, log: Logger, params: Rec
       DB: db,
       GEOAPIFY_KEY: 'provider-key',
       GEOCODING_LIMITER: { limit: async () => ({ success: true }) },
+      REVERSE_GEOCODING_LIMITER: { limit: async () => ({ success: true }) },
+      IMPORT_LIMITER: { limit: async () => ({ success: true }) },
     },
     data: { user: { id: 'user-1' }, log },
     params,
@@ -95,7 +105,9 @@ describe('non-auth durable observability', () => {
     const order: string[] = []
     const { events, log } = createEventLogger(order)
     const db = {
-      prepare: vi.fn(() => boundStatement()),
+      prepare: vi.fn(() => boundStatement({
+        all: vi.fn(async () => ({ results: [] })),
+      })),
       batch: vi.fn(async () => {
         order.push('batch')
         return []
@@ -115,7 +127,7 @@ describe('non-auth durable observability', () => {
       fields: expect.objectContaining({
         category: 'Audit',
         resultType: 'Succeeded',
-        resultDescription: 'Cleared all outings, cascaded observations and photos, and dex metadata for the authenticated account',
+        resultDescription: 'Cleared all outings, cascaded observations and photos, dex metadata, and import receipts for the authenticated account',
       }),
     })])
   })
@@ -155,8 +167,10 @@ describe('non-auth durable observability', () => {
   it('distinguishes a committed eBird batch from post-commit dex failure using aggregate counts', async () => {
     const order: string[] = []
     const { events, log } = createEventLogger(order)
-    const validPreview = btoa(JSON.stringify({ source: 'preview-private-value' }))
-    const invalidPreview = 'not-valid-base64!'
+    dependencies.parseEBirdCSV.mockReturnValue([
+      { speciesName: 'private species', date: '2026-08-09T10:00:00.000Z', location: 'private location', count: 1 },
+      { speciesName: 'private species', date: '2026-08-09T10:30:00.000Z', location: 'private location', count: 1 },
+    ])
     dependencies.groupPreviewsIntoOutings.mockReturnValue({
       outings: [{
         id: 'generated-outing',
@@ -185,15 +199,17 @@ describe('non-auth durable observability', () => {
         throw new Error('dex failed')
       })
     const db = {
-      prepare: vi.fn(() => boundStatement()),
+      prepare: vi.fn(() => boundStatement({
+        all: vi.fn(async () => ({ results: [] })),
+      })),
       batch: vi.fn(async () => {
         order.push('batch')
         return []
       }),
     } as unknown as D1Database
 
-    const response = await confirmEBirdImport(routeContext(
-      jsonRequest({ previewIds: [validPreview, invalidPreview] }),
+    const response = await importEBirdCSV(routeContext(
+      csvRequest('Submission ID,Common Name\nS1,Private Species\n'),
       db,
       log,
     ) as never)
@@ -202,12 +218,16 @@ describe('non-auth durable observability', () => {
     expect(order).toEqual(['prior-dex', 'batch', 'event', 'post-commit-dex'])
     expect(events[0].fields?.resultType).toBe('Succeeded')
     expect(events[0].fields?.resultDescription).toBe(
-      'Committed eBird import batch from 2 selected previews and 1 valid preview, persisting 1 outing and 1 observation',
+      'Committed eBird import batch from 2 parsed rows, persisting 1 outing and 1 observation',
     )
     expect(response.headers.get(RESULT_DESCRIPTION_HEADER)).toContain('Committed eBird import batch')
-    expect(JSON.stringify(events)).not.toContain('private location')
-    expect(JSON.stringify(events)).not.toContain('private species')
-    expect(JSON.stringify(events)).not.toContain(validPreview)
+    const serializedOutcome = JSON.stringify({
+      events,
+      description: response.headers.get(RESULT_DESCRIPTION_HEADER),
+    })
+    expect(serializedOutcome).not.toContain('private location')
+    expect(serializedOutcome).not.toContain('private species')
+    expect(serializedOutcome).not.toContain('dex failed')
   })
 
   it('records a verified observation batch before dex recomputation fails', async () => {
@@ -410,13 +430,13 @@ describe('non-auth durable observability', () => {
     expect(events).toEqual([])
   })
 
-  it('emits only a privacy-safe Application fallback event from the reverse route', async () => {
+  it('never leaks the coordinate or archive internals from the reverse route', async () => {
+    // The privacy contract outlived the provider: a reverse-geocoding log must
+    // never carry the coordinate being looked up, because that is the location
+    // of a user's photo.
     const { events, log } = createEventLogger()
     const latitude = '47.68049'
     const longitude = '-122.32771'
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce(Response.json({ features: [] }))
-      .mockResolvedValueOnce(Response.json({ results: [] })))
 
     const response = await reverseGeocode(routeContext(
       jsonRequest({ lat: latitude, lon: longitude }),
@@ -424,51 +444,64 @@ describe('non-auth durable observability', () => {
       log,
     ) as never)
 
-    expect(response.status).toBe(200)
-    expect(events).toEqual([expect.objectContaining({
-      operationName: 'geocoding/reverse/read',
-      fields: expect.objectContaining({
-        category: 'Application',
-        resultDescription: 'Places lookup returned no usable named outdoor place; starting reverse geocoding fallback',
-      }),
-    })])
-    expect(events[0].fields?.resultType).toBeUndefined()
+    // No PLACES binding in the test context, so this is the unconfigured path.
+    expect(response.status).toBe(503)
     const serialized = JSON.stringify(events)
     expect(serialized).not.toContain(latitude)
     expect(serialized).not.toContain(longitude)
-    expect(serialized).not.toContain('provider-key')
-    expect(serialized).not.toContain('geoapify.com')
   })
 
-  it('keeps reverse geocoding provider failures stage-specific', async () => {
-    const places = createEventLogger()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 403 })))
-
-    const placesResponse = await reverseGeocode(routeContext(
+  it('reports a broken archive as unavailable rather than as an empty result', async () => {
+    // With no provider behind it there is nothing to fall back to, so a failing
+    // archive must surface. Disguising it as "no place found" would silently
+    // turn every lookup into a blank outing name.
+    const { events, log } = createEventLogger()
+    const brokenBucket = {
+      get: async () => {
+        throw new Error('private archive detail')
+      },
+    }
+    const context = routeContext(
       jsonRequest({ lat: '47.68049', lon: '-122.32771' }),
       {} as D1Database,
-      places.log,
-    ) as never)
+      log,
+    ) as unknown as { env: Record<string, unknown> }
+    context.env.PLACES = brokenBucket
 
-    expect(placesResponse.status).toBe(502)
-    expect(placesResponse.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Places lookup provider returned HTTP 403; retry reverse geocoding')
-    expect(places.events).toEqual([])
+    const response = await reverseGeocode(context as never)
+    expect(response.status).toBe(503)
+    // The raw exception must not reach the client response or the logs: the
+    // middleware forwards the result-description header to the production log,
+    // so a leaked archive detail would land there.
+    const serialized = JSON.stringify({
+      events,
+      description: response.headers.get(RESULT_DESCRIPTION_HEADER),
+    })
+    expect(serialized).not.toContain('private archive detail')
+  })
 
-    const fallback = createEventLogger()
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce(Response.json({ features: [] }))
-      .mockRejectedValueOnce(new Error('private provider error')))
-
-    const fallbackResponse = await reverseGeocode(routeContext(
-      jsonRequest({ lat: '47.68049', lon: '-122.32771' }),
+  it('rate limits reverse geocoding before parsing the request or reading the archive', async () => {
+    const { log } = createEventLogger()
+    const get = vi.fn()
+    const context = routeContext(
+      new Request('https://wingdex.test/api/geocoding/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not valid JSON',
+      }),
       {} as D1Database,
-      fallback.log,
-    ) as never)
+      log,
+    ) as unknown as { env: Record<string, unknown> }
+    context.env.PLACES = { get }
+    context.env.REVERSE_GEOCODING_LIMITER = {
+      limit: vi.fn(async () => ({ success: false })),
+    }
 
-    expect(fallbackResponse.status).toBe(502)
-    expect(fallbackResponse.headers.get(RESULT_DESCRIPTION_HEADER)).toBe('Reverse geocoding fallback network request failed; retry reverse geocoding')
-    expect(fallback.events).toHaveLength(1)
-    expect(JSON.stringify(fallback.events)).not.toContain('private provider error')
+    const response = await reverseGeocode(context as never)
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('60')
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('rejects a null JSON body on the geocoding routes without a 500', async () => {

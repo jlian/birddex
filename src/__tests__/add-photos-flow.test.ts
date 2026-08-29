@@ -3,10 +3,11 @@ import {
   needsCloseConfirmation,
   resolvePhotoResults,
   filterConfirmedResults,
+  clusterHasSightings,
   groupResultsBySpecies,
   friendlyErrorMessage,
   normalizeLocationName,
-  resolveInferenceLocationName,
+  resolveInferenceCoordinates,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
 
@@ -59,6 +60,34 @@ describe('filterConfirmedResults', () => {
 
   it('returns empty array for empty input', () => {
     expect(filterConfirmedResults([])).toHaveLength(0)
+  })
+})
+
+// ── clusterHasSightings (whether the outing gets written at all) ──────────
+
+describe('clusterHasSightings', () => {
+  const result = (status: PhotoResult['status']): PhotoResult => ({
+    photoId: '1', species: 'A', confidence: 1, status, count: 1,
+  })
+
+  it('is false when every photo was skipped', () => {
+    expect(clusterHasSightings([result('rejected'), result('rejected')])).toBe(false)
+  })
+
+  it('is false for a cluster with no photos', () => {
+    expect(clusterHasSightings([])).toBe(false)
+  })
+
+  it('is true when a bird was only marked possible', () => {
+    expect(clusterHasSightings([result('possible')])).toBe(true)
+  })
+
+  it('is false when nothing got past pending', () => {
+    expect(clusterHasSightings([result('pending')])).toBe(false)
+  })
+
+  it('is true when one photo was confirmed among skips', () => {
+    expect(clusterHasSightings([result('rejected'), result('confirmed')])).toBe(true)
   })
 })
 
@@ -168,21 +197,23 @@ describe('normalizeLocationName', () => {
   })
 })
 
-describe('resolveInferenceLocationName', () => {
-  it('returns undefined when geo context is disabled', () => {
-    expect(resolveInferenceLocationName(false, 'Seattle, WA')).toBeUndefined()
-    expect(resolveInferenceLocationName(false, 'Seattle, WA', 'Portland, OR')).toBeUndefined()
+describe('resolveInferenceCoordinates', () => {
+  const exif = { lat: 48.9801, lon: -122.7887 }
+  const searched = { lat: 47.6615, lon: -122.4256 }
+
+  it('falls back to the searched outing location when the photo has no EXIF GPS', () => {
+    expect(resolveInferenceCoordinates(true, undefined, searched, true)).toEqual(searched)
   })
 
-  it('prefers per-call override when provided', () => {
-    expect(resolveInferenceLocationName(true, 'Seattle, WA', 'Portland, OR')).toBe('Portland, OR')
+  it('uses an explicit searched-location correction over EXIF GPS', () => {
+    expect(resolveInferenceCoordinates(true, exif, searched, true)).toEqual(searched)
   })
 
-  it('falls back to last location name', () => {
-    expect(resolveInferenceLocationName(true, 'Seattle, WA')).toBe('Seattle, WA')
+  it('prefers per-photo EXIF GPS when the outing location was not overridden', () => {
+    expect(resolveInferenceCoordinates(true, exif, searched, false)).toEqual(exif)
   })
 
-  it('returns undefined when no location is available', () => {
-    expect(resolveInferenceLocationName(true, '')).toBeUndefined()
+  it('uses no location when geographic context is disabled', () => {
+    expect(resolveInferenceCoordinates(false, exif, searched, true)).toBeUndefined()
   })
 })
