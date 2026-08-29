@@ -97,6 +97,29 @@ def kind_of(t: dict) -> str:
     return rule["kind"] if rule else "other"
 
 
+CONTROL_CHARS = {c: " " for c in range(0x20)}
+CONTROL_CHARS[0x7F] = " "
+
+
+def clean(s: str) -> str:
+    """Strip control characters from a field before it enters the TSV.
+
+    Replacing only tab and newline was not enough. OSM carries a bare CARRIAGE
+    RETURN inside at least one name, `Little River\\r Gorge` (way237614464), and
+    Python reads files in universal-newline mode, so a lone `\\r` starts a new
+    line on the way back in. One such name split one record into two and the
+    enrichment stage rejected the corpus.
+
+    The whole C0 range plus DEL goes, rather than the specific characters that
+    have bitten so far, because a display name has no legitimate use for any of
+    them and the failure is silent until something downstream splits a row.
+
+    Runs of whitespace collapse to one space, so removing a control character
+    that sat next to a space does not leave a visible double space in a label.
+    """
+    return " ".join(s.translate(CONTROL_CHARS).split())
+
+
 def fold(s: str) -> str:
     """Fold text for MATCHING only. Never used for display.
 
@@ -315,14 +338,14 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
         imp_out = ""
         yield (
             f"{otype}{oid}",
-            display.replace("\t", " ").replace("\n", " "),
+            clean(display),
             f"{lat:.6f}",
             f"{lon:.6f}",
             str(score),
             kind_of(tags),
             imp_out,
             tags.get("wikidata") or "",
-            ALIAS_SEPARATOR.join(alias),
+            ALIAS_SEPARATOR.join(clean(a) for a in alias),
         )
 
 

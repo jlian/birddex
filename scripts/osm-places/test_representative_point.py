@@ -91,5 +91,39 @@ print(f"  {'ok  ' if is_vertex else 'FAIL'} line vertex     point={pt} is_real_v
 if not is_vertex:
     failures += 1
 
+# A control character inside a name must never reach the TSV.
+#
+# Replacing only tab and newline was not enough. OSM carries a bare carriage
+# return in `Little River\r Gorge` (way237614464), and Python reads files in
+# universal-newline mode, so that lone \r started a new line on the way back in
+# and split one record into two. The enrichment stage then rejected the corpus.
+print("\ncontrol characters:")
+for raw, want in [
+    ("Little River\r Gorge", "Little River Gorge"),
+    ("tab\tseparated", "tab separated"),
+    ("two\nlines", "two lines"),
+    ("vertical\x0btab", "vertical tab"),
+    ("del\x7fchar", "del char"),
+    ("  padded  ", "padded"),
+    ("collapse  runs", "collapse runs"),
+    # Legitimate text must survive untouched.
+    ("Do\u00f1ana", "Do\u00f1ana"),
+    ("Saint-Louis", "Saint-Louis"),
+]:
+    got = builder.clean(raw)
+    ok = got == want
+    if not ok:
+        failures += 1
+    print(f"  {'ok  ' if ok else 'FAIL'} {raw!r} -> {got!r}")
+
+# The real defence: a cleaned field must never contain a line terminator, or a
+# row splits no matter what the field count says.
+for raw in ("a\rb", "a\nb", "a\r\nb"):
+    cleaned = builder.clean(raw)
+    ok = len(cleaned.splitlines()) == 1
+    if not ok:
+        failures += 1
+    print(f"  {'ok  ' if ok else 'FAIL'} {raw!r} stays one line")
+
 print("ALL PASS" if failures == 0 else f"{failures} FAILURE(S)")
 sys.exit(1 if failures else 0)
