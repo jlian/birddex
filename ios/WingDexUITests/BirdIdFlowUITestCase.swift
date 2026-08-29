@@ -209,12 +209,18 @@ class BirdIdFlowUITestCase: XCTestCase {
 
     /// An account can already hold an outing that matches the injected cluster, which
     /// inherits its location instead of offering an editable one. Start from a new outing.
-    func startNewOuting(in app: XCUIApplication) {
+    func startNewOuting(
+        in app: XCUIApplication,
+        waitForPossibleMatch: Bool = true
+    ) {
         // SwiftUI puts the Toggle's identifier on its cell, so match the switch by label.
         let toggle = app.switches
             .matching(NSPredicate(format: "label BEGINSWITH 'Add to existing outing?'"))
             .firstMatch
-        guard toggle.waitForExistence(timeout: 5) else { return }
+        let toggleExists = waitForPossibleMatch
+            ? toggle.waitForExistence(timeout: 5)
+            : toggle.exists
+        guard toggleExists else { return }
         guard toggle.value as? String == "1" else { return }
         // The element spans the whole row but only the trailing switch flips it.
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()

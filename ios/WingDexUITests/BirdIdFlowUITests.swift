@@ -214,7 +214,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        startNewOuting(in: app)
+        startNewOuting(in: app, waitForPossibleMatch: false)
         let locationName = app.textFields["outing.locationName"]
         XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
@@ -261,7 +261,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        startNewOuting(in: app)
+        startNewOuting(in: app, waitForPossibleMatch: false)
         let locationName = app.textFields["outing.locationName"]
         XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
@@ -290,7 +290,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        startNewOuting(in: app)
+        startNewOuting(in: app, waitForPossibleMatch: false)
         let locationName = app.textFields["outing.locationName"]
         XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
@@ -325,7 +325,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
-        startNewOuting(in: app)
+        startNewOuting(in: app, waitForPossibleMatch: false)
         let locationName = app.textFields["outing.locationName"]
         XCTAssertTrue(locationName.waitForExistence(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
@@ -347,7 +347,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let app = launchApp(extraArguments: ["--ui-test-geocoding-delay"])
         let continueButton = waitForOutingReview(in: app)
         // Declining a matched outing is what starts the lookup for that account state.
-        startNewOuting(in: app)
+        startNewOuting(in: app, waitForPossibleMatch: false)
         XCTAssertFalse(continueButton.isEnabled, "Delayed geocoding was not in progress")
 
         let geocodingStatus = app.staticTexts["Identifying location from GPS..."]
