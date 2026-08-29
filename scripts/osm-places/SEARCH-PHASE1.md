@@ -3,8 +3,33 @@
 Issue #343, phase 1. This records the measurement that decides the approach, so
 later phases start from evidence rather than the estimate in the issue.
 
-**Verdict: FTS5 over this corpus is viable. The remaining question is where the
-database is hosted, not whether the approach works.**
+**Verdict: the corpus and the query work. D1 cannot host them on this plan.**
+
+Measured, not estimated:
+
+- The finished index is **852 MB**. Workers Free caps ONE database at **500 MB**.
+  A throwaway D1 database confirmed writes are accepted past that mark today,
+  so the cap is not yet enforced at write time, but it is the documented limit
+  and enforcement was announced for September 1.
+- Loading it is the harder blocker. Free allows **100,000 rows written per day**
+  against **3,608,009 rows**, so a single import would take **36 days**. Size
+  could be trimmed; that number cannot.
+
+So the storage question is settled in the negative, and the remaining path is
+the R2 prefix-shard fallback issue #343 already names as the alternative. That
+is a different design and belongs in its own change.
+
+Range-reading the SQLite file from R2, the way the reverse archive reads
+PMTiles, was considered and rejected. The two look alike but are not: the
+reverse path does one range read and a point-in-polygon test, which is
+arithmetic, while this would need a WASM SQLite engine walking B-tree pages
+inside the Worker. Workers Free allows **10 ms CPU** per request and a **3 MB**
+Worker, and the engine alone strains both.
+
+What this work does establish, and what the shard design can reuse: the
+inclusion contract shared with the reverse archive, the record and alias
+pipeline, the region and locality join, the ranking rules, and the golden query
+corpus that verifies them.
 
 All figures below come from one build of the complete global corpus, measured
 with every index created.
