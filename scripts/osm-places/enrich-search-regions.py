@@ -56,14 +56,18 @@ def main() -> int:
             props = feature.get("properties") or {}
             state = props.get("ISO3166-2")
             country = props.get("ISO3166-1:alpha2") or props.get("ISO3166-1")
-            if not state and not country:
-                continue
             # Prefer `name:en` for the visible locality. OSM's `name` on an
             # administrative boundary is frequently bilingual, so Rabat's
             # prefecture arrives as `Prefecture de Rabat` followed by the same
             # thing in Arabic. That is unreadable in a result list, and the
             # English name is the one this app's users can act on.
             name = props.get("name:en") or props.get("name") or ""
+            # A level-6 boundary carries no ISO code and is kept ONLY for its
+            # name. Without this, a coordinate in Washington resolves its
+            # locality to `Washington`, which the ISO code already said, so two
+            # places sharing a name and a state stay indistinguishable.
+            if not state and not country and not name:
+                continue
             try:
                 geometry = shape(feature.get("geometry") or {})
             except Exception:
