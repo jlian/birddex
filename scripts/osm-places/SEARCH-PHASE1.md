@@ -3,28 +3,90 @@
 Issue #343, phase 1. This records the measurement that decides the approach, so
 later phases start from evidence rather than the estimate in the issue.
 
-**Verdict: D1 FTS5 is viable with a very large margin. Build it.**
+**Verdict: FTS5 over this corpus is viable. The remaining question is where the
+database is hosted, not whether the approach works.**
 
 All figures below come from one build of the complete global corpus, measured
 with every index created.
 
-## The gate
+## The gate, and the constraint that actually binds
 
 Step 7 says adopt D1 only if the finished global database is at most 7 GB,
-leaving rebuild headroom under D1's 10 GB hard limit.
+leaving rebuild headroom under D1's 10 GB hard limit. The database is 0.737 GB,
+about a tenth of that gate, so the R2 prefix/FST shard fallback is not needed on
+size grounds.
 
-| Measurement | Value |
-| --- | --- |
-| Canonical rows, global | 3,608,008 |
-| Exported TSV | 0.327 GB |
-| Content table | 0.425 GB |
-| FTS5 index and alias table | 0.313 GB |
-| **Total database** | **0.737 GB** |
-| Share of the 7 GB gate | **10.5%** |
+The gate in the issue is not the limit that binds, though. This account is on
+**Workers Free**, where the limits are:
 
-Not close to the limit, so the R2 prefix/FST shard fallback is not needed and
-phase 2 proceeds as written. Load time is 13 s for the content and 15 s for the
-indexes.
+| Limit | Workers Free | Workers Paid |
+| --- | --- | --- |
+| One database | 500 MB | 10 GB |
+| All databases | 5 GB | 1 TB |
+
+At 0.737 GB the corpus does NOT fit in a single free-tier database. The 5 GB
+account total is comfortable, and two environments cost 1.5 GB of it, so the
+per-database cap is the only real obstacle.
+
+This is measured rather than assumed: an earlier note in this file claimed the
+account was on Workers Paid, inferred from a successful API call. That inference
+was wrong. The subscription page shows Workers Free, with R2 on a paid plan
+separately.
+
+### Where the bytes are
+
+Measured with `dbstat` on the finished database:
+
+| Object | Size | Share |
+| --- | --- | --- |
+| `places` | 352.4 MB | 46.7% |
+| `idx_place_alias` | 117.9 MB | 15.6% |
+| `place_alias` | 116.1 MB | 15.4% |
+| `sqlite_autoindex_places_1` | 82.4 MB | 10.9% |
+| `places_fts_data` | 50.0 MB | 6.6% |
+| `places_fts_docsize` | 36.1 MB | 4.8% |
+| `places_fts_idx` | 0.2 MB | 0.0% |
+
+The FTS5 index is only 12% of the file. The content table and the alias
+machinery are 89% of it, so shrinking the index is not where a saving lives.
+
+That matters for the hosting decision, because the options differ in cost:
+
+- Upgrade to Workers Paid. One database, no schema surgery, 10 GB ceiling.
+- Split the corpus across free-tier databases and query the relevant one.
+  Cheap in money, but a cross-database FTS query is not something D1 does, so
+  the Worker would have to route by region and the ranking would no longer see
+  a single global candidate pool.
+- Trim the corpus to fit 500 MB. `place_alias` and its index are 234 MB
+  together, and `alias` is duplicated between `places` and `place_alias`.
+  Dropping the concatenated column and narrowing the alias set would plausibly
+  reach the cap, at the cost of recall on alternate names.
+- Fall back to the immutable R2 shards the issue names as the alternative.
+
+This is John's call and it is deliberately deferred. It does not block the
+runtime work: local D1 has no size cap, so phases 2 and 3 proceed against the
+full global corpus regardless.
+
+## Local development against the real corpus
+
+The runtime is validated locally before anything is uploaded, which keeps the
+iteration loop off the remote database entirely.
+
+Local D1 is `workerd` with real SQLite behind it, so it runs genuine FTS5,
+including `unicode61 remove_diacritics 2`, `detail=full`, external-content
+tables and `bm25`. Verified: remote D1 accepts the same DDL, so the local result
+is not a simulation that diverges at deploy time.
+
+The local persistence directory holds one plain SQLite file per database, plus a
+`_cf_METADATA` table. A database built offline can therefore be dropped straight
+in and served through a real binding, with no import step and no rows-written
+cost. Verified end to end: a prebuilt FTS5 database copied into
+`.wrangler/state/v3/d1/miniflare-D1DatabaseObject/` answered a ranked
+prefix query through `env.DB`.
+
+The file name there is a generated Durable Object id, so match the single
+`.sqlite` file in that directory rather than hardcoding the name, and pass
+`--persist-to` to keep a 0.737 GB file out of the repository.
 
 `places_fts` is an **external content** table (`content=places`), so FTS5
 indexes the text without storing a second copy; an ordinary FTS5 table would
