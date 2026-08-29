@@ -79,6 +79,9 @@ final class AuthService: @unchecked Sendable {
     private var sessionEnrichmentTask: Task<Void, Never>?
     private var sessionEnrichmentTaskID: UUID?
     private var authenticationGeneration = 0
+    #if DEBUG
+    private var usesUITestIdentity = false
+    #endif
     private let keychain = Keychain(service: Config.bundleID)
         .accessibility(.whenUnlockedThisDeviceOnly)
 
@@ -122,11 +125,36 @@ final class AuthService: @unchecked Sendable {
         log.info("AuthService initialized - identity: \(self.identity.rawValue)")
     }
 
+    #if DEBUG
+    func installUITestAnonymousIdentity() {
+        authenticationGeneration += 1
+        resetSessionValidation()
+        sessionEnrichmentTask?.cancel()
+        sessionEnrichmentTask = nil
+        sessionEnrichmentTaskID = nil
+        anonymousSessionTask?.cancel()
+        anonymousSessionTask = nil
+        anonymousSessionTaskID = nil
+        sessionToken = nil
+        signedSessionToken = nil
+        sessionExpiry = nil
+        usesUITestIdentity = true
+        identity = .anonymous
+        userId = "ui-test-account"
+        userName = "Swift Sparrow"
+        userEmail = nil
+        userImage = nil
+    }
+    #endif
+
     /// Validate the locally-cached session with the server.
     /// Signs out when Better Auth rejects the session so the UI goes straight to
     /// sign-in instead of flashing authenticated content. Network errors are
     /// ignored - the user may be offline with a valid cached session.
     func validateSession(force: Bool = true, now: Date = .now) async -> SessionValidationResult {
+        #if DEBUG
+        if usesUITestIdentity { return .valid }
+        #endif
         guard force || Self.shouldValidateSession(
             lastSuccessfulValidation: lastSuccessfulSessionValidation,
             now: now
@@ -573,6 +601,9 @@ final class AuthService: @unchecked Sendable {
 
     private func clearSession() {
         authenticationGeneration += 1
+        #if DEBUG
+        usesUITestIdentity = false
+        #endif
         resetSessionValidation()
         sessionEnrichmentTask?.cancel()
         sessionEnrichmentTask = nil

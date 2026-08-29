@@ -34,10 +34,21 @@ struct WingDexApp: App {
     init() {
         let auth = AuthService.shared
         let cache = try? AccountDataCache()
+        #if DEBUG
+        let uiTestDataMode = UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments)
+        if uiTestDataMode != nil {
+            auth.installUITestAnonymousIdentity()
+        }
+        #endif
         _authService = State(initialValue: auth)
         _dataStore = State(initialValue: DataStore(
             serviceFactory: { accountID in
-                DataService(auth: auth, expectedAccountID: accountID)
+                #if DEBUG
+                if let uiTestDataMode {
+                    return UITestDataService(mode: uiTestDataMode)
+                }
+                #endif
+                return DataService(auth: auth, expectedAccountID: accountID)
             },
             cache: cache
         ))
@@ -116,6 +127,9 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
+            if UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments) != nil {
+                return
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
                 await auth.signOut()
             }
@@ -385,20 +399,23 @@ struct MainTabView: View {
 
     #if DEBUG
     private func prepareUITestData(arguments: [String]) async throws {
+        let fixtureMode = UITestDataService.Mode(arguments: arguments)
         let needsAccount = arguments.contains("--ui-test-clear-data")
             || arguments.contains("--ui-test-seed-csv")
             || arguments.contains("--ui-test-open-settings")
+            || fixtureMode != nil
         guard needsAccount else { return }
+
+        if fixtureMode != nil {
+            store.activate(accountID: "ui-test-account")
+            try await store.ensureLoaded()
+            return
+        }
 
         var lastError: Error = AuthError.notAuthenticated
         for attempt in 1...3 {
             var stage = "anonymous session"
             do {
-                if attempt == 1,
-                   arguments.contains("--ui-test-transient-data-setup-failure") {
-                    stage = "injected transient failure"
-                    throw URLError(.timedOut)
-                }
                 try await auth.ensureAnonymousSession()
                 guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
                 if store.activeAccountID != accountID { store.activate(accountID: accountID) }

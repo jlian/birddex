@@ -1,6 +1,9 @@
 name: iOS Build & Test
 
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 10 * * *'
   pull_request:
     branches: [main, dev]
     paths:
@@ -8,6 +11,11 @@ on:
       - 'openapi.yaml'
       - 'functions/**'
       - 'migrations/**'
+      - 'public/models/text_classifier_int8.bin'
+      - 'public/priors/**'
+      - 'src/lib/bird-id-local-adapter.ts'
+      - 'src/lib/rarity.ts'
+      - 'src/lib/taxonomy.json'
       - '.github/workflows/ios.yml'
       - '.github/workflows/ios-release.yml'
       - '.github/workflows/release.yml'
@@ -18,6 +26,11 @@ on:
       - 'openapi.yaml'
       - 'functions/**'
       - 'migrations/**'
+      - 'public/models/text_classifier_int8.bin'
+      - 'public/priors/**'
+      - 'src/lib/bird-id-local-adapter.ts'
+      - 'src/lib/rarity.ts'
+      - 'src/lib/taxonomy.json'
       - '.github/workflows/ios.yml'
       - '.github/workflows/ios-release.yml'
       - '.github/workflows/release.yml'
@@ -37,6 +50,65 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Select accessibility coverage
+        id: accessibility
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          echo "CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+          if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=$EVENT_NAME always runs the full accessibility suite" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BASE_SHA^{commit}"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=base commit unavailable; failing open" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          run=false
+          reason="only known non-UI paths changed"
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            case "$path" in
+              ios/WingDex/Views/*|ios/WingDex/App/*|ios/WingDex/ViewModels/*|ios/WingDex/Services/AuthService.swift|ios/WingDex/Services/UITestDataService.swift|ios/WingDex/Extensions/Theme.swift|ios/WingDex/Assets.xcassets/*|ios/WingDex/Resources/*|ios/WingDexUITests/*|ios/project.yml|ios/WingDex.xcodeproj/*|.github/workflows/ios.yml)
+                run=true
+                reason="$path is UI-facing"
+                break
+                ;;
+              functions/*|migrations/*|openapi.yaml|public/models/*|public/priors/*|src/lib/bird-id-local-adapter.ts|src/lib/rarity.ts|src/lib/taxonomy.json|ios/WingDex/Services/*|ios/WingDex/Models/*|ios/WingDex/ML/*|ios/WingDexTests/*|ios/WingDexShareExtension/*|ios/scripts/*|ios/build/*|ios/README.md|ios/package.json|ios/ExportOptions.plist|.github/workflows/ios-release.yml|.github/workflows/release.yml)
+                ;;
+              ios/*)
+                run=true
+                reason="$path is an unclassified iOS path; failing open"
+                break
+                ;;
+            esac
+          done <<< "$changed"
+
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Accessibility coverage"
+            echo "- Run full audits: \`$run\`"
+            echo "- Reason: $reason"
+            echo "<details><summary>Changed paths</summary>"
+            echo
+            echo '```text'
+            printf '%s\n' "$changed"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # DerivedData is toolchain-specific, so a cache restored across an Xcode
       # bump would be stale. Key on the installed xcodebuild version too.
@@ -49,6 +121,7 @@ jobs:
       # Package.resolved, so a warm cache skips dependency resolution and
       # lets xcodebuild reuse module/index artifacts.
       - name: Cache SwiftPM and DerivedData
+        id: build-cache
         uses: actions/cache@v5
         with:
           path: |
@@ -57,6 +130,13 @@ jobs:
           key: ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml') }}
           restore-keys: |
             ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-
+
+      - name: Cache XcodeGen
+        id: xcodegen-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/wingdex/xcodegen-2.46.0
+          key: ios-xcodegen-2.46.0-${{ runner.os }}-${{ runner.arch }}
 
       - name: Start iOS Simulator
         run: |
@@ -116,6 +196,7 @@ jobs:
       - name: Build for Simulator
         working-directory: ios
         run: |
+          started_at=$(date +%s)
           # The app icon is an Icon Composer bundle: layered SVGs with gradient
           # fill specializations and light/dark variants. Rasterizing it into
           # every size and appearance took 145s of a 5m31s build on the runner,
@@ -132,6 +213,7 @@ jobs:
             ASSETCATALOG_COMPILER_APPICON_NAME="" \
             ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=NO \
             CODE_SIGNING_ALLOWED=NO 2>&1
+          echo "- Build for testing: $(( $(date +%s) - started_at ))s" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Select API backend
         env:
@@ -240,6 +322,14 @@ jobs:
           # xcodebuild does not create missing parents for -resultBundlePath, and
           # ios/build does not exist in a clean checkout.
           mkdir -p build
+          started_at=$(date +%s)
+          test_targets=(
+            "-only-testing:WingDexTests"
+            "-only-testing:WingDexUITests"
+          )
+          if [[ "${{ steps.accessibility.outputs.run }}" == "true" ]]; then
+            test_targets+=("-only-testing:WingDexAccessibilityUITests")
+          fi
           NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
             -project WingDex.xcodeproj \
             -scheme Dev \
@@ -247,14 +337,50 @@ jobs:
             -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile \
             -resultBundlePath build/TestResults.xcresult \
-            -only-testing:WingDexTests \
-            -only-testing:WingDexUITests \
+            -parallel-testing-enabled NO \
+            "${test_targets[@]}" \
             CODE_SIGNING_ALLOWED=NO 2>&1
+          echo "- Tests: $(( $(date +%s) - started_at ))s" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize iOS test timing
+        if: always()
+        working-directory: ios
+        run: |
+          set -uo pipefail
+          {
+            echo "### iOS CI timing"
+            echo "- DerivedData/SwiftPM cache hit: \`${{ steps.build-cache.outputs.cache-hit }}\`"
+            echo "- XcodeGen cache hit: \`${{ steps.xcodegen-cache.outputs.cache-hit }}\`"
+            echo "- Total elapsed: $(( $(date +%s) - CI_STARTED_AT ))s"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for bundle in build/*.xcresult; do
+            [[ -d "$bundle" ]] || continue
+            name=$(basename "$bundle" .xcresult)
+            summary=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null || true)
+            {
+              echo "#### $name"
+              if [[ -n "$summary" ]]; then
+                jq -r '"- Tests: \(.totalTestCount), passed: \(.passedTests), failed: \(.failedTests), skipped: \(.skippedTests)"' <<< "$summary"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Upload iOS test diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: iOS-test-diagnostics
-          path: ios/build/TestResults.xcresult
+          path: ios/build/*.xcresult
           retention-days: 7
+
+      - name: Clean up iOS simulators
+        if: always()
+        run: |
+          set +e
+          xcrun simctl list devices -j \
+            | jq -r '.devices[][] | select(.name == "WingDex CI" or (.name | test("^Clone [0-9]+ of WingDex CI$"))) | .udid' \
+            | while IFS= read -r udid; do
+                xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+                xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+              done

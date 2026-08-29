@@ -61,6 +61,17 @@
                ReferencedContainer = "container:WingDex.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "E14AFDF65FF1C397DD6976C2"
+               BuildableName = "WingDexAccessibilityUITests.xctest"
+               BlueprintName = "WingDexAccessibilityUITests"
+               ReferencedContainer = "container:WingDex.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

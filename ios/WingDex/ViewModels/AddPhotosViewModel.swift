@@ -672,6 +672,20 @@ final class AddPhotosViewModel {
         let imageToSend = croppedImageData ?? photo.croppedImage ?? photo.image
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
 
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-stub-identification") {
+            currentCandidates = [IdentifiedCandidate(
+                species: "Great Blue Heron (Ardea herodias)",
+                confidence: 0.95,
+                wikiTitle: nil,
+                plumage: nil
+            )]
+            rangeAdjusted = false
+            currentStep = .perPhotoConfirm
+            return
+        }
+        #endif
+
         do {
             let location = inferenceLocation(for: photo)
             // 1-12. The old server API took 0-11, so this deliberately does NOT

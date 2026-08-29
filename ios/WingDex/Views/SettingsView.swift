@@ -59,6 +59,7 @@ struct SettingsView: View {
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var editor: ProfileEditor?
 
@@ -174,16 +175,7 @@ struct SettingsView: View {
     private var accountSection: some View {
         Section("Account") {
             if !profile.name.isEmpty {
-                LabeledContent("Display Name") {
-                    TextField("Display Name", text: $editedName)
-                        .multilineTextAlignment(.trailing)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .submitLabel(.done)
-                        .focused($isNameFieldFocused)
-                        .onSubmit { commitEditedName() }
-                        .accessibilityIdentifier("settings.displayName")
-                }
+                displayNameRow
 
                 Button {
                     let newName = FunNames.generateBirdName()
@@ -210,6 +202,28 @@ struct SettingsView: View {
         .onChange(of: isNameFieldFocused) { wasFocused, isFocused in
             if wasFocused && !isFocused { commitEditedName() }
         }
+    }
+
+    private var displayNameRow: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
+            Text("Display Name")
+            displayNameField
+                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var displayNameField: some View {
+        TextField("Display Name", text: $editedName)
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            .submitLabel(.done)
+            .focused($isNameFieldFocused)
+            .onSubmit { commitEditedName() }
+            .accessibilityIdentifier("settings.displayName")
     }
 
     private func commitEditedName() {

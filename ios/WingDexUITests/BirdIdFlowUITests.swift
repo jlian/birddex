@@ -199,7 +199,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         ))
     }
 
-    func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
+    func testSubmittedPlaceSearchAppliesNormalizedResultAndRestoresGPS() async throws {
         if let reason = await backendUnavailableReason() {
             guard configuredAPIBaseURLValue == nil else {
                 XCTFail("Selected CI backend is not healthy. \(reason)")
@@ -207,7 +207,10 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             }
             throw XCTSkip("Requires a healthy WingDex backend. \(reason)")
         }
-        let app = launchApp(extraArguments: ["--ui-test-place-search-result"])
+        let app = launchApp(extraArguments: [
+            "--ui-test-place-search-result",
+            "--ui-test-stub-identification",
+        ])
         let continueButton = waitForOutingReview(in: app)
         XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
@@ -241,8 +244,8 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
         continueButton.tap()
         XCTAssertTrue(
-            app.staticTexts["confirm.speciesName"].waitForExistence(timeout: 180),
-            "Selected place was not persisted before species confirmation"
+            app.staticTexts["confirm.speciesName"].waitForExistence(timeout: 10),
+            "Continuing after place selection did not reach species confirmation"
         )
     }
 

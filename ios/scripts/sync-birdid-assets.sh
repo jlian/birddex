@@ -28,8 +28,47 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(cd .. && pwd)"
 DEST="WingDex/Resources/BirdID"
+STAMP="build/generated/sync-birdid-assets.stamp"
 
 mkdir -p "$DEST"
+
+# Xcode may invoke this after XcodeGen even though generated assets preserve
+# their mtimes when bytes are unchanged. The pre-generation run touches this
+# stamp after validating all inputs, so avoid repeating the large gzip compares.
+INPUTS=(
+  "$REPO_ROOT/public/models/text_classifier_int8.bin"
+  "$REPO_ROOT/public/priors/occurrence.4f5c1a15.bin.gz"
+  "$REPO_ROOT/public/priors/rarity.2c02a406.bin.gz"
+  "$REPO_ROOT/src/lib/bird-id-local-adapter.ts"
+  "$REPO_ROOT/src/lib/rarity.ts"
+  "$REPO_ROOT/src/lib/taxonomy.json"
+  "WingDex/Resources/taxonomy.json"
+  "scripts/sync-birdid-assets.sh"
+)
+if [[ -f "$STAMP"
+      && -f "$DEST/text_classifier_int8.bin"
+      && -f "$DEST/occurrence.bin"
+      && -f "$DEST/rarity.bin" ]]; then
+  inputs_changed=false
+  for input in "${INPUTS[@]}"; do
+    if [[ ! -f "$input" || "$input" -nt "$STAMP" ]]; then
+      inputs_changed=true
+      break
+    fi
+  done
+  for output in \
+    "$DEST/text_classifier_int8.bin" \
+    "$DEST/occurrence.bin" \
+    "$DEST/rarity.bin"; do
+    if [[ "$output" -nt "$STAMP" ]]; then
+      inputs_changed=true
+      break
+    fi
+  done
+  if [[ "$inputs_changed" == false ]]; then
+    exit 0
+  fi
+fi
 
 CLASSIFIER="$REPO_ROOT/public/models/text_classifier_int8.bin"
 if [[ ! -f "$CLASSIFIER" ]]; then
@@ -129,3 +168,9 @@ if ! cmp -s "$REPO_ROOT/src/lib/taxonomy.json" "WingDex/Resources/taxonomy.json"
   echo "error: ios taxonomy.json differs from src/lib/taxonomy.json" >&2
   exit 1
 fi
+
+# XcodeGen runs this before project generation. This stamp lets the following
+# build phase observe that every source was validated without depending on the
+# generated assets' intentionally preserved mtimes.
+mkdir -p "$(dirname "$STAMP")"
+touch "$STAMP"

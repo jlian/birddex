@@ -35,8 +35,9 @@ final class BirdIdAccuracyTests: XCTestCase {
         .deletingLastPathComponent()   // repo root
         .appendingPathComponent("src/assets/images")
 
-    func testIdentifiesRealBirdPhotos() async throws {
+    func testIdentifiesRealBirdPhotosAndIncludesExpectedSpeciesInTopFive() async throws {
         var misses: [String] = []
+        var missingFromTopFive: [String] = []
         var checked = 0
 
         for (file, species) in Self.expected {
@@ -53,31 +54,13 @@ final class BirdIdAccuracyTests: XCTestCase {
                 misses.append("\(file): got \(top?.commonName ?? "nothing") "
                               + "(\(String(format: "%.3f", top?.confidence ?? 0))), want \(species)")
             }
-        }
-
-        try XCTSkipIf(checked == 0, "No demo images at \(Self.imageDir.path)")
-        XCTAssertEqual(misses, [], "top-1 mismatches on \(checked) photos")
-    }
-
-    /// The species must also be reachable from the ranked list even when it is
-    /// not first, which separates "the model is confused" from "the pipeline is
-    /// broken".
-    func testExpectedSpeciesAlwaysAppearsInTheTopFive() async throws {
-        var missing: [String] = []
-        var checked = 0
-
-        for (file, species) in Self.expected {
-            let url = Self.imageDir.appendingPathComponent(file)
-            guard FileManager.default.fileExists(atPath: url.path) else { continue }
-            checked += 1
-            let results = try await BirdIdEngine.shared.identify(
-                imageData: try Data(contentsOf: url), location: nil, month: nil)
             if !results.contains(where: { $0.commonName == species }) {
-                missing.append("\(file): \(results.map(\.commonName).joined(separator: ", "))")
+                missingFromTopFive.append("\(file): \(results.map(\.commonName).joined(separator: ", "))")
             }
         }
 
         try XCTSkipIf(checked == 0, "No demo images at \(Self.imageDir.path)")
-        XCTAssertEqual(missing, [], "expected species absent from the top 5")
+        XCTAssertEqual(misses, [], "top-1 mismatches on \(checked) photos")
+        XCTAssertEqual(missingFromTopFive, [], "expected species absent from the top 5")
     }
 }

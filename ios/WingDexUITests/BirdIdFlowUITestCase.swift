@@ -163,6 +163,25 @@ class BirdIdFlowUITestCase: XCTestCase {
         }
     }
 
+    func performListAccessibilityAudit(
+        app: XCUIApplication,
+        includesContrast: Bool
+    ) throws {
+        let auditTypes: XCUIAccessibilityAuditType = includesContrast
+            ? .all
+            : .all.subtracting(.contrast)
+        try runAccessibilityAudit(in: app, for: auditTypes) { issue in
+            switch issue.auditType {
+            case .dynamicType where issue.element?.label == "Sort":
+                return true
+            case .textClipped where ["Search species", "Search outings", "Sort"].contains(issue.element?.label):
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     func waitForDataSetup(in app: XCUIApplication) {
         let elements = app.descendants(matching: .any)
         let complete = elements["ui-test.dataSetupComplete"]
@@ -219,7 +238,12 @@ class BirdIdFlowUITestCase: XCTestCase {
             "--ui-test-lon", "-122.3717",
         ] + extraArguments
         if autoSignIn {
-            app.launchArguments.insert(contentsOf: ["--auto-sign-in", "--ui-test-clear-data"], at: 0)
+            let usesLocalFixture = extraArguments.contains("--ui-test-fixture-empty")
+                || extraArguments.contains("--ui-test-fixture-populated")
+            let setupArguments = usesLocalFixture
+                ? ["--auto-sign-in"]
+                : ["--auto-sign-in", "--ui-test-clear-data"]
+            app.launchArguments.insert(contentsOf: setupArguments, at: 0)
         } else {
             app.launchArguments.insert("--ui-test-sign-out", at: 0)
         }
