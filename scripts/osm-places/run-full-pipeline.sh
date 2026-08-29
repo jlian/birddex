@@ -21,6 +21,13 @@ IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
 # where such a copy did exist it could silently be older than the repository.
 EXPORT_SCRIPT="${EXPORT_SCRIPT:-$SCRIPT_DIR/run-search-export.sh}"
 ADMIN_SCRIPT="${ADMIN_SCRIPT:-$SCRIPT_DIR/run-admin-export.sh}"
+# Must match the defaults in `run-admin-export.sh`; both read the same
+# environment, so an override applies to the cache key and to the build alike.
+SRC="${SRC:-/mnt/nas/wikidata/regions}"
+OUT_DIR="${OUT:-$WORK/search}"
+ADMIN_FILTER="${ADMIN_FILTER:-r/boundary=administrative}"
+ADMIN_LEVELS="${ADMIN_LEVELS:-r/admin_level=2,3,4,6}"
+export SRC ADMIN_FILTER ADMIN_LEVELS
 
 mkdir -p "$WORK"
 
@@ -59,9 +66,38 @@ rm -f pipeline.DONE
 
 # The admin boundaries are an INPUT to enrichment and nothing else produces
 # them, so build them when they are absent rather than failing deep in the run.
-if [ ! -s search/admin-iso.geojsonseq ]; then
+#
+# Reusing the file whenever it merely EXISTS produced the mixed-vintage
+# artifact this pipeline exists to prevent: a refreshed planet invalidates the
+# filtered-place cache by size and mtime, so new place records were enriched
+# against boundaries from the previous snapshot.
+#
+# The cache is therefore keyed by the identity of every source extract plus the
+# filter settings that shaped it, and reused only when a previous run recorded
+# the SAME key on a successful build.
+ADMIN_KEY_FILE="$OUT_DIR/admin-iso.key"
+admin_key() {
+  {
+    echo "filter=$ADMIN_FILTER levels=$ADMIN_LEVELS"
+    for r in africa antarctica asia australia-oceania central-america europe north-america south-america; do
+      f="$SRC/$r.osm.pbf"
+      if [ -e "$f" ]; then
+        stat -c '%n %s %Y' "$f"
+      else
+        echo "$f MISSING"
+      fi
+    done
+  } | sha256sum | cut -d' ' -f1
+}
+WANT_KEY="$(admin_key)"
+
+if [ ! -s search/admin-iso.geojsonseq ] || [ "$(cat "$ADMIN_KEY_FILE" 2>/dev/null)" != "$WANT_KEY" ]; then
   echo "== admin boundaries ==" | tee -a pipeline.log
+  rm -f "$ADMIN_KEY_FILE"
   "$ADMIN_SCRIPT" >> pipeline.log 2>&1
+  echo "$WANT_KEY" > "$ADMIN_KEY_FILE"
+else
+  echo "== admin boundaries: reusing, sources unchanged ==" | tee -a pipeline.log
 fi
 
 echo "== export ==" | tee -a pipeline.log

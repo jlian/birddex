@@ -295,14 +295,18 @@ def aliases_for(tags: dict, display: str) -> list[str]:
 
 
 def records(stream: Iterator[str]) -> Iterator[tuple]:
-    for line in stream:
+    for lineno, line in enumerate(stream, 1):
         line = line.strip().lstrip("\x1e")
         if not line:
             continue
         try:
             feat = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as exc:
+            # FAIL rather than skip. Truncated or malformed GeoJSON meant the
+            # exporter emitted a partial TSV and still exited 0, so every
+            # downstream count described only what survived and the pipeline
+            # wrote its DONE marker over an incomplete corpus.
+            sys.exit(f"input line {lineno}: malformed GeoJSON ({exc}); refusing to write a partial export")
         tags = feat.get("properties") or {}
         display = tags.get("name") or tags.get("name:en")
         if not display:

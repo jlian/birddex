@@ -69,8 +69,27 @@ def main() -> int:
             except json.JSONDecodeError:
                 continue
             props = feature.get("properties") or {}
-            state = props.get("ISO3166-2")
-            country = props.get("ISO3166-1:alpha2") or props.get("ISO3166-1")
+            level = str(props.get("admin_level", ""))
+            # A level-6 boundary is kept for its display NAME only; its ISO
+            # tags are ignored.
+            #
+            # This is not theoretical: 880 of the 47,829 level-6 boundaries in
+            # the global corpus carry an ISO3166-2 tag, mostly Guinea's
+            # prefectures. A county is always smaller than the state that
+            # contains it, so the area sort would let one of those override the
+            # subdivision, and forward search would report a different
+            # jurisdiction from reverse geocoding for the same coordinate.
+            #
+            # The test EXCLUDES level 6 rather than requiring levels 2-4,
+            # deliberately. 50 coded boundaries carry no `admin_level` tag at
+            # all, and levels 5, 7, 8 and 10 also carry codes; an allowlist
+            # would silently strip every one of those, losing codes the
+            # previous build had.
+            ignore_codes = level == "6"
+            state = None if ignore_codes else props.get("ISO3166-2")
+            country = None if ignore_codes else (
+                props.get("ISO3166-1:alpha2") or props.get("ISO3166-1")
+            )
             # Prefer `name:en` for the visible locality. OSM's `name` on an
             # administrative boundary is frequently bilingual, so Rabat's
             # prefecture arrives as `Prefecture de Rabat` followed by the same

@@ -22,6 +22,7 @@ not size: the corpus lands at a tenth of the gate.
 """
 from __future__ import annotations
 
+import math
 import os
 import sqlite3
 import sys
@@ -109,6 +110,41 @@ def fmt(n: int) -> str:
     return f"{n / 1024 ** 3:.3f} GB ({n:,} bytes)"
 
 
+def flush(db, batch) -> int:
+    """Insert a batch, returning the number of CONFLICTING duplicate ids.
+
+    Regional extracts OVERLAP at borders, so a feature straddling Europe and
+    Asia arrives twice with IDENTICAL content and must be deduplicated. A bare
+    `INSERT OR IGNORE` did that, but it also swallowed the interesting case:
+    the same `osm_id` arriving with DIFFERENT content, where an arbitrary first
+    copy wins silently. The later `duplicate osm_id` integrity query then
+    reported zero BY CONSTRUCTION and could never have found anything, because
+    the UNIQUE constraint had already removed what it was looking for.
+
+    So the insert still ignores exact repeats, and every ignored row is
+    re-checked against the stored copy. Identical is expected and silent.
+    Different is a real defect: it is counted, sampled to stderr, and reported
+    by the caller.
+    """
+    before = db.total_changes
+    db.executemany(
+        "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country,region)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", batch)
+    ignored = len(batch) - (db.total_changes - before)
+    if not ignored:
+        return 0
+    cols = "label,lat,lon,score,kind,imp,qid,alias,state,country,region"
+    conflicts = 0
+    for row in batch:
+        stored = db.execute(f"SELECT {cols} FROM places WHERE osm_id=?", (row[0],)).fetchone()
+        if stored is not None and tuple(stored) != tuple(row[1:]):
+            conflicts += 1
+            if conflicts <= 5:
+                print(f"  CONFLICT {row[0]}: stored={stored} incoming={tuple(row[1:])}",
+                      file=sys.stderr)
+    return conflicts
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print("usage: build-search-db.py <all.tsv> <out.sqlite> [qid-importance.tsv]", file=sys.stderr)
@@ -142,6 +178,7 @@ def main() -> int:
     t0 = time.time()
     rows = 0
     matched_imp = 0
+    conflicts = 0
     batch = []
     enriched = 0
     with open(src, encoding="utf-8") as fh:
@@ -177,15 +214,11 @@ def main() -> int:
                           imp_val, qid or None, alias, state or None, country or None,
                           region or None))
             if len(batch) >= 50_000:
-                db.executemany(
-                    "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country,region)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", batch)
+                conflicts += flush(db, batch)
                 rows += len(batch)
                 batch.clear()
     if batch:
-        db.executemany(
-            "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country,region)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", batch)
+        conflicts += flush(db, batch)
         rows += len(batch)
     db.commit()
     # Regional extracts OVERLAP at borders: Geofabrik ships a feature that
@@ -238,12 +271,17 @@ def main() -> int:
         print(f"  {kind:<16} {n:>10,}")
 
     print(f"\n=== integrity ===")
+    # `osm_id` is UNIQUE, so this can only ever be 0 and is kept as a schema
+    # assertion, not as a data check. The meaningful number is `conflicts`,
+    # counted at load time: ids that arrived twice with DIFFERENT content.
     dupes = cur.execute("SELECT COUNT(*) FROM (SELECT osm_id FROM places GROUP BY osm_id HAVING COUNT(*)>1)").fetchone()[0]
     oob = cur.execute("SELECT COUNT(*) FROM places WHERE lat<-90 OR lat>90 OR lon<-180 OR lon>180").fetchone()[0]
     noname = cur.execute("SELECT COUNT(*) FROM places WHERE label='' OR alias=''").fetchone()[0]
     withimp = cur.execute("SELECT COUNT(*) FROM places WHERE imp IS NOT NULL").fetchone()[0]
     withqid = cur.execute("SELECT COUNT(*) FROM places WHERE qid IS NOT NULL").fetchone()[0]
     print(f"  duplicate osm_id     {dupes:,}")
+    print(f"  conflicting osm_id   {conflicts:,}"
+          f"{'' if conflicts == 0 else '   <-- same id, DIFFERENT content'}")
     print(f"  out-of-bounds coords {oob:,}")
     print(f"  empty label/alias    {noname:,}")
     print(f"  carrying a QID       {withqid:,} ({100*withqid/max(rows,1):.1f}%)")
@@ -292,7 +330,11 @@ def main() -> int:
             times.append((time.perf_counter() - s) * 1000)
             top = hits[0] if hits else None
         times.sort()
-        p50, p95 = times[len(times)//2], times[int(len(times)*0.95)]
+        # Nearest-rank percentile. `int(len * 0.95)` indexes element 19 of 20,
+        # which is the MAXIMUM, so every reported p95 was really a p100 and the
+        # feasibility numbers overstated the tail.
+        p50 = times[math.ceil(0.50 * len(times)) - 1]
+        p95 = times[math.ceil(0.95 * len(times)) - 1]
         label = f"{top[0]} ({top[1]})" if top else "NO RESULT"
         print(f"  {q:<16} p50 {p50:7.2f} ms  p95 {p95:7.2f} ms   -> {label}")
 
