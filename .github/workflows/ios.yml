@@ -189,6 +189,7 @@ jobs:
           fi
           IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex ${{ matrix.lane }} $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
           echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
       - name: Build for testing
         id: build
@@ -303,10 +304,8 @@ jobs:
             echo "- Wait after build: ${elapsed}s"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Boot iOS Simulator
-        run: |
-          xcrun simctl boot "$IOS_SIMULATOR_UDID"
-          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+      - name: Wait for iOS Simulator
+        run: xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
       - name: Run selected tests
         id: tests
