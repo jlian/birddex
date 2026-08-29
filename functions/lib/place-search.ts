@@ -19,11 +19,26 @@ export const SEARCH_LIMIT = 5
 const CANDIDATE_LIMIT = 200
 
 export class SearchUnavailableError extends Error {
-  constructor(message: string) {
+  /** `timeout` when the deadline fired, `query` for any other D1 failure. */
+  readonly failure: 'timeout' | 'query'
+
+  constructor(message: string, failure: 'timeout' | 'query' = 'query') {
     super(message)
     this.name = 'SearchUnavailableError'
+    this.failure = failure
   }
 }
+
+/**
+ * Deadline for one D1 search, matching the 5 seconds the Geoapify path allows.
+ *
+ * Without it a broad prefix or a stalled binding holds the request until the
+ * platform kills the whole invocation, which returns nothing useful to the
+ * caller and burns the full CPU budget. `park*` already touches 231,558 rows,
+ * so the slow case is reachable with ordinary input rather than only under
+ * failure.
+ */
+const SEARCH_TIMEOUT_MS = 5_000
 
 interface SearchRow {
   label: string
@@ -225,15 +240,36 @@ export async function searchPlacesLocal(
 
   let rows: SearchRow[]
   try {
-    const result = await db
-      .prepare(SEARCH_SQL)
-      .bind(folded, expression, CANDIDATE_LIMIT, SEARCH_LIMIT)
-      .all<SearchRow>()
-    rows = result.results ?? []
+    // Race the query against a deadline. D1's `all()` takes no abort signal, so
+    // the timer cannot cancel the underlying work; it bounds what the CALLER
+    // waits for, which is what turns a stall into a 503 the client can act on
+    // rather than a platform timeout.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new SearchUnavailableError('Place search timed out', 'timeout')),
+        SEARCH_TIMEOUT_MS,
+      )
+    })
+    try {
+      const result = await Promise.race([
+        db.prepare(SEARCH_SQL).bind(folded, expression, CANDIDATE_LIMIT, SEARCH_LIMIT).all<SearchRow>(),
+        deadline,
+      ])
+      rows = result.results ?? []
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
+    }
   } catch (cause) {
+    // Already the right shape, and rethrowing it as a query failure would lose
+    // the timeout distinction the route maps to its own message.
+    if (cause instanceof SearchUnavailableError) throw cause
     // A D1 failure is not a client error and must not look like an empty
     // result set, which would render as "no places found" and send the user
     // hunting for a place that exists.
+    //
+    // The query text is deliberately absent from this message: it is user
+    // input and must not reach a log line.
     throw new SearchUnavailableError(
       `Place search query failed: ${cause instanceof Error ? cause.message : 'unknown error'}`,
     )

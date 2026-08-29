@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import { SearchUnavailableError, searchPlacesLocal } from './place-search'
 
@@ -271,6 +271,42 @@ describe('searchPlacesLocal', () => {
     } as unknown as D1Database
     await expect(searchPlacesLocal(broken, 'discovery park')).rejects.toBeInstanceOf(
       SearchUnavailableError,
+    )
+  })
+
+  it('gives up on a stalled binding rather than hanging', async () => {
+    // A binding that never settles must not hold the request until the platform
+    // kills the invocation. Fake timers keep this instant, and asserting the
+    // `timeout` discriminator proves the route can tell it apart from an
+    // ordinary query failure.
+    vi.useFakeTimers()
+    try {
+      const stalled = {
+        prepare() {
+          return { bind() { return { all() { return new Promise(() => {}) } } } }
+        },
+      } as unknown as D1Database
+      const pending = searchPlacesLocal(stalled, 'discovery park')
+      const assertion = expect(pending).rejects.toMatchObject({
+        name: 'SearchUnavailableError',
+        failure: 'timeout',
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not put the query text in the failure message', async () => {
+    // The query is user input and must not reach a log line.
+    const broken = {
+      prepare() {
+        return { bind() { return { all() { throw new Error('D1_ERROR: no such table') } } } }
+      },
+    } as unknown as D1Database
+    await expect(searchPlacesLocal(broken, 'zzsecretplace')).rejects.toThrow(
+      /^(?!.*zzsecretplace).*$/,
     )
   })
 })

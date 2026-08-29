@@ -337,12 +337,21 @@ def main() -> int:
         print(f"  {q:<16} {n:,} hits")
 
     db.close()
-    # A conflict means an arbitrary first copy was kept, so the artifact is
-    # known-corrupt. Returning 0 anyway let the wrapper write `pipeline.DONE`
-    # over it and treat it as publishable.
+    # Every integrity failure is fatal, not merely printed. A database with
+    # out-of-bounds coordinates or empty labels is as unpublishable as one with
+    # conflicting ids, and returning 0 let the wrapper write `pipeline.DONE`
+    # over it.
+    problems = []
     if conflicts:
-        print(f"\nFAILED: {conflicts:,} osm_id values arrived with conflicting content",
-              file=sys.stderr)
+        problems.append(f"{conflicts:,} osm_id values with conflicting content")
+    if dupes:
+        problems.append(f"{dupes:,} duplicate osm_id values")
+    if oob:
+        problems.append(f"{oob:,} out-of-bounds coordinates")
+    if noname:
+        problems.append(f"{noname:,} rows with an empty label or alias")
+    if problems:
+        print("\nFAILED: " + "; ".join(problems), file=sys.stderr)
         return 1
     return 0
 

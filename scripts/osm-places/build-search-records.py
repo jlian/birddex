@@ -308,7 +308,15 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
             # wrote its DONE marker over an incomplete corpus.
             sys.exit(f"input line {lineno}: malformed GeoJSON ({exc}); refusing to write a partial export")
         tags = feat.get("properties") or {}
-        display = tags.get("name") or tags.get("name:en")
+        # Prefer the ENGLISH name, matching `nameOf()` in
+        # `functions/lib/osm-places.ts`. OSM `name` is the local-language name,
+        # so a Taipei park comes back in Chinese and a Tomsk park in Cyrillic.
+        # Taking `name` first here meant forward search and reverse geocoding
+        # could show the same place under different names and scripts.
+        #
+        # Both values still reach `aliases_for`, so the local name remains
+        # searchable; only the DISPLAY label changes.
+        display = tags.get("name:en") or tags.get("name")
         if not display:
             continue
         score = score_of(tags)
