@@ -36,7 +36,7 @@ on:
       - '.github/workflows/release.yml'
 
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ios-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -44,10 +44,13 @@ permissions:
   deployments: read
 
 jobs:
-  build-and-test:
-    name: Build & Test (iOS Simulator)
-    runs-on: macos-26
-    timeout-minutes: 45
+  plan:
+    name: Plan iOS coverage
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+      accessibility: ${{ steps.accessibility.outputs.run }}
+      accessibility_reason: ${{ steps.accessibility.outputs.reason }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -61,8 +64,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          echo "CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
-
           if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "reason=$EVENT_NAME always runs the full accessibility suite" >> "$GITHUB_OUTPUT"
@@ -110,16 +111,32 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # DerivedData is toolchain-specific, so a cache restored across an Xcode
-      # bump would be stale. Key on the installed xcodebuild version too.
+      - name: Build test matrix
+        id: matrix
+        env:
+          RUN_ACCESSIBILITY: ${{ steps.accessibility.outputs.run }}
+        run: |
+          if [[ "$RUN_ACCESSIBILITY" == "true" ]]; then
+            echo 'value={"include":[{"lane":"core"},{"lane":"accessibility"}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'value={"include":[{"lane":"core"}]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: iOS ${{ matrix.lane }} lane
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
       - name: Read Xcode cache version
         id: xcode-cache-version
-        run: |
-          echo "value=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 
-      # SPM checkouts and DerivedData survive across runs on the same
-      # Package.resolved, so a warm cache skips dependency resolution and
-      # lets xcodebuild reuse module/index artifacts.
       - name: Cache SwiftPM and DerivedData
         id: build-cache
         uses: actions/cache@v5
@@ -147,76 +164,37 @@ jobs:
             ios/build/generated/sync-birdid-assets.stamp
           key: ios-bird-id-v1-${{ hashFiles('ios/scripts/sync-birdid-assets.sh', 'public/models/text_classifier_int8.bin', 'public/priors/occurrence.*.bin.gz', 'public/priors/rarity.*.bin.gz', 'src/lib/bird-id-local-adapter.ts', 'src/lib/rarity.ts', 'src/lib/taxonomy.json', 'ios/WingDex/Resources/taxonomy.json') }}
 
-      - name: Create iOS Simulator
-        run: |
-          set -euo pipefail
-          echo "Available simulators before CI device creation:"
-          xcrun simctl list devices available
-
-          SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
-          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r --arg version "$SDK_VERSION" '
-            [.runtimes[] | select(
-              .isAvailable == true
-              and .version == $version
-              and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
-            )]
-            | first
-            | .identifier // empty
-          ')
-          if [ -z "$RUNTIME_ID" ]; then
-            xcodebuild -downloadPlatform iOS
-            RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r --arg version "$SDK_VERSION" '
-              [.runtimes[] | select(
-                .isAvailable == true
-                and .version == $version
-                and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
-              )]
-              | first
-              | .identifier // empty
-            ')
-          fi
-          if [ -z "$RUNTIME_ID" ]; then
-            echo "No iOS $SDK_VERSION Simulator runtime is available"
-            exit 1
-          fi
-
-          DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '
-            [.devicetypes[] | select(.productFamily == "iPhone")]
-            | sort_by(if .name == "iPhone 17 Pro" then 0 else 1 end)
-            | first
-            | .identifier // empty
-          ')
-          if [ -z "$DEVICE_TYPE_ID" ]; then
-            echo "No iPhone Simulator device type is available"
-            exit 1
-          fi
-
-          simulator_name="WingDex CI $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          IOS_SIMULATOR_UDID=$(xcrun simctl create "$simulator_name Core" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
-          echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
-          if [[ "${{ steps.accessibility.outputs.run }}" == "true" ]]; then
-            IOS_ACCESSIBILITY_SIMULATOR_UDID=$(xcrun simctl create "$simulator_name Accessibility" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
-            echo "IOS_ACCESSIBILITY_SIMULATOR_UDID=$IOS_ACCESSIBILITY_SIMULATOR_UDID" >> "$GITHUB_ENV"
-          fi
-
       - name: Install XcodeGen
         run: ios/scripts/install-xcodegen.sh
 
       - name: Generate Xcode project
         working-directory: ios
         env:
-          WINGDEX_SKIP_APP_ICON: "1"
+          WINGDEX_SKIP_APP_ICON: '1'
         run: xcodegen generate
 
-      - name: Build for Simulator
+      - name: Create iOS Simulator
+        run: |
+          set -euo pipefail
+          SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r --arg version "$SDK_VERSION" '
+            [.runtimes[] | select(.isAvailable == true and .version == $version and ((.identifier // "") | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))] | first | .identifier // empty
+          ')
+          DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '
+            [.devicetypes[] | select(.productFamily == "iPhone")] | sort_by(if .name == "iPhone 17 Pro" then 0 else 1 end) | first | .identifier // empty
+          ')
+          if [[ -z "$RUNTIME_ID" || -z "$DEVICE_TYPE_ID" ]]; then
+            echo "::error::No matching iOS simulator runtime or iPhone device type"
+            exit 1
+          fi
+          IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex ${{ matrix.lane }} $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+          echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
+
+      - name: Build for testing
+        id: build
         working-directory: ios
         run: |
           started_at=$(date +%s)
-          # The app icon is an Icon Composer bundle: layered SVGs with gradient
-          # fill specializations and light/dark variants. Rasterizing it into
-          # every size and appearance took 145s of a 5m31s build on the runner,
-          # and no test looks at the icon. Release builds archive through
-          # ios-release.yml and are unaffected.
           NSUnbufferedIO=YES xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
             -scheme Dev \
@@ -228,32 +206,23 @@ jobs:
             ASSETCATALOG_COMPILER_APPICON_NAME="" \
             ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=NO \
             CODE_SIGNING_ALLOWED=NO 2>&1
-          echo "- Build for testing: $(( $(date +%s) - started_at ))s" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Boot iOS Simulator
-        run: |
-          xcrun simctl boot "$IOS_SIMULATOR_UDID" &
-          core_boot_pid=$!
-          if [[ -n "${IOS_ACCESSIBILITY_SIMULATOR_UDID:-}" ]]; then
-            xcrun simctl boot "$IOS_ACCESSIBILITY_SIMULATOR_UDID" &
-            accessibility_boot_pid=$!
-          fi
-          wait "$core_boot_pid"
-          if [[ -n "${accessibility_boot_pid:-}" ]]; then
-            wait "$accessibility_boot_pid"
-          fi
+          echo "elapsed=$(( $(date +%s) - started_at ))" >> "$GITHUB_OUTPUT"
 
       - name: Select API backend
+        if: matrix.lane == 'core'
+        id: backend
         env:
-          # The zone's Bot Fight Mode challenges GitHub runner IPs; workers.dev is the same Worker.
           DEV_URL: https://wingdex-app-preview.lianguanlun.workers.dev
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          ACTOR: ${{ github.actor }}
           PREVIEW_ENVIRONMENT: preview (#${{ github.event.pull_request.number }})
           PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          started_at=$(date +%s)
 
           probe_backend() {
             local response http_status body
@@ -263,226 +232,190 @@ jobs:
             }
             http_status=${response##*$'\n'}
             body=${response%$'\n'*}
-            if [ "$http_status" != "200" ] || ! jq -e '.status == "ok" and .db == "ok"' <<< "$body" > /dev/null 2>&1; then
+            if [[ "$http_status" != "200" ]] || ! jq -e '.status == "ok" and .db == "ok"' <<< "$body" > /dev/null; then
               echo "  $1/api/health returned HTTP $http_status: $(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)"
               return 1
             fi
           }
 
           wait_for_backend() {
-            local url="$1"
-            local attempts="$2"
+            local url=$1 attempts=$2
             for ((attempt = 1; attempt <= attempts; attempt++)); do
-              if probe_backend "$url"; then
-                return 0
-              fi
-              if ((attempt < attempts)); then
-                sleep 5
-              fi
+              if probe_backend "$url"; then return 0; fi
+              if ((attempt < attempts)); then sleep 5; fi
             done
             return 1
           }
 
           wait_for_preview() {
-            local attempts="$1"
-            local deployment_id
-            local preview_url
+            local attempts=$1 deployment_id preview_url
             for ((attempt = 1; attempt <= attempts; attempt++)); do
-              if ! deployment_id=$(gh api --method GET "repos/$GITHUB_REPOSITORY/deployments" \
-                -f sha="$PREVIEW_SHA" \
-                -f environment="$PREVIEW_ENVIRONMENT" \
-                -f per_page=1 \
-                --jq '.[0].id // empty' 2>/dev/null); then
-                deployment_id=""
-              fi
-              if [ -n "$deployment_id" ]; then
-                if ! preview_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
-                  --jq 'if .[0].state == "success" then (.[0].environment_url // "") else "" end' 2>/dev/null); then
-                  preview_url=""
-                fi
-                if [ -n "$preview_url" ] && probe_backend "$preview_url"; then
-                  API_BASE_URL="$preview_url"
+              deployment_id=$(gh api --method GET "repos/$GITHUB_REPOSITORY/deployments" \
+                -f sha="$PREVIEW_SHA" -f environment="$PREVIEW_ENVIRONMENT" -f per_page=1 \
+                --jq '.[0].id // empty' 2>/dev/null || true)
+              if [[ -n "$deployment_id" ]]; then
+                preview_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                  --jq 'if .[0].state == "success" then (.[0].environment_url // "") else "" end' \
+                  2>/dev/null || true)
+                if [[ -n "$preview_url" ]] && probe_backend "$preview_url"; then
+                  API_BASE_URL=$preview_url
                   return 0
                 fi
               fi
-              if ((attempt < attempts)); then
-                sleep 5
-              fi
+              if ((attempt < attempts)); then sleep 5; fi
             done
             return 1
           }
 
-          API_BASE_URL="$DEV_URL"
-          BACKEND_SOURCE="dev"
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REF" != "dev" ] && [ "$HEAD_REF" != "main" ]; then
-            echo "Waiting for $PREVIEW_ENVIRONMENT at commit $PREVIEW_SHA"
-            if ! wait_for_preview 60; then
-              echo "::error::The exact PR preview did not become healthy: $PREVIEW_ENVIRONMENT at $PREVIEW_SHA"
-              exit 1
+          API_BASE_URL=$DEV_URL
+          BACKEND_SOURCE=dev
+          if [[ "$EVENT_NAME" == "pull_request" && "$HEAD_REF" != "dev" && "$HEAD_REF" != "main" ]]; then
+            if [[ "$HEAD_REPOSITORY" == "$GITHUB_REPOSITORY" && "$ACTOR" != "dependabot[bot]" ]]; then
+              if ! wait_for_preview 60; then
+                echo "::error::The exact PR preview did not become healthy: $PREVIEW_ENVIRONMENT at $PREVIEW_SHA"
+                exit 1
+              fi
+              BACKEND_SOURCE="PR preview"
+            else
+              # Fork and Dependabot PRs cannot receive Cloudflare credentials,
+              # so ci.yml intentionally creates no exact preview deployment.
+              if ! wait_for_backend "$API_BASE_URL" 6; then
+                echo "::error::The fallback dev iOS test backend is not healthy: $API_BASE_URL"
+                exit 1
+              fi
+              BACKEND_SOURCE="dev fallback for untrusted PR"
             fi
-            BACKEND_SOURCE="PR preview"
-          else
-            echo "This event does not create a PR preview; using the dev backend"
-          fi
-
-          if ! wait_for_backend "$API_BASE_URL" 6; then
-            echo "::error::Selected iOS test backend is not healthy: $API_BASE_URL"
+          elif ! wait_for_backend "$API_BASE_URL" 6; then
+            echo "::error::The dev iOS test backend is not healthy: $API_BASE_URL"
             exit 1
           fi
 
-          echo "Selected iOS test backend: $BACKEND_SOURCE"
-          echo "Backend URL: $API_BASE_URL"
-          echo "Health check: ok"
-
-          echo "API_BASE_URL=$API_BASE_URL" >> "$GITHUB_ENV"
+          elapsed=$(( $(date +%s) - started_at ))
+          {
+            echo "api_base_url=$API_BASE_URL"
+            echo "source=$BACKEND_SOURCE"
+            echo "elapsed=$elapsed"
+          } >> "$GITHUB_OUTPUT"
           {
             echo "### iOS test backend"
             echo "- URL: \`$API_BASE_URL\`"
             echo "- Selection: $BACKEND_SOURCE"
+            echo "- Wait after build: ${elapsed}s"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Wait for iOS Simulator
+      - name: Boot iOS Simulator
         run: |
-          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b &
-          core_boot_pid=$!
-          if [[ -n "${IOS_ACCESSIBILITY_SIMULATOR_UDID:-}" ]]; then
-            xcrun simctl bootstatus "$IOS_ACCESSIBILITY_SIMULATOR_UDID" -b &
-            accessibility_boot_pid=$!
-          fi
-          wait "$core_boot_pid"
-          if [[ -n "${accessibility_boot_pid:-}" ]]; then
-            wait "$accessibility_boot_pid"
-          fi
+          xcrun simctl boot "$IOS_SIMULATOR_UDID"
+          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
-      - name: Run tests
+      - name: Run selected tests
+        id: tests
         working-directory: ios
+        env:
+          API_BASE_URL: ${{ steps.backend.outputs.api_base_url }}
+          LANE: ${{ matrix.lane }}
         run: |
-          set -uo pipefail
+          set +e
+          set -o pipefail
           mkdir -p build/logs
-          started_at=$(date +%s)
-
           xctestrun=""
-          xctestrun_count=0
+          count=0
           while IFS= read -r candidate; do
             xctestrun=$candidate
-            xctestrun_count=$((xctestrun_count + 1))
-          done < <(find "build/DerivedData/Build/Products" -maxdepth 2 -name '*.xctestrun' -type f)
-          if [[ "$xctestrun_count" != 1 ]]; then
-            echo "::error::Expected one .xctestrun file, found $xctestrun_count"
-            find "build/DerivedData/Build/Products" -maxdepth 2 -name '*.xctestrun' -type f
+            count=$((count + 1))
+          done < <(find build/DerivedData/Build/Products -maxdepth 2 -name '*.xctestrun' -type f)
+          if [[ "$count" != 1 ]]; then
+            echo "::error::Expected one .xctestrun file, found $count"
             exit 1
           fi
 
-          core_pid=""
-          accessibility_pid=""
-          terminate_lanes() {
-            trap - INT TERM
-            [[ -z "$core_pid" ]] || kill "$core_pid" >/dev/null 2>&1 || true
-            [[ -z "$accessibility_pid" ]] || kill "$accessibility_pid" >/dev/null 2>&1 || true
-            [[ -z "$core_pid" ]] || wait "$core_pid" >/dev/null 2>&1 || true
-            [[ -z "$accessibility_pid" ]] || wait "$accessibility_pid" >/dev/null 2>&1 || true
-            exit 130
-          }
-          trap terminate_lanes INT TERM
+          if [[ "$LANE" == "core" ]]; then
+            targets=(-only-testing:WingDexTests -only-testing:WingDexUITests)
+            api_base_url=$API_BASE_URL
+          else
+            targets=(-only-testing:WingDexAccessibilityUITests)
+            api_base_url=http://127.0.0.1:1
+          fi
 
-          NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
+          started_at=$(date +%s)
+          NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$api_base_url" xcodebuild test-without-building \
             -xctestrun "$xctestrun" \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -parallel-testing-enabled NO \
-            -resultBundlePath build/CoreTests.xcresult \
-            -only-testing:WingDexTests \
-            -only-testing:WingDexUITests \
-            CODE_SIGNING_ALLOWED=NO > build/logs/core.log 2>&1 &
-          core_pid=$!
-
-          if [[ "${{ steps.accessibility.outputs.run }}" == "true" ]]; then
-            NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$API_BASE_URL" xcodebuild test-without-building \
-              -xctestrun "$xctestrun" \
-              -destination "platform=iOS Simulator,id=$IOS_ACCESSIBILITY_SIMULATOR_UDID" \
-              -parallel-testing-enabled NO \
-              -resultBundlePath build/AccessibilityTests.xcresult \
-              -only-testing:WingDexAccessibilityUITests \
-              CODE_SIGNING_ALLOWED=NO > build/logs/accessibility.log 2>&1 &
-            accessibility_pid=$!
+            -resultBundlePath "build/${LANE}.xcresult" \
+            "${targets[@]}" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "build/logs/${LANE}.log"
+          status=${PIPESTATUS[0]}
+          elapsed=$(( $(date +%s) - started_at ))
+          echo "elapsed=$elapsed" >> "$GITHUB_OUTPUT"
+          if [[ -d "build/${LANE}.xcresult" ]]; then
+            summary=$(xcrun xcresulttool get test-results summary --path "build/${LANE}.xcresult" --compact)
+            echo "total=$(jq -r .totalTestCount <<< "$summary")" >> "$GITHUB_OUTPUT"
+            echo "passed=$(jq -r .passedTests <<< "$summary")" >> "$GITHUB_OUTPUT"
           fi
+          exit "$status"
 
-          core_status=0
-          accessibility_status=0
-          wait "$core_pid" || core_status=$?
-          if [[ -n "$accessibility_pid" ]]; then
-            wait "$accessibility_pid" || accessibility_status=$?
-          fi
-          echo "$core_status" > build/logs/core.status
-          sed -u 's/^/[core] /' build/logs/core.log
-          if [[ -n "$accessibility_pid" ]]; then
-            echo "$accessibility_status" > build/logs/accessibility.status
-            sed -u 's/^/[accessibility] /' build/logs/accessibility.log
-          fi
-
-          {
-            echo "- Test wall time: $(( $(date +%s) - started_at ))s"
-            echo "- Core lane exit: $core_status"
-            if [[ -n "$accessibility_pid" ]]; then
-              echo "- Accessibility lane exit: $accessibility_status"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if ((core_status != 0 || accessibility_status != 0)); then
-            exit 1
-          fi
-
-      - name: Summarize iOS test timing
+      - name: Summarize lane
         if: always()
         working-directory: ios
+        env:
+          LANE: ${{ matrix.lane }}
         run: |
-          set -uo pipefail
           {
-            echo "### iOS CI timing"
+            echo "### iOS $LANE lane"
             echo "- DerivedData/SwiftPM cache hit: \`${{ steps.build-cache.outputs.cache-hit }}\`"
             echo "- XcodeGen cache hit: \`${{ steps.xcodegen-cache.outputs.cache-hit }}\`"
             echo "- Bird ID asset cache hit: \`${{ steps.bird-id-cache.outputs.cache-hit }}\`"
-            echo "- Total elapsed: $(( $(date +%s) - CI_STARTED_AT ))s"
+            echo "- Build: ${{ steps.build.outputs.elapsed || 'unknown' }}s"
+            echo "- Tests: ${{ steps.tests.outputs.elapsed || 'unknown' }}s"
           } >> "$GITHUB_STEP_SUMMARY"
+          [[ -d "build/${LANE}.xcresult" ]] || exit 0
+          xcrun xcresulttool get test-results summary --path "build/${LANE}.xcresult" --compact \
+            | jq -r '"- Result: \(.passedTests)/\(.totalTestCount) passed, \(.failedTests) failed, \(.skippedTests) skipped"' \
+            >> "$GITHUB_STEP_SUMMARY"
+          xcrun xcresulttool get test-results tests --path "build/${LANE}.xcresult" --compact \
+            | jq -r '[.. | objects | select(.nodeType? == "Test Case")] | sort_by(.durationInSeconds // 0) | reverse | .[:5][] | "- \(.durationInSeconds // 0 | floor)s: `\(.nodeIdentifier // .name)`"' \
+            >> "$GITHUB_STEP_SUMMARY" || true
 
-          for bundle in build/*.xcresult; do
-            [[ -d "$bundle" ]] || continue
-            name=$(basename "$bundle" .xcresult)
-            summary=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null || true)
-            {
-              echo "#### $name"
-              if [[ -n "$summary" ]]; then
-                jq -r '
-                  "- Tests: \(.totalTestCount), passed: \(.passedTests), failed: \(.failedTests), skipped: \(.skippedTests)",
-                  (if (.startTime | type) == "number" and (.finishTime | type) == "number"
-                   then "- XCTest duration: \((.finishTime - .startTime) | floor)s"
-                   else empty
-                   end)
-                ' <<< "$summary"
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
-          done
-
-      - name: Upload iOS test diagnostics
+      - name: Upload lane diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: iOS-test-diagnostics
+          name: iOS-${{ matrix.lane }}-diagnostics
           path: |
-            ios/build/*.xcresult
+            ios/build/${{ matrix.lane }}.xcresult
             ios/build/logs
           retention-days: 7
 
-      - name: Clean up iOS simulators
+      - name: Clean up iOS Simulator
         if: always()
         run: |
-          set +e
-          xcrun simctl list devices -j \
-            | jq -r --arg prefix "WingDex CI $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" '
-                .devices[][]
-                | select(.name == ($prefix + " Core") or .name == ($prefix + " Accessibility"))
-                | .udid
-              ' \
-            | while IFS= read -r udid; do
-                xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
-                xcrun simctl delete "$udid" >/dev/null 2>&1 || true
-              done
+          if [[ -n "${IOS_SIMULATOR_UDID:-}" ]]; then
+            xcrun simctl shutdown "$IOS_SIMULATOR_UDID" >/dev/null 2>&1 || true
+            xcrun simctl delete "$IOS_SIMULATOR_UDID" >/dev/null 2>&1 || true
+          fi
+
+  build-and-test:
+    name: Build & Test (iOS Simulator)
+    if: always()
+    needs: [plan, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify iOS lanes
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          ACCESSIBILITY_REQUIRED: ${{ needs.plan.outputs.accessibility }}
+          ACCESSIBILITY_REASON: ${{ needs.plan.outputs.accessibility_reason }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### iOS CI result"
+            if [[ "$ACCESSIBILITY_REQUIRED" == "true" ]]; then
+              echo "- Lanes: core and accessibility"
+            else
+              echo "- Lanes: core; accessibility skipped ($ACCESSIBILITY_REASON)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLAN_RESULT" == "success" ]]
+          [[ "$TEST_RESULT" == "success" ]]
