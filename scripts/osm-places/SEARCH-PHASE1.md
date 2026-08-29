@@ -392,6 +392,29 @@ the upstream `FILTER` never selects `highway=*`.
 
 ## Reproducing
 
+Nothing here is precious. Every artifact is reproducible from sources that live
+on the NAS, which is why this work can be parked without keeping a machine
+around.
+
+**Inputs, both on the NAS and not produced by this repo:**
+
+| Input | Size | Path |
+| --- | --- | --- |
+| Geofabrik regional extracts | 78.7 GB | `wikidata/regions/*.osm.pbf` |
+| Wikidata truthy dump | 43.2 GB | `wikidata/latest-truthy.nt.bz2` |
+
+`qid-importance.tsv` (41.6 MB) is derived from the Wikidata dump by
+`mk-importance-table.py`. It was the one intermediate living only on scratch, so
+it is backed up rather than left to a 43 GB re-parse.
+
+**Backed up at `wikidata/search-corpus-2026-08-29/` with `SHA256SUMS`:**
+`qid-importance.tsv`, `all.tsv`, `all-enriched.tsv`, `places-search.sqlite`.
+That is convenience, not insurance: the copies save a rebuild, and the sources
+make them replaceable if the copies are lost.
+
+The commit is tagged `place-search-d1-spike-2026-08-29`, so this stays findable
+after the pull request closes.
+
 ```bash
 scripts/osm-places/run-full-pipeline.sh
 ```
