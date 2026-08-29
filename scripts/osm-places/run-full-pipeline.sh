@@ -12,7 +12,13 @@ set -euo pipefail
 
 # Paths are overridable so this runs outside the one machine it was written on.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Absolute BEFORE anything is derived from it. `cd "$WORK"` happens below, so a
+# relative override such as `WORK=tmp` would make `VENV_PY` read `tmp/venv/...`,
+# which resolves against the original directory here and against `$WORK` itself
+# after the cd, i.e. `tmp/tmp/venv/...` during enrichment.
 WORK="${WORK:-/mnt/ssdscratch}"
+mkdir -p "$WORK"
+WORK="$(cd "$WORK" && pwd)"
 VENV_DIR="${VENV_DIR:-$WORK/venv}"
 VENV_PY="${VENV_PY:-$VENV_DIR/bin/python}"
 IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
@@ -37,7 +43,22 @@ ADMIN_FILTER="${ADMIN_FILTER:-r/boundary=administrative}"
 ADMIN_LEVELS="${ADMIN_LEVELS:-r/admin_level=2,3,4,6}"
 export SRC OUT ADMIN_FILTER ADMIN_LEVELS
 
-mkdir -p "$WORK"
+# Hold an exclusive lock BEFORE touching anything shared.
+#
+# Sequencing the stages inside one script stops them racing each other, but it
+# does nothing about two INVOCATIONS: both would truncate the same log and
+# rewrite all.tsv, all-enriched.tsv and the SQLite output, which is exactly the
+# mixed-artifact corruption this script claims to prevent. That has already
+# happened once here, and the corrupt result looked entirely plausible.
+#
+# The lock must come before the virtualenv too. Two first-time invocations
+# would otherwise run `venv` and `pip` concurrently against the same directory
+# and corrupt the environment, which is shared state exactly like the outputs.
+exec 9> "$WORK/pipeline.lock"
+if ! flock -n 9; then
+  echo "another pipeline run holds $WORK/pipeline.lock; refusing to start" >&2
+  exit 1
+fi
 
 # Create the enrichment environment when it is absent, so a clean checkout can
 # rebuild. Only the region join needs a third-party package; every other stage
@@ -54,19 +75,6 @@ fi
   echo "$VENV_PY cannot import shapely; install $SCRIPT_DIR/requirements.txt into it" >&2
   exit 1
 }
-
-# Hold an exclusive lock for the WHOLE pipeline.
-#
-# Sequencing the stages inside one script stops them racing each other, but it
-# does nothing about two INVOCATIONS: both would truncate the same log and
-# rewrite all.tsv, all-enriched.tsv and the SQLite output, which is exactly the
-# mixed-artifact corruption this script claims to prevent. That has already
-# happened once here, and the corrupt result looked entirely plausible.
-exec 9> "$WORK/pipeline.lock"
-if ! flock -n 9; then
-  echo "another pipeline run holds $WORK/pipeline.lock; refusing to start" >&2
-  exit 1
-fi
 
 cd "$WORK"
 rm -f pipeline.DONE

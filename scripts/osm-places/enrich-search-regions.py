@@ -113,16 +113,31 @@ def main() -> int:
                 continue
             try:
                 geometry = shape(feature.get("geometry") or {})
-            except Exception:
-                continue
+            except Exception as exc:
+                # A record that parsed as JSON but has no usable geometry is
+                # corpus corruption, not a boundary to skip: dropping it
+                # silently removes an administrative area and every region code
+                # beneath it while the run still reports success. This matches
+                # the malformed-JSON handling above.
+                sys.exit(
+                    f"{admin_path}:{lineno}: unusable geometry ({exc}); "
+                    "refusing to join against a partial admin corpus"
+                )
             if geometry.is_empty:
-                continue
+                sys.exit(
+                    f"{admin_path}:{lineno}: empty geometry; "
+                    "refusing to join against a partial admin corpus"
+                )
             # Invalid rings are common in OSM boundary data and make `contains`
-            # raise. `buffer(0)` is the standard repair.
+            # raise. `buffer(0)` is the standard repair, and is a REPAIR rather
+            # than corruption, so a ring that cannot be repaired is still fatal.
             if not geometry.is_valid:
                 geometry = geometry.buffer(0)
                 if geometry.is_empty:
-                    continue
+                    sys.exit(
+                        f"{admin_path}:{lineno}: invalid ring could not be repaired; "
+                        "refusing to join against a partial admin corpus"
+                    )
             geometries.append(geometry)
             # Area orders containing polygons: the smallest one is the most
             # precise answer. Degrees squared is fine for ordering.
