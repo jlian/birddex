@@ -60,14 +60,23 @@ def main() -> int:
     geometries = []
     attributes = []
     with open(admin_path, encoding="utf-8") as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh, 1):
             line = line.strip().lstrip("\x1e")
             if not line:
                 continue
             try:
                 feature = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+            except json.JSONDecodeError as exc:
+                # FAIL rather than skip. The admin file is CACHED and reused
+                # when its source key matches, and the key covers the source
+                # extracts, not the file's own integrity. Truncation or
+                # corruption on disk would therefore drop boundaries here while
+                # the join still reported success, leaving every place inside
+                # those boundaries without region data.
+                sys.exit(
+                    f"{admin_path}:{lineno}: malformed GeoJSON ({exc}); "
+                    "refusing to join against a partial admin corpus"
+                )
             props = feature.get("properties") or {}
             level = str(props.get("admin_level", ""))
             # A level-6 boundary is kept for its display NAME only; its ISO

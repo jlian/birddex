@@ -94,14 +94,6 @@ def fts_query(q: str) -> str:
     return " ".join(f'"{t}"*' for t in tokens)
 
 
-def human(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
-            return f"{n / (1024 ** ('B KB MB GB'.split().index(unit))):.2f} {unit}" if unit != "B" else f"{n} B"
-        n_next = n
-    return str(n)
-
-
 def size(path: str) -> int:
     return os.path.getsize(path) if os.path.exists(path) else 0
 

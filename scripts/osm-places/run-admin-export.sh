@@ -70,14 +70,19 @@ kept = 0
 coded = 0
 local = 0
 with open(src, encoding="utf-8") as fh, open(dst, "w", encoding="utf-8") as out:
-    for line in fh:
+    for lineno, line in enumerate(fh, 1):
         line = line.strip().lstrip("\x1e")
         if not line:
             continue
         try:
             feature = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as exc:
+            # FAIL rather than skip. A partially corrupted osmium stream can
+            # still carry one coded boundary, which is enough to pass the
+            # `coded == 0` guard below and be written as a successful admin
+            # corpus. Every place inside an omitted boundary would then lose
+            # its region data, silently.
+            sys.exit(f"{src}:{lineno}: malformed GeoJSON ({exc}); refusing to write a partial admin corpus")
         props = feature.get("properties") or {}
         has_code = bool(
             props.get("ISO3166-2") or props.get("ISO3166-1:alpha2") or props.get("ISO3166-1")
