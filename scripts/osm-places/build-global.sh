@@ -294,7 +294,10 @@ REGIONS=(
 # containing place polygon. That turns a null into a confidently wrong label,
 # which is worse, so the swap is deferred to a follow-up issue until the ranker
 # handles point candidates correctly.
-FILTER="${FILTER:-wr/leisure=park,nature_reserve,garden,golf_course wr/boundary=protected_area,national_park wr/landuse=forest,recreation_ground wr/natural wr/place wr/tourism}"
+# One definition, shared with the forward-search exporters. The filtered
+# extracts are cached under a hash OF this string, so a second literal that
+# drifted left the two builds resolving different caches with no error.
+. "$SCRIPT_DIR/filters.sh"
 
 # A SECOND, thin layer: administrative boundaries carrying ISO 3166 codes.
 #

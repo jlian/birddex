@@ -18,8 +18,11 @@ NAMED_ONLY="${NAMED_ONLY:-1}"
 EXPORT_CONFIG="${EXPORT_CONFIG:-$SCRIPT_DIR/search-export.json}"
 RECORDS="${RECORDS:-$SCRIPT_DIR/build-search-records.py}"
 
-# Must match FILTER in build-global.sh, or the cache key will not resolve.
-FILTER="${FILTER:-wr/leisure=park,nature_reserve,garden,golf_course wr/boundary=protected_area,national_park wr/landuse=forest,recreation_ground wr/natural wr/place wr/tourism}"
+# The filters live in ONE file, shared with build-global.sh, because the cache
+# key is a hash of the filter: a second literal that drifted left this script
+# resolving an older cached extract while the reverse build used the new one,
+# with no error to show for it.
+. "$SCRIPT_DIR/filters.sh"
 
 REGIONS=(africa antarctica asia australia-oceania central-america europe north-america south-america)
 

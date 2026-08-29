@@ -24,7 +24,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-/mnt/ssdscratch}"
 SRC="${SRC:-/mnt/nas/wikidata/regions}"
 OUT="${OUT:-$WORK/search}"
-ADMIN_FILTER="${ADMIN_FILTER:-r/boundary=administrative}"
+# Shared with build-global.sh and run-search-export.sh, see filters.sh.
+. "$SCRIPT_DIR/filters.sh"
+# Level 6 is added HERE and not in the shared file, because the reverse archive
+# deliberately stops at level 4. Search takes level 6 for county names only; the
+# ISO codes still come from 2-4.
 ADMIN_LEVELS="${ADMIN_LEVELS:-r/admin_level=2,3,4,6}"
 
 REGIONS=(africa antarctica asia australia-oceania central-america europe north-america south-america)

@@ -76,10 +76,24 @@ if [ ! -x "$VENV_PY" ]; then
   "$VENV_DIR/bin/pip" install --quiet --upgrade pip
   "$VENV_DIR/bin/pip" install --quiet -r "$SCRIPT_DIR/requirements.txt"
 fi
-"$VENV_PY" -c 'import shapely' 2>/dev/null || {
-  echo "$VENV_PY cannot import shapely; install $SCRIPT_DIR/requirements.txt into it" >&2
-  exit 1
-}
+# Assert the MAJOR version, not merely that an import works. A reused venv
+# holding Shapely 1.x passes a bare import, but `STRtree.query()` there returns
+# geometry objects where 2.x returns integer indexes, and the join indexes into
+# its own arrays with the result, so the crash lands deep inside enrichment
+# rather than here.
+"$VENV_PY" - <<'PY' || exit 1
+import sys
+try:
+    import shapely
+except ImportError as exc:
+    sys.exit(f"shapely is not installed in this interpreter ({exc})")
+major = int(shapely.__version__.split(".")[0])
+if major != 2:
+    sys.exit(
+        f"shapely {shapely.__version__} is not supported; requirements.txt pins "
+        ">=2,<3 because STRtree.query returns indexes in 2.x and geometries in 1.x"
+    )
+PY
 
 cd "$WORK"
 : > pipeline.log
