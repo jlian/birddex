@@ -18,6 +18,15 @@ interface Env {
   OPENAI_MODEL_STRONG?: string
   /** OSM place polygons (PMTiles) for local reverse geocoding, ODbL 1.0. */
   PLACES?: Pick<R2Bucket, 'get'>
+  /**
+   * Self-hosted forward place search: an FTS5 index over the same OSM corpus
+   * the reverse archive uses, ODbL 1.0. See scripts/osm-places.
+   *
+   * Optional so the Worker still boots before the index is published, and so
+   * preview can run without it. `searchPlaces` reports the binding as
+   * unconfigured rather than throwing, which the route maps to a 503.
+   */
+  PLACES_SEARCH?: D1Database
   GEOAPIFY_KEY: string
   /** Burst limiter for the Geoapify-backed place-search route. See [[ratelimits]] in wrangler.toml. */
   GEOCODING_LIMITER: RateLimit

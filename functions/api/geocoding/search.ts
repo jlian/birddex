@@ -1,5 +1,6 @@
 import { GeocodingConfigurationError, GeocodingUpstreamError, rateLimitKey, searchPlaces } from '../../lib/geocoding-gateway'
 import { createRouteResponder } from '../../lib/log'
+import { SearchUnavailableError, searchPlacesLocal } from '../../lib/place-search'
 
 export const onRequestPost: PagesFunction<Env> = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/search/read', 'Application')
@@ -15,7 +16,21 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   try {
     const body = await context.request.json() as { query?: unknown } | null
     const query = typeof body?.query === 'string' ? body.query : ''
-    const results = await searchPlaces(context.env.GEOAPIFY_KEY, query, fetch)
+    // Prefer the self-hosted OSM index; fall back to Geoapify while it is
+    // absent.
+    //
+    // This is a MIGRATION STEP, not the destination. Issue #343 removes
+    // Geoapify entirely, and the binding is added with the published index in
+    // the D1 upload phase. Until then the binding does not exist, so switching
+    // unconditionally would turn every forward search into a 503 for a feature
+    // that currently works.
+    //
+    // The fallback is deliberately keyed on the BINDING being absent, never on
+    // a search failing. A bound-but-broken index must surface as an error
+    // rather than silently reverting to the provider this PR exists to remove.
+    const results = context.env.PLACES_SEARCH
+      ? await searchPlacesLocal(context.env.PLACES_SEARCH, query)
+      : await searchPlaces(context.env.GEOAPIFY_KEY, query, fetch)
     return route.complete(
       Response.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } }),
       `Completed geocoding search with ${results.length} results`,
@@ -23,6 +38,14 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   } catch (error) {
     if (error instanceof GeocodingConfigurationError) {
       return route.fail(503, 'Geocoding service unavailable', 'Geocoding search could not start because the provider is not configured')
+    }
+    // The query text is deliberately absent from every detail string below: it
+    // is user input and must not reach a log line.
+    if (error instanceof SearchUnavailableError) {
+      const detail = error.failure === 'timeout'
+        ? 'Geocoding search timed out after 5 seconds; retry the search'
+        : 'Geocoding search could not read the place index; retry the search'
+      return route.fail(503, 'Geocoding service unavailable', detail)
     }
     if (error instanceof GeocodingUpstreamError) {
       const headers: Record<string, string> = error.retryAfter ? { 'Retry-After': error.retryAfter } : {}
