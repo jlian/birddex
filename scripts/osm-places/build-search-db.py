@@ -43,7 +43,8 @@ CREATE TABLE places (
   qid      TEXT,
   alias    TEXT NOT NULL,
   state    TEXT,
-  country  TEXT
+  country  TEXT,
+  region   TEXT
 );
 
 -- One row per alias, so an exact-match test works on a SINGLE alias rather
@@ -146,14 +147,15 @@ def main() -> int:
     with open(src, encoding="utf-8") as fh:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
-            # 9 fields is the raw export; 11 adds the offline region codes from
-            # `enrich-search-regions.py`. Accepting only one of the two meant an
-            # enriched build silently imported ZERO rows.
+            # 9 fields is the raw export; 12 adds the offline region codes and
+            # the locality name from `enrich-search-regions.py`. Accepting only
+            # one of the two meant an enriched build silently imported ZERO
+            # rows.
             if len(parts) == 9:
-                parts = parts + ["", ""]
-            elif len(parts) != 11:
+                parts = parts + ["", "", ""]
+            elif len(parts) != 12:
                 continue
-            osm_id, label, lat, lon, score, kind, imp, qid, alias, state, country = parts
+            osm_id, label, lat, lon, score, kind, imp, qid, alias, state, country, region = parts
             if state or country:
                 enriched += 1
             imp_val = int(imp) if imp else None
@@ -164,17 +166,18 @@ def main() -> int:
                     if imp_val is not None:
                         matched_imp += 1
             batch.append((osm_id, label, float(lat), float(lon), int(score), kind,
-                          imp_val, qid or None, alias, state or None, country or None))
+                          imp_val, qid or None, alias, state or None, country or None,
+                          region or None))
             if len(batch) >= 50_000:
                 db.executemany(
-                    "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?)", batch)
+                    "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country,region)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", batch)
                 rows += len(batch)
                 batch.clear()
     if batch:
         db.executemany(
-            "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?)", batch)
+            "INSERT OR IGNORE INTO places(osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country,region)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", batch)
         rows += len(batch)
     db.commit()
     # Regional extracts OVERLAP at borders: Geofabrik ships a feature that

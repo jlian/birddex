@@ -31,6 +31,7 @@ interface SearchRow {
   lon: number
   state: string | null
   country: string | null
+  region: string | null
 }
 
 /**
@@ -186,13 +187,13 @@ const SEARCH_SQL = `
     GROUP BY id
   ),
   ranked AS (
-    SELECT p.id, p.label, p.lat, p.lon, p.state, p.country, p.score, p.imp, p.osm_id,
+    SELECT p.id, p.label, p.lat, p.lon, p.state, p.country, p.region, p.score, p.imp, p.osm_id,
            pool.fts_rank,
            EXISTS (SELECT 1 FROM place_alias a WHERE a.place_id = p.id AND a.alias = ?1) AS is_exact
     FROM pool
     JOIN places p ON p.id = pool.id
   )
-  SELECT label, lat, lon, state, country
+  SELECT label, lat, lon, state, country, region
   FROM ranked
   ORDER BY is_exact DESC,
            CASE WHEN is_exact THEN 0.0 ELSE fts_rank END,
@@ -244,13 +245,24 @@ export async function searchPlacesLocal(
     // in the same state are different destinations with different coordinates,
     // and collapsing them silently removes a valid answer. The five-result
     // limit already bounds the list.
+    // The wider region, for telling same-named results apart. This mirrors
+    // `formatGeoapifyContext`: a human-readable locality name, and never a
+    // fragment the label already says. Issue #343 step 4 asks for useful
+    // locality names, so a bare `US-WA` here would leave two same-named parks
+    // in one subdivision indistinguishable. The ISO codes still travel
+    // separately in `stateProvince` and `countryCode` for the eBird mapping.
+    const context = [row.region, row.country]
+      .filter((part): part is string => Boolean(part))
+      .filter((part, index, parts) => parts.indexOf(part) === index)
+      .filter(part => !row.label.includes(part))
+      .join(', ')
     out.push({
       label: row.label,
       // Region codes are attached OFFLINE, so a five-result search costs no
       // extra archive reads at query time.
       ...(row.state ? { stateProvince: row.state } : {}),
       ...(row.country ? { countryCode: row.country } : {}),
-      ...(row.state || row.country ? { context: row.state || row.country || '' } : {}),
+      ...(context ? { context } : {}),
       lat: row.lat,
       lon: row.lon,
     })

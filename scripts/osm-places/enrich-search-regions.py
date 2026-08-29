@@ -58,6 +58,12 @@ def main() -> int:
             country = props.get("ISO3166-1:alpha2") or props.get("ISO3166-1")
             if not state and not country:
                 continue
+            # Prefer `name:en` for the visible locality. OSM's `name` on an
+            # administrative boundary is frequently bilingual, so Rabat's
+            # prefecture arrives as `Prefecture de Rabat` followed by the same
+            # thing in Arabic. That is unreadable in a result list, and the
+            # English name is the one this app's users can act on.
+            name = props.get("name:en") or props.get("name") or ""
             try:
                 geometry = shape(feature.get("geometry") or {})
             except Exception:
@@ -73,7 +79,7 @@ def main() -> int:
             geometries.append(geometry)
             # Area orders containing polygons: the smallest one is the most
             # precise answer. Degrees squared is fine for ordering.
-            attributes.append((state or "", country or "", geometry.area))
+            attributes.append((state or "", country or "", geometry.area, name))
 
     tree = STRtree(geometries)
     print(f"  admin polygons: {len(geometries):,}", file=sys.stderr)
@@ -83,10 +89,18 @@ def main() -> int:
     with_country = 0
     out = sys.stdout
     with open(records_path, encoding="utf-8") as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh, 1):
             parts = line.rstrip("\n").split("\t")
+            # FAIL rather than skip. A silent `continue` here lets TSV
+            # corruption or a producer schema change yield a partial, or even
+            # empty, enriched corpus while the pipeline still writes its DONE
+            # marker, so an incomplete database could be published as a
+            # successful rebuild.
             if len(parts) != 9:
-                continue
+                sys.exit(
+                    f"{records_path}:{lineno}: expected 9 tab-separated fields, "
+                    f"got {len(parts)}; refusing to write a partial corpus"
+                )
             total += 1
             point = Point(float(parts[3]), float(parts[2]))
             hits = []
@@ -99,12 +113,20 @@ def main() -> int:
                 # administrative border.
                 if geometries[idx].covers(point):
                     hits.append(attributes[idx])
-            state = country = ""
+            state = country = region = ""
             if hits:
                 # Smallest containing polygon wins: a subdivision is a more
                 # precise answer than the country that contains it.
                 hits.sort(key=lambda h: h[2])
                 state = next((h[0] for h in hits if h[0]), "")
+                # The human-readable name of the smallest coded boundary that
+                # contains the point. Issue #343 step 4 asks for "useful
+                # locality names" alongside the codes: a result list reading
+                # `US-WA` is a machine answer, and two same-named parks in one
+                # subdivision stay indistinguishable without it. Resolved here
+                # rather than at query time for the same reason the codes are:
+                # five results would otherwise cost five archive reads.
+                region = next((h[3] for h in hits if h[3]), "")
                 # Derive the country FROM the subdivision code rather than
                 # trusting a country tag on the same polygon. Puerto Rico's
                 # admin_level=4 boundary carries BOTH `ISO3166-2=US-PR` and
@@ -118,7 +140,7 @@ def main() -> int:
                 with_state += 1
             if country:
                 with_country += 1
-            out.write("\t".join(parts + [state, country]))
+            out.write("\t".join(parts + [state, country, region]))
             out.write("\n")
             if total % 500_000 == 0:
                 print(f"  ... {total:,} records", file=sys.stderr, flush=True)

@@ -27,6 +27,7 @@ interface Row {
   aliases: string[]
   state?: string
   country?: string
+  region?: string
 }
 
 /** Minimal D1-compatible shim over node:sqlite. */
@@ -55,7 +56,7 @@ function build(rows: Row[]): D1Database {
       id INTEGER PRIMARY KEY, osm_id TEXT NOT NULL UNIQUE, label TEXT NOT NULL,
       lat REAL NOT NULL, lon REAL NOT NULL, score INTEGER NOT NULL,
       kind TEXT NOT NULL, imp INTEGER, qid TEXT, alias TEXT NOT NULL,
-      state TEXT, country TEXT
+      state TEXT, country TEXT, region TEXT
     );
     CREATE TABLE place_alias (place_id INTEGER NOT NULL, alias TEXT NOT NULL);
     CREATE VIRTUAL TABLE places_fts USING fts5(
@@ -64,8 +65,8 @@ function build(rows: Row[]): D1Database {
     );
   `)
   const insert = db.prepare(
-    'INSERT INTO places(id,osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country)' +
-      ' VALUES(?,?,?,?,?,?,?,?,NULL,?,?,?)',
+    'INSERT INTO places(id,osm_id,label,lat,lon,score,kind,imp,qid,alias,state,country,region)' +
+      ' VALUES(?,?,?,?,?,?,?,?,NULL,?,?,?,?)',
   )
   const alias = db.prepare('INSERT INTO place_alias(place_id, alias) VALUES(?,?)')
   rows.forEach((row, i) => {
@@ -73,6 +74,7 @@ function build(rows: Row[]): D1Database {
     insert.run(
       id, row.osm_id, row.label, row.lat, row.lon, row.score, row.kind,
       row.imp ?? null, row.aliases.join('|'), row.state ?? null, row.country ?? null,
+      row.region ?? null,
     )
     for (const a of row.aliases) alias.run(id, a)
   })
@@ -82,14 +84,14 @@ function build(rows: Row[]): D1Database {
 }
 
 const CORPUS: Row[] = [
-  { osm_id: 'w1', label: 'Discovery Park', lat: 47.66, lon: -122.41, score: 25, kind: 'park', imp: 120, aliases: ['discovery park'], state: 'US-WA', country: 'US' },
-  { osm_id: 'w2', label: 'Discovery Parkway', lat: 40.0, lon: -80.0, score: 22, kind: 'landuse', imp: null, aliases: ['discovery parkway'], state: 'US-OH', country: 'US' },
-  { osm_id: 'w3', label: 'Central Park', lat: 40.78, lon: -73.96, score: 25, kind: 'park', imp: 200, aliases: ['central park'], state: 'US-NY', country: 'US' },
-  { osm_id: 'w4', label: 'Centralni park', lat: 50.0, lon: 14.0, score: 25, kind: 'park', imp: 10, aliases: ['centralni park'], state: 'CZ-10', country: 'CZ' },
-  { osm_id: 'w5', label: 'Casablanca', lat: 33.6, lon: -7.6, score: 14, kind: 'admin', imp: 180, aliases: ['casablanca', 'casa', 'dar el beida'], country: 'MA' },
-  { osm_id: 'w6', label: 'Memorial Park', lat: 47.1, lon: -122.1, score: 25, kind: 'park', imp: null, aliases: ['memorial park'], state: 'US-WA', country: 'US' },
-  { osm_id: 'w7', label: 'Memorial Park', lat: 47.2, lon: -122.2, score: 25, kind: 'park', imp: null, aliases: ['memorial park'], state: 'US-WA', country: 'US' },
-  { osm_id: 'w8', label: 'Donana', lat: 37.0, lon: -6.4, score: 24, kind: 'reserve', imp: 150, aliases: ['donana'], state: 'ES-AN', country: 'ES' },
+  { osm_id: 'w1', label: 'Discovery Park', lat: 47.66, lon: -122.41, score: 25, kind: 'park', imp: 120, aliases: ['discovery park'], state: 'US-WA', country: 'US', region: 'Washington' },
+  { osm_id: 'w2', label: 'Discovery Parkway', lat: 40.0, lon: -80.0, score: 22, kind: 'landuse', imp: null, aliases: ['discovery parkway'], state: 'US-OH', country: 'US', region: 'Ohio' },
+  { osm_id: 'w3', label: 'Central Park', lat: 40.78, lon: -73.96, score: 25, kind: 'park', imp: 200, aliases: ['central park'], state: 'US-NY', country: 'US', region: 'New York' },
+  { osm_id: 'w4', label: 'Centralni park', lat: 50.0, lon: 14.0, score: 25, kind: 'park', imp: 10, aliases: ['centralni park'], state: 'CZ-10', country: 'CZ', region: 'Praha' },
+  { osm_id: 'w5', label: 'Casablanca', lat: 33.6, lon: -7.6, score: 14, kind: 'admin', imp: 180, aliases: ['casablanca', 'casa', 'dar el beida'], country: 'MA', region: 'Casablanca-Settat' },
+  { osm_id: 'w6', label: 'Memorial Park', lat: 47.1, lon: -122.1, score: 25, kind: 'park', imp: null, aliases: ['memorial park'], state: 'US-WA', country: 'US', region: 'Pierce County' },
+  { osm_id: 'w7', label: 'Memorial Park', lat: 47.2, lon: -122.2, score: 25, kind: 'park', imp: null, aliases: ['memorial park'], state: 'US-WA', country: 'US', region: 'King County' },
+  { osm_id: 'w8', label: 'Donana', lat: 37.0, lon: -6.4, score: 24, kind: 'reserve', imp: 150, aliases: ['donana'], state: 'ES-AN', country: 'ES', region: 'Andalucia' },
 ]
 
 describe('searchPlacesLocal', () => {
@@ -99,7 +101,7 @@ describe('searchPlacesLocal', () => {
       label: 'Discovery Park',
       stateProvince: 'US-WA',
       countryCode: 'US',
-      context: 'US-WA',
+      context: 'Washington, US',
       lat: 47.66,
       lon: -122.41,
     })
@@ -118,10 +120,12 @@ describe('searchPlacesLocal', () => {
   })
 
   it('ranks identical exact names by importance before category', async () => {
-    // The real corpus has 521 places named exactly `central park`. Two are
-    // tagged `tourism=attraction` and score 26 against New York's 25, so
-    // category-first ranking returns a park in Tajikistan. Once names match
-    // exactly, prominence is the question that remains.
+    // The real corpus has 521 places named exactly `central park`. Two carry
+    // the top tourism tier (`zoo`, `aquarium` or `theme_park`, which `kindOf`
+    // labels `attraction`) and score 26 against New York's 25, so
+    // category-first ranking returns a park in Tajikistan. A plain
+    // `tourism=attraction` scores 24, BELOW a park, and could not cause this.
+    // Once names match exactly, prominence is the question that remains.
     const rows: Row[] = [
       { osm_id: 'w20', label: 'Central Park', lat: 38.0, lon: 68.0, score: 26, kind: 'attraction', imp: null, aliases: ['central park'], country: 'TJ' },
       { osm_id: 'w21', label: 'Central Park', lat: 40.78, lon: -73.96, score: 25, kind: 'park', imp: 156, aliases: ['central park'], state: 'US-NY', country: 'US' },
@@ -175,6 +179,36 @@ describe('searchPlacesLocal', () => {
     // destinations. De-duplicating by label silently removed a valid answer.
     const results = await searchPlacesLocal(build(CORPUS), 'memorial park')
     expect(results.filter((r) => r.label === 'Memorial Park')).toHaveLength(2)
+  })
+
+  it('tells same-named places in one subdivision apart by locality', async () => {
+    // Both carry `US-WA`, so a context built from the ISO code alone renders
+    // two identical rows and the searcher cannot choose. Issue #343 step 4
+    // asks for a useful locality name for exactly this reason.
+    const results = await searchPlacesLocal(build(CORPUS), 'memorial park')
+    const contexts = results.filter((r) => r.label === 'Memorial Park').map((r) => r.context)
+    expect(new Set(contexts).size).toBe(2)
+    expect(contexts).toContain('Pierce County, US')
+    expect(contexts).toContain('King County, US')
+  })
+
+  it('omits a locality the label already states', async () => {
+    // `formatGeoapifyContext` never repeated a fragment the label carried, and
+    // a redundant `Casablanca, Casablanca` reads like a bug to a user.
+    const results = await searchPlacesLocal(
+      build([
+        { osm_id: 'w9', label: 'Casablanca', lat: 33.6, lon: -7.6, score: 14, kind: 'admin', imp: 180, aliases: ['casablanca'], country: 'MA', region: 'Casablanca' },
+      ]),
+      'casablanca',
+    )
+    expect(results[0].context).toBe('MA')
+  })
+
+  it('keeps a wider locality that the label does not contain', async () => {
+    // `Casablanca-Settat` is not a substring of `Casablanca`, so it survives
+    // the redundancy filter and genuinely places the result.
+    const results = await searchPlacesLocal(build(CORPUS), 'casablanca')
+    expect(results[0].context).toBe('Casablanca-Settat, MA')
   })
 
   it('omits region fields when the record has none', async () => {

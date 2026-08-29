@@ -124,12 +124,26 @@ name exactly, that question is spent and the remaining one is "which of these
 does the searcher mean", which is what importance measures. Category still
 breaks ties beneath it, and non-exact candidates keep the documented order.
 
-## Region codes
+## Region codes and locality names
 
 Attached offline, so a five-result search costs no archive reads at query time:
 the reverse route resolves codes by reading the PMTiles `admin` layer for one
 coordinate, and doing that per result would mean up to five extra R2 range
 reads per search.
+
+The same join also carries the boundary's NAME, not only its ISO code. Step 4
+asks for useful locality names, and a code cannot satisfy it: the two parks
+called `Memorial Park` in `US-WA` render as two identical rows, so the searcher
+cannot tell which is which. The visible `context` is now the locality plus the
+country, and the ISO codes still travel separately in `stateProvince` and
+`countryCode` for the eBird mapping.
+
+`name:en` is preferred over `name`. OSM administrative boundaries frequently
+carry a bilingual `name`, so Rabat's prefecture arrives as `Prefecture de Rabat`
+followed by the same text in Arabic, which is not something to show in a result
+list. A locality that the label already contains is dropped, matching the
+Geoapify behaviour it replaces, so `Casablanca` does not render as
+`Casablanca, Casablanca`.
 
 Counted in the FINISHED database, against its 3,608,008 rows. The enrichment
 stage reports slightly higher numbers because it runs before deduplication, when
@@ -192,6 +206,11 @@ earlier version of this document reported a distribution containing category
 names `kindOf` never emits.
 
 ## Integrity
+
+A malformed record FAILS the enrichment stage rather than being skipped.
+A silent `continue` there let TSV corruption or a producer schema change yield a
+partial, or even empty, corpus while the pipeline still wrote its `DONE` marker,
+so an incomplete database could be published as a successful rebuild.
 
 Zero duplicate stable IDs, zero out-of-bounds coordinates, zero empty labels or
 aliases.

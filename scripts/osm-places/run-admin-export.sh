@@ -66,7 +66,7 @@ with open(src, encoding="utf-8") as fh, open(dst, "w", encoding="utf-8") as out:
         props = feature.get("properties") or {}
         if not (props.get("ISO3166-2") or props.get("ISO3166-1:alpha2") or props.get("ISO3166-1")):
             continue
-        slim = {k: props[k] for k in ("ISO3166-2", "ISO3166-1:alpha2", "ISO3166-1", "name") if k in props}
+        slim = {k: props[k] for k in ("ISO3166-2", "ISO3166-1:alpha2", "ISO3166-1", "name", "name:en") if k in props}
         out.write(json.dumps({"type": "Feature", "properties": slim, "geometry": feature["geometry"]}))
         out.write("\n")
         kept += 1
