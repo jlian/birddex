@@ -20,7 +20,19 @@ WORK="${WORK:-/mnt/ssdscratch}"
 mkdir -p "$WORK"
 WORK="$(cd "$WORK" && pwd)"
 VENV_DIR="${VENV_DIR:-$WORK/venv}"
+# Absolute for the same reason WORK is: the venv is created before `cd "$WORK"`
+# but invoked after it, so a relative override such as `VENV_DIR=.venv` built
+# the environment in the checkout and then looked for it under $WORK.
+mkdir -p "$(dirname "$VENV_DIR")"
+VENV_DIR="$(cd "$(dirname "$VENV_DIR")" && pwd)/$(basename "$VENV_DIR")"
 VENV_PY="${VENV_PY:-$VENV_DIR/bin/python}"
+# An explicit relative VENV_PY override has the same problem. Resolve it
+# against the ORIGINAL directory, which is where the caller meant it, without
+# requiring the path to exist yet.
+case "$VENV_PY" in
+  /*) ;;
+  *) VENV_PY="$PWD/$VENV_PY" ;;
+esac
 IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
 # Default to the exporters COMMITTED next to this script. Pointing at copies
 # under the scratch directory meant a normal checkout could not rebuild, and

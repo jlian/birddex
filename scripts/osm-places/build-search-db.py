@@ -281,11 +281,32 @@ def main() -> int:
           f"  [{100*withimp/max(withqid,1):.1f}% of QIDs matched]")
 
     print(f"\n=== golden queries (p50 / p95 over 20 runs, top hit) ===")
-    golden = ["discovery park", "central park", "union bay", "donana",
-              "carkeek", "skagit", "tokyo", "sydney", "serengeti", "st martin",
-              # Partial input: #343 requires token-prefix matching, so this has
-              # to find Discovery Park.
-              "discover par"]
+    # (query, expected label, expected category). Each is an ASSERTION, not a
+    # benchmark: printing whatever came back meant a query could return the
+    # wrong place, or nothing at all, and the build still exited 0. Issue #343's
+    # acceptance criteria require a golden corpus that verifies RANKING, which
+    # only works when a mismatch is fatal.
+    #
+    # Every expectation is a property of the ranking rather than a lucky top
+    # hit: the prominent Seattle park over the Ohio parkway, New York's Central
+    # Park over 520 other places carrying that exact name, the city of Tokyo
+    # over the features inside it.
+    golden = [
+        ("discovery park", "Discovery Park", "park"),
+        ("central park", "Central Park", "park"),
+        ("union bay", "Union Bay", "water"),
+        # ASCII input must reach the accented name.
+        ("donana", "Donana", "place"),
+        ("carkeek", "Carkeek", "natural-other"),
+        ("skagit", "Skagit", "landuse"),
+        ("tokyo", "Tokyo", "admin"),
+        ("sydney", "Sydney", "admin"),
+        ("serengeti", "Serengeti-Park", "attraction"),
+        ("st martin", "St Martin", "admin"),
+        # Partial input: #343 requires token-prefix matching, so this has
+        # to find Discovery Park.
+        ("discover par", "Discovery Park", "park"),
+    ]
     # Mirrors SEARCH_SQL in functions/lib/place-search.ts EXACTLY, including the
     # bounded candidate stage and the ORDERED exact arm. A bare `LIMIT 5` after
     # the full ordering measures a query that does not ship, and an unordered
@@ -312,7 +333,8 @@ def main() -> int:
         "CASE WHEN is_exact THEN -COALESCE(imp,0) ELSE -score END, "
         "CASE WHEN is_exact THEN -score ELSE -COALESCE(imp,0) END, osm_id LIMIT ?"
     )
-    for q in golden:
+    golden_failures = []
+    for q, want_label, want_kind in golden:
         term = fts_query(q)
         times = []
         top = None
@@ -327,13 +349,28 @@ def main() -> int:
         # feasibility numbers overstated the tail.
         p50 = times[math.ceil(0.50 * len(times)) - 1]
         p95 = times[math.ceil(0.95 * len(times)) - 1]
-        label = f"{top[0]} ({top[1]})" if top else "NO RESULT"
-        print(f"  {q:<16} p50 {p50:7.2f} ms  p95 {p95:7.2f} ms   -> {label}")
+        if top is None:
+            got = "NO RESULT"
+            ok = False
+        else:
+            got = f"{top[0]} ({top[1]})"
+            ok = top[0] == want_label and top[1] == want_kind
+        if not ok:
+            golden_failures.append(f"{q!r} expected {want_label} ({want_kind}), got {got}")
+        mark = "ok " if ok else "FAIL"
+        print(f"  {mark} {q:<16} p50 {p50:7.2f} ms  p95 {p95:7.2f} ms   -> {got}")
 
     print(f"\n=== negative control: addresses must NOT be searchable ===")
-    for q in ["main street", "10 downing", "98115"]:
+    # `main street` legitimately matches named features containing those words,
+    # so the assertion is on the two that must find NOTHING: a house number and
+    # a postcode. Those would only match if address data had leaked into the
+    # corpus, which is what #343 excludes.
+    address_leaks = []
+    for q, must_be_zero in (("main street", False), ("10 downing", False), ("98115", True)):
         term = " ".join(f'"{t}"*' for t in q.split())
         n = cur.execute("SELECT COUNT(*) FROM places_fts WHERE places_fts MATCH ?", (term,)).fetchone()[0]
+        if must_be_zero and n:
+            address_leaks.append(f"{q!r} matched {n:,} rows; addresses must not be indexed")
         print(f"  {q:<16} {n:,} hits")
 
     db.close()
@@ -350,8 +387,14 @@ def main() -> int:
         problems.append(f"{oob:,} out-of-bounds coordinates")
     if noname:
         problems.append(f"{noname:,} rows with an empty label or alias")
+    if golden_failures:
+        problems.append(f"{len(golden_failures)} golden queries returned the wrong place")
+    if address_leaks:
+        problems.append(f"{len(address_leaks)} address queries matched")
     if problems:
         print("\nFAILED: " + "; ".join(problems), file=sys.stderr)
+        for line in golden_failures + address_leaks:
+            print(f"  {line}", file=sys.stderr)
         return 1
     return 0
 

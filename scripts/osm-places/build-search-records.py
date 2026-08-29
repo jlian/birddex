@@ -327,7 +327,15 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
             continue
         lat, lon = point
         if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-            continue
+            # FAIL rather than skip. A coordinate outside the earth means the
+            # geometry or the export regressed, and dropping the record here
+            # hides it from the loader's integrity check, which then reports
+            # zero out-of-bounds coordinates over a corpus that quietly lost
+            # rows.
+            sys.exit(
+                f"input line {lineno}: representative point ({lat}, {lon}) is out of range; "
+                "refusing to write a partial export"
+            )
         meta = feat.get("properties") or {}
         # osmium writes identity INTO properties as `@type`/`@id` when the export
         # config asks for attributes, not as a top-level `id` member. Reading

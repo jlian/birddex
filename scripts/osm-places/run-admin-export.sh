@@ -11,13 +11,24 @@
 # (`boundary=administrative`), so forward and reverse search cannot resolve a
 # coordinate to different jurisdictions.
 #
-# Levels 2-4 carry the ISO 3166 codes and NOTHING ELSE DOES, so they alone
-# decide `state` and `country`. Level 6 is added for the DISPLAY name only.
-# Without it the locality shown for a place in Washington is `Washington`, which
-# is what the ISO code already says, so two parks sharing a name and a state
-# render as identical rows. Level 6 is the county in the countries that map one,
-# and it is the smallest containing boundary, so the join picks it up while the
-# codes still come from the ISO-bearing ancestor.
+# Levels 2-4 are where ISO 3166 codes are DEFINED, and this export takes only
+# those plus level 6. That is a deliberate allowlist mirroring the reverse
+# archive, not a claim that no other level carries a code: measured on the
+# global corpus, 421 level-5, 99 level-7, 405 level-8 and 9 level-10 boundaries
+# carry one, plus 50 with no `admin_level` tag at all. Admitting them would let
+# a smaller boundary override the subdivision the reverse archive reports for
+# the same coordinate, which is the disagreement this shared filter exists to
+# prevent.
+#
+# Level 6 is added for the DISPLAY name only, and the join IGNORES its ISO tags
+# for exactly that reason: 880 level-6 boundaries carry a code, mostly Guinea's
+# prefectures. Without level 6 the locality shown for a place in Washington is
+# `Washington`, which is what the ISO code already says, so two parks sharing a
+# name and a state render as identical rows.
+#
+# The defensive test in `enrich-search-regions.py` covers the same ground from
+# the other side: it excludes level 6 rather than requiring 2-4, so a future
+# widening of this filter cannot silently strip codes from the levels above.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
