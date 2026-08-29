@@ -12,8 +12,8 @@ with every index created.
 ## The gate, and the constraint that actually binds
 
 Step 7 says adopt D1 only if the finished global database is at most 7 GB,
-leaving rebuild headroom under D1's 10 GB hard limit. The database is 0.737 GB,
-about a tenth of that gate, so the R2 prefix/FST shard fallback is not needed on
+leaving rebuild headroom under D1's 10 GB hard limit. The database is 0.795 GB,
+about a ninth of that gate, so the R2 prefix/FST shard fallback is not needed on
 size grounds.
 
 The gate in the issue is not the limit that binds, though. This account is on
@@ -24,8 +24,8 @@ The gate in the issue is not the limit that binds, though. This account is on
 | One database | 500 MB | 10 GB |
 | All databases | 5 GB | 1 TB |
 
-At 0.737 GB the corpus does NOT fit in a single free-tier database. The 5 GB
-account total is comfortable, and two environments cost 1.5 GB of it, so the
+At 0.795 GB the corpus does NOT fit in a single free-tier database. The 5 GB
+account total is comfortable, and two environments cost 1.6 GB of it, so the
 per-database cap is the only real obstacle.
 
 This is measured rather than assumed: an earlier note in this file claimed the
@@ -39,16 +39,16 @@ Measured with `dbstat` on the finished database:
 
 | Object | Size | Share |
 | --- | --- | --- |
-| `places` | 352.4 MB | 46.7% |
-| `idx_place_alias` | 117.9 MB | 15.6% |
-| `place_alias` | 116.1 MB | 15.4% |
-| `sqlite_autoindex_places_1` | 82.4 MB | 10.9% |
-| `places_fts_data` | 50.0 MB | 6.6% |
-| `places_fts_docsize` | 36.1 MB | 4.8% |
+| `places` | 411.6 MB | 50.5% |
+| `idx_place_alias` | 117.9 MB | 14.5% |
+| `place_alias` | 116.1 MB | 14.3% |
+| `sqlite_autoindex_places_1` | 82.4 MB | 10.1% |
+| `places_fts_data` | 50.0 MB | 6.1% |
+| `places_fts_docsize` | 36.1 MB | 4.4% |
 | `places_fts_idx` | 0.2 MB | 0.0% |
 
-The FTS5 index is only 12% of the file. The content table and the alias
-machinery are 89% of it, so shrinking the index is not where a saving lives.
+The FTS5 index is about 10% of the file. The content table and the alias
+machinery are the rest, so shrinking the index is not where a saving lives.
 
 That matters for the hosting decision, because the options differ in cost:
 
@@ -86,7 +86,7 @@ prefix query through `env.DB`.
 
 The file name there is a generated Durable Object id, so match the single
 `.sqlite` file in that directory rather than hardcoding the name, and pass
-`--persist-to` to keep a 0.737 GB file out of the repository.
+`--persist-to` to keep a 0.795 GB file out of the repository.
 
 `places_fts` is an **external content** table (`content=places`), so FTS5
 indexes the text without storing a second copy; an ordinary FTS5 table would
@@ -111,14 +111,18 @@ this shows the shape of the problem, not the production number.
 
 | Query | p50 | p95 | Top hit |
 | --- | --- | --- | --- |
-| discover par | 80.50 ms | 84.65 ms | Discovery Park |
-| central park | 60.07 ms | 60.94 ms | Central Park |
-| discovery park | 51.72 ms | 56.41 ms | Discovery Park |
-| st martin | 49.60 ms | 88.46 ms | St Martin |
-| union bay | 5.13 ms | 5.90 ms | Union Bay |
-| tokyo | 1.07 ms | 1.48 ms | Tokyo |
-| skagit | 0.56 ms | 0.72 ms | Skagit |
-| carkeek | 0.41 ms | 0.53 ms | Carkeek |
+| discover par | 82.20 ms | 83.12 ms | Discovery Park |
+| central park | 58.02 ms | 60.42 ms | Central Park |
+| discovery park | 54.76 ms | 57.87 ms | Discovery Park |
+| st martin | 50.30 ms | 50.96 ms | St Martin |
+| union bay | 5.08 ms | 5.38 ms | Union Bay |
+| tokyo | 1.07 ms | 1.18 ms | Tokyo |
+| skagit | 0.55 ms | 0.66 ms | Skagit |
+| carkeek | 0.41 ms | 0.42 ms | Carkeek |
+
+Percentiles are nearest-rank. An earlier version of this table indexed
+`int(n * 0.95)`, which is element 19 of 20 and therefore the maximum, so every
+figure in the p95 column was really a p100.
 
 `donana` returning Doñana confirms diacritic folding works from an ASCII query.
 
@@ -214,10 +218,39 @@ level 6; requiring a code discarded every county. Codes still come from the
 ISO-bearing ancestor and the display name from the smallest containing
 boundary, so forward and reverse search cannot disagree about a jurisdiction.
 
-This only helps where counties are mapped at level 6. Countries without one
-fall back to the subdivision name, so some same-named pairs stay ambiguous.
-The remaining count is measured against the finished database rather than
-estimated.
+One subtlety made that harder than a filter change. 880 of the 47,829 level-6
+boundaries carry an `ISO3166-2` of their own, mostly Guinea's prefectures, and a
+county is always smaller than its state, so the smallest-area rule would have
+let one override the subdivision. The join therefore IGNORES ISO tags on level
+6 while still taking its name. It excludes level 6 rather than requiring levels
+2-4, because 50 coded boundaries carry no `admin_level` tag at all and levels 5,
+7, 8 and 10 also carry codes; an allowlist would have stripped those.
+
+Measured on the finished database: 3,597,870 rows carry a locality (99.7%), and
+`Memorial Park` in `US-WA` now returns 13 rows across Chelan, Whatcom, Franklin,
+Kittitas, Okanogan, Whitman, San Juan, Spokane, Thurston, Skagit, Pierce and
+Grant counties. Guinea keeps `GN-L` from the subdivision while displaying `Mali
+Prefecture`, confirming the two levels stay in their own roles.
+
+### What the locality does not fix
+
+Adding it resolves 45,821 of the 307,428 label-plus-subdivision groups that
+contain more than one row, or 14.9%. That number is worth stating plainly
+rather than presenting the feature as complete.
+
+The residue is not a locality problem. The largest remaining groups are generic
+land-cover names repeated across a region by bulk mapping: `Mata Ciliar`
+(riparian forest) 1,811 times in one Brazilian subdivision, `Granja Camaronera`
+(shrimp farm) 1,540 times in one Mexican municipality, `Plantio de Eucalipto`,
+`Black Country Millennium Forest`. No administrative level disambiguates a name
+that is really a category, and 231,090 of the 261,607 remaining groups have
+distinct coordinates for every member, so they are genuinely separate features
+rather than duplicate imports.
+
+The five-result limit bounds what a searcher actually sees, and these names are
+not ones a person types looking for a specific place. A proximity sort would
+help more here than any further boundary level, and #343 lists that as a future
+ranking term.
 
 `name:en` is preferred over `name`. OSM administrative boundaries frequently
 carry a bilingual `name`, so Rabat's prefecture arrives as `Prefecture de Rabat`
@@ -226,17 +259,21 @@ list. A locality that the label already contains is dropped, matching the
 Geoapify behaviour it replaces, so `Casablanca` does not render as
 `Casablanca, Casablanca`.
 
-Counted in the FINISHED database, against its 3,608,008 rows. The enrichment
+Counted in the FINISHED database, against its 3,608,009 rows. The enrichment
 stage reports slightly higher numbers because it runs before deduplication, when
 border-overlapping features still appear once per regional extract.
 
 | Measure | Count | Share |
 | --- | --- | --- |
-| Records with a subdivision code | 3,559,941 | 98.7% |
-| Records with a country code | 3,586,332 | 99.4% |
+| Records with a subdivision code | 3,513,020 | 97.4% |
+| Records with a country code | 3,586,924 | 99.4% |
+| Records with a locality name | 3,597,870 | 99.7% |
 
-Codes come from the same `boundary=administrative` polygons at admin_level 2-4
-that the reverse archive uses, so forward and reverse search cannot report
+The locality is the most complete of the three because a level-6 boundary needs
+only a name, while a code requires an ISO tag the mapper may not have added.
+
+Codes come from the same `boundary=administrative` polygons the reverse archive
+uses, restricted to admin_level 2-4, so forward and reverse search cannot report
 different jurisdictions for the same place. The country is derived FROM the
 subdivision code rather than a country tag on the same polygon: Puerto Rico's
 boundary carries both `ISO3166-2=US-PR` and `ISO3166-1=PR`, so trusting the tag
