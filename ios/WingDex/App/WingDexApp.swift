@@ -213,6 +213,7 @@ struct MainTabView: View {
     #if DEBUG
     private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
     private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-ignore-shares")
+    private let uiTestObservesShareQueue = ProcessInfo.processInfo.arguments.contains("--ui-test-observe-share-queue")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
     #else
     private let uiTestForcesSettings = false
@@ -518,14 +519,15 @@ struct MainTabView: View {
     }
     #endif
 
-    private func requestIncomingShareImport() async {
-        guard !uiTestIgnoresPendingShare else { return }
+    private func requestIncomingShareImport() async -> Bool {
+        guard !uiTestIgnoresPendingShare else { return false }
         guard !incomingShareImportInFlight else {
             incomingShareImportRequested = true
-            return
+            return false
         }
         incomingShareImportInFlight = true
         defer { incomingShareImportInFlight = false }
+        var queueRemainedEmpty = true
         repeat {
             incomingShareImportRequested = false
             addPhotosVM.configure(
@@ -533,7 +535,8 @@ struct MainTabView: View {
                 dataStore: store
             )
             let result = await addPhotosVM.importIncomingShareIfAvailable()
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return false }
+            queueRemainedEmpty = queueRemainedEmpty && result == .empty
             if result == .accepted {
                 navigation.route(to: .addPhotos())
             } else if result == .failed {
@@ -543,9 +546,15 @@ struct MainTabView: View {
                 incomingShareImportDeferred = true
             }
         } while incomingShareImportRequested
+        return queueRemainedEmpty
     }
 
     private func scheduleIncomingShareImport() {
+        #if DEBUG
+        if uiTestObservesShareQueue {
+            uiTestDataSetupIdentifier = "ui-test.shareQueuePending"
+        }
+        #endif
         if showingAccount {
             incomingShareImportDeferred = true
             return
@@ -557,7 +566,12 @@ struct MainTabView: View {
         let requestID = UUID()
         incomingShareImportTaskID = requestID
         incomingShareImportTask = Task {
-            await requestIncomingShareImport()
+            let queueIsEmpty = await requestIncomingShareImport()
+            #if DEBUG
+            if uiTestObservesShareQueue && queueIsEmpty && !Task.isCancelled {
+                uiTestDataSetupIdentifier = "ui-test.shareQueueChecked"
+            }
+            #endif
             if incomingShareImportTaskID == requestID {
                 incomingShareImportTask = nil
                 incomingShareImportTaskID = nil

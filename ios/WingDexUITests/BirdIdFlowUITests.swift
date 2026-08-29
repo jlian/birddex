@@ -125,12 +125,17 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         app.launchArguments = [
             "--ui-test-sign-out",
             "--ui-test-share-store",
+            "--ui-test-observe-share-queue",
         ]
         app.launch()
 
         XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["ui-test.shareQueueChecked"].waitForExistence(timeout: 30),
+            "The incoming-share queue was not checked after relaunch"
+        )
         XCTAssertFalse(
-            app.buttons["Continue"].waitForExistence(timeout: 30),
+            app.buttons["Continue"].exists,
             "The accepted share was imported again after relaunch"
         )
     }
