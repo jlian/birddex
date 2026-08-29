@@ -12,6 +12,15 @@ if [[ ! -f "$PBXPROJ" ]]; then
   exit 1
 fi
 
+# Simulator tests do not inspect the home-screen icon. Icon Composer took almost
+# two minutes on the hosted runner, so CI generates a test-only project without
+# injecting the .icon bundle. Normal local generation and release archives keep
+# the production resource.
+if [[ "${WINGDEX_SKIP_APP_ICON:-}" == "1" ]]; then
+    echo "Skipping AppIcon.icon injection for the CI simulator build"
+    exit 0
+fi
+
 python3 << 'PYEOF'
 import re, sys
 

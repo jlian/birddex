@@ -127,9 +127,9 @@ jobs:
           path: |
             ~/Library/Caches/org.swift.swiftpm
             ios/build/DerivedData
-          key: ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml') }}
+          key: ios-spm-dd-v2-no-app-icon-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-${{ hashFiles('ios/WingDex.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'ios/project.yml', 'ios/scripts/fix-icon-ref.sh') }}
           restore-keys: |
-            ios-spm-dd-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-
+            ios-spm-dd-v2-no-app-icon-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-cache-version.outputs.value }}-
 
       - name: Cache XcodeGen
         id: xcodegen-cache
@@ -138,7 +138,16 @@ jobs:
           path: ~/.cache/wingdex/xcodegen-2.46.0
           key: ios-xcodegen-2.46.0-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Start iOS Simulator
+      - name: Cache generated Bird ID assets
+        id: bird-id-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ios/WingDex/Resources/BirdID
+            ios/build/generated/sync-birdid-assets.stamp
+          key: ios-bird-id-v1-${{ hashFiles('ios/scripts/sync-birdid-assets.sh', 'public/models/text_classifier_int8.bin', 'public/priors/occurrence.*.bin.gz', 'public/priors/rarity.*.bin.gz', 'src/lib/bird-id-local-adapter.ts', 'src/lib/rarity.ts', 'src/lib/taxonomy.json', 'ios/WingDex/Resources/taxonomy.json') }}
+
+      - name: Create iOS Simulator
         run: |
           set -euo pipefail
           echo "Available simulators before CI device creation:"
@@ -184,13 +193,14 @@ jobs:
 
           IOS_SIMULATOR_UDID=$(xcrun simctl create "WingDex CI" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
           echo "IOS_SIMULATOR_UDID=$IOS_SIMULATOR_UDID" >> "$GITHUB_ENV"
-          xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
       - name: Install XcodeGen
         run: ios/scripts/install-xcodegen.sh
 
       - name: Generate Xcode project
         working-directory: ios
+        env:
+          WINGDEX_SKIP_APP_ICON: "1"
         run: xcodegen generate
 
       - name: Build for Simulator
@@ -214,6 +224,9 @@ jobs:
             ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=NO \
             CODE_SIGNING_ALLOWED=NO 2>&1
           echo "- Build for testing: $(( $(date +%s) - started_at ))s" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Boot iOS Simulator
+        run: xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
       - name: Select API backend
         env:
@@ -351,6 +364,7 @@ jobs:
             echo "### iOS CI timing"
             echo "- DerivedData/SwiftPM cache hit: \`${{ steps.build-cache.outputs.cache-hit }}\`"
             echo "- XcodeGen cache hit: \`${{ steps.xcodegen-cache.outputs.cache-hit }}\`"
+            echo "- Bird ID asset cache hit: \`${{ steps.bird-id-cache.outputs.cache-hit }}\`"
             echo "- Total elapsed: $(( $(date +%s) - CI_STARTED_AT ))s"
           } >> "$GITHUB_STEP_SUMMARY"
 

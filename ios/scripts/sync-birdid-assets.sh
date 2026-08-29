@@ -32,44 +32,6 @@ STAMP="build/generated/sync-birdid-assets.stamp"
 
 mkdir -p "$DEST"
 
-# Xcode may invoke this after XcodeGen even though generated assets preserve
-# their mtimes when bytes are unchanged. The pre-generation run touches this
-# stamp after validating all inputs, so avoid repeating the large gzip compares.
-INPUTS=(
-  "$REPO_ROOT/public/models/text_classifier_int8.bin"
-  "$REPO_ROOT/public/priors/occurrence.4f5c1a15.bin.gz"
-  "$REPO_ROOT/public/priors/rarity.2c02a406.bin.gz"
-  "$REPO_ROOT/src/lib/bird-id-local-adapter.ts"
-  "$REPO_ROOT/src/lib/rarity.ts"
-  "$REPO_ROOT/src/lib/taxonomy.json"
-  "WingDex/Resources/taxonomy.json"
-  "scripts/sync-birdid-assets.sh"
-)
-if [[ -f "$STAMP"
-      && -f "$DEST/text_classifier_int8.bin"
-      && -f "$DEST/occurrence.bin"
-      && -f "$DEST/rarity.bin" ]]; then
-  inputs_changed=false
-  for input in "${INPUTS[@]}"; do
-    if [[ ! -f "$input" || "$input" -nt "$STAMP" ]]; then
-      inputs_changed=true
-      break
-    fi
-  done
-  for output in \
-    "$DEST/text_classifier_int8.bin" \
-    "$DEST/occurrence.bin" \
-    "$DEST/rarity.bin"; do
-    if [[ "$output" -nt "$STAMP" ]]; then
-      inputs_changed=true
-      break
-    fi
-  done
-  if [[ "$inputs_changed" == false ]]; then
-    exit 0
-  fi
-fi
-
 CLASSIFIER="$REPO_ROOT/public/models/text_classifier_int8.bin"
 if [[ ! -f "$CLASSIFIER" ]]; then
   echo "error: missing $CLASSIFIER" >&2
@@ -141,6 +103,56 @@ if [[ ! -f "$RARITY" ]]; then
   exit 1
 fi
 
+# Xcode may invoke this after XcodeGen, and CI may restore the generated assets
+# into a fresh checkout whose source mtimes are newer. Store content digests in
+# the stamp instead of trusting mtimes so both cases can skip the large gzip
+# comparisons without accepting stale or corrupted outputs. Resolve PRIOR and
+# RARITY first so an asset filename rollover is included automatically.
+INPUTS=(
+  "$CLASSIFIER"
+  "$PRIOR"
+  "$RARITY"
+  "$ADAPTER"
+  "$RARITY_SRC"
+  "$REPO_ROOT/src/lib/taxonomy.json"
+  "WingDex/Resources/taxonomy.json"
+  "scripts/sync-birdid-assets.sh"
+)
+input_digest() {
+  for input in "${INPUTS[@]}"; do
+    [[ -f "$input" ]] || return 1
+    printf '%s\0' "$input"
+    shasum -a 256 "$input"
+  done | shasum -a 256 | cut -d ' ' -f 1
+}
+
+output_digest() {
+  local output
+  for output in \
+    "$DEST/text_classifier_int8.bin" \
+    "$DEST/occurrence.bin" \
+    "$DEST/rarity.bin"; do
+    [[ -f "$output" ]] || return 1
+    printf '%s\0' "$output"
+    shasum -a 256 "$output"
+  done | shasum -a 256 | cut -d ' ' -f 1
+}
+
+INPUT_DIGEST="$(input_digest || true)"
+if [[ -f "$STAMP"
+      && -f "$DEST/text_classifier_int8.bin"
+      && -f "$DEST/occurrence.bin"
+      && -f "$DEST/rarity.bin" ]]; then
+  STAMP_INPUT_DIGEST="$(sed -n 's/^inputs=//p' "$STAMP")"
+  STAMP_OUTPUT_DIGEST="$(sed -n 's/^outputs=//p' "$STAMP")"
+  if [[ -n "$INPUT_DIGEST"
+        && "$STAMP_INPUT_DIGEST" == "$INPUT_DIGEST"
+        && "$STAMP_OUTPUT_DIGEST" == "$(output_digest || true)" ]]; then
+    touch "$STAMP"
+    exit 0
+  fi
+fi
+
 # Rewrite only when the bytes actually differ. mtime is not enough: a preserved
 # or restored workspace can leave a stale generated file with a newer timestamp
 # than freshly checked-out sources, silently bundling old classifier/prior data
@@ -169,8 +181,9 @@ if ! cmp -s "$REPO_ROOT/src/lib/taxonomy.json" "WingDex/Resources/taxonomy.json"
   exit 1
 fi
 
-# XcodeGen runs this before project generation. This stamp lets the following
-# build phase observe that every source was validated without depending on the
-# generated assets' intentionally preserved mtimes.
+# XcodeGen runs this before project generation. This manifest lets the following
+# build phase and a fresh CI checkout verify the exact validated inputs/outputs.
 mkdir -p "$(dirname "$STAMP")"
-touch "$STAMP"
+INPUT_DIGEST="$(input_digest)"
+OUTPUT_DIGEST="$(output_digest)"
+printf 'inputs=%s\noutputs=%s\n' "$INPUT_DIGEST" "$OUTPUT_DIGEST" > "$STAMP"
