@@ -32,6 +32,10 @@ REGIONS=(africa antarctica asia australia-oceania central-america europe north-a
 mkdir -p "$OUT"
 LOG="$WORK/admin-export.log"
 : > "$LOG"
+# Clear the completion marker BEFORE anything can fail. A stale marker from a
+# previous run otherwise keeps asserting success through a failed rerun, and
+# external checks read it as this run's result.
+rm -f "$WORK/admin-export.DONE"
 
 RAW="$OUT/admin-raw.geojsonseq"
 : > "$RAW"

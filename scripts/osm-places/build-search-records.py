@@ -335,7 +335,15 @@ def records(stream: Iterator[str]) -> Iterator[tuple]:
         # then rejects all of them.
         otype, oid = meta.get("@type"), meta.get("@id")
         if otype is None or oid is None:
-            continue
+            # FAIL rather than skip. Stable identity is what deduplication and
+            # every downstream join rely on, and every configured osmium export
+            # supplies these attributes, so a missing one means the export
+            # config regressed. Skipping silently removed arbitrary features
+            # while the run still reported a successful corpus.
+            sys.exit(
+                f"input line {lineno}: feature has no @type/@id; "
+                "the osmium export config must request attributes"
+            )
         alias = aliases_for(tags, display)
         if not alias:
             continue

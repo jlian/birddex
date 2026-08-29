@@ -26,6 +26,10 @@ REGIONS=(africa antarctica asia australia-oceania central-america europe north-a
 mkdir -p "$OUT"
 LOG="$WORK/search-export.log"
 : > "$LOG"
+# Clear the completion marker BEFORE anything can fail. A stale marker from a
+# previous run otherwise keeps asserting success through a failed rerun, and
+# external checks read it as this run's result.
+rm -f "$WORK/search-export.DONE"
 
 for r in "${REGIONS[@]}"; do
   src_id=$(stat -c '%s:%Y' "$SRC/$r.osm.pbf" 2>/dev/null || echo 'missing')

@@ -60,6 +60,11 @@ if ! flock -n 9; then
   exit 1
 fi
 
+# Retract the completion marker as the FIRST thing this run owns. Clearing it
+# after the virtualenv setup meant a failure in that setup left the previous
+# run's marker in place, advertising a failed rebuild as complete.
+rm -f "$WORK/pipeline.DONE"
+
 # Create the enrichment environment when it is absent, so a clean checkout can
 # rebuild. Only the region join needs a third-party package; every other stage
 # runs on the standard library. Without this the pipeline advertised a
@@ -77,7 +82,6 @@ fi
 }
 
 cd "$WORK"
-rm -f pipeline.DONE
 : > pipeline.log
 
 # The admin boundaries are an INPUT to enrichment and nothing else produces
