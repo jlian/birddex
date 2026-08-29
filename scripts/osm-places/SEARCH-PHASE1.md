@@ -196,9 +196,28 @@ reads per search.
 The same join also carries the boundary's NAME, not only its ISO code. Step 4
 asks for useful locality names, and a code cannot satisfy it: the two parks
 called `Memorial Park` in `US-WA` render as two identical rows, so the searcher
-cannot tell which is which. The visible `context` is now the locality plus the
+cannot tell which is which. The visible `context` is the locality plus the
 country, and the ISO codes still travel separately in `stateProvince` and
 `countryCode` for the eBird mapping.
+
+The first attempt at this did NOT work, and the reason is worth recording. The
+admin export took levels 2-4 because that is where the ISO codes live, so the
+locality resolved to the same subdivision the code already named: every
+`Memorial Park` in Washington got the locality `Washington`. The unit test
+passed anyway, because its fixture supplied `Pierce County` and `King County`
+by hand, so it proved the plumbing carried a name and not that the corpus
+contains one.
+
+Level 6 is therefore exported as well, for its NAME only. It carries no ISO
+code, so the slim filter keeps a boundary when it has a code OR is a named
+level 6; requiring a code discarded every county. Codes still come from the
+ISO-bearing ancestor and the display name from the smallest containing
+boundary, so forward and reverse search cannot disagree about a jurisdiction.
+
+This only helps where counties are mapped at level 6. Countries without one
+fall back to the subdivision name, so some same-named pairs stay ambiguous.
+The remaining count is measured against the finished database rather than
+estimated.
 
 `name:en` is preferred over `name`. OSM administrative boundaries frequently
 carry a bilingual `name`, so Rabat's prefecture arrives as `Prefecture de Rabat`

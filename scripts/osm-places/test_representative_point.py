@@ -125,5 +125,33 @@ for raw in ("a\rb", "a\nb", "a\r\nb"):
         failures += 1
     print(f"  {'ok  ' if ok else 'FAIL'} {raw!r} stays one line")
 
+# Aliases must be cleaned BEFORE folding.
+#
+# `fold()` DELETES control characters rather than treating them as separators,
+# so folding first joins the words either side into one unreachable token:
+# `Little River\rGorge` becomes `little rivergorge`, while a user typing the
+# displayed name folds to three tokens and matches nothing. The earlier fixture
+# hid this because its carriage return happened to sit next to a space.
+print("\nalias cleaning order:")
+for raw, want in [
+    ("Little River\rGorge", "little river gorge"),
+    ("Foo\tBar", "foo bar"),
+    ("Split\nName", "split name"),
+]:
+    aliases = builder.aliases_for({"name": raw}, builder.clean(raw))
+    ok = aliases == [want]
+    if not ok:
+        failures += 1
+    print(f"  {'ok  ' if ok else 'FAIL'} {raw!r} -> {aliases}")
+
+# A query for the DISPLAYED name must reach the indexed alias.
+for raw in ("Little River\rGorge", "Little River\r Gorge"):
+    display = builder.clean(raw)
+    aliases = builder.aliases_for({"name": raw}, display)
+    ok = builder.fold(display) in aliases
+    if not ok:
+        failures += 1
+    print(f"  {'ok  ' if ok else 'FAIL'} query {display!r} reaches its alias")
+
 print("ALL PASS" if failures == 0 else f"{failures} FAILURE(S)")
 sys.exit(1 if failures else 0)

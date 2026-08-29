@@ -35,6 +35,21 @@ from shapely.strtree import STRtree
 # place despite sharing a source.
 ISO_3166_2 = re.compile(r"^([A-Z]{2})-([A-Z0-9]{1,3})$")
 
+# The whole C0 range plus DEL, matching `clean()` in build-search-records.py.
+_CONTROL_CHARS = {c: " " for c in range(0x20)}
+_CONTROL_CHARS[0x7F] = " "
+
+
+def clean(s: str) -> str:
+    """Strip control characters from a free-text field before it enters the TSV.
+
+    `region` comes straight from an OSM `name`, which is mapper-entered text.
+    A tab there becomes a real column separator and a CR or LF becomes a real
+    row separator, so one malformed administrative name would corrupt the
+    enriched corpus the same way `Little River\\r Gorge` corrupted the export.
+    """
+    return " ".join(s.translate(_CONTROL_CHARS).split())
+
 
 def main() -> int:
     if len(sys.argv) < 3:
@@ -61,7 +76,7 @@ def main() -> int:
             # prefecture arrives as `Prefecture de Rabat` followed by the same
             # thing in Arabic. That is unreadable in a result list, and the
             # English name is the one this app's users can act on.
-            name = props.get("name:en") or props.get("name") or ""
+            name = clean(props.get("name:en") or props.get("name") or "")
             # A level-6 boundary carries no ISO code and is kept ONLY for its
             # name. Without this, a coordinate in Washington resolves its
             # locality to `Washington`, which the ISO code already said, so two

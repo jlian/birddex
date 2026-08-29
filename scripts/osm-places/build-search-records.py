@@ -279,11 +279,16 @@ def aliases_for(tags: dict, display: str) -> list[str]:
         if not raw:
             continue
         for part in str(raw).split(";"):
-            f = fold(part)
+            # Clean BEFORE folding. `fold()` DELETES control characters rather
+            # than treating them as separators, so `Little River\rGorge` folds
+            # to the single token `little rivergorge`, which no query can
+            # reach. `clean()` turns the control character into a space first,
+            # so the alias tokenises the way the displayed name does.
+            f = fold(clean(part))
             if f and f not in seen:
                 seen.add(f)
                 out.append(f)
-    f = fold(display)
+    f = fold(clean(display))
     if f and f not in seen:
         out.insert(0, f)
     return out

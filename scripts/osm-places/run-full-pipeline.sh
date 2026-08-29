@@ -13,7 +13,8 @@ set -euo pipefail
 # Paths are overridable so this runs outside the one machine it was written on.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-/mnt/ssdscratch}"
-VENV_PY="${VENV_PY:-$WORK/venv/bin/python}"
+VENV_DIR="${VENV_DIR:-$WORK/venv}"
+VENV_PY="${VENV_PY:-$VENV_DIR/bin/python}"
 IMPORTANCE_TABLE="${IMPORTANCE_TABLE:-$WORK/qid-importance.tsv}"
 # Default to the exporters COMMITTED next to this script. Pointing at copies
 # under the scratch directory meant a normal checkout could not rebuild, and
@@ -22,6 +23,22 @@ EXPORT_SCRIPT="${EXPORT_SCRIPT:-$SCRIPT_DIR/run-search-export.sh}"
 ADMIN_SCRIPT="${ADMIN_SCRIPT:-$SCRIPT_DIR/run-admin-export.sh}"
 
 mkdir -p "$WORK"
+
+# Create the enrichment environment when it is absent, so a clean checkout can
+# rebuild. Only the region join needs a third-party package; every other stage
+# runs on the standard library. Without this the pipeline advertised a
+# one-command rebuild but failed at enrichment on any machine that did not
+# already have this venv by hand.
+if [ ! -x "$VENV_PY" ]; then
+  echo "== creating $VENV_DIR =="
+  python3 -m venv "$VENV_DIR"
+  "$VENV_DIR/bin/pip" install --quiet --upgrade pip
+  "$VENV_DIR/bin/pip" install --quiet -r "$SCRIPT_DIR/requirements.txt"
+fi
+"$VENV_PY" -c 'import shapely' 2>/dev/null || {
+  echo "$VENV_PY cannot import shapely; install $SCRIPT_DIR/requirements.txt into it" >&2
+  exit 1
+}
 
 # Hold an exclusive lock for the WHOLE pipeline.
 #

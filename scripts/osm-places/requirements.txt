@@ -1,0 +1,12 @@
+# Python dependencies for the OSM place-search build pipeline.
+#
+# Only `enrich-search-regions.py` needs a third-party package: it joins 3.6M
+# points against admin boundaries and uses Shapely's STRtree, a packed R-tree
+# with the containment predicate in C. A hand-rolled 1-degree grid measured at
+# roughly six hours for the global corpus, because country polygons are large
+# enough that a coarse cell holds hundreds of them and the point-in-ring test
+# ran in interpreted Python.
+#
+# The other stages use only the standard library, deliberately, so the export
+# and the database build run on a clean checkout with no setup.
+shapely>=2.0,<3

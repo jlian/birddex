@@ -145,16 +145,24 @@ def main() -> int:
     batch = []
     enriched = 0
     with open(src, encoding="utf-8") as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh, 1):
             parts = line.rstrip("\n").split("\t")
             # 9 fields is the raw export; 12 adds the offline region codes and
             # the locality name from `enrich-search-regions.py`. Accepting only
             # one of the two meant an enriched build silently imported ZERO
             # rows.
+            #
+            # Anything else FAILS. A silent skip here let a truncated TSV or a
+            # producer schema change yield a partial database while the wrapper
+            # still wrote `pipeline.DONE`, which is the same fail-open hole the
+            # enrichment stage closed.
             if len(parts) == 9:
                 parts = parts + ["", "", ""]
             elif len(parts) != 12:
-                continue
+                sys.exit(
+                    f"{src}:{lineno}: expected 9 or 12 tab-separated fields, "
+                    f"got {len(parts)}; refusing to build a partial database"
+                )
             osm_id, label, lat, lon, score, kind, imp, qid, alias, state, country, region = parts
             if state or country:
                 enriched += 1
