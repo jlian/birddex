@@ -24,10 +24,18 @@ ADMIN_SCRIPT="${ADMIN_SCRIPT:-$SCRIPT_DIR/run-admin-export.sh}"
 # Must match the defaults in `run-admin-export.sh`; both read the same
 # environment, so an override applies to the cache key and to the build alike.
 SRC="${SRC:-/mnt/nas/wikidata/regions}"
+# Absolute, and exported, so the wrapper and the child exporters agree on one
+# directory. Previously only the cache key honoured `OUT` while every other
+# path was hardcoded under `$WORK/search`, so a non-default `OUT` made the
+# exporters write one place and this script read another. `cd "$WORK"` below
+# also means a relative `OUT` would resolve differently in each.
 OUT_DIR="${OUT:-$WORK/search}"
+mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
+OUT="$OUT_DIR"
 ADMIN_FILTER="${ADMIN_FILTER:-r/boundary=administrative}"
 ADMIN_LEVELS="${ADMIN_LEVELS:-r/admin_level=2,3,4,6}"
-export SRC ADMIN_FILTER ADMIN_LEVELS
+export SRC OUT ADMIN_FILTER ADMIN_LEVELS
 
 mkdir -p "$WORK"
 
@@ -91,7 +99,7 @@ admin_key() {
 }
 WANT_KEY="$(admin_key)"
 
-if [ ! -s search/admin-iso.geojsonseq ] || [ "$(cat "$ADMIN_KEY_FILE" 2>/dev/null)" != "$WANT_KEY" ]; then
+if [ ! -s "$OUT_DIR/admin-iso.geojsonseq" ] || [ "$(cat "$ADMIN_KEY_FILE" 2>/dev/null)" != "$WANT_KEY" ]; then
   echo "== admin boundaries ==" | tee -a pipeline.log
   rm -f "$ADMIN_KEY_FILE"
   "$ADMIN_SCRIPT" >> pipeline.log 2>&1
@@ -106,10 +114,10 @@ rm -f search-export.DONE
 
 echo "== enrich ==" | tee -a pipeline.log
 "$VENV_PY" "$SCRIPT_DIR/enrich-search-regions.py" \
-  search/admin-iso.geojsonseq search/all.tsv > search/all-enriched.tsv 2>> pipeline.log
+  "$OUT_DIR/admin-iso.geojsonseq" "$OUT_DIR/all.tsv" > "$OUT_DIR/all-enriched.tsv" 2>> pipeline.log
 
 echo "== database ==" | tee -a pipeline.log
-python3 "$SCRIPT_DIR/build-search-db.py" search/all-enriched.tsv \
-  search/places-search.sqlite "$IMPORTANCE_TABLE" >> pipeline.log 2>&1
+python3 "$SCRIPT_DIR/build-search-db.py" "$OUT_DIR/all-enriched.tsv" \
+  "$OUT_DIR/places-search.sqlite" "$IMPORTANCE_TABLE" >> pipeline.log 2>&1
 
 echo DONE > pipeline.DONE

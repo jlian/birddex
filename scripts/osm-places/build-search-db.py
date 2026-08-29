@@ -345,6 +345,13 @@ def main() -> int:
         print(f"  {q:<16} {n:,} hits")
 
     db.close()
+    # A conflict means an arbitrary first copy was kept, so the artifact is
+    # known-corrupt. Returning 0 anyway let the wrapper write `pipeline.DONE`
+    # over it and treat it as publishable.
+    if conflicts:
+        print(f"\nFAILED: {conflicts:,} osm_id values arrived with conflicting content",
+              file=sys.stderr)
+        return 1
     return 0
 
 
