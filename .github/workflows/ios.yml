@@ -208,6 +208,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO 2>&1
           echo "elapsed=$(( $(date +%s) - started_at ))" >> "$GITHUB_OUTPUT"
 
+      - name: Start iOS Simulator
+        run: xcrun simctl boot "$IOS_SIMULATOR_UDID"
+
       - name: Select API backend
         if: matrix.lane == 'core'
         id: backend
@@ -303,10 +306,8 @@ jobs:
             echo "- Wait after build: ${elapsed}s"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Boot iOS Simulator
-        run: |
-          xcrun simctl boot "$IOS_SIMULATOR_UDID"
-          xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+      - name: Wait for iOS Simulator
+        run: xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
       - name: Run selected tests
         id: tests
