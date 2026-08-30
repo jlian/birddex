@@ -333,9 +333,13 @@ export function SpeciesPeekSheet({
         {/* Page dots: how many birds are back here, and where you are among them.
             The counter in the header gives the same fact in words, so each dot only
             has to name its own candidate and say whether it is the current one.
-            Not a tablist: there are no tabpanels, the pages are the sheet itself. */}
+            Not a tablist: there are no tabpanels, the pages are the sheet itself.
+
+            The dot is 6px but the button is 24px: a 6px touch target is unusable
+            with a thumb, and worse with a motor impairment. The padding does the
+            work so the row still reads as dots. */}
         {candidates.length > 1 && (
-          <div className="flex justify-center gap-1.5 border-t pt-3" aria-label="Candidates">
+          <div className="flex justify-center border-t pt-1.5" aria-label="Candidates">
             {candidates.map((candidate, i) => (
               <button
                 key={candidate.species}
@@ -343,15 +347,19 @@ export function SpeciesPeekSheet({
                 aria-current={i === index ? 'true' : undefined}
                 aria-label={`Candidate ${i + 1} of ${candidates.length}, ${getDisplayName(candidate.species)}`}
                 onClick={() => setIndex(i)}
-                className={`size-1.5 rounded-full transition-colors ${
-                  i === index ? 'bg-primary' : 'bg-muted-foreground/30'
-                }`}
-              />
+                className="flex size-6 items-center justify-center"
+              >
+                <span
+                  className={`size-1.5 rounded-full transition-colors ${
+                    i === index ? 'bg-primary' : 'bg-muted-foreground/30'
+                  }`}
+                />
+              </button>
             ))}
           </div>
         )}
 
-        <div className={`flex items-center gap-2 p-4 ${candidates.length > 1 ? 'pt-3' : 'border-t'}`}>
+        <div className={`flex items-center gap-2 p-4 ${candidates.length > 1 ? 'pt-1.5' : 'border-t'}`}>
           {candidates.length > 1 && (
             <Button
               variant="outline"

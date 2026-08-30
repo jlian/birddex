@@ -40,9 +40,16 @@ enum WikiSummaryService {
         }
         var request = URLRequest(url: url)
         request.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
-              let summary = await parse(data)
+        guard let (data, urlResponse) = try? await URLSession.shared.data(for: request)
         else { return nil }
+        // A Wikipedia error body is still JSON, and every field parsed below is
+        // optional, so a 404 or a 429 becomes a WikiSummary with both fields nil.
+        // Caching that would strand the species blank for the session and break the
+        // contract above, so the status is checked before the body is trusted.
+        if let http = urlResponse as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            return nil
+        }
+        guard let summary = await parse(data) else { return nil }
         cache.setObject(summary, forKey: title as NSString)
         return summary
     }
