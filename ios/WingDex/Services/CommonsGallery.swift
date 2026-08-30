@@ -44,9 +44,10 @@ enum CommonsGallery {
             raw = found
             await Cache.shared.store(found, for: displayName)
         } else {
-            // Cancelled. The peek sheet cancels this task on every swipe, so caching
-            // the empty result here would pin the species to its lead image for the
-            // rest of the session.
+            // No usable answer: cancelled, or the request failed. The peek sheet
+            // cancels this task on every swipe, and Commons has bad minutes, so
+            // caching the empty result would pin the species to its lead image for
+            // the rest of the session. Left uncached so the next open retries.
             raw = []
         }
         // Lead promotion runs last so the taxonomy lead image cannot be displaced
@@ -110,7 +111,8 @@ enum CommonsGallery {
         struct MetaValue: Codable { let value: String? }
     }
 
-    /// `nil` means the task was cancelled and the caller must not cache the result.
+    /// `nil` means the search produced no usable answer and the caller must NOT cache
+    /// it: the task was cancelled, the request failed, or the response did not decode.
     /// An empty array is a real answer: the search ran and matched nothing usable.
     private static func search(displayName: String) async -> [GalleryItem]? {
         do {
@@ -118,7 +120,7 @@ enum CommonsGallery {
             let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl%7Cmime&iiurlwidth=500&format=json&origin=*"
             guard let url = URL(string: urlStr) else {
                 log.debug("Commons gallery: invalid URL: \(urlStr)")
-                return []
+                return nil
             }
             var req = URLRequest(url: url)
             req.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
@@ -167,15 +169,14 @@ enum CommonsGallery {
             try Task.checkCancellation()
             log.debug("Commons gallery: \(items.count) URLs after filtering")
             return items
-        } catch is CancellationError {
-            return nil
-        } catch let error as URLError where error.code == .cancelled {
-            // URLSession reports cancellation as URLError rather than CancellationError,
-            // and this is the throw that actually fires when a swipe cancels the task.
-            return nil
         } catch {
-            log.debug("Commons gallery fetch failed")
-            return []
+            // Every throw here is non-cacheable, and they arrive in three shapes:
+            // CancellationError from the checkCancellation calls, URLError.cancelled
+            // from URLSession (which is what a swipe actually raises), and transient
+            // network or decode failures. None of them says anything about what
+            // Commons holds for this species, so none may be stored.
+            log.debug("Commons gallery fetch produced no usable result")
+            return nil
         }
     }
 
