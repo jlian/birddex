@@ -12,14 +12,12 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             "Fixture missing at \(Self.photoPath)"
         )
 
-        let app = launchApp(autoSignIn: false)
+        let app = launchApp(
+            autoSignIn: false,
+            extraArguments: ["--ui-test-clear-data"]
+        )
 
         let continueButton = waitForOutingReview(in: app)
-        // The button stays disabled while the outing's location is resolving.
-        XCTAssertTrue(
-            waitUntil(timeout: 15) { continueButton.isHittable },
-            "Continue never became tappable"
-        )
         XCTAssertTrue(
             app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'GPS detected'")).firstMatch.exists,
             "Outing review did not detect the injected GPS coordinates"
@@ -27,7 +25,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         startNewOuting(in: app)
         let locationName = app.textFields["outing.locationName"]
         XCTAssertTrue(
-            locationName.waitForExistence(timeout: 15),
+            locationName.existsOrWait(timeout: 15),
             "Location field never replaced the geocoding progress row"
         )
         XCTAssertTrue(
@@ -47,14 +45,27 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         // scores. Back out of the crop and keep the candidates we already have.
         let species = app.staticTexts["confirm.speciesName"]
         let cropBack = app.buttons["crop.back"]
+        let identificationDestination = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier IN %@", ["confirm.speciesName", "crop.back"])
+        ).firstMatch
         // The model is loaded and compiled on first use, which is slow in the simulator.
-        _ = waitUntil(timeout: 180) { species.exists || cropBack.isHittable }
-        if cropBack.isHittable { cropBack.tap() }
-
         XCTAssertTrue(
-            species.waitForExistence(timeout: 30),
-            "Never reached the confirm step with an identified species"
+            identificationDestination.existsOrWait(timeout: 180),
+            "Identification produced neither candidates nor a crop prompt"
         )
+        if cropBack.exists {
+            let actionableCropBack = app.buttons.matching(
+                NSPredicate(format: "identifier == %@ AND hittable == true", "crop.back")
+            ).firstMatch
+            XCTAssertTrue(actionableCropBack.existsOrWait(timeout: 10))
+            actionableCropBack.tap()
+            XCTAssertTrue(
+                species.existsOrWait(timeout: 30),
+                "Never reached the confirm step after keeping the existing crop"
+            )
+        } else {
+            XCTAssertTrue(species.exists, "Never reached the confirm step with an identified species")
+        }
         XCTAssertEqual(species.label, Self.expectedSpecies)
 
         let confidence = app.staticTexts["confirm.confidence"]
@@ -67,10 +78,10 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
 
         app.buttons["confirm.accept"].tap()
         let done = app.buttons["upload.done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 30), "The anonymous outing did not finish saving")
+        XCTAssertTrue(done.existsOrWait(timeout: 30), "The anonymous outing did not finish saving")
         done.tap()
         XCTAssertTrue(
-            app.staticTexts["Keep your"].waitForExistence(timeout: 10),
+            app.staticTexts["Keep your"].existsOrWait(timeout: 10),
             "The first anonymous save did not show the durability prompt"
         )
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'An account keeps them'")).firstMatch.exists)
@@ -82,7 +93,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             "These sightings are only on this device"
         )
         accountButton.tap()
-        XCTAssertTrue(app.staticTexts["Keep your"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Keep your"].existsOrWait(timeout: 10))
         XCTAssertFalse(app.staticTexts["Keep your sightings"].exists)
         XCTAssertFalse(app.staticTexts["Keep this WingDex or switch accounts"].exists)
         XCTAssertFalse(app.buttons["Export sightings as CSV"].exists)
@@ -101,7 +112,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.buttons["Continue"].waitForExistence(timeout: 30),
+            app.buttons["Continue"].existsOrWait(timeout: 30),
             "Queued shared photo never reached outing review"
         )
     }
@@ -117,7 +128,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.buttons["Continue"].waitForExistence(timeout: 30),
+            app.buttons["Continue"].existsOrWait(timeout: 30),
             "Queued shared photo never reached outing review"
         )
 
@@ -125,14 +136,21 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         app.launchArguments = [
             "--ui-test-sign-out",
             "--ui-test-share-store",
+            "--ui-test-observe-share-queue",
         ]
         app.launch()
 
-        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Home"].existsOrWait(timeout: 30))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["ui-test.shareQueueChecked"].existsOrWait(timeout: 30),
+            "The incoming-share queue was not checked after relaunch"
+        )
         XCTAssertFalse(
-            app.buttons["Continue"].waitForExistence(timeout: 30),
+            app.buttons["Continue"].exists,
             "The accepted share was imported again after relaunch"
         )
+        XCTAssertTrue(app.buttons["Log in"].exists)
+        XCTAssertFalse(app.buttons["Settings"].exists)
     }
 
     func testAlreadyLoadedSessionlessAppReceivesStagedShare() {
@@ -145,9 +163,9 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Home"].existsOrWait(timeout: 30))
         XCTAssertTrue(
-            app.buttons["Continue"].waitForExistence(timeout: 30),
+            app.buttons["Continue"].existsOrWait(timeout: 30),
             "A share staged after launch was not delivered to the loaded app"
         )
     }
@@ -164,27 +182,12 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         app.launch()
 
         let alert = app.alerts["Could Not Continue"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 30), "Share bootstrap failure stayed invisible")
+        XCTAssertTrue(alert.existsOrWait(timeout: 30), "Share bootstrap failure stayed invisible")
         XCTAssertTrue(alert.buttons["Retry"].exists)
         XCTAssertTrue(alert.buttons["Close Upload"].exists)
         alert.buttons["Close Upload"].tap()
-        XCTAssertTrue(waitUntil(timeout: 10) { !app.alerts["Could Not Continue"].exists })
+        XCTAssertTrue(alert.disappearsOrWait(timeout: 10))
         XCTAssertFalse(app.buttons["Continue"].exists, "Explicit close immediately reopened the queued share")
-    }
-
-    func testColdLaunchShowsAccountOptionalShellAndGates() {
-        let app = application()
-        app.launchArguments = [
-            "--ui-test-sign-out",
-            "--ui-test-share-store",
-            "--ui-test-reset-share-store",
-            "--ui-test-ignore-shares",
-        ]
-        app.launch()
-
-        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["Log in"].exists)
-        XCTAssertFalse(app.buttons["Settings"].exists)
     }
 
     func testAccessibilityAuditTimeoutClassification() {
@@ -199,7 +202,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         ))
     }
 
-    func testSubmittedPlaceSearchSelectsNormalizedResult() async throws {
+    func testSubmittedPlaceSearchAppliesNormalizedResultAndRestoresGPS() async throws {
         if let reason = await backendUnavailableReason() {
             guard configuredAPIBaseURLValue == nil else {
                 XCTFail("Selected CI backend is not healthy. \(reason)")
@@ -207,20 +210,22 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             }
             throw XCTSkip("Requires a healthy WingDex backend. \(reason)")
         }
-        let app = launchApp(extraArguments: ["--ui-test-place-search-result"])
+        let app = launchApp(extraArguments: [
+            "--ui-test-place-search-result",
+            "--ui-test-stub-identification",
+        ])
         let continueButton = waitForOutingReview(in: app)
-        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
 
         startNewOuting(in: app)
         let locationName = app.textFields["outing.locationName"]
-        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
+        XCTAssertTrue(locationName.existsOrWait(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
         let gpsLabel = locationValue(locationName)
         locationName.tap()
         app.buttons["outing.locationClear"].tap()
         locationName.typeText("Discovery Park Seattle\n")
         let firstResult = app.buttons.matching(identifier: "outing.locationResult").firstMatch
-        XCTAssertTrue(firstResult.waitForExistence(timeout: 30), "Explicit place search returned no result")
+        XCTAssertTrue(firstResult.existsOrWait(timeout: 30), "Explicit place search returned no result")
         let selectedLabel = firstResult.label
         firstResult.tap()
         let selectedValue = locationValue(locationName)
@@ -241,8 +246,8 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationAttribution"].exists)
         continueButton.tap()
         XCTAssertTrue(
-            app.staticTexts["confirm.speciesName"].waitForExistence(timeout: 180),
-            "Selected place was not persisted before species confirmation"
+            app.staticTexts["confirm.speciesName"].existsOrWait(timeout: 10),
+            "Continuing after place selection did not reach species confirmation"
         )
     }
 
@@ -255,23 +260,22 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             throw XCTSkip("Requires a healthy WingDex backend with Geoapify access. \(reason)")
         }
         let app = launchApp()
-        let continueButton = waitForOutingReview(in: app)
-        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
+        _ = waitForOutingReview(in: app)
 
         startNewOuting(in: app)
         let locationName = app.textFields["outing.locationName"]
-        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
+        XCTAssertTrue(locationName.existsOrWait(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
 
         locationName.tap()
         app.buttons["outing.locationClear"].tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.existsOrWait(timeout: 5))
         app.buttons["outing.locationSearchSubmit"].tap()
 
         let firstResult = app.buttons.matching(identifier: "outing.locationResult").firstMatch
-        XCTAssertTrue(firstResult.waitForExistence(timeout: 30), "Nearby place suggestions did not appear")
+        XCTAssertTrue(firstResult.existsOrWait(timeout: 30), "Nearby place suggestions did not appear")
         XCTAssertTrue(
-            waitUntil(timeout: 5) { !app.keyboards.firstMatch.exists },
+            app.keyboards.firstMatch.disappearsOrWait(timeout: 5),
             "The keyboard remained active behind the nearby places popover"
         )
         XCTAssertTrue(firstResult.isHittable, "Nearby place suggestions were not interactive")
@@ -284,12 +288,11 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             "--ui-test-geocoding-failure",
             "--ui-test-clear-last-location",
         ])
-        let continueButton = waitForOutingReview(in: app)
-        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
+        _ = waitForOutingReview(in: app)
 
         startNewOuting(in: app)
         let locationName = app.textFields["outing.locationName"]
-        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
+        XCTAssertTrue(locationName.existsOrWait(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
         XCTAssertEqual(locationValue(locationName), "47.712deg, -122.372deg")
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationLookupError"].exists)
@@ -299,18 +302,23 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         locationName.tap()
         app.buttons["outing.locationClear"].tap()
         locationName.typeText("Manual Test Location")
+        let manualLocation = app.textFields.matching(
+            NSPredicate(
+                format: "identifier == %@ AND value == %@",
+                "outing.locationName",
+                "Manual Test Location"
+            )
+        ).firstMatch
         XCTAssertTrue(
-            waitUntil(timeout: 5) { locationValue(locationName) == "Manual Test Location" },
+            manualLocation.existsOrWait(timeout: 5),
             "Manual location name was not applied"
         )
-        XCTAssertFalse(
-            app.descendants(matching: .any)["outing.locationLookupError"].exists,
+        XCTAssertTrue(
+            app.descendants(matching: .any)["outing.locationLookupError"].disappearsOrWait(timeout: 5),
             "Reverse lookup failure remained visible after manual location entry"
         )
         XCTAssertTrue(
-            waitUntil(timeout: 5) {
-                app.descendants(matching: .any)["outing.locationAttribution"].exists
-            },
+            app.descendants(matching: .any)["outing.locationAttribution"].existsOrWait(timeout: 5),
             "Static attribution disappeared after manual location entry"
         )
     }
@@ -319,12 +327,11 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let app = launchApp(extraArguments: [
             "--ui-test-geocoding-empty",
         ])
-        let continueButton = waitForOutingReview(in: app)
-        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
+        _ = waitForOutingReview(in: app)
 
         startNewOuting(in: app)
         let locationName = app.textFields["outing.locationName"]
-        XCTAssertTrue(locationName.waitForExistence(timeout: 15))
+        XCTAssertTrue(locationName.existsOrWait(timeout: 15))
         XCTAssertTrue(scrollUntilVisible(locationName, in: app))
         XCTAssertEqual(locationValue(locationName), "47.712deg, -122.372deg")
         XCTAssertTrue(app.descendants(matching: .any)["outing.locationLookupEmpty"].exists)
@@ -333,33 +340,46 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         locationName.tap()
         app.buttons["outing.locationClear"].tap()
         locationName.typeText("Manual Test Location")
-        XCTAssertTrue(waitUntil(timeout: 5) { locationValue(locationName) == "Manual Test Location" })
-        XCTAssertFalse(
-            app.descendants(matching: .any)["outing.locationLookupEmpty"].exists,
+        let manualLocation = app.textFields.matching(
+            NSPredicate(
+                format: "identifier == %@ AND value == %@",
+                "outing.locationName",
+                "Manual Test Location"
+            )
+        ).firstMatch
+        XCTAssertTrue(manualLocation.existsOrWait(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["outing.locationLookupEmpty"].disappearsOrWait(timeout: 5),
             "Empty lookup hint remained visible after manual location entry"
         )
     }
 
     func testDismissingOutingReviewCancelsDelayedGeocoding() {
         let app = launchApp(extraArguments: ["--ui-test-geocoding-delay"])
-        let continueButton = waitForOutingReview(in: app)
+        let continueButton = waitForOutingReview(in: app, requireEnabled: false)
         // Declining a matched outing is what starts the lookup for that account state.
         startNewOuting(in: app)
         XCTAssertFalse(continueButton.isEnabled, "Delayed geocoding was not in progress")
 
         let geocodingStatus = app.staticTexts["Identifying location from GPS..."]
         app.buttons["Close"].tap()
-        XCTAssertTrue(app.alerts["Discard progress?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts["Discard progress?"].existsOrWait(timeout: 5))
         app.alerts["Discard progress?"].buttons["Discard"].tap()
         XCTAssertTrue(
-            waitUntil(timeout: 5) {
-                !app.buttons["Close"].exists
-                    && !geocodingStatus.exists
-            },
+            app.buttons["Close"].disappearsOrWait(timeout: 5),
             "Wizard did not dismiss"
         )
-
-        Thread.sleep(forTimeInterval: 3)
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "identifier == %@ AND value == %@",
+                    "ui-test.dataSetupComplete",
+                    "geocodingCancellationAcknowledged"
+                )
+            ).firstMatch
+                .existsOrWait(timeout: 5),
+            "Reverse geocoding did not acknowledge cancellation"
+        )
         XCTAssertFalse(app.textFields["outing.locationName"].exists)
         XCTAssertFalse(geocodingStatus.exists)
     }

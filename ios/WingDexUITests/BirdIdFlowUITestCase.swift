@@ -1,5 +1,22 @@
 import XCTest
 
+extension XCUIElement {
+    /// XCTest's predicate waiter checks on an approximately one-second cadence.
+    /// Take one current snapshot first so already-satisfied state does not pay
+    /// that delay, then retain XCTest's native synchronization for real waits.
+    func existsOrWait(timeout: TimeInterval) -> Bool {
+        exists || waitForExistence(timeout: timeout)
+    }
+
+    func disappearsOrWait(timeout: TimeInterval) -> Bool {
+        !exists || waitForNonExistence(timeout: timeout)
+    }
+
+    func isEnabledOrWait(timeout: TimeInterval) -> Bool {
+        isEnabled || wait(for: \.isEnabled, toEqual: true, timeout: timeout)
+    }
+}
+
 /// Shared fixtures, launch helpers, and accessibility-audit plumbing for the
 /// add-photos UI tests. Split into a base class so the audit tests can live in
 /// their own XCTestCase: XCTest parallelizes by class, not by method, so a
@@ -55,16 +72,6 @@ class BirdIdFlowUITestCase: XCTestCase {
         if configuredAPIBaseURLValue != nil {
             XCTAssertNotNil(configuredAPIBaseURL, "API_BASE_URL must be an absolute HTTP(S) URL")
         }
-    }
-
-    /// XCTNSPredicateExpectation is unavailable under strict concurrency here, so poll.
-    func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if condition() { return true }
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        return condition()
     }
 
     func scrollUntilVisible(
@@ -128,8 +135,7 @@ class BirdIdFlowUITestCase: XCTestCase {
         case .dynamicType:
             return issue.element?.identifier == "settings.birdIdFooter"
         case .textClipped:
-            return issue.element?.identifier == "settings.displayName"
-                || Self.avatarEmojiLabels.contains(issue.element?.label ?? "")
+            return Self.avatarEmojiLabels.contains(issue.element?.label ?? "")
         default:
             return false
         }
@@ -163,28 +169,63 @@ class BirdIdFlowUITestCase: XCTestCase {
         }
     }
 
+    func performListAccessibilityAudit(
+        app: XCUIApplication,
+        includesContrast: Bool
+    ) throws {
+        let auditTypes: XCUIAccessibilityAuditType = includesContrast
+            ? .all
+            : .all.subtracting(.contrast)
+        try runAccessibilityAudit(in: app, for: auditTypes) { issue in
+            switch issue.auditType {
+            case .dynamicType where issue.element?.label == "Sort":
+                return true
+            case .textClipped where ["Search species", "Search outings", "Sort"].contains(issue.element?.label):
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     func waitForDataSetup(in app: XCUIApplication) {
         let elements = app.descendants(matching: .any)
         let complete = elements["ui-test.dataSetupComplete"]
         let failed = elements["ui-test.dataSetupFailed"]
+        let outcome = elements.matching(
+            NSPredicate(
+                format: "identifier IN %@",
+                ["ui-test.dataSetupComplete", "ui-test.dataSetupFailed"]
+            )
+        ).firstMatch
         XCTAssertTrue(
-            waitUntil(timeout: 120) { complete.exists || failed.exists },
+            outcome.existsOrWait(timeout: 120),
             "UI test data setup did not finish"
         )
+        XCTAssertTrue(complete.exists || failed.exists, "UI test data setup reported an unknown outcome")
         XCTAssertFalse(failed.exists, "UI test data setup failed")
     }
 
     func waitForSeededData(in app: XCUIApplication) {
         waitForDataSetup(in: app)
         let elements = app.descendants(matching: .any)
-        XCTAssertTrue(elements["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
-        XCTAssertTrue(elements["Eared Dove"].exists)
+        XCTAssertTrue(elements["Chalk-browed Mockingbird"].existsOrWait(timeout: 10))
+        XCTAssertTrue(elements["Eared Dove"].existsOrWait(timeout: 10))
     }
 
-    func waitForOutingReview(in app: XCUIApplication) -> XCUIElement {
+    func waitForOutingReview(
+        in app: XCUIApplication,
+        requireEnabled: Bool = true
+    ) -> XCUIElement {
         waitForDataSetup(in: app)
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 60), "Outing review never appeared")
+        let continueButton = app.buttons["outing.continue"]
+        XCTAssertTrue(continueButton.existsOrWait(timeout: 60), "Outing review never appeared")
+        if requireEnabled {
+            XCTAssertTrue(
+                continueButton.isEnabledOrWait(timeout: 15),
+                "Continue never became enabled"
+            )
+        }
         return continueButton
     }
 
@@ -195,7 +236,7 @@ class BirdIdFlowUITestCase: XCTestCase {
         let toggle = app.switches
             .matching(NSPredicate(format: "label BEGINSWITH 'Add to existing outing?'"))
             .firstMatch
-        guard toggle.waitForExistence(timeout: 5) else { return }
+        guard toggle.exists else { return }
         guard toggle.value as? String == "1" else { return }
         // The element spans the whole row but only the trailing switch flips it.
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
@@ -219,7 +260,12 @@ class BirdIdFlowUITestCase: XCTestCase {
             "--ui-test-lon", "-122.3717",
         ] + extraArguments
         if autoSignIn {
-            app.launchArguments.insert(contentsOf: ["--auto-sign-in", "--ui-test-clear-data"], at: 0)
+            let usesLocalFixture = extraArguments.contains("--ui-test-fixture-empty")
+                || extraArguments.contains("--ui-test-fixture-populated")
+            let setupArguments = usesLocalFixture
+                ? ["--auto-sign-in"]
+                : ["--auto-sign-in", "--ui-test-clear-data"]
+            app.launchArguments.insert(contentsOf: setupArguments, at: 0)
         } else {
             app.launchArguments.insert("--ui-test-sign-out", at: 0)
         }

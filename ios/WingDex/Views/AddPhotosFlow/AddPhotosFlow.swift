@@ -10,6 +10,7 @@ struct AddPhotosFlow: View {
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: AddPhotosViewModel
+    var onReverseGeocodingCancellationAcknowledged: () -> Void = {}
     @State private var showCloseConfirm = false
     @State private var celebration: LiferCelebration?
 
@@ -33,7 +34,10 @@ struct AddPhotosFlow: View {
                 case .extracting:
                     extractingView
                 case .outingReview:
-                    OutingReviewView(viewModel: viewModel)
+                    OutingReviewView(
+                        viewModel: viewModel,
+                        onReverseGeocodingCancellationAcknowledged: onReverseGeocodingCancellationAcknowledged
+                    )
                 case .photoProcessing:
                     photoProcessingView
                 case .perPhotoConfirm:

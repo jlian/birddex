@@ -60,7 +60,8 @@ targets:
           - "$(SRCROOT)/WingDex/Resources/BirdID/text_classifier_int8.bin"
           - "$(SRCROOT)/WingDex/Resources/BirdID/occurrence.bin"
           - "$(SRCROOT)/WingDex/Resources/BirdID/rarity.bin"
-        basedOnDependencyAnalysis: false
+          - "$(SRCROOT)/build/generated/sync-birdid-assets.stamp"
+        basedOnDependencyAnalysis: true
     sources:
       - path: WingDex
         excludes:
@@ -199,11 +200,29 @@ targets:
     platform: iOS
     sources:
       - path: WingDexUITests
+        excludes:
+          - "AccessibilityAuditUITests.swift"
+          - "AccessibilityAuditJourneys.swift"
     dependencies:
       - target: WingDex
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.wingdex.uitests
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: WingDex
+
+  WingDexAccessibilityUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: WingDexUITests/BirdIdFlowUITestCase.swift
+      - path: WingDexUITests/AccessibilityAuditJourneys.swift
+    dependencies:
+      - target: WingDex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.wingdex.accessibility-uitests
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_TARGET_NAME: WingDex
@@ -221,8 +240,12 @@ schemes:
     test:
       config: Localhost Debug
       targets:
-        - WingDexTests
-        - WingDexUITests
+        - name: WingDexTests
+          parallelizable: false
+        - name: WingDexUITests
+          parallelizable: false
+        - name: WingDexAccessibilityUITests
+          parallelizable: false
     profile:
       config: Localhost Release
     analyze:
@@ -241,8 +264,37 @@ schemes:
     test:
       config: Dev Debug
       targets:
-        - WingDexTests
-        - WingDexUITests
+        - name: WingDexTests
+          parallelizable: false
+        - name: WingDexUITests
+          parallelizable: false
+        - name: WingDexAccessibilityUITests
+          parallelizable: false
+    profile:
+      config: Dev Release
+    analyze:
+      config: Dev Debug
+    archive:
+      config: Dev Release
+
+  Dev CI:
+    build:
+      targets:
+        WingDex: all
+    run:
+      config: Dev Debug
+      commandLineArguments:
+        "--auto-sign-in": false
+    test:
+      config: Dev Debug
+      debugEnabled: false
+      targets:
+        - name: WingDexTests
+          parallelizable: false
+        - name: WingDexUITests
+          parallelizable: false
+        - name: WingDexAccessibilityUITests
+          parallelizable: false
     profile:
       config: Dev Release
     analyze:
@@ -259,8 +311,12 @@ schemes:
     test:
       config: Production Debug
       targets:
-        - WingDexTests
-        - WingDexUITests
+        - name: WingDexTests
+          parallelizable: false
+        - name: WingDexUITests
+          parallelizable: false
+        - name: WingDexAccessibilityUITests
+          parallelizable: false
     profile:
       config: Release
     analyze:

@@ -48,6 +48,7 @@
 		42568A4F6F92C917A7520B17 /* collage16.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 181CAF182184C0BF767EC8E4 /* collage16.jpg */; };
 		4345FB718DF623E73F43A77B /* BirdRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7129972C6030F812DDD208 /* BirdRanker.swift */; };
 		43921D83ECB05301E343D2ED /* collage11.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 99DD81C22AA9F61ABDD60B50 /* collage11.jpg */; };
+		4592347918AE13E2C669DFB2 /* BirdIdFlowUITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCAA3DD89775D5E47432890 /* BirdIdFlowUITestCase.swift */; };
 		48572F12742996B68226EECF /* FunNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D47136847CF32C6251A4BD /* FunNames.swift */; };
 		4BF3798F0ADD7B34948B1C65 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494CD419AD323D541E04D2AB /* AuthService.swift */; };
 		4D2754D2E24874B1AB391719 /* collage19.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 1758F97178B6D85D64F1363D /* collage19.jpg */; };
@@ -81,6 +82,7 @@
 		83E52AD5FC060393640D683A /* collage14.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 36494465879ECB03DD6185CA /* collage14.jpg */; };
 		85DC45536CC8552F75FE3F5E /* collage12.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 75459FB601E98570280E8BFB /* collage12.jpg */; };
 		8668EC3C4072BB264C7FE1E6 /* WikimediaURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E72665B257D80E572558029 /* WikimediaURLTests.swift */; };
+		868EBB023417EFE3D0DD52F2 /* UITestDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97E34C211C55A7B7DE60BEAA /* UITestDataService.swift */; };
 		8789AC9CBFD81D2B38495B2A /* OpenAPIURLSession in Frameworks */ = {isa = PBXBuildFile; productRef = B8A97988C95C91C186AFD127 /* OpenAPIURLSession */; };
 		88D903DB0E1F56DAA22183CF /* BirdIdEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82E9D5F7FBA577647C406C8 /* BirdIdEngineTests.swift */; };
 		8DB0081701C7F23291D5D5CC /* collage3.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 424A71F14D412EECDDFC67EE /* collage3.jpg */; };
@@ -93,6 +95,7 @@
 		A50BC3771AA5086CA25A13B7 /* WingDexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B5043AC2718CF99118DD12C /* WingDexView.swift */; };
 		A7FD52F0548A2FA50CB2C848 /* PasskeyManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C367F98A44D6C24B18F1301 /* PasskeyManagementView.swift */; };
 		A8D5F32F46E2D7BE2BA128FC /* OccurrencePrior.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB30168BBC2F616BC019297A /* OccurrencePrior.swift */; };
+		A8DE615F586BEE7ECA2FC8E9 /* AccessibilityAuditJourneys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259B1F2D858EDAE9375BD7CD /* AccessibilityAuditJourneys.swift */; };
 		A989546664F59DD8E785BBDE /* wingdex.bird.svg in Resources */ = {isa = PBXBuildFile; fileRef = EED95BB5C7C9CBADD0CB3D05 /* wingdex.bird.svg */; };
 		A9D6BD3B4EA0675C258AAC95 /* collage20.jpg in Resources */ = {isa = PBXBuildFile; fileRef = FFAFE8721F91D965AC05FBBD /* collage20.jpg */; };
 		A9F53E5EAD8952F1C8720B77 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = ADE7F85F2A587DBB70E7CF19 /* KeychainAccess */; };
@@ -110,7 +113,6 @@
 		BF0095A16E14CCEB6019BEA9 /* BirdIdFlowUITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCAA3DD89775D5E47432890 /* BirdIdFlowUITestCase.swift */; };
 		BFEEDFE99B8E9AE03FC3304F /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A4472F76A8259376EBEA738 /* Theme.swift */; };
 		C4F77EC5DA4A743530651286 /* OutingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01BEA15BC45041F637C903 /* OutingsView.swift */; };
-		C627C51113141532AC802F79 /* AccessibilityAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53480FBF2B973F9933FF26F /* AccessibilityAuditUITests.swift */; };
 		C6DF1D3BFC6E971A319E6672 /* OccurrenceV4Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721474DC157B206D90945C86 /* OccurrenceV4Tests.swift */; };
 		CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D23677801319F3BA63350DF /* Assets.xcassets */; };
 		CCB60C37FEB5B3C7781CF308 /* AppIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0885077F6EE158317DCAC6 /* AppIconView.swift */; };
@@ -167,6 +169,13 @@
 			remoteGlobalIDString = 069C1F4999CA086190E79089;
 			remoteInfo = WingDex;
 		};
+		6A0014DD7A49DDE31762267F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A49675ED5ABFAF851A15DB1C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 069C1F4999CA086190E79089;
+			remoteInfo = WingDex;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -206,6 +215,7 @@
 		1E50D8A8630F0A8BBDB0CCEB /* BirdIdFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirdIdFlowUITests.swift; sourceTree = "<group>"; };
 		1E77B26B478C17512BE71C7E /* Phase9FoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase9FoundationTests.swift; sourceTree = "<group>"; };
 		2563AE60F5FF5A8525BC8C2F /* AccountDataCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDataCacheTests.swift; sourceTree = "<group>"; };
+		259B1F2D858EDAE9375BD7CD /* AccessibilityAuditJourneys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditJourneys.swift; sourceTree = "<group>"; };
 		29828A1E6E0D8724C9F520A0 /* WingDexUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WingDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		29F5471006ACBF058737B455 /* AccountDataCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDataCache.swift; sourceTree = "<group>"; };
 		2A40EA46444DE64147E772AD /* SightingsMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SightingsMergeTests.swift; sourceTree = "<group>"; };
@@ -269,6 +279,7 @@
 		936DDC496C89FC341EA03EE2 /* IncomingShareStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingShareStoreTests.swift; sourceTree = "<group>"; };
 		94ACB4713633B9A241E65EED /* WingDexShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WingDexShortcuts.swift; sourceTree = "<group>"; };
 		963619FEAD365BFF8CDC24E8 /* IncomingShareStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingShareStore.swift; sourceTree = "<group>"; };
+		97E34C211C55A7B7DE60BEAA /* UITestDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestDataService.swift; sourceTree = "<group>"; };
 		989AEA195C999B4857206090 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		9986F927C0C622E7A4DE4C2E /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
 		99DD81C22AA9F61ABDD60B50 /* collage11.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage11.jpg; sourceTree = "<group>"; };
@@ -289,11 +300,11 @@
 		B594465F1456F0C7DB88CEDC /* wingdex.bird.fill.svg */ = {isa = PBXFileReference; path = wingdex.bird.fill.svg; sourceTree = "<group>"; };
 		B82E9D5F7FBA577647C406C8 /* BirdIdEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirdIdEngineTests.swift; sourceTree = "<group>"; };
 		B8A7A81D10BED074ED746634 /* collage2.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage2.jpg; sourceTree = "<group>"; };
+		BA22661FFE13F1991386876A /* WingDexAccessibilityUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WingDexAccessibilityUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB01BEA15BC45041F637C903 /* OutingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutingsView.swift; sourceTree = "<group>"; };
 		BC6ADC80E561240BA8BF7D7E /* collage1.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage1.jpg; sourceTree = "<group>"; };
 		C3E027D5423D69EFC1429801 /* PhotoSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSelectionView.swift; sourceTree = "<group>"; };
 		C50653C4D6271CE2B75296B2 /* WingDexShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = WingDexShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		C53480FBF2B973F9933FF26F /* AccessibilityAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditUITests.swift; sourceTree = "<group>"; };
 		C55734005BE9F01B6719A826 /* PasskeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyService.swift; sourceTree = "<group>"; };
 		C7A66332F6B9B146484F4C8E /* PhotoReviewCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoReviewCarousel.swift; sourceTree = "<group>"; };
 		C927A85FC167B684891346FD /* collage7.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage7.jpg; sourceTree = "<group>"; };
@@ -342,6 +353,7 @@
 			isa = PBXGroup;
 			children = (
 				1AAEF45D13FB117DED5ED47F /* WingDex.app */,
+				BA22661FFE13F1991386876A /* WingDexAccessibilityUITests.xctest */,
 				C50653C4D6271CE2B75296B2 /* WingDexShareExtension.appex */,
 				305CCFA640186FBC5E19A9D5 /* WingDexTests.xctest */,
 				29828A1E6E0D8724C9F520A0 /* WingDexUITests.xctest */,
@@ -377,6 +389,7 @@
 				C55734005BE9F01B6719A826 /* PasskeyService.swift */,
 				5873328D24830AA514049E5C /* PhotoService.swift */,
 				FF3A7E2A8436A0BBA6ACC7F4 /* SharePayload.swift */,
+				97E34C211C55A7B7DE60BEAA /* UITestDataService.swift */,
 				8E9125024749D57C45089591 /* BirdID */,
 			);
 			path = Services;
@@ -515,7 +528,7 @@
 		74A645D7E5E1C6F65CB0F433 /* WingDexUITests */ = {
 			isa = PBXGroup;
 			children = (
-				C53480FBF2B973F9933FF26F /* AccessibilityAuditUITests.swift */,
+				259B1F2D858EDAE9375BD7CD /* AccessibilityAuditJourneys.swift */,
 				0DCAA3DD89775D5E47432890 /* BirdIdFlowUITestCase.swift */,
 				1E50D8A8630F0A8BBDB0CCEB /* BirdIdFlowUITests.swift */,
 			);
@@ -724,6 +737,24 @@
 			productReference = C50653C4D6271CE2B75296B2 /* WingDexShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		E14AFDF65FF1C397DD6976C2 /* WingDexAccessibilityUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B15592046D27AF9621D38EB9 /* Build configuration list for PBXNativeTarget "WingDexAccessibilityUITests" */;
+			buildPhases = (
+				55BE815F609DA1E217C40EF7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B0DC21345CAB6C50E3735511 /* PBXTargetDependency */,
+			);
+			name = WingDexAccessibilityUITests;
+			packageProductDependencies = (
+			);
+			productName = WingDexAccessibilityUITests;
+			productReference = BA22661FFE13F1991386876A /* WingDexAccessibilityUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -750,6 +781,11 @@
 						DevelopmentTeam = Z8LQS5S492;
 						ProvisioningStyle = Automatic;
 					};
+					E14AFDF65FF1C397DD6976C2 = {
+						DevelopmentTeam = Z8LQS5S492;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 069C1F4999CA086190E79089;
+					};
 				};
 			};
 			buildConfigurationList = 1B57DE26A2341D9230C8D22E /* Build configuration list for PBXProject "WingDex" */;
@@ -773,6 +809,7 @@
 			projectRoot = "";
 			targets = (
 				069C1F4999CA086190E79089 /* WingDex */,
+				E14AFDF65FF1C397DD6976C2 /* WingDexAccessibilityUITests */,
 				8884E90389194DE7AF6A7B67 /* WingDexShareExtension */,
 				535379434C23A5772093AD25 /* WingDexTests */,
 				557966C11C0ADD889556BF2A /* WingDexUITests */,
@@ -851,7 +888,6 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 		};
 		A464836BCE0266962DBC2DDD /* Sync Bird ID Assets */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -874,6 +910,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				"$(SRCROOT)/WingDex/Resources/BirdID/text_classifier_int8.bin",
 				"$(SRCROOT)/WingDex/Resources/BirdID/occurrence.bin",
 				"$(SRCROOT)/WingDex/Resources/BirdID/rarity.bin",
+				"$(SRCROOT)/build/generated/sync-birdid-assets.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -948,6 +985,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				4DE92EF687F50832C97545B4 /* SpeciesCarousel.swift in Sources */,
 				BE1BC5ECDCCA3BB2EAA10E79 /* SpeciesDetailView.swift in Sources */,
 				BFEEDFE99B8E9AE03FC3304F /* Theme.swift in Sources */,
+				868EBB023417EFE3D0DD52F2 /* UITestDataService.swift in Sources */,
 				1F40A38FB19DEF16444A4343 /* WikimediaURL.swift in Sources */,
 				B0EF549E9F857E26B510EEBB /* WikimediaUserAgent.swift in Sources */,
 				D84B4742492591DACE5278EA /* WingCLIP.mlpackage in Sources */,
@@ -957,11 +995,19 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		55BE815F609DA1E217C40EF7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A8DE615F586BEE7ECA2FC8E9 /* AccessibilityAuditJourneys.swift in Sources */,
+				4592347918AE13E2C669DFB2 /* BirdIdFlowUITestCase.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7D9AD240EB8D215E7C1AAEEC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C627C51113141532AC802F79 /* AccessibilityAuditUITests.swift in Sources */,
 				BF0095A16E14CCEB6019BEA9 /* BirdIdFlowUITestCase.swift in Sources */,
 				3F1EE669013316073161A378 /* BirdIdFlowUITests.swift in Sources */,
 			);
@@ -1023,6 +1069,11 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			isa = PBXTargetDependency;
 			target = 069C1F4999CA086190E79089 /* WingDex */;
 			targetProxy = 4A99F3EA34F55C396BA0DC31 /* PBXContainerItemProxy */;
+		};
+		B0DC21345CAB6C50E3735511 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 069C1F4999CA086190E79089 /* WingDex */;
+			targetProxy = 6A0014DD7A49DDE31762267F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1175,6 +1226,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
+		};
+		3142AAD377E799D5DC989FC4 /* Localhost Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.wingdex.accessibility-uitests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Localhost Debug";
 		};
 		361184DF13AD5732F2D439B8 /* Localhost Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1490,6 +1559,42 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			};
 			name = "Dev Release";
 		};
+		7EFB1172A69D9279AA258A2C /* Production Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.wingdex.accessibility-uitests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Production Debug";
+		};
+		7F269DB48D10E7A3DF2CC312 /* Dev Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.wingdex.accessibility-uitests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Dev Release";
+		};
 		9999A4EB863BDE3C105A5802 /* Localhost Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1608,6 +1713,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			};
 			name = "Production Debug";
 		};
+		A9CD2E2A49B92AB72F3DCD33 /* Localhost Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.wingdex.accessibility-uitests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Localhost Release";
+		};
 		B2073F9050721B9EF1842756 /* Production Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1705,6 +1828,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 					"@loader_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.wingdex.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = "Dev Debug";
+		};
+		CCFDAD0B43B766E9D05C622C /* Dev Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.wingdex.accessibility-uitests";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = WingDex;
@@ -1883,6 +2024,24 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			};
 			name = "Dev Debug";
 		};
+		F7FD4F6B57EE4A8F1E8147EF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.wingdex.accessibility-uitests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WingDex;
+			};
+			name = Release;
+		};
 		F95105A00BC9F311256C1480 /* Production Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1946,6 +2105,19 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				B78C6282A0A1A016D25A201F /* Localhost Release */,
 				F95105A00BC9F311256C1480 /* Production Debug */,
 				E117ABF5C00CB20BDCC976FA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = "Dev Debug";
+		};
+		B15592046D27AF9621D38EB9 /* Build configuration list for PBXNativeTarget "WingDexAccessibilityUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCFDAD0B43B766E9D05C622C /* Dev Debug */,
+				7F269DB48D10E7A3DF2CC312 /* Dev Release */,
+				3142AAD377E799D5DC989FC4 /* Localhost Debug */,
+				A9CD2E2A49B92AB72F3DCD33 /* Localhost Release */,
+				7EFB1172A69D9279AA258A2C /* Production Debug */,
+				F7FD4F6B57EE4A8F1E8147EF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = "Dev Debug";

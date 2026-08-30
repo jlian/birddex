@@ -13,6 +13,7 @@ private let log = Logger(subsystem: Config.bundleID, category: "OutingReview")
 /// Matches the web app's OutingReview.tsx component.
 struct OutingReviewView: View {
     @Bindable var viewModel: AddPhotosViewModel
+    var onReverseGeocodingCancellationAcknowledged: () -> Void = {}
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
 
@@ -152,6 +153,7 @@ struct OutingReviewView: View {
                     Image(systemName: "chevron.right")
                 }
                 .accessibilityLabel("Continue")
+                .accessibilityIdentifier("outing.continue")
                 .buttonStyle(.borderedProminent)
                 .disabled(isLoadingLocation)
             }
@@ -579,6 +581,9 @@ struct OutingReviewView: View {
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-delay") {
             do {
                 try await Task.sleep(for: .seconds(10))
+            } catch is CancellationError {
+                onReverseGeocodingCancellationAcknowledged()
+                return
             } catch {
                 return
             }

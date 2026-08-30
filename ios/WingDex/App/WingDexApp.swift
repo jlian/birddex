@@ -34,10 +34,21 @@ struct WingDexApp: App {
     init() {
         let auth = AuthService.shared
         let cache = try? AccountDataCache()
+        #if DEBUG
+        let uiTestDataMode = UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments)
+        if uiTestDataMode != nil {
+            auth.installUITestAnonymousIdentity()
+        }
+        #endif
         _authService = State(initialValue: auth)
         _dataStore = State(initialValue: DataStore(
             serviceFactory: { accountID in
-                DataService(auth: auth, expectedAccountID: accountID)
+                #if DEBUG
+                if let uiTestDataMode {
+                    return UITestDataService(mode: uiTestDataMode)
+                }
+                #endif
+                return DataService(auth: auth, expectedAccountID: accountID)
             },
             cache: cache
         ))
@@ -62,6 +73,7 @@ struct WingDexApp: App {
                 }
         }
     }
+
 }
 
 // MARK: - Root Content View
@@ -116,6 +128,9 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
+            if UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments) != nil {
+                return
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
                 await auth.signOut()
             }
@@ -199,7 +214,9 @@ struct MainTabView: View {
     #if DEBUG
     private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
     private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-ignore-shares")
+    private let uiTestObservesShareQueue = ProcessInfo.processInfo.arguments.contains("--ui-test-observe-share-queue")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
+    @State private var uiTestGeocodingCancellationAcknowledged = false
     #else
     private let uiTestForcesSettings = false
     private let uiTestIgnoresPendingShare = false
@@ -246,6 +263,11 @@ struct MainTabView: View {
         .toastPresenter(toasts.notice)
         #if DEBUG
         .accessibilityIdentifier(uiTestDataSetupIdentifier)
+        .accessibilityValue(
+            uiTestGeocodingCancellationAcknowledged
+                ? "geocodingCancellationAcknowledged"
+                : ""
+        )
         #endif
         .onChange(of: addPhotosVM.currentStep) {
             if addPhotosVM.currentStep != .selectPhotos {
@@ -281,7 +303,10 @@ struct MainTabView: View {
             }
         }) {
             NavigationStack {
-                AddPhotosFlow(viewModel: addPhotosVM)
+                AddPhotosFlow(
+                    viewModel: addPhotosVM,
+                    onReverseGeocodingCancellationAcknowledged: acknowledgeReverseGeocodingCancellation
+                )
             }
         }
         .sheet(isPresented: $showingSettings) {
@@ -383,22 +408,32 @@ struct MainTabView: View {
         .environment(\.showOutings) { navigation.route(to: .outings) }
     }
 
+    private func acknowledgeReverseGeocodingCancellation() {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-delay") else { return }
+        uiTestGeocodingCancellationAcknowledged = true
+        #endif
+    }
+
     #if DEBUG
     private func prepareUITestData(arguments: [String]) async throws {
+        let fixtureMode = UITestDataService.Mode(arguments: arguments)
         let needsAccount = arguments.contains("--ui-test-clear-data")
             || arguments.contains("--ui-test-seed-csv")
             || arguments.contains("--ui-test-open-settings")
+            || fixtureMode != nil
         guard needsAccount else { return }
+
+        if fixtureMode != nil {
+            store.activate(accountID: "ui-test-account")
+            try await store.ensureLoaded()
+            return
+        }
 
         var lastError: Error = AuthError.notAuthenticated
         for attempt in 1...3 {
             var stage = "anonymous session"
             do {
-                if attempt == 1,
-                   arguments.contains("--ui-test-transient-data-setup-failure") {
-                    stage = "injected transient failure"
-                    throw URLError(.timedOut)
-                }
                 try await auth.ensureAnonymousSession()
                 guard let accountID = auth.userId else { throw AuthError.notAuthenticated }
                 if store.activeAccountID != accountID { store.activate(accountID: accountID) }
@@ -501,14 +536,15 @@ struct MainTabView: View {
     }
     #endif
 
-    private func requestIncomingShareImport() async {
-        guard !uiTestIgnoresPendingShare else { return }
+    private func requestIncomingShareImport() async -> Bool {
+        guard !uiTestIgnoresPendingShare else { return false }
         guard !incomingShareImportInFlight else {
             incomingShareImportRequested = true
-            return
+            return false
         }
         incomingShareImportInFlight = true
         defer { incomingShareImportInFlight = false }
+        var queueRemainedEmpty = true
         repeat {
             incomingShareImportRequested = false
             addPhotosVM.configure(
@@ -516,7 +552,8 @@ struct MainTabView: View {
                 dataStore: store
             )
             let result = await addPhotosVM.importIncomingShareIfAvailable()
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return false }
+            queueRemainedEmpty = queueRemainedEmpty && result == .empty
             if result == .accepted {
                 navigation.route(to: .addPhotos())
             } else if result == .failed {
@@ -526,9 +563,15 @@ struct MainTabView: View {
                 incomingShareImportDeferred = true
             }
         } while incomingShareImportRequested
+        return queueRemainedEmpty
     }
 
     private func scheduleIncomingShareImport() {
+        #if DEBUG
+        if uiTestObservesShareQueue {
+            uiTestDataSetupIdentifier = "ui-test.shareQueuePending"
+        }
+        #endif
         if showingAccount {
             incomingShareImportDeferred = true
             return
@@ -540,7 +583,12 @@ struct MainTabView: View {
         let requestID = UUID()
         incomingShareImportTaskID = requestID
         incomingShareImportTask = Task {
-            await requestIncomingShareImport()
+            let queueIsEmpty = await requestIncomingShareImport()
+            #if DEBUG
+            if uiTestObservesShareQueue && queueIsEmpty && !Task.isCancelled {
+                uiTestDataSetupIdentifier = "ui-test.shareQueueChecked"
+            }
+            #endif
             if incomingShareImportTaskID == requestID {
                 incomingShareImportTask = nil
                 incomingShareImportTaskID = nil
