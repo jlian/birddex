@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/jlian/wingdex/compare/v1.25.1...v1.26.0) (2026-08-30)
+
+
+### Features
+
+* **Add Photos:** peek at ID candidates before confirming ([#365](https://github.com/jlian/wingdex/issues/365)) ([c806446](https://github.com/jlian/wingdex/commit/c806446ca01770bbc9022c3f3e516a70e9e2fada)), closes [#357](https://github.com/jlian/wingdex/issues/357) [#358](https://github.com/jlian/wingdex/issues/358)
+
 ## [1.25.1](https://github.com/jlian/wingdex/compare/v1.25.0...v1.25.1) (2026-08-30)
 
 
