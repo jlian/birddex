@@ -25,8 +25,14 @@ extension Color {
     // corresponding colorsets in Assets.xcassets. Do not re-declare them here.
 
     /// Colour for an identification confidence figure or bar.
+    ///
+    /// Rounds exactly as `BirdIdEngine.formatConfidence` does, so the colour always
+    /// agrees with the number printed beside it. Truncating instead put 0.799 on
+    /// screen as "80%" in orange. Non-finite input falls to red rather than being
+    /// converted, since `Int(Double.nan)` traps.
     static func confidence(_ value: Double) -> Color {
-        let percent = Int(value * 100)
+        guard value.isFinite else { return .red }
+        let percent = (value * 100).rounded()
         if percent >= 80 { return .green }
         if percent >= 50 { return .orange }
         return .red
