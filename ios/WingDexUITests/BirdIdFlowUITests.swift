@@ -99,6 +99,87 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         XCTAssertFalse(app.buttons["Export sightings as CSV"].exists)
     }
 
+    func testLowConfidenceIdentificationOffersInteractiveCropZoom() {
+        let app = launchApp(extraArguments: ["--ui-test-stub-low-confidence-identification"])
+        let continueButton = waitForOutingReview(in: app)
+        startNewOuting(in: app)
+        continueButton.tap()
+
+        let cropBack = app.buttons["crop.back"]
+        let cropViewport = app.scrollViews["crop.viewport"]
+        let offCenterPinchTarget = app.descendants(matching: .any)["crop.offCenterPinchTarget"]
+        let zoomIn = app.buttons["crop.zoomIn"]
+        let zoomOut = app.buttons["crop.zoomOut"]
+        XCTAssertTrue(cropBack.existsOrWait(timeout: 10), "Low-confidence result did not enter crop mode")
+        XCTAssertTrue(cropViewport.exists, "Crop viewport was missing")
+        XCTAssertTrue(cropViewport.isHittable, "Crop viewport was not interactive through its overlay")
+        XCTAssertTrue(offCenterPinchTarget.exists, "Off-center crop gesture target was missing")
+        let initialCenter = cropCenterValue(offCenterPinchTarget)
+        let initialZoom = cropZoomValue(cropViewport)
+        offCenterPinchTarget.pinch(withScale: 1.5, velocity: 1)
+        let pinchedZoom = waitForCropZoomChange(cropViewport, from: initialZoom, operation: "pinch")
+        XCTAssertGreaterThan(pinchedZoom, initialZoom)
+        let pinchedCenter = cropCenterValue(offCenterPinchTarget)
+        XCTAssertLessThan(pinchedCenter.x, initialCenter.x, "Off-center pinch did not move crop center left")
+        XCTAssertLessThan(pinchedCenter.y, initialCenter.y, "Off-center pinch did not move crop center up")
+        XCTAssertTrue(zoomIn.exists, "Crop zoom-in control was missing")
+        XCTAssertTrue(zoomOut.exists, "Crop zoom-out control was missing")
+        XCTAssertTrue(zoomIn.isHittable, "Crop zoom-in control was not interactive")
+        XCTAssertTrue(zoomIn.isEnabled, "Crop zoom-in control was disabled below maximum zoom")
+        let beforeZoomIn = cropZoomValue(cropViewport)
+        zoomIn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let zoomedIn = waitForCropZoomChange(cropViewport, from: beforeZoomIn, operation: "zoom in")
+        XCTAssertGreaterThan(zoomedIn, beforeZoomIn)
+        let beforeZoomOut = cropZoomValue(cropViewport)
+        XCTAssertTrue(zoomOut.isEnabled, "Crop zoom-out control was disabled above minimum zoom")
+        zoomOut.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let zoomedOut = waitForCropZoomChange(cropViewport, from: beforeZoomOut, operation: "zoom out")
+        XCTAssertLessThan(zoomedOut, beforeZoomOut)
+    }
+
+    private func cropZoomValue(_ viewport: XCUIElement) -> Double {
+        guard let value = viewport.value as? String, let zoom = Double(value) else {
+            XCTFail("Crop viewport did not expose a numeric zoom value")
+            return .nan
+        }
+        return zoom
+    }
+
+    private func cropCenterValue(_ target: XCUIElement) -> (x: Double, y: Double) {
+        guard let value = target.value as? String else {
+            XCTFail("Crop target did not expose its center")
+            return (.nan, .nan)
+        }
+        let coordinates = value.split(separator: ",").compactMap { Double($0) }
+        guard coordinates.count == 2 else {
+            XCTFail("Crop target exposed an invalid center: \(value)")
+            return (.nan, .nan)
+        }
+        return (coordinates[0], coordinates[1])
+    }
+
+    private func waitForCropZoomChange(
+        _ viewport: XCUIElement,
+        from previous: Double,
+        operation: String
+    ) -> Double {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                guard let value = viewport.value as? String, let zoom = Double(value) else { return false }
+                return zoom != previous
+            },
+            object: viewport
+        )
+        let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+        let current = cropZoomValue(viewport)
+        XCTAssertEqual(
+            result,
+            .completed,
+            "Crop \(operation) did not change zoom from \(previous); current value is \(current)"
+        )
+        return current
+    }
+
     func testColdSessionlessShareReachesOutingReview() {
         let app = application()
         app.launchArguments = [

@@ -754,15 +754,28 @@ final class AddPhotosViewModel {
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
 
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-stub-identification") {
+        let arguments = ProcessInfo.processInfo.arguments
+        let stubConfidence: Double? = if arguments.contains("--ui-test-stub-low-confidence-identification") {
+            0.5
+        } else if arguments.contains("--ui-test-stub-identification") {
+            0.95
+        } else {
+            nil
+        }
+        if let stubConfidence {
             currentCandidates = [IdentifiedCandidate(
                 species: "Great Blue Heron (Ardea herodias)",
-                confidence: 0.95,
+                confidence: stubConfidence,
                 wikiTitle: nil,
                 plumage: nil
             )]
             rangeAdjusted = false
-            currentStep = .perPhotoConfirm
+            if !isCropped, shouldPromptForCrop(currentCandidates) {
+                cropPromptContext = .lowConfidence
+                currentStep = .manualCrop
+            } else {
+                currentStep = .perPhotoConfirm
+            }
             return
         }
         #endif
@@ -1213,7 +1226,7 @@ struct IdentifiedCandidate {
 }
 
 /// AI crop box in percentage coordinates (0-100).
-struct CropBoxResult: Sendable {
+struct CropBoxResult: Equatable, Sendable {
     let x: Double
     let y: Double
     let width: Double

@@ -107,6 +107,7 @@
 		A9F53E5EAD8952F1C8720B77 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = ADE7F85F2A587DBB70E7CF19 /* KeychainAccess */; };
 		ABA7A9183EF63B93C1241B34 /* AddPhotosFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190E573E0224A499A6CEB58C /* AddPhotosFlow.swift */; };
 		ABE5483F3419B0E03F34DE93 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C773C10B5077F676FE0D9A /* AppNavigationModel.swift */; };
+		AF26737C0C1E2C5284FB4D0E /* CropViewportGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFACCEC4092BB3DF1303EACE /* CropViewportGeometryTests.swift */; };
 		AF5B1B87BC332436FC620C83 /* BirdIdAccuracyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192D6374270D66C9101106D4 /* BirdIdAccuracyTests.swift */; };
 		B0EF549E9F857E26B510EEBB /* WikimediaUserAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 654E1126C215BAE9E0BB67BA /* WikimediaUserAgent.swift */; };
 		B20B5F8019F97F1B3833F902 /* PhotoReviewCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A66332F6B9B146484F4C8E /* PhotoReviewCarousel.swift */; };
@@ -323,6 +324,7 @@
 		CBA5EA8D67100F9A23FFBA36 /* SpeciesCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesCarousel.swift; sourceTree = "<group>"; };
 		CE51FF79B0CDBB3C4CADC3ED /* ImageSharingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSharingService.swift; sourceTree = "<group>"; };
 		CE75D7E8CDCF0136F2200827 /* CLIPPreprocessParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIPPreprocessParityTests.swift; sourceTree = "<group>"; };
+		CFACCEC4092BB3DF1303EACE /* CropViewportGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropViewportGeometryTests.swift; sourceTree = "<group>"; };
 		CFBE1598DFE8F27ED8313060 /* DataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataService.swift; sourceTree = "<group>"; };
 		D0102B85A0116EB696C3EBD1 /* SpeciesDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDetailView.swift; sourceTree = "<group>"; };
 		D57FC6933BCB9DA6D01C6F9E /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
@@ -567,6 +569,7 @@
 				CE75D7E8CDCF0136F2200827 /* CLIPPreprocessParityTests.swift */,
 				E7E24BBF2D542566F44584AA /* ClusterSightingsTests.swift */,
 				ADF3E5D0129E1F165B55D5A1 /* ConfidenceDisplayTests.swift */,
+				CFACCEC4092BB3DF1303EACE /* CropViewportGeometryTests.swift */,
 				2E72A9251EFB7534EA141B3E /* DataStoreCacheTests.swift */,
 				452C55049EB9AB7E09E62CA9 /* FunNamesTests.swift */,
 				4E6BAB4FEED37A66EB25CDB0 /* GeocodingServiceTests.swift */,
@@ -1062,6 +1065,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 				32A90BB7899AF9413E1466ED /* CelebrationTests.swift in Sources */,
 				E2A6A3F1BC8CE15F4E72F6CE /* ClusterSightingsTests.swift in Sources */,
 				B43CDD9CC0C97DE0D4452C3A /* ConfidenceDisplayTests.swift in Sources */,
+				AF26737C0C1E2C5284FB4D0E /* CropViewportGeometryTests.swift in Sources */,
 				32E8B1249FDA37CF3CAAD493 /* DataStoreCacheTests.swift in Sources */,
 				E2DEFBDD3B36FEB4C7CFCC96 /* FunNamesTests.swift in Sources */,
 				50F4BCC128CEB199FEE961AB /* GeocodingServiceTests.swift in Sources */,
