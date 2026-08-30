@@ -8,7 +8,6 @@ import {
   ArrowUp, ArrowDown, Camera, Hash, TextAa, Leaf
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
-import { birdObjectPosition } from '@/components/ui/wiki-bird-thumbnail'
 import { useBirdSummary } from '@/hooks/use-bird-image'
 import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
@@ -425,7 +424,6 @@ function SpeciesDetail({
   const fullResUrl = getHeroImageUrl(thumbnailUrl) ?? summary?.imageUrl
   const baseImageUrl = thumbnailUrl || fullResUrl
   const [fullResLoaded, setFullResLoaded] = useState(false)
-  // Both layers render the same file, so the base layer settles the crop anchor for both.
   const [heroPortrait, setHeroPortrait] = useState(false)
   const hasDistinctFullRes = !!(fullResUrl && thumbnailUrl && fullResUrl !== thumbnailUrl)
   const canShowOverlay = hasDistinctFullRes
@@ -474,7 +472,7 @@ function SpeciesDetail({
 
       <div className="px-4 sm:px-6 space-y-6">
         {/* Hero: full-width image with overlaid name + stats */}
-        <div className="w-full aspect-[4/3] rounded-xl bg-muted overflow-hidden shadow-sm relative">
+        <div className="w-full aspect-square sm:aspect-[4/3] rounded-xl bg-muted overflow-hidden shadow-sm relative">
           {/* Base image layer always stays visible to avoid blank flashes */}
           {baseImageUrl && (
             <img
@@ -482,8 +480,7 @@ function SpeciesDetail({
               alt={canShowOverlay ? '' : displayName}
               aria-hidden={canShowOverlay}
               onLoad={e => setHeroPortrait(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)}
-              style={{ objectPosition: birdObjectPosition(heroPortrait) }}
-              className={`absolute inset-0 w-full h-full object-cover ${canShowOverlay ? 'blur-md scale-105' : ''}`}
+              className={`absolute inset-0 w-full h-full object-cover object-center ${heroPortrait ? 'sm:object-top' : ''} ${canShowOverlay ? 'blur-md scale-105' : ''}`}
             />
           )}
           {/* Full-res overlay fades in over the base layer */}
@@ -492,8 +489,7 @@ function SpeciesDetail({
               src={fullResUrl}
               alt={displayName}
               onLoad={revealFullRes}
-              style={{ objectPosition: birdObjectPosition(heroPortrait) }}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 w-full h-full object-cover object-center ${heroPortrait ? 'sm:object-top' : ''} transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
             />
           )}
           {!baseImageUrl && (

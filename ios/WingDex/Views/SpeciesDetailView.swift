@@ -153,16 +153,15 @@ struct SpeciesDetailView: View {
     // MARK: - Hero
 
     private var heroSection: some View {
-        // WHY GeometryReader: the hero image uses .scaledToFill() and will overflow its
-        // parent frame in a List row. GeometryReader constrains the width to the
-        // actual available space so .clipped() works correctly on the hero image.
+        // The square gives portrait and landscape source photos equal treatment. The
+        // GeometryReader still constrains scaled-to-fill images inside the List row.
         GeometryReader { geo in
             ZStack(alignment: .bottomLeading) {
                 BirdHeroImage(
                     thumbnailUrl: entry?.thumbnailUrl,
                     fullImageUrl: displayedFullImageUrl,
                     width: geo.size.width,
-                    height: 280
+                    height: geo.size.width
                 )
 
             // Gradient overlay
@@ -203,10 +202,10 @@ struct SpeciesDetailView: View {
             }
             .padding()
         }
-        .frame(width: geo.size.width, height: 280)
+        .frame(width: geo.size.width, height: geo.size.width)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .frame(height: 280)
+        .aspectRatio(1, contentMode: .fit)
         .padding(.horizontal)
         .contextMenu {
             Button {
