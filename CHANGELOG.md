@@ -1,3 +1,10 @@
+## [1.26.1](https://github.com/jlian/wingdex/compare/v1.26.0...v1.26.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **Species:** make detail heroes responsive ([4357b5e](https://github.com/jlian/wingdex/commit/4357b5eac99e859a5786f5c358d0e02b3857c91f))
+
 # [1.26.0](https://github.com/jlian/wingdex/compare/v1.25.1...v1.26.0) (2026-08-30)
 
 
