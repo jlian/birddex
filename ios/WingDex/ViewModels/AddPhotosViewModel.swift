@@ -53,7 +53,7 @@ final class AddPhotosViewModel {
     // MARK: - Step State Machine
 
     /// All possible steps in the add-photos wizard.
-    enum Step: Equatable {
+    enum Step: Hashable {
         case selectPhotos
         case extracting
         case outingReview
