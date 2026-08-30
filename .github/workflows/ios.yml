@@ -388,14 +388,6 @@ jobs:
             ios/build/logs
           retention-days: 7
 
-      - name: Clean up iOS Simulator
-        if: always()
-        run: |
-          if [[ -n "${IOS_SIMULATOR_UDID:-}" ]]; then
-            xcrun simctl shutdown "$IOS_SIMULATOR_UDID" >/dev/null 2>&1 || true
-            xcrun simctl delete "$IOS_SIMULATOR_UDID" >/dev/null 2>&1 || true
-          fi
-
   build-and-test:
     name: Build & Test (iOS Simulator)
     if: always()
