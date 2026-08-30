@@ -327,13 +327,6 @@ struct BirdHeroImage: View {
     private var awaitingFullRes: Bool { fullImageUrl == nil || fullImageUrl != thumbnailUrl }
     private var targetPoints: CGFloat { max(width, height) }
 
-    /// Both layers render the same file, so resolving the anchor once keeps the cross-fade
-    /// from shifting the framing mid-transition.
-    private var fillAlignment: Alignment {
-        guard let image = thumbnailImage ?? fullImage else { return .center }
-        return birdFillAlignment(for: image)
-    }
-
     var body: some View {
         ZStack {
             if let thumbnailImage {
@@ -370,7 +363,7 @@ struct BirdHeroImage: View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .frame(width: width, height: height, alignment: fillAlignment)
+            .frame(width: width, height: height, alignment: .center)
             .clipped()
     }
 
