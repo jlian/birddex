@@ -424,7 +424,6 @@ function SpeciesDetail({
   const fullResUrl = getHeroImageUrl(thumbnailUrl) ?? summary?.imageUrl
   const baseImageUrl = thumbnailUrl || fullResUrl
   const [fullResLoaded, setFullResLoaded] = useState(false)
-  const [heroPortrait, setHeroPortrait] = useState(false)
   const hasDistinctFullRes = !!(fullResUrl && thumbnailUrl && fullResUrl !== thumbnailUrl)
   const canShowOverlay = hasDistinctFullRes
   const fullResRevealToken = useRef(0)
@@ -446,7 +445,6 @@ function SpeciesDetail({
   useEffect(() => {
     fullResRevealToken.current += 1
     setFullResLoaded(false)
-    setHeroPortrait(false)
   }, [entry.speciesName])
 
   // The hero is an individually licensed Commons photo, so it needs its own credit.
@@ -479,8 +477,7 @@ function SpeciesDetail({
               src={baseImageUrl}
               alt={canShowOverlay ? '' : displayName}
               aria-hidden={canShowOverlay}
-              onLoad={e => setHeroPortrait(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)}
-              className={`absolute inset-0 w-full h-full object-cover object-center ${heroPortrait ? 'sm:object-top' : ''} ${canShowOverlay ? 'blur-md scale-105' : ''}`}
+              className={`absolute inset-0 w-full h-full object-cover object-center ${canShowOverlay ? 'blur-md scale-105' : ''}`}
             />
           )}
           {/* Full-res overlay fades in over the base layer */}
@@ -489,7 +486,7 @@ function SpeciesDetail({
               src={fullResUrl}
               alt={displayName}
               onLoad={revealFullRes}
-              className={`absolute inset-0 w-full h-full object-cover object-center ${heroPortrait ? 'sm:object-top' : ''} transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-600 ease-in-out ${fullResLoaded ? 'opacity-100' : 'opacity-0'}`}
             />
           )}
           {!baseImageUrl && (

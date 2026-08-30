@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { RarityMark, RARITY_SENTENCES } from '@/components/ui/rarity-mark'
 import { BirdLogo } from '@/components/ui/bird-logo'
-import { birdObjectPosition } from '@/components/ui/wiki-bird-thumbnail'
 import { getDisplayName } from '@/lib/utils'
 import {
   fetchImageCredit,
@@ -92,7 +91,6 @@ export function SpeciesPeekSheet({
   const [heroIndices, setHeroIndices] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [truncated, setTruncated] = useState(false)
-  const [heroPortrait, setHeroPortrait] = useState(false)
   const [credit, setCredit] = useState<ImageCredit | undefined>(undefined)
   const extractRef = useRef<HTMLParagraphElement | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
@@ -102,7 +100,7 @@ export function SpeciesPeekSheet({
   // info button opens it. After paint would show the wrong bird for a frame and
   // then jump.
   useLayoutEffect(() => { if (open) setIndex(startIndex) }, [open, startIndex])
-  useEffect(() => { setExpanded(false); setHeroPortrait(false) }, [index])
+  useEffect(() => { setExpanded(false) }, [index])
 
   const current = candidates[Math.min(Math.max(index, 0), candidates.length - 1)]
   const species = current?.species
@@ -271,9 +269,7 @@ export function SpeciesPeekSheet({
                 <img
                   src={hero.url}
                   alt={`${displayName} reference`}
-                  onLoad={e => setHeroPortrait(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)}
-                  style={{ objectPosition: birdObjectPosition(heroPortrait) }}
-                  className="absolute inset-0 size-full object-cover"
+                  className="absolute inset-0 size-full object-cover object-center"
                 />
               ) : (
                 <div className="flex size-full items-center justify-center">

@@ -244,13 +244,7 @@ func presentActivitySheet(items: [Any], sourceView: UIView? = nil) {
 
 // MARK: - Bird Thumbnail
 
-/// Crop anchor for a `.scaledToFill()` bird photo. Tall sources are cropped from the top so
-/// the head survives; wide ones are centered. Same rule as the web `wiki-bird-thumbnail.tsx`.
-func birdFillAlignment(for image: UIImage) -> Alignment {
-    image.size.height > image.size.width ? .top : .center
-}
-
-/// Orientation-aware bird thumbnail. Uses an in-memory cache for smooth scrolling.
+/// Center-cropped bird thumbnail. Uses an in-memory cache for smooth scrolling.
 struct BirdThumbnail: View {
     let url: String?
     var size: CGFloat = 48
@@ -263,7 +257,7 @@ struct BirdThumbnail: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: size, height: size, alignment: birdFillAlignment(for: uiImage))
+                    .frame(width: size, height: size)
             } else {
                 placeholder
             }

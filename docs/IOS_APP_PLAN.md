@@ -198,7 +198,7 @@ ios/
 - [x] `HomeView` - species count, recent species cards (horizontal scroll, gradient overlay), recent outings list, "Upload & Identify" CTA, pull-to-refresh, empty state
 - [x] `OutingsView` - chronological outing list with search, sort (date/species/name), mini map previews (MapKit), pull-to-refresh
 - [x] `OutingDetailView` - stats cards, MapKit map, confirmed/possible species sections, editable notes, delete outing
-- [x] `WingDexView` - species life list with `.searchable`, sort by date/count/name, portrait-aware thumbnails, image cache (200 limit)
+- [x] `WingDexView` - species life list with `.searchable`, sort by date/count/name, center-cropped thumbnails, image cache (200 limit)
 - [x] `SpeciesDetailView` - hero image with progressive load (blurred thumbnail -> full-res), Wikipedia extract + CC BY-SA attribution, external links (Wikipedia, eBird, All About Birds), sightings list
 - [x] Data layer - `DataService` + `DataStore` backed by `/api/data/all`, environment injection
 

@@ -15,11 +15,6 @@ const SHOULD_LAZY_LOAD_THUMBNAILS = (() => {
 
 import type { GalleryImage } from '@/lib/wikimedia'
 
-/** Crop anchor for a bird photo. Tall sources anchor to the top so the head stays visible. */
-export function birdObjectPosition(portrait: boolean): string {
-  return portrait ? 'center top' : 'center center'
-}
-
 interface WikiBirdThumbnailProps {
   speciesName: string
   imageUrl?: string
@@ -33,8 +28,7 @@ interface WikiBirdThumbnailProps {
 }
 
 /**
- * Square Wikipedia bird thumbnail with portrait-aware cropping.
- * Tall (portrait) images anchor to the top so the bird's head stays visible.
+ * Square, center-cropped Wikipedia bird thumbnail.
  * When galleryImages are provided, swipe or use arrow buttons to navigate.
  */
 export function WikiBirdThumbnail({
@@ -61,14 +55,12 @@ export function WikiBirdThumbnail({
   const allUrls = allImages.map(img => img.url)
 
   const [index, setIndex] = useState(0)
-  const [portrait, setPortrait] = useState(false)
   const touchStartX = useRef<number | null>(null)
   const didSwipe = useRef(false)
 
   // Reset index when species changes
   useEffect(() => {
     setIndex(0)
-    setPortrait(false)
   }, [speciesName])
 
   const total = allUrls.length
@@ -128,12 +120,7 @@ export function WikiBirdThumbnail({
           src={currentUrl}
           alt={alt ?? speciesName}
           loading={SHOULD_LAZY_LOAD_THUMBNAILS ? 'lazy' : 'eager'}
-          onLoad={(e) => {
-            const img = e.currentTarget
-            setPortrait(img.naturalHeight > img.naturalWidth)
-          }}
-          className="w-full h-full object-cover"
-          style={{ objectPosition: birdObjectPosition(portrait) }}
+          className="w-full h-full object-cover object-center"
         />
       ) : (
         <div
