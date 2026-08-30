@@ -96,7 +96,7 @@ Iterative polish based on manual testing with real photos against the hosted dev
 
 - [x] **Revert multipleBirds prompt** -- Reverted the `multipleBirds` field description in [bird-id-prompt.js](../functions/lib/bird-id-prompt.js) to the original wording from commit a79835a: flags multiple individuals regardless of species (colonies, flocks, perched groups), not just multiple species. This ensures cormorant flocks and similar scenes correctly trigger the multi-bird toast.
 
-- [x] **Shared WikiBirdThumbnail component** -- Extracted a reusable [wiki-bird-thumbnail.tsx](../src/components/ui/wiki-bird-thumbnail.tsx) used by `HomePage.tsx`, `bird-row.tsx`, and `AddPhotosFlow.tsx`. Encapsulates `useBirdImage` hook, portrait-aware `object-position: center top`, and fallback `Bird` icon. Removes duplicated wiki image rendering logic.
+- [x] **Shared WikiBirdThumbnail component** -- Extracted a reusable [wiki-bird-thumbnail.tsx](../src/components/ui/wiki-bird-thumbnail.tsx) used by `HomePage.tsx`, `bird-row.tsx`, and `AddPhotosFlow.tsx`. Encapsulates `useBirdImage`, centered `object-cover` cropping, and the fallback `Bird` icon. Removes duplicated wiki image rendering logic.
 
 - [x] **Confetti on new species** -- Added confetti animation (via [confetti.tsx](../src/components/ui/confetti.tsx)) that fires when a newly discovered species is confirmed. Fixed `firedRef` reset logic so confetti re-fires correctly across multiple new species in the same session. Added 1500ms `onClose` delay so confetti is visible before the dialog advances.
 

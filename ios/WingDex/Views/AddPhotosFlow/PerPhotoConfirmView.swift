@@ -320,7 +320,7 @@ struct PerPhotoConfirmView: View {
         }
     }
 
-    // MARK: - Wiki Square Thumbnail (portrait-aware, swipeable gallery)
+    // MARK: - Wiki Square Thumbnail (swipeable gallery)
 
     private var allWikiURLs: [URL] { galleryItems.map(\.url) }
 

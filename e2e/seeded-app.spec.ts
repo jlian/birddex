@@ -181,6 +181,6 @@ test.describe('App with seeded data', () => {
       }
     })
     expect(wideHeroGeometry.width / wideHeroGeometry.height).toBeCloseTo(4 / 3, 2)
-    expect(wideHeroGeometry.objectPosition).toBe('50% 0%')
+    expect(wideHeroGeometry.objectPosition).toBe('50% 50%')
   })
 })
