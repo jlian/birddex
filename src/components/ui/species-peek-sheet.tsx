@@ -41,6 +41,15 @@ interface SpeciesDetails {
 
 const EMPTY: SpeciesDetails = { images: [], links: {} }
 
+/**
+ * Whether an entry is worth keeping rather than refetching. The extract is the
+ * part that fails on its own: the gallery and the links come from the bundled
+ * taxonomy, so they survive a Wikipedia outage while the extract does not.
+ */
+function isComplete(detail: SpeciesDetails | undefined): boolean {
+  return detail?.extract !== undefined
+}
+
 function confidenceClass(confidence: number): string {
   const pct = Math.round(confidence * 100)
   if (pct >= 80) return 'text-green-600 dark:text-green-400'
@@ -76,6 +85,10 @@ export function SpeciesPeekSheet({
 }) {
   const [index, setIndex] = useState(startIndex)
   const [details, setDetails] = useState<Record<string, SpeciesDetails>>({})
+  // Read inside the loader without making it a dependency, which would restart
+  // the fetch on every entry it stores.
+  const detailsRef = useRef(details)
+  detailsRef.current = details
   const [heroIndices, setHeroIndices] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [truncated, setTruncated] = useState(false)
@@ -103,6 +116,10 @@ export function SpeciesPeekSheet({
       for (const candidate of wanted) {
         if (cancelled) return
         const name = candidate.species
+        // Only a complete entry is worth keeping. A previous attempt that failed
+        // left one behind with no extract, and skipping on mere presence made
+        // that first failure permanent for the life of the flow.
+        if (isComplete(detailsRef.current[name])) continue
         const [images, wikiTitle, ebird, birdlife] = await Promise.all([
           getWikimediaGallery(name),
           getWikiTitleForSpecies(name),
@@ -111,19 +128,19 @@ export function SpeciesPeekSheet({
         ])
         const summary = await getWikimediaSummary(name, { wikiTitle })
         if (cancelled) return
-        setDetails(prev => prev[name] ? prev : {
-          ...prev,
-          [name]: {
-            extract: summary?.extract,
-            images,
-            links: {
-              wikipedia: summary?.pageUrl
-                ?? (wikiTitle ? `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiTitle)}` : undefined),
-              ebird,
-              birdlife,
-            },
+        const next: SpeciesDetails = {
+          extract: summary?.extract,
+          images,
+          links: {
+            wikipedia: summary?.pageUrl
+              ?? (wikiTitle ? `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiTitle)}` : undefined),
+            ebird,
+            birdlife,
           },
-        })
+        }
+        // A retry that came back empty must not blank an entry that already has
+        // something, so the better of the two wins.
+        setDetails(prev => isComplete(prev[name]) ? prev : { ...prev, [name]: next })
       }
     })()
 
