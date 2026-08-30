@@ -506,15 +506,15 @@ struct PerPhotoConfirmView: View {
             .accessibilityAction(named: "Learn more") { openPeek(at: position) }
 
             // Its own hit area, so reading about a candidate is not the same tap
-            // as choosing it.
+            // as choosing it. A full 44 by 44 target, because a near miss here
+            // hits the selection button beside it and silently changes the answer.
             Button {
                 openPeek(at: position)
             } label: {
                 Image(systemName: "info.circle")
                     .font(.body)
                     .foregroundStyle(.tertiary)
-                    .padding(.vertical, 10)
-                    .padding(.leading, 10)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

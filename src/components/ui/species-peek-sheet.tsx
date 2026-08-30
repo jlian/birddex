@@ -97,7 +97,11 @@ export function SpeciesPeekSheet({
   const extractRef = useRef<HTMLParagraphElement | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
-  useEffect(() => { if (open) setIndex(startIndex) }, [open, startIndex])
+  // Layout effect, not a passive one: the sheet stays mounted while closed, so
+  // `index` still holds the previously viewed page when a different candidate's
+  // info button opens it. After paint would show the wrong bird for a frame and
+  // then jump.
+  useLayoutEffect(() => { if (open) setIndex(startIndex) }, [open, startIndex])
   useEffect(() => { setExpanded(false); setHeroPortrait(false) }, [index])
 
   const current = candidates[Math.min(Math.max(index, 0), candidates.length - 1)]
