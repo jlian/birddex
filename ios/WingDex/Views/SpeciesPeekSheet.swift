@@ -258,6 +258,12 @@ struct SpeciesPeekSheet: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Reference photo \(position + 1)")
+                        // Selection is carried only by the stroke, so VoiceOver has no
+                        // way to tell which photo is the hero and the one being credited
+                        // below.
+                        .accessibilityAddTraits(
+                            position == heroIndex(for: candidate) ? .isSelected : []
+                        )
                     }
                 }
                 .frame(width: thumb, height: heroSize, alignment: .top)

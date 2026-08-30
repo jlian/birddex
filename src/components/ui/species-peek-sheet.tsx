@@ -158,10 +158,19 @@ export function SpeciesPeekSheet({
 
   // "More" only earns its place when the clamp is actually hiding something.
   // Layout effect so the button never flashes in for a short extract.
+  //
+  // Also remeasured on resize: wrapping changes with the sheet's width, so a
+  // rotation could otherwise leave the flag stale and clamp text with no way to
+  // expand it, or offer "More" when nothing is hidden.
   useLayoutEffect(() => {
     const el = extractRef.current
     if (!el || expanded) return
-    setTruncated(el.scrollHeight > el.clientHeight + 1)
+    const measure = () => setTruncated(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
   }, [detail.extract, expanded, index])
 
   // Keyed by plumage as well, because the same species under a different plumage
@@ -261,6 +270,9 @@ export function SpeciesPeekSheet({
                     className={`min-h-0 w-full flex-1 overflow-hidden rounded-md border-2 ${
                       i === heroIndex ? 'border-primary' : 'border-transparent'
                     }`}
+                    // Border colour is the only visual cue for which photo is the hero,
+                    // and the one the footer credits, so it has to be spoken too.
+                    aria-pressed={i === heroIndex}
                     aria-label={`Reference photo ${i + 1}`}
                   >
                     <img src={image.url} alt="" className="size-full object-cover" />
