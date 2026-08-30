@@ -277,6 +277,31 @@ schemes:
     archive:
       config: Dev Release
 
+  Dev CI:
+    build:
+      targets:
+        WingDex: all
+    run:
+      config: Dev Debug
+      commandLineArguments:
+        "--auto-sign-in": false
+    test:
+      config: Dev Debug
+      debugEnabled: false
+      targets:
+        - name: WingDexTests
+          parallelizable: false
+        - name: WingDexUITests
+          parallelizable: false
+        - name: WingDexAccessibilityUITests
+          parallelizable: false
+    profile:
+      config: Dev Release
+    analyze:
+      config: Dev Debug
+    archive:
+      config: Dev Release
+
   Production:
     build:
       targets:

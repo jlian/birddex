@@ -170,11 +170,13 @@ struct SignInView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: glassLabelHeight)
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 7)
+                        .background(Color.black, in: Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.2)))
                         .clipShape(Capsule())
                     }
-                    .buttonStyle(.glass)
-                    .colorScheme(colorScheme == .dark ? .light : .dark)
-                    .background(Color.black.opacity(0.72), in: Capsule())
+                    .buttonStyle(.plain)
 
                     // GitHub -- neutral style matching Google
                     Button {
@@ -191,11 +193,13 @@ struct SignInView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: glassLabelHeight)
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 7)
+                        .background(Color.black, in: Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.2)))
                         .clipShape(Capsule())
                     }
-                    .buttonStyle(.glass)
-                    .colorScheme(colorScheme == .dark ? .light : .dark)
-                    .background(Color.black.opacity(0.72), in: Capsule())
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 28)
 
@@ -205,6 +209,8 @@ struct SignInView: View {
                     Text("OR")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .background(Color.black, in: Capsule())
                     Rectangle().fill(.white.opacity(0.2)).frame(height: 1)
                 }
                 .padding(.horizontal, 28)

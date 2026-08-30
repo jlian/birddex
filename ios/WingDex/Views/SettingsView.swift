@@ -71,6 +71,7 @@ struct SettingsView: View {
     @FocusState private var isNameFieldFocused: Bool
     @State private var editedName = ""
     @State private var celebration: LiferCelebration?
+    @Namespace private var displayNameAccessibilityPair
 
     private var profile: ProfileEditor { editor! }
 
@@ -210,9 +211,19 @@ struct SettingsView: View {
             : AnyLayout(HStackLayout(spacing: 8))
         return layout {
             Text("Display Name")
+                .accessibilityLabeledPair(
+                    role: .label,
+                    id: "displayName",
+                    in: displayNameAccessibilityPair
+                )
             displayNameField
                 .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                 .frame(maxWidth: .infinity)
+                .accessibilityLabeledPair(
+                    role: .content,
+                    id: "displayName",
+                    in: displayNameAccessibilityPair
+                )
         }
     }
 

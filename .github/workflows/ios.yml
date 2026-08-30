@@ -197,7 +197,7 @@ jobs:
           started_at=$(date +%s)
           NSUnbufferedIO=YES xcodebuild build-for-testing \
             -project WingDex.xcodeproj \
-            -scheme Dev \
+            -scheme "Dev CI" \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
             -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile \
@@ -319,17 +319,6 @@ jobs:
           set +e
           set -o pipefail
           mkdir -p build/logs
-          xctestrun=""
-          count=0
-          while IFS= read -r candidate; do
-            xctestrun=$candidate
-            count=$((count + 1))
-          done < <(find build/DerivedData/Build/Products -maxdepth 2 -name '*.xctestrun' -type f)
-          if [[ "$count" != 1 ]]; then
-            echo "::error::Expected one .xctestrun file, found $count"
-            exit 1
-          fi
-
           if [[ "$LANE" == "core" ]]; then
             targets=(-only-testing:WingDexTests -only-testing:WingDexUITests)
             api_base_url=$API_BASE_URL
@@ -340,8 +329,10 @@ jobs:
 
           started_at=$(date +%s)
           NSUnbufferedIO=YES TEST_RUNNER_API_BASE_URL="$api_base_url" xcodebuild test-without-building \
-            -xctestrun "$xctestrun" \
+            -project WingDex.xcodeproj \
+            -scheme "Dev CI" \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
             -parallel-testing-enabled NO \
             -resultBundlePath "build/${LANE}.xcresult" \
             "${targets[@]}" \

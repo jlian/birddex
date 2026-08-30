@@ -73,6 +73,7 @@ struct WingDexApp: App {
                 }
         }
     }
+
 }
 
 // MARK: - Root Content View
@@ -215,6 +216,7 @@ struct MainTabView: View {
     private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-ignore-shares")
     private let uiTestObservesShareQueue = ProcessInfo.processInfo.arguments.contains("--ui-test-observe-share-queue")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
+    @State private var uiTestGeocodingCancellationAcknowledged = false
     #else
     private let uiTestForcesSettings = false
     private let uiTestIgnoresPendingShare = false
@@ -261,6 +263,11 @@ struct MainTabView: View {
         .toastPresenter(toasts.notice)
         #if DEBUG
         .accessibilityIdentifier(uiTestDataSetupIdentifier)
+        .accessibilityValue(
+            uiTestGeocodingCancellationAcknowledged
+                ? "geocodingCancellationAcknowledged"
+                : ""
+        )
         #endif
         .onChange(of: addPhotosVM.currentStep) {
             if addPhotosVM.currentStep != .selectPhotos {
@@ -296,7 +303,10 @@ struct MainTabView: View {
             }
         }) {
             NavigationStack {
-                AddPhotosFlow(viewModel: addPhotosVM)
+                AddPhotosFlow(
+                    viewModel: addPhotosVM,
+                    onReverseGeocodingCancellationAcknowledged: acknowledgeReverseGeocodingCancellation
+                )
             }
         }
         .sheet(isPresented: $showingSettings) {
@@ -396,6 +406,13 @@ struct MainTabView: View {
         .environment(\.showWingDex) { navigation.route(to: .wingdex()) }
         .environment(\.showHome) { navigation.route(to: .home) }
         .environment(\.showOutings) { navigation.route(to: .outings) }
+    }
+
+    private func acknowledgeReverseGeocodingCancellation() {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-delay") else { return }
+        uiTestGeocodingCancellationAcknowledged = true
+        #endif
     }
 
     #if DEBUG

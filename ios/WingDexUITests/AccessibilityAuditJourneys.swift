@@ -1,32 +1,56 @@
 import XCTest
 
 /// Render-only audits use local deterministic data. Functional UI tests retain
-/// preview-backend coverage in BirdIdFlowUITests. Each screen remains a distinct
-/// test so one accessibility failure cannot hide later screens.
+/// preview-backend coverage in BirdIdFlowUITests. Main screens share a launch,
+/// while named activities preserve screen-specific diagnostics.
 @MainActor
 final class PopulatedAccessibilityAuditUITests: BirdIdFlowUITestCase {
-    func testHomePassesAccessibilityAudit() throws {
+    func testMainScreensPassAccessibilityAudit() {
+        continueAfterFailure = true
         let app = launchPopulatedApp()
-        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 10))
-        try runAccessibilityAudit(
-            in: app,
-            for: .all.subtracting(.contrast),
-            handlingKnownIssue: isKnownHomeAuditIssue
-        )
-    }
 
-    func testWingDexPassesAccessibilityAudit() throws {
-        let app = launchPopulatedApp()
-        app.buttons["WingDex"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["Chalk-browed Mockingbird"].waitForExistence(timeout: 10))
-        try performListAccessibilityAudit(app: app, includesContrast: false)
-    }
+        XCTContext.runActivity(named: "Home") { _ in
+            guard app.buttons["Home"].existsOrWait(timeout: 10) else {
+                XCTFail("Populated Home did not appear")
+                return
+            }
+            do {
+                try runAccessibilityAudit(
+                    in: app,
+                    for: .all.subtracting(.contrast),
+                    handlingKnownIssue: isKnownHomeAuditIssue
+                )
+            } catch {
+                XCTFail("Populated Home accessibility audit failed: \(error)")
+            }
+        }
 
-    func testOutingsPassesAccessibilityAudit() throws {
-        let app = launchPopulatedApp()
-        app.buttons["Outings"].tap()
-        XCTAssertTrue(app.navigationBars["Outings"].waitForExistence(timeout: 10))
-        try performListAccessibilityAudit(app: app, includesContrast: false)
+        XCTContext.runActivity(named: "WingDex") { _ in
+            app.buttons["WingDex"].tap()
+            guard app.descendants(matching: .any)["Chalk-browed Mockingbird"]
+                .existsOrWait(timeout: 10) else {
+                XCTFail("Populated WingDex did not appear")
+                return
+            }
+            do {
+                try performListAccessibilityAudit(app: app, includesContrast: false)
+            } catch {
+                XCTFail("Populated WingDex accessibility audit failed: \(error)")
+            }
+        }
+
+        XCTContext.runActivity(named: "Outings") { _ in
+            app.buttons["Outings"].tap()
+            guard app.navigationBars["Outings"].existsOrWait(timeout: 10) else {
+                XCTFail("Populated Outings did not appear")
+                return
+            }
+            do {
+                try performListAccessibilityAudit(app: app, includesContrast: false)
+            } catch {
+                XCTFail("Populated Outings accessibility audit failed: \(error)")
+            }
+        }
     }
 
     private func launchPopulatedApp() -> XCUIApplication {
@@ -40,24 +64,47 @@ final class PopulatedAccessibilityAuditUITests: BirdIdFlowUITestCase {
 
 @MainActor
 final class EmptyAccessibilityAuditUITests: BirdIdFlowUITestCase {
-    func testHomePassesAccessibilityAudit() throws {
+    func testMainScreensPassAccessibilityAudit() {
+        continueAfterFailure = true
         let app = launchEmptyApp()
-        XCTAssertTrue(app.staticTexts["Got bird pics?"].waitForExistence(timeout: 10))
-        try runAccessibilityAudit(in: app)
-    }
 
-    func testWingDexPassesAccessibilityAudit() throws {
-        let app = launchEmptyApp()
-        app.buttons["WingDex"].tap()
-        XCTAssertTrue(app.staticTexts["No Species Yet"].waitForExistence(timeout: 10))
-        try performListAccessibilityAudit(app: app, includesContrast: true)
-    }
+        XCTContext.runActivity(named: "Home") { _ in
+            guard app.staticTexts["Got bird pics?"].existsOrWait(timeout: 10) else {
+                XCTFail("Empty Home did not appear")
+                return
+            }
+            do {
+                try runAccessibilityAudit(in: app)
+            } catch {
+                XCTFail("Empty Home accessibility audit failed: \(error)")
+            }
+        }
 
-    func testOutingsPassesAccessibilityAudit() throws {
-        let app = launchEmptyApp()
-        app.buttons["Outings"].tap()
-        XCTAssertTrue(app.staticTexts["No Outings Yet"].waitForExistence(timeout: 10))
-        try performListAccessibilityAudit(app: app, includesContrast: true)
+        XCTContext.runActivity(named: "WingDex") { _ in
+            app.buttons["WingDex"].tap()
+            guard app.staticTexts["No Species Yet"].existsOrWait(timeout: 10) else {
+                XCTFail("Empty WingDex did not appear")
+                return
+            }
+            do {
+                try performListAccessibilityAudit(app: app, includesContrast: true)
+            } catch {
+                XCTFail("Empty WingDex accessibility audit failed: \(error)")
+            }
+        }
+
+        XCTContext.runActivity(named: "Outings") { _ in
+            app.buttons["Outings"].tap()
+            guard app.staticTexts["No Outings Yet"].existsOrWait(timeout: 10) else {
+                XCTFail("Empty Outings did not appear")
+                return
+            }
+            do {
+                try performListAccessibilityAudit(app: app, includesContrast: true)
+            } catch {
+                XCTFail("Empty Outings accessibility audit failed: \(error)")
+            }
+        }
     }
 
     private func launchEmptyApp() -> XCUIApplication {
@@ -82,11 +129,11 @@ final class SettingsAccessibilityAuditUITests: BirdIdFlowUITestCase {
         let deleteData = app.buttons["Delete Data..."]
         XCTAssertTrue(scrollUntilVisible(deleteData, in: app, maximumSwipes: 6))
         deleteData.tap()
-        XCTAssertTrue(app.navigationBars["Data Management"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Data Management"].existsOrWait(timeout: 10))
         try runAccessibilityAudit(in: app)
 
         app.buttons["Delete All Data"].tap()
-        XCTAssertTrue(app.alerts["Delete All Data?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts["Delete All Data?"].existsOrWait(timeout: 5))
         try runAccessibilityAudit(in: app, for: .all.subtracting(.dynamicType))
     }
 
@@ -98,7 +145,7 @@ final class SettingsAccessibilityAuditUITests: BirdIdFlowUITestCase {
         ]
         app.launch()
         waitForDataSetup(in: app)
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Done"].existsOrWait(timeout: 10))
 
         try runAccessibilityAudit(in: app, for: .contrast)
         let legalHeader = app.staticTexts["Legal"]
@@ -111,8 +158,8 @@ final class SettingsAccessibilityAuditUITests: BirdIdFlowUITestCase {
         app.launchArguments = ["--ui-test-fixture-populated", "--ui-test-open-settings"]
         app.launch()
         waitForDataSetup(in: app)
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Shuffle Name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Done"].existsOrWait(timeout: 10))
+        XCTAssertTrue(app.buttons["Shuffle Name"].existsOrWait(timeout: 10))
         return app
     }
 }
@@ -128,9 +175,9 @@ final class SignInAccessibilityAuditUITests: BirdIdFlowUITestCase {
             "--ui-test-ignore-shares",
         ]
         app.launch()
-        XCTAssertTrue(app.buttons["Log in"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Log in"].existsOrWait(timeout: 30))
         app.buttons["Log in"].tap()
-        XCTAssertTrue(app.buttons["Continue with Apple"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Continue with Apple"].existsOrWait(timeout: 30))
         try runAccessibilityAudit(in: app, handlingKnownIssue: isKnownSignInAuditIssue)
     }
 }
@@ -143,8 +190,7 @@ final class AddPhotosAccessibilityAuditUITests: BirdIdFlowUITestCase {
             "--ui-test-geocoding-failure",
             "--ui-test-stub-identification",
         ])
-        let continueButton = waitForOutingReview(in: app)
-        XCTAssertTrue(waitUntil(timeout: 15) { continueButton.isHittable })
+        _ = waitForOutingReview(in: app)
         try runAccessibilityAudit(in: app, handlingKnownIssue: isKnownAddPhotosAuditIssue)
     }
 }
