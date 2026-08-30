@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/jlian/wingdex/compare/v1.25.0...v1.25.1) (2026-08-30)
+
+
+### Performance Improvements
+
+* **iOS:** reduce CI test runtime ([#354](https://github.com/jlian/wingdex/issues/354)) ([8bdd1e9](https://github.com/jlian/wingdex/commit/8bdd1e93b20876d5b8b710f1e2606c54faeacdcc))
+
 # [1.25.0](https://github.com/jlian/wingdex/compare/v1.24.2...v1.25.0) (2026-08-29)
 
 
