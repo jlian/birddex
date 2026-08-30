@@ -209,6 +209,91 @@ final class AuthCallbackParsingTests: XCTestCase {
 // MARK: - Session Validation Tests
 
 final class SessionValidationTests: XCTestCase {
+    func testAccountMergeResponseDecodesNoPendingMerge() throws {
+        let outcome = try AuthService.decodeAccountMergeResponse(Data(#"{"status":"none"}"#.utf8))
+
+        XCTAssertEqual(outcome, .none)
+    }
+
+    func testAccountMergeResponseDecodesCompletedCounts() throws {
+        let data = Data(#"{"status":"completed","sourceUserId":"anonymous-user","targetUserId":"account-user","promoted":false,"outings":2,"observations":15,"photos":3}"#.utf8)
+
+        let outcome = try AuthService.decodeAccountMergeResponse(data)
+
+        XCTAssertEqual(outcome, .completed(AccountMergeResult(
+            sourceUserId: "anonymous-user",
+            targetUserId: "account-user",
+            promoted: false,
+            outings: 2,
+            observations: 15,
+            photos: 3
+        )))
+    }
+
+    func testTokenlessMergeConflictRequiresRecoveryButTokenFinalizationDoesNot() {
+        XCTAssertTrue(AuthService.isTokenlessMergeConflict(statusCode: 409, hasMergeToken: false))
+        XCTAssertFalse(AuthService.isTokenlessMergeConflict(statusCode: 409, hasMergeToken: true))
+        XCTAssertFalse(AuthService.isTokenlessMergeConflict(statusCode: 503, hasMergeToken: false))
+    }
+
+    func testKnownTokenlessConflictStaysRetryableAfterTransientRetryFailure() {
+        XCTAssertTrue(AuthService.mergeFailureRequiresRetry(
+            hasMergeToken: false,
+            wasRetryingTokenlessConflict: true
+        ))
+        XCTAssertTrue(AuthService.mergeFailureRequiresRetry(
+            hasMergeToken: true,
+            wasRetryingTokenlessConflict: false
+        ))
+        XCTAssertFalse(AuthService.mergeFailureRequiresRetry(
+            hasMergeToken: false,
+            wasRetryingTokenlessConflict: false
+        ))
+    }
+
+    func testMergeRecoveryMessagesDistinguishFinalizationFromRefreshFailure() {
+        XCTAssertEqual(
+            accountMergeRecoveryMessage(refreshFailed: false),
+            "Your original sightings are safe. Retry to finish adding them to this account."
+        )
+        XCTAssertEqual(
+            accountMergeRecoveryMessage(refreshFailed: true),
+            "Your sightings were added, but WingDex couldn't reload them. Retry to refresh this account."
+        )
+    }
+
+    func testCrossAccountMergeMessageReportsOutingsAndSightings() {
+        let result = AccountMergeResult(
+            sourceUserId: "anonymous-user",
+            targetUserId: "account-user",
+            promoted: false,
+            outings: 1,
+            observations: 0,
+            photos: 8
+        )
+
+        XCTAssertEqual(
+            SignInView.successMessage(fallback: "Signed in", mergeResult: result),
+            "Signed in. Added 1 outing and 0 sightings to your account."
+        )
+    }
+
+    func testSameUserPromotionKeepsFallbackMessage() {
+        let result = AccountMergeResult(
+            sourceUserId: "account-user",
+            targetUserId: "account-user",
+            promoted: true,
+            outings: 1,
+            observations: 1,
+            photos: 1
+        )
+
+        XCTAssertEqual(
+            SignInView.successMessage(fallback: "Signed up with passkey", mergeResult: result),
+            "Signed up with passkey"
+        )
+    }
+
     func testAppleNonceUsesSHA256AndStateMustRoundTrip() {
         XCTAssertEqual(
             AuthService.appleNonceHash("abc"),
