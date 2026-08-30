@@ -148,7 +148,7 @@ struct SignInView: View {
                             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
                                 throw URLError(.userAuthenticationRequired)
                             }
-                            try await auth.signInWithApple(credential: credential)
+                            return try await auth.signInWithApple(credential: credential)
                         }
                     }
                     .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
@@ -361,26 +361,35 @@ struct SignInView: View {
 
     // MARK: - Sign-In Handler
 
-    private func requestSignIn(action: @escaping () async throws -> Void) {
+    private func requestSignIn(action: @escaping () async throws -> AccountMergeResult?) {
         signIn(action: action)
     }
 
     private func signIn(
         successMessage: String = "Signed in",
-        action: @escaping () async throws -> Void
+        action: @escaping () async throws -> AccountMergeResult?
     ) {
         isSigningIn = true
         errorMessage = nil
         Task {
             do {
-                try await action()
-                toasts.show(successMessage)
+                let mergeResult = try await action()
+                if mergeResult?.promoted != false {
+                    toasts.show(Self.successMessage(fallback: successMessage, mergeResult: mergeResult))
+                }
             } catch {
                 errorMessage = AppError.map(error, fallback: "Authentication failed. Try again.")?.message
                 log.debug("Sign-in attempt failed")
             }
             isSigningIn = false
         }
+    }
+
+    static func successMessage(fallback: String, mergeResult: AccountMergeResult?) -> String {
+        guard let mergeResult, !mergeResult.promoted else { return fallback }
+        let outing = "\(mergeResult.outings) outing\(mergeResult.outings == 1 ? "" : "s")"
+        let sighting = "\(mergeResult.observations) sighting\(mergeResult.observations == 1 ? "" : "s")"
+        return "Signed in. Added \(outing) and \(sighting) to your account."
     }
 }
 
