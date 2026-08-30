@@ -112,7 +112,8 @@ enum CommonsGallery {
     }
 
     /// `nil` means the search produced no usable answer and the caller must NOT cache
-    /// it: the task was cancelled, the request failed, or the response did not decode.
+    /// it: the task was cancelled, the request failed, the server did not answer 2xx,
+    /// or the response did not decode.
     /// An empty array is a real answer: the search ran and matched nothing usable.
     private static func search(displayName: String) async -> [GalleryItem]? {
         do {
@@ -124,8 +125,17 @@ enum CommonsGallery {
             }
             var req = URLRequest(url: url)
             req.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: req)
+            let (data, urlResponse) = try await URLSession.shared.data(for: req)
             try Task.checkCancellation()
+
+            // Every field of CommonsResponse is optional, so a MediaWiki error body
+            // decodes happily into zero pages and would be cached as a real empty
+            // gallery. The status is the only thing that separates "no matches" from
+            // a 429 or a 5xx. Matches the web client, which checks res.ok.
+            if let http = urlResponse as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                log.debug("Commons gallery: HTTP \(http.statusCode) for '\(displayName)'")
+                return nil
+            }
 
             let response = try JSONDecoder().decode(CommonsResponse.self, from: data)
             try Task.checkCancellation()
