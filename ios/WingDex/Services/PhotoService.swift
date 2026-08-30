@@ -1,7 +1,18 @@
+import CryptoKit
 import CoreLocation
 import Foundation
 import ImageIO
 import UIKit
+import UniformTypeIdentifiers
+
+struct PreparedPhotoData: Sendable {
+    let image: Data
+    let thumbnail: Data
+    let exifTime: Date?
+    let gpsLat: Double?
+    let gpsLon: Double?
+    let fileHash: String
+}
 
 /// Handles EXIF extraction, image compression, and outing clustering.
 ///
@@ -11,6 +22,9 @@ import UIKit
 /// - Tight time threshold: 30 minutes (for matching existing outings with relaxed distance)
 /// - Relaxed distance: 50 km (when time match is tight)
 enum PhotoService {
+    /// Covers the largest 180-point photo review surface at 3x display scale.
+    static let displayThumbnailDimension: CGFloat = 600
+
     // MARK: - Clustering Constants
 
     /// Maximum time gap between consecutive photos in the same outing.
@@ -27,13 +41,40 @@ enum PhotoService {
 
     // MARK: - EXIF Extraction
 
+    /// Prepare library and shared photos without decoding or re-encoding the full image.
+    static func preparePhoto(
+        from imageData: Data,
+        thumbnailDimension: CGFloat = displayThumbnailDimension
+    ) -> PreparedPhotoData? {
+        guard !imageData.isEmpty,
+              let source = CGImageSourceCreateWithData(imageData as CFData, nil),
+              CGImageSourceGetCount(source) > 0,
+              let thumbnail = generateThumbnail(from: source, maxDimension: thumbnailDimension)
+        else { return nil }
+
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
+        let exif = extractEXIF(from: properties)
+        return PreparedPhotoData(
+            image: imageData,
+            thumbnail: thumbnail,
+            exifTime: exif.date,
+            gpsLat: exif.lat,
+            gpsLon: exif.lon,
+            fileHash: fileHash(for: imageData)
+        )
+    }
+
     /// Extract EXIF date and GPS from image data using ImageIO.
     static func extractEXIF(from imageData: Data) -> (date: Date?, lat: Double?, lon: Double?) {
         guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else {
-            return (nil, nil, nil)
-        }
+        else { return (nil, nil, nil) }
+        return extractEXIF(from: properties)
+    }
+
+    private static func extractEXIF(
+        from properties: [CFString: Any]
+    ) -> (date: Date?, lat: Double?, lon: Double?) {
 
         // Date
         var date: Date?
@@ -72,16 +113,50 @@ enum PhotoService {
     }
 
     /// Generate a thumbnail from image data at the given max dimension.
-    static func generateThumbnail(from imageData: Data, maxDimension: CGFloat = 200) -> Data? {
-        guard let image = UIImage(data: imageData) else { return nil }
-        let scale = min(maxDimension / image.size.width, maxDimension / image.size.height, 1.0)
-        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+    static func generateThumbnail(
+        from imageData: Data,
+        maxDimension: CGFloat = displayThumbnailDimension
+    ) -> Data? {
+        guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else { return nil }
+        return generateThumbnail(from: source, maxDimension: maxDimension)
+    }
 
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let thumbnail = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
+    private static func generateThumbnail(
+        from source: CGImageSource,
+        maxDimension: CGFloat
+    ) -> Data? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maxDimension.rounded(.up))),
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
         }
-        return thumbnail.jpegData(compressionQuality: 0.6)
+
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ) else { return nil }
+        CGImageDestinationAddImage(
+            destination,
+            image,
+            [kCGImageDestinationLossyCompressionQuality: 0.6] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+
+    /// SHA-256 of the first 64 KiB plus file size, preserving the existing iOS import identity.
+    static func fileHash(for data: Data) -> String {
+        var hasher = SHA256()
+        hasher.update(data: data.prefix(65_536))
+        withUnsafeBytes(of: data.count) { hasher.update(bufferPointer: $0) }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Clustering

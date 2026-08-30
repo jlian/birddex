@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import Observation
 import PhotosUI
@@ -6,6 +5,17 @@ import SwiftUI
 import os
 
 private let log = Logger(subsystem: Config.bundleID, category: "AddPhotos")
+
+private enum PhotoPreparationInput: Sendable {
+    case picker(PhotosPickerItem)
+    case shared(IncomingSharedPhoto)
+}
+
+private struct PhotoPreparationOutcome: Sendable {
+    let index: Int
+    let photo: ProcessedPhoto?
+    let rejectedSharedFileName: String?
+}
 
 /// ViewModel for the multi-step Add Photos wizard flow.
 ///
@@ -266,7 +276,7 @@ final class AddPhotosViewModel {
         totalCount = selectedItems.count + cameraPhotos.count + incomingSharedPhotos.count
         processedCount = 0
         extractionProgress = 0
-        processingMessage = "Reading photo data..."
+        processingMessage = "Preparing photos..."
         async let preparedSession = prepareCurrentSession()
 
         // Reset accumulated stats for this upload session
@@ -278,34 +288,26 @@ final class AddPhotosViewModel {
         var duplicatePhotos: [ProcessedPhoto] = []
         var rejectedSharedFileNames: [String] = []
 
-        for item in selectedItems {
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self) else { continue }
-                if let photo = makeProcessedPhoto(data: data, fileName: nil) {
-                    candidatePhotos.append(photo)
-                }
-            } catch {
-                log.error("Failed to load a selected photo")
-            }
-            processedCount += 1
-            extractionProgress = Double(processedCount) / Double(totalCount) * 100
+        let preparationInputs = selectedItems.map(PhotoPreparationInput.picker)
+            + incomingSharedPhotos.map(PhotoPreparationInput.shared)
+        let preparationOutcomes: [PhotoPreparationOutcome]
+        do {
+            preparationOutcomes = try await preparePhotos(preparationInputs)
+        } catch is CancellationError {
+            cancelExtractionForSessionChange()
+            return
+        } catch {
+            self.error = AppError.map(error, fallback: "Could not prepare the selected photos. Try again.")
+            isProcessing = false
+            return
         }
-
-        for sharedPhoto in incomingSharedPhotos {
-            do {
-                let data = try await readSharedPhotoData(from: sharedPhoto.fileURL)
-                if let photo = makeProcessedPhoto(data: data, fileName: sharedPhoto.fileName) {
-                    candidatePhotos.append(photo)
-                } else {
-                    log.error("Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
-                    rejectedSharedFileNames.append(sharedPhoto.fileName)
-                }
-            } catch {
-                log.error("Shared photo read failed after retry: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
-                rejectedSharedFileNames.append(sharedPhoto.fileName)
+        for outcome in preparationOutcomes {
+            if let photo = outcome.photo {
+                candidatePhotos.append(photo)
             }
-            processedCount += 1
-            extractionProgress = Double(processedCount) / Double(totalCount) * 100
+            if let fileName = outcome.rejectedSharedFileName {
+                rejectedSharedFileNames.append(fileName)
+            }
         }
 
         processingMessage = "Preparing your WingDex..."
@@ -400,8 +402,8 @@ final class AddPhotosViewModel {
             let uiImage = camera.image
             let id = UUID().uuidString
             let compressed = PhotoService.compressImage(uiImage, quality: 0.7) ?? Data()
-            let thumbnail = PhotoService.generateThumbnail(from: compressed, maxDimension: 200) ?? compressed
-            let fileHash = computeFileHash(compressed)
+            let thumbnail = PhotoService.generateThumbnail(from: compressed) ?? compressed
+            let fileHash = PhotoService.fileHash(for: compressed)
 
             let photo = ProcessedPhoto(
                 id: id,
@@ -448,7 +450,91 @@ final class AddPhotosViewModel {
         }
     }
 
-    private func readSharedPhotoData(from fileURL: URL) async throws -> Data {
+    private func preparePhotos(_ inputs: [PhotoPreparationInput]) async throws -> [PhotoPreparationOutcome] {
+        guard !inputs.isEmpty else { return [] }
+        let concurrencyLimit = min(4, inputs.count)
+
+        return try await withThrowingTaskGroup(
+            of: PhotoPreparationOutcome.self,
+            returning: [PhotoPreparationOutcome].self
+        ) { group in
+            for index in 0..<concurrencyLimit {
+                let input = inputs[index]
+                group.addTask {
+                    try await Self.preparePhoto(input, index: index)
+                }
+            }
+
+            var nextIndex = concurrencyLimit
+            var ordered = Array<PhotoPreparationOutcome?>(repeating: nil, count: inputs.count)
+            while let outcome = try await group.next() {
+                ordered[outcome.index] = outcome
+                processedCount += 1
+                extractionProgress = Double(processedCount) / Double(totalCount) * 100
+
+                if nextIndex < inputs.count {
+                    try Task.checkCancellation()
+                    let index = nextIndex
+                    let input = inputs[index]
+                    group.addTask {
+                        try await Self.preparePhoto(input, index: index)
+                    }
+                    nextIndex += 1
+                }
+            }
+            return ordered.compactMap { $0 }
+        }
+    }
+
+    private nonisolated static func preparePhoto(
+        _ input: PhotoPreparationInput,
+        index: Int
+    ) async throws -> PhotoPreparationOutcome {
+        try Task.checkCancellation()
+        switch input {
+        case let .picker(item):
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
+                }
+                try Task.checkCancellation()
+                return PhotoPreparationOutcome(
+                    index: index,
+                    photo: makeProcessedPhoto(data: data, fileName: nil),
+                    rejectedSharedFileName: nil
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                log.error("Failed to load a selected photo")
+                return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
+            }
+        case let .shared(sharedPhoto):
+            do {
+                let data = try await readSharedPhotoData(from: sharedPhoto.fileURL)
+                guard let photo = makeProcessedPhoto(data: data, fileName: sharedPhoto.fileName) else {
+                    log.error("Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
+                    return PhotoPreparationOutcome(
+                        index: index,
+                        photo: nil,
+                        rejectedSharedFileName: sharedPhoto.fileName
+                    )
+                }
+                return PhotoPreparationOutcome(index: index, photo: photo, rejectedSharedFileName: nil)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                log.error("Shared photo read failed after retry: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
+                return PhotoPreparationOutcome(
+                    index: index,
+                    photo: nil,
+                    rejectedSharedFileName: sharedPhoto.fileName
+                )
+            }
+        }
+    }
+
+    private nonisolated static func readSharedPhotoData(from fileURL: URL) async throws -> Data {
         do {
             return try await readSharedPhotoDataOnce(from: fileURL, options: .mappedIfSafe)
         } catch {
@@ -458,20 +544,15 @@ final class AddPhotosViewModel {
         }
     }
 
-    private func readSharedPhotoDataOnce(
+    private nonisolated static func readSharedPhotoDataOnce(
         from fileURL: URL,
         options: Data.ReadingOptions
     ) async throws -> Data {
-        let readTask = Task.detached(priority: .userInitiated) {
-            let data = try Data(contentsOf: fileURL, options: options)
-            guard !data.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
-            return data
-        }
-        return try await withTaskCancellationHandler {
-            try await readTask.value
-        } onCancel: {
-            readTask.cancel()
-        }
+        try Task.checkCancellation()
+        let data = try Data(contentsOf: fileURL, options: options)
+        guard !data.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+        try Task.checkCancellation()
+        return data
     }
 
     private func cancelExtractionForSessionChange() {
@@ -483,20 +564,20 @@ final class AddPhotosViewModel {
         extractionProgress = 0
     }
 
-    private func makeProcessedPhoto(data: Data, fileName: String?) -> ProcessedPhoto? {
-        guard let image = UIImage(data: data) else { return nil }
+    private nonisolated static func makeProcessedPhoto(
+        data: Data,
+        fileName: String?
+    ) -> ProcessedPhoto? {
+        guard let prepared = PhotoService.preparePhoto(from: data) else { return nil }
         let id = UUID().uuidString
-        let (exifDate, lat, lon) = PhotoService.extractEXIF(from: data)
-        let compressed = PhotoService.compressImage(image, quality: 0.7) ?? data
-        let thumbnail = PhotoService.generateThumbnail(from: data, maxDimension: 200) ?? data
         return ProcessedPhoto(
             id: id,
-            image: compressed,
-            thumbnail: thumbnail,
-            exifTime: exifDate,
-            gpsLat: lat,
-            gpsLon: lon,
-            fileHash: computeFileHash(data),
+            image: prepared.image,
+            thumbnail: prepared.thumbnail,
+            exifTime: prepared.exifTime,
+            gpsLat: prepared.gpsLat,
+            gpsLon: prepared.gpsLon,
+            fileHash: prepared.fileHash,
             fileName: fileName ?? "photo_\(id).jpg"
         )
     }
@@ -1060,7 +1141,7 @@ final class AddPhotosViewModel {
 
     private func storeCroppedImage(photoId: String?, imageData: Data) {
         guard let photoId else { return }
-        let thumbnail = PhotoService.generateThumbnail(from: imageData, maxDimension: 200) ?? imageData
+        let thumbnail = PhotoService.generateThumbnail(from: imageData) ?? imageData
 
         if let idx = processedPhotos.firstIndex(where: { $0.id == photoId }) {
             processedPhotos[idx].croppedImage = imageData
@@ -1075,15 +1156,6 @@ final class AddPhotosViewModel {
         }
     }
 
-    /// SHA-256 of first 64KB + size (matches web's computeFileHash approach).
-    private func computeFileHash(_ data: Data) -> String {
-        let prefix = data.prefix(65536)
-        var hasher = SHA256()
-        hasher.update(data: prefix)
-        withUnsafeBytes(of: data.count) { hasher.update(bufferPointer: $0) }
-        let digest = hasher.finalize()
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
 }
 
 /// Photos that count as a sighting. A cluster with none of these earned no outing, so it is
@@ -1101,10 +1173,10 @@ private enum ErrorRecovery {
 
 // MARK: - Supporting Types
 
-/// A photo after EXIF extraction and compression.
-struct ProcessedPhoto: Identifiable {
+/// A photo after metadata extraction and thumbnail generation.
+struct ProcessedPhoto: Identifiable, Sendable {
     let id: String
-    let image: Data        // Compressed JPEG for API submission
+    let image: Data        // Original bytes, or a single JPEG encode for camera captures
     var thumbnail: Data    // Small thumbnail for display
     let exifTime: Date?
     let gpsLat: Double?

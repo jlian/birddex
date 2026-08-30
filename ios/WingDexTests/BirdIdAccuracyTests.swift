@@ -1,5 +1,6 @@
 @testable import WingDex
 import Foundation
+import UIKit
 import XCTest
 
 /// End-to-end accuracy on real bird photos.
@@ -62,5 +63,38 @@ final class BirdIdAccuracyTests: XCTestCase {
         try XCTSkipIf(checked == 0, "No demo images at \(Self.imageDir.path)")
         XCTAssertEqual(misses, [], "top-1 mismatches on \(checked) photos")
         XCTAssertEqual(missingFromTopFive, [], "expected species absent from the top 5")
+    }
+
+    func testOriginalBytesMatchFormerImportDerivativeTopOne() async throws {
+        var mismatches: [String] = []
+        var checked = 0
+
+        for (file, _) in Self.expected {
+            let url = Self.imageDir.appendingPathComponent(file)
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            let original = try Data(contentsOf: url)
+            let image = try XCTUnwrap(UIImage(data: original))
+            let formerDerivative = try XCTUnwrap(image.jpegData(compressionQuality: 0.7))
+            checked += 1
+
+            let originalTop = try await BirdIdEngine.shared.identify(
+                imageData: original,
+                location: nil,
+                month: nil
+            ).first?.commonName
+            let derivativeTop = try await BirdIdEngine.shared.identify(
+                imageData: formerDerivative,
+                location: nil,
+                month: nil
+            ).first?.commonName
+            if originalTop != derivativeTop {
+                mismatches.append(
+                    "\(file): original \(originalTop ?? "nothing"), derivative \(derivativeTop ?? "nothing")"
+                )
+            }
+        }
+
+        try XCTSkipIf(checked == 0, "No demo images at \(Self.imageDir.path)")
+        XCTAssertEqual(mismatches, [], "removing the import re-encode changed top-1 results")
     }
 }
