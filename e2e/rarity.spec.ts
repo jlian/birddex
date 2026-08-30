@@ -17,7 +17,7 @@ import { seedViaCSVImport } from './helpers'
  * against known distributions.
  */
 test.describe('rarity mark', () => {
-  const MEGA = 'Off its usual range and out of season for this area'
+  const MEGA = 'Rarely seen in this area'
 
   async function openDiscoveryPark(page: import('@playwright/test').Page) {
     await seedViaCSVImport(page)

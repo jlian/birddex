@@ -7,20 +7,30 @@
 
 let orderMap: Map<string, number> | null = null
 let birdlifeMap: Map<string, string> | null = null
+let ebirdMap: Map<string, string> | null = null
+let wikiTitleMap: Map<string, string> | null = null
 
 async function loadOrderMap(): Promise<Map<string, number>> {
   if (orderMap) return orderMap
   const raw = (await import('./taxonomy.json')).default as unknown[][]
   const map = new Map<string, number>()
   const bl = new Map<string, string>()
+  const eb = new Map<string, string>()
+  const wiki = new Map<string, string>()
   for (let i = 0; i < raw.length; i++) {
     const common = raw[i][0] as string
     map.set(common.toLowerCase(), i)
     const birdlifeId = raw[i][5] as string | undefined
     if (birdlifeId) bl.set(common.toLowerCase(), birdlifeId)
+    const ebirdCode = raw[i][2] as string | undefined
+    if (ebirdCode) eb.set(common.toLowerCase(), ebirdCode)
+    const wikiTitle = raw[i][3] as string | undefined
+    if (wikiTitle) wiki.set(common.toLowerCase(), wikiTitle)
   }
   orderMap = map
   birdlifeMap = bl
+  ebirdMap = eb
+  wikiTitleMap = wiki
   return map
 }
 
@@ -75,4 +85,32 @@ export async function getSpeciesIndexLookup(): Promise<(name: string) => number>
   const display = speciesName.split('(')[0].trim().toLowerCase()
   const id = birdlifeMap?.get(display)
   return id ? `https://datazone.birdlife.org/species/factsheet/${id}` : undefined
+}
+
+/**
+ * Return the eBird species URL for a species, or undefined if unknown.
+ *
+ * The code is read from the bundled taxonomy rather than derived from the name.
+ * eBird codes are not a pure function of the common name (Merlin is `merlin`,
+ * Northern Cardinal is `norcar`, Chukar is `chukar`), so any abbreviation rule
+ * gets a share of them wrong.
+ */
+export async function getEbirdSpeciesUrl(
+  speciesName: string
+): Promise<string | undefined> {
+  await loadOrderMap()
+  const display = speciesName.split('(')[0].trim().toLowerCase()
+  const code = ebirdMap?.get(display)
+  return code ? `https://ebird.org/species/${code.toLowerCase()}` : undefined
+}
+
+/**
+ * Return the English Wikipedia article title for a species, or undefined.
+ * Needed for identification candidates, which have no dex entry to read it off.
+ */
+export async function getWikiTitleForSpecies(
+  speciesName: string
+): Promise<string | undefined> {
+  await loadOrderMap()
+  return wikiTitleMap?.get(speciesName.split('(')[0].trim().toLowerCase())
 }

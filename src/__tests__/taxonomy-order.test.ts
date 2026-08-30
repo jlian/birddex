@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { getSpeciesOrder, buildSyncOrderLookup } from '../lib/taxonomy-order'
+import {
+  getSpeciesOrder,
+  buildSyncOrderLookup,
+  getEbirdSpeciesUrl,
+  getWikiTitleForSpecies,
+} from '../lib/taxonomy-order'
 
 // The first three entries in taxonomy.json are:
 //   index 0: "Common Ostrich"
@@ -71,5 +76,50 @@ describe('buildSyncOrderLookup', () => {
   it('handles an empty species list', async () => {
     const lookup = await buildSyncOrderLookup([])
     expect(lookup('Common Ostrich')).toBe(Number.MAX_SAFE_INTEGER)
+  })
+})
+
+describe('getEbirdSpeciesUrl', () => {
+  // These four are exactly where a name-abbreviation rule goes wrong: one-word
+  // names, an initialism, and a hyphenated compound. The codes come from the
+  // bundled taxonomy, so the test fails loudly if the column ever moves.
+  it.each([
+    ['Northern Cardinal', 'norcar'],
+    ['Merlin', 'merlin'],
+    ['Chukar', 'chukar'],
+    ['Red-winged Blackbird', 'rewbla'],
+  ])('resolves %s to the eBird code %s', async (name, code) => {
+    expect(await getEbirdSpeciesUrl(name)).toBe(`https://ebird.org/species/${code}`)
+  })
+
+  it('strips the parenthesized scientific name before lookup', async () => {
+    expect(await getEbirdSpeciesUrl('Northern Cardinal (Cardinalis cardinalis)'))
+      .toBe('https://ebird.org/species/norcar')
+  })
+
+  it('returns undefined for an unknown species rather than guessing a code', async () => {
+    expect(await getEbirdSpeciesUrl('Fake Bird That Does Not Exist')).toBeUndefined()
+  })
+})
+
+describe('getWikiTitleForSpecies', () => {
+  // Asserted exactly, and on species whose article title differs from the common
+  // name, so reading a neighbouring taxonomy column cannot pass. `toBeTruthy` did:
+  // the scientific name and the eBird code sit either side of this one and are
+  // also non-empty strings, so an index slip produced broken links silently.
+  it.each([
+    ['Northern Cardinal', 'Northern cardinal'],
+    ['Rock Pigeon', 'Rock dove'],
+    ['Chukar', 'Chukar partridge'],
+  ])('resolves %s to the bundled article title %s', async (name, title) => {
+    expect(await getWikiTitleForSpecies(name)).toBe(title)
+  })
+
+  it('strips the parenthesized scientific name before lookup', async () => {
+    expect(await getWikiTitleForSpecies('Rock Pigeon (Columba livia)')).toBe('Rock dove')
+  })
+
+  it('returns undefined for an unknown species', async () => {
+    expect(await getWikiTitleForSpecies('Fake Bird That Does Not Exist')).toBeUndefined()
   })
 })

@@ -20,18 +20,33 @@ import type { RarityState } from '@/lib/rarity'
 export const RARITY_LABELS: Record<Exclude<RarityState, 'none'>, string> = {
   outOfSeason: 'Out of season',
   offRange: 'Off range',
-  both: 'Rarely seen here',
+  both: 'Rare',
 }
 
-const A11Y_LABELS: Record<Exclude<RarityState, 'none'>, string> = {
+/** Full-sentence readings, for assistive technology and anywhere the glyph is explained. */
+export const RARITY_SENTENCES: Record<Exclude<RarityState, 'none'>, string> = {
   outOfSeason: 'Out of season for this area',
   offRange: 'Off its usual range',
-  // Both halves, because a screen reader user cannot see that the glyph is a
-  // dot inside a ring and would otherwise lose the seasonal reason.
-  both: 'Off its usual range and out of season for this area',
+  // Deliberately condensed: naming both the range and the seasonal reason made a
+  // long sentence for the one verdict that is already the most alarming. The
+  // glyph carries the composition; the wording just has to say it is rare.
+  both: 'Rarely seen in this area',
 }
 
-export function RarityMark({ state, className = '' }: { state: RarityState; className?: string }) {
+/**
+ * `decorative` hides the glyph from assistive technology, for the callers that
+ * render RARITY_SENTENCES next to it. Without it a screen reader says the
+ * verdict twice, once for the mark and once for the text beside it.
+ */
+export function RarityMark({
+  state,
+  className = '',
+  decorative = false,
+}: {
+  state: RarityState
+  className?: string
+  decorative?: boolean
+}) {
   if (state === 'none') return null
 
   const ring = state === 'outOfSeason' || state === 'both'
@@ -45,10 +60,11 @@ export function RarityMark({ state, className = '' }: { state: RarityState; clas
     <svg
       viewBox="0 0 10 10"
       className={`inline-block size-[0.7em] shrink-0 text-amber-700 dark:text-amber-400 ${className}`}
-      role="img"
-      aria-label={A11Y_LABELS[state]}
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : RARITY_SENTENCES[state]}
     >
-      <title>{A11Y_LABELS[state]}</title>
+      {!decorative && <title>{RARITY_SENTENCES[state]}</title>}
       {ring && <circle cx="5" cy="5" r="4.25" fill="none" stroke="currentColor" strokeWidth="1.5" />}
       {core && <circle cx="5" cy="5" r={coreRadius} fill="currentColor" />}
     </svg>
