@@ -12,7 +12,10 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             "Fixture missing at \(Self.photoPath)"
         )
 
-        let app = launchApp(autoSignIn: false)
+        let app = launchApp(
+            autoSignIn: false,
+            extraArguments: ["--ui-test-clear-data"]
+        )
 
         let continueButton = waitForOutingReview(in: app)
         // The button stays disabled while the outing's location is resolving.
@@ -24,7 +27,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'GPS detected'")).firstMatch.exists,
             "Outing review did not detect the injected GPS coordinates"
         )
-        startNewOuting(in: app)
+        startNewOuting(in: app, waitForPossibleMatch: false)
         let locationName = app.textFields["outing.locationName"]
         XCTAssertTrue(
             locationName.waitForExistence(timeout: 15),
@@ -48,13 +51,20 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         let species = app.staticTexts["confirm.speciesName"]
         let cropBack = app.buttons["crop.back"]
         // The model is loaded and compiled on first use, which is slow in the simulator.
-        _ = waitUntil(timeout: 180) { species.exists || cropBack.isHittable }
-        if cropBack.isHittable { cropBack.tap() }
-
         XCTAssertTrue(
-            species.waitForExistence(timeout: 30),
-            "Never reached the confirm step with an identified species"
+            waitUntil(timeout: 180) { species.exists || cropBack.exists },
+            "Identification produced neither candidates nor a crop prompt"
         )
+        if cropBack.exists {
+            XCTAssertTrue(waitUntil(timeout: 10) { cropBack.isHittable })
+            cropBack.tap()
+            XCTAssertTrue(
+                species.waitForExistence(timeout: 30),
+                "Never reached the confirm step after keeping the existing crop"
+            )
+        } else {
+            XCTAssertTrue(species.exists, "Never reached the confirm step with an identified species")
+        }
         XCTAssertEqual(species.label, Self.expectedSpecies)
 
         let confidence = app.staticTexts["confirm.confidence"]
@@ -138,6 +148,8 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             app.buttons["Continue"].exists,
             "The accepted share was imported again after relaunch"
         )
+        XCTAssertTrue(app.buttons["Log in"].exists)
+        XCTAssertFalse(app.buttons["Settings"].exists)
     }
 
     func testAlreadyLoadedSessionlessAppReceivesStagedShare() {
@@ -175,21 +187,6 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         alert.buttons["Close Upload"].tap()
         XCTAssertTrue(waitUntil(timeout: 10) { !app.alerts["Could Not Continue"].exists })
         XCTAssertFalse(app.buttons["Continue"].exists, "Explicit close immediately reopened the queued share")
-    }
-
-    func testColdLaunchShowsAccountOptionalShellAndGates() {
-        let app = application()
-        app.launchArguments = [
-            "--ui-test-sign-out",
-            "--ui-test-share-store",
-            "--ui-test-reset-share-store",
-            "--ui-test-ignore-shares",
-        ]
-        app.launch()
-
-        XCTAssertTrue(app.buttons["Home"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["Log in"].exists)
-        XCTAssertFalse(app.buttons["Settings"].exists)
     }
 
     func testAccessibilityAuditTimeoutClassification() {
