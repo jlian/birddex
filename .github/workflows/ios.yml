@@ -211,6 +211,9 @@ jobs:
       - name: Start iOS Simulator
         run: xcrun simctl boot "$IOS_SIMULATOR_UDID"
 
+      - name: Wait for iOS Simulator
+        run: xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
+
       - name: Select API backend
         if: matrix.lane == 'core'
         id: backend
@@ -305,9 +308,6 @@ jobs:
             echo "- Selection: $BACKEND_SOURCE"
             echo "- Wait after build: ${elapsed}s"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Wait for iOS Simulator
-        run: xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
       - name: Run selected tests
         id: tests
