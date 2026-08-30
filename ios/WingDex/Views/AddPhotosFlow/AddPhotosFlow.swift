@@ -9,6 +9,7 @@ struct AddPhotosFlow: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var viewModel: AddPhotosViewModel
     var onReverseGeocodingCancellationAcknowledged: () -> Void = {}
     @State private var showCloseConfirm = false
@@ -50,7 +51,10 @@ struct AddPhotosFlow: View {
                     doneView
                 }
             }
+            .id(viewModel.currentStep)
+            .transition(.opacity)
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: viewModel.currentStep)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
