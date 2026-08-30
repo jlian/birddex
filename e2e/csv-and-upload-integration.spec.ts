@@ -234,6 +234,19 @@ test.describe('CSV import + photo upload integration', () => {
       dialog.getByRole('button', { name: 'Confirm' }).first()
     ).toBeVisible({ timeout: 120_000 })
 
+    // Peek at the candidate before confirming. The links come from the bundled
+    // taxonomy, so they resolve even with Wikipedia stubbed out above.
+    await dialog.getByRole('button', { name: /^Learn more about / }).first().click()
+    const peek = page.locator('[data-slot="sheet-content"]')
+    await expect(peek).toBeVisible({ timeout: 5_000 })
+    await expect(peek.getByRole('link', { name: 'Wikipedia' })).toBeVisible()
+    await expect(peek.getByRole('link', { name: 'eBird' })).toBeVisible()
+    // Peeking is read-only: dismissing without confirming must leave the wizard
+    // exactly as it was.
+    await expect(peek.getByRole('button', { name: 'Confirm' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(peek).not.toBeVisible({ timeout: 5_000 })
+
     const saveObservationsResponse = page.waitForResponse(
       response => response.url().includes('/api/data/observations') && response.request().method() === 'POST'
     )

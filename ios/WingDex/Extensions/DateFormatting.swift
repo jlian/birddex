@@ -183,6 +183,7 @@ private struct TaxonomyLookups: Sendable {
     var ebird: [String: String] = [:]
     var birdlife: [String: String] = [:]
     var wikiThumb: [String: String] = [:]
+    var wikiTitle: [String: String] = [:]
     var order: [String: Int] = [:]
 }
 
@@ -234,6 +235,7 @@ private final class TaxonomyLookupStore {
         lookups.ebird.reserveCapacity(rawEntries.count)
         lookups.birdlife.reserveCapacity(rawEntries.count)
         lookups.wikiThumb.reserveCapacity(rawEntries.count)
+        lookups.wikiTitle.reserveCapacity(rawEntries.count)
         lookups.order.reserveCapacity(rawEntries.count)
 
         for (index, entry) in rawEntries.enumerated() {
@@ -243,6 +245,9 @@ private final class TaxonomyLookupStore {
 
             if entry.count > 2, let code = entry[2] as? String, !code.isEmpty {
                 lookups.ebird[key] = code
+            }
+            if entry.count > 3, let title = entry[3] as? String, !title.isEmpty {
+                lookups.wikiTitle[key] = title
             }
             // taxonomy.json stores thumb paths relative to the Commons upload prefix.
             if entry.count > 4, let thumbPath = entry[4] as? String, !thumbPath.isEmpty {
@@ -311,6 +316,24 @@ func getWikipediaURL(for wikiTitle: String?) -> URL? {
     guard let wikiTitle, !wikiTitle.isEmpty else { return nil }
     let encoded = wikiTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wikiTitle
     return URL(string: "https://en.wikipedia.org/wiki/\(encoded)")
+}
+
+/// The Wikipedia article title for a stored species name, from the bundled taxonomy.
+///
+/// Separate from `DexEntry.wikiTitle` because an identification candidate is
+/// usually not in the dex yet, so there is no entry to read the title off.
+@MainActor
+func getWikiTitle(forSpecies speciesName: String) -> String? {
+    let commonName = getDisplayName(speciesName).trimmingCharacters(in: .whitespacesAndNewlines)
+    let store = TaxonomyLookupStore.shared
+    store.loadIfNeeded()
+    return store.lookups.wikiTitle[commonName.lowercased()]
+}
+
+/// Build a Wikipedia URL for a stored species name, from the bundled taxonomy.
+@MainActor
+func getWikipediaURL(forSpecies speciesName: String) -> URL? {
+    getWikipediaURL(for: getWikiTitle(forSpecies: speciesName))
 }
 
 /// The Wikipedia lead image for a stored species name, as bundled in taxonomy.json.

@@ -95,7 +95,7 @@ extension RarityState {
         case .none: nil
         case .outOfSeason: "Out of season"
         case .offRange: "Off range"
-        case .both: "Rarely seen here"
+        case .both: "Rare"
         }
     }
 
@@ -107,7 +107,7 @@ extension RarityState {
         case .offRange: "Off its usual range"
         // Both halves, because VoiceOver users cannot see that the glyph is a
         // dot inside a ring and would otherwise lose the seasonal reason.
-        case .both: "Off its usual range and out of season for this area"
+        case .both: "Rarely seen in this area"
         }
     }
 

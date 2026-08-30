@@ -1,7 +1,4 @@
 import SwiftUI
-import os
-
-private let log = Logger(subsystem: Config.bundleID, category: "PerPhotoConfirm")
 
 /// Per-photo species confirmation view.
 ///
@@ -27,6 +24,11 @@ struct PerPhotoConfirmView: View {
     @State private var confirmedRarity: UUID?
     /// True only while a mega's ping plays, so a second tap cannot confirm twice.
     @State private var isAcknowledging = false
+    /// Carries the candidate the peek opens on.
+    @State private var peek: PeekRequest?
+
+    /// `.sheet(item:)` needs an Identifiable, and the payload here is just an index.
+    private struct PeekRequest: Identifiable { let id: Int }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -34,7 +36,6 @@ struct PerPhotoConfirmView: View {
     private var candidates: [IdentifiedCandidate] { viewModel.currentCandidates }
     private var photoIndex: Int { viewModel.currentPhotoIndex }
     private var totalPhotos: Int { viewModel.clusterPhotos.count }
-    private var confidencePercent: Int { Int(selectedConfidence * 100) }
     private var displayName: String { getDisplayName(selectedSpecies) }
     private var scientificName: String? { getScientificName(selectedSpecies) }
     private var selectedPlumage: String? { candidates.first { $0.species == selectedSpecies }?.plumage }
@@ -65,6 +66,21 @@ struct PerPhotoConfirmView: View {
         return nil
     }
     private var hasCandidates: Bool { !candidates.isEmpty }
+
+    private var peekCandidates: [SpeciesPeekCandidate] {
+        candidates.map {
+            SpeciesPeekCandidate(species: $0.species, confidence: $0.confidence,
+                                 plumage: $0.plumage, rarity: rarity(for: $0.species))
+        }
+    }
+
+    private func openPeek(at position: Int) {
+        peek = PeekRequest(id: position)
+    }
+
+    private func openPeekAtSelection() {
+        openPeek(at: candidates.firstIndex { $0.species == selectedSpecies } ?? 0)
+    }
 
 // MARK: - Body
 
@@ -148,6 +164,19 @@ struct PerPhotoConfirmView: View {
         .onAppear { initializeSelection() }
         .onChange(of: viewModel.currentPhotoIndex) { initializeSelection() }
         .onChange(of: viewModel.currentCandidates.count) { initializeSelection() }
+        .sheet(item: $peek) { request in
+            SpeciesPeekSheet(
+                candidates: peekCandidates,
+                startIndex: request.id,
+                userPhoto: decodedCroppedImage ?? decodedThumbnail,
+                onConfirm: { candidate in
+                    guard let match = candidates.first(where: { $0.species == candidate.species })
+                    else { return }
+                    selectAlternative(match)
+                    confirmWith(status: .confirmed, species: match.species, confidence: match.confidence)
+                }
+            )
+        }
         .onDisappear {
             decodeTask?.cancel()
             galleryTask?.cancel()
@@ -293,23 +322,6 @@ struct PerPhotoConfirmView: View {
 
     // MARK: - Wiki Square Thumbnail (portrait-aware, swipeable gallery)
 
-    /// Reorder gallery items so plumage-matching images come first.
-    private func sortedByPlumage(_ items: [GalleryItem]) -> [GalleryItem] {
-        guard let detected = selectedPlumage?.lowercased(), !detected.isEmpty else { return items }
-        let detectedTags = Set(detected.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
-        let matching = items.filter { item in
-            guard let p = item.plumage?.lowercased() else { return false }
-            let tags = p.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            return !detectedTags.isDisjoint(with: tags)
-        }
-        let rest = items.filter { item in
-            guard let p = item.plumage?.lowercased() else { return true }
-            let tags = p.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            return detectedTags.isDisjoint(with: tags)
-        }
-        return matching + rest
-    }
-
     private var allWikiURLs: [URL] { galleryItems.map(\.url) }
 
     /// Caption for the current gallery image. Attribution rides on the link to the Commons
@@ -367,6 +379,13 @@ struct PerPhotoConfirmView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contextMenu {
+            Button {
+                openPeekAtSelection()
+            } label: {
+                Label("Learn More", systemImage: "book")
+            }
+        }
     }
 
     private func wikiPlaceholder(size: CGFloat) -> some View {
@@ -385,35 +404,45 @@ struct PerPhotoConfirmView: View {
     private var speciesCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text(displayName)
-                            .font(.title3.weight(.semibold))
-                            .accessibilityIdentifier("confirm.speciesName")
-                        if let plumage = selectedPlumage, let icon = plumageIcon(plumage) {
-                            Text(icon)
-                                .font(.subheadline)
-                                .accessibilityLabel(plumage)
+                Button {
+                    openPeekAtSelection()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text(displayName)
+                                .font(.title3.weight(.semibold))
+                                .accessibilityIdentifier("confirm.speciesName")
+                            if let plumage = selectedPlumage, let icon = plumageIcon(plumage) {
+                                Text(icon)
+                                    .font(.subheadline)
+                                    .accessibilityLabel(plumage)
+                            }
+                            let state = rarity(for: selectedSpecies)
+                            if state != .none {
+                                RarityMark(state: state, pingTrigger: confirmedRarity)
+                                    // The title stack is tighter than a list row, so
+                                    // the mark makes up the difference and sits the
+                                    // same distance from the name on both.
+                                    .padding(.leading, 4)
+                                    .accessibilityIdentifier("confirm.rarity")
+                            }
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
-                        let state = rarity(for: selectedSpecies)
-                        if state != .none {
-                            RarityMark(state: state, pingTrigger: confirmedRarity)
-                                // The title stack is tighter than a list row, so
-                                // the mark makes up the difference and sits the
-                                // same distance from the name on both.
-                                .padding(.leading, 4)
-                                .accessibilityIdentifier("confirm.rarity")
+                        if let sci = scientificName {
+                            Text(sci)
+                                .font(.subheadline.italic())
+                                .foregroundStyle(.secondary)
                         }
-                    }
-                    if let sci = scientificName {
-                        Text(sci)
-                            .font(.subheadline.italic())
-                            .foregroundStyle(.secondary)
                     }
                 }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows photos and reference links for this bird")
+                .accessibilityIdentifier("confirm.learnMore")
                 Spacer()
                 Text(BirdIdEngine.formatConfidence(selectedConfidence))
-                    .font(.system(.title2, weight: .bold).monospacedDigit())
+                    .font(.system(.title2, design: .serif).weight(.semibold).monospacedDigit())
                     .foregroundStyle(confidenceColor)
                     .accessibilityIdentifier("confirm.confidence")
             }
@@ -427,8 +456,8 @@ struct PerPhotoConfirmView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                ForEach(candidates, id: \.species) { candidate in
-                    candidateRow(candidate)
+                ForEach(Array(candidates.enumerated()), id: \.element.species) { position, candidate in
+                    candidateRow(candidate, at: position)
                 }
             }
         }
@@ -437,51 +466,65 @@ struct PerPhotoConfirmView: View {
         .padding(.horizontal, 16)
     }
 
-    private func candidateRow(_ candidate: IdentifiedCandidate) -> some View {
+    private func candidateRow(_ candidate: IdentifiedCandidate, at position: Int) -> some View {
         let isSelected = candidate.species == selectedSpecies
-        return Button {
-            selectAlternative(candidate)
-        } label: {
-            HStack {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.body)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
-                Text(getDisplayName(candidate.species))
-                    .font(.body)
-                if let plumage = candidate.plumage, let icon = plumageIcon(plumage) {
-                    Text(icon)
-                        .font(.caption)
-                        .accessibilityLabel(plumage)
+        return HStack(spacing: 0) {
+            Button {
+                selectAlternative(candidate)
+            } label: {
+                HStack {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.body)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
+                    Text(getDisplayName(candidate.species))
+                        .font(.body)
+                    if let plumage = candidate.plumage, let icon = plumageIcon(plumage) {
+                        Text(icon)
+                            .font(.caption)
+                            .accessibilityLabel(plumage)
+                    }
+                    // Shown on every candidate, not just the selected one. When the
+                    // top pick is a mega and the runner-up is the ordinary local
+                    // bird, that contrast is the most useful thing on the screen.
+                    // Dimmed when unselected so it informs without competing with
+                    // the selection state.
+                    let state = rarity(for: candidate.species)
+                    if state != .none {
+                        RarityMark(state: state)
+                            .opacity(isSelected ? 1 : 0.45)
+                    }
+                    Spacer()
+                    Text(BirdIdEngine.formatConfidence(candidate.confidence))
+                        .font(.body.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
-                // Shown on every candidate, not just the selected one. When the
-                // top pick is a mega and the runner-up is the ordinary local
-                // bird, that contrast is the most useful thing on the screen.
-                // Dimmed when unselected so it informs without competing with
-                // the selection state.
-                let state = rarity(for: candidate.species)
-                if state != .none {
-                    RarityMark(state: state)
-                        .opacity(isSelected ? 1 : 0.45)
-                }
-                Spacer()
-                Text(BirdIdEngine.formatConfidence(candidate.confidence))
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 4)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityAction(named: "Learn more") { openPeek(at: position) }
+
+            // Its own hit area, so reading about a candidate is not the same tap
+            // as choosing it.
+            Button {
+                openPeek(at: position)
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.body)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 10)
+                    .padding(.leading, 10)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Learn more about \(getDisplayName(candidate.species))")
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Helpers
 
-    private var confidenceColor: Color {
-        if confidencePercent >= 80 { return .green }
-        if confidencePercent >= 50 { return .orange }
-        return .red
-    }
+    private var confidenceColor: Color { .confidence(selectedConfidence) }
 
     private func initializeSelection() {
         if let top = candidates.first {
@@ -537,8 +580,13 @@ struct PerPhotoConfirmView: View {
         return DecodedImages(cropped: cropped, thumb: thumb)
     }
 
-    private func confirmWith(status: ObservationStatus) {
+    /// `species` and `confidence` default to the on-screen selection. The peek sheet
+    /// passes them explicitly because it confirms in the same run loop as it selects,
+    /// before the state it just set has been published.
+    private func confirmWith(status: ObservationStatus, species: String? = nil, confidence: Double? = nil) {
         guard !isAcknowledging else { return }
+        let species = species ?? selectedSpecies
+        let confidence = confidence ?? selectedConfidence
         // The mega gets its own beat before the wizard moves on: a ping on the
         // mark and a soft two-tap, deliberately NOT the lifer confetti and NOT
         // the lifer success haptic. If the bird is also a lifer, that
@@ -548,11 +596,11 @@ struct PerPhotoConfirmView: View {
         // wizard waits. Pausing to acknowledge IS the moment, and at 1 in 208
         // confirmations it is not a tax on the common path.
         let commit = {
-            viewModel.confirmCurrentPhoto(species: selectedSpecies,
-                                          confidence: selectedConfidence,
+            viewModel.confirmCurrentPhoto(species: species,
+                                          confidence: confidence,
                                           status: status, count: 1)
         }
-        guard rarity(for: selectedSpecies) == .both else { return commit() }
+        guard rarity(for: species) == .both else { return commit() }
 
         UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
         guard !reduceMotion else { return commit() }
@@ -589,165 +637,19 @@ struct PerPhotoConfirmView: View {
         // lead image goes first: it is the shot the species page already shows.
         let leadThumb = getWikiThumbnailUrl(for: species)
         let leadImageUrl = cardImageUrl(fromThumbnail: leadThumb) ?? leadThumb
+        let plumage = selectedPlumage
         isLoadingWikiImage = true
         galleryItems = []
 
-        // Single Wikimedia Commons search: returns thumbnails + descriptions in one call
         galleryTask = Task {
-            await performCommonsGalleryFetch(displayName: displayName, leadImageUrl: leadImageUrl)
-        }
-    }
-
-    private struct CommonsResponse: Codable {
-        let query: Query?
-        struct Query: Codable { let pages: [String: Page]? }
-        struct Page: Codable {
-            let title: String?
-            let index: Int?
-            let imageinfo: [ImageInfo]?
-        }
-        struct ImageInfo: Codable {
-            let thumburl: String?
-            let descriptionurl: String?
-            let mime: String?
-            let extmetadata: ExtMetadata?
-        }
-        struct ExtMetadata: Codable {
-            let ImageDescription: MetaValue?
-            let Assessments: MetaValue?
-        }
-        struct MetaValue: Codable { let value: String? }
-    }
-
-    /// One reference photo plus the file page its license notice lives on.
-    private struct GalleryItem {
-        let url: URL
-        let plumage: String?
-        let descriptionUrl: URL?
-    }
-
-    private static let excludeRE = try! NSRegularExpression(
-        pattern: "\\.(svg|gif)$|Status_|IUCN|range_map|distribution|map_of|map\\.png|stamp_of|MHNT|MWNH|_egg|_nest|museum|specimen|skeleton|taxiderm|wikimedia-logo|commons-logo|wikidata-logo|cscr-|question_book|edit-clear|crystal_clear|ambox|folder_hexagonal",
-        options: .caseInsensitive
-    )
-    private static let captionExcludeRE = try! NSRegularExpression(
-        // Spanish terms too: Commons captions the nest and chick shots that outrank the bird
-        // itself for several New World species.
-        pattern: "\\beggs?\\b|\\bnests?\\b|\\bskeleton\\b|\\bspecimen\\b|\\btaxiderm|\\bnido\\b|\\bnidada\\b|\\bpolluelos?\\b|\\bhuevos?\\b",
-        options: .caseInsensitive
-    )
-
-    /// Commons file name from an upload URL or a file page URL, normalised for comparison.
-    private static func commonsFileKey(_ urlString: String?) -> String? {
-        guard let urlString, let decoded = urlString.removingPercentEncoding else { return nil }
-        let name: String?
-        if let marker = decoded.range(of: "/wiki/File:") {
-            name = String(decoded[marker.upperBound...])
-        } else if decoded.contains("/thumb/") {
-            name = decoded.split(separator: "/").dropLast().last.map(String.init)
-        } else {
-            name = decoded.split(separator: "/").last.map(String.init)
-        }
-        return name?.replacingOccurrences(of: "_", with: " ").lowercased()
-    }
-
-    /// Put the lead image first, absorbing the Commons copy of the same file when the search
-    /// already returned it.
-    private static func promotingLead(_ leadImageUrl: String?, in items: [GalleryItem]) -> [GalleryItem] {
-        guard let leadImageUrl,
-              let leadURL = URL(string: leadImageUrl),
-              let leadKey = commonsFileKey(leadImageUrl)
-        else { return items }
-        let duplicate = items.first { commonsFileKey($0.descriptionUrl?.absoluteString) == leadKey }
-        let rest = items.filter { commonsFileKey($0.descriptionUrl?.absoluteString) != leadKey }
-        let lead = GalleryItem(
-            url: leadURL,
-            plumage: duplicate?.plumage,
-            descriptionUrl: duplicate?.descriptionUrl
-                ?? wikimediaFilePageUrl(fromImage: leadImageUrl).flatMap(URL.init(string:))
-        )
-        return [lead] + rest
-    }
-
-    /// Parse plumage from caption + filename text (matches web logic).
-    private func parseGalleryPlumage(_ text: String) -> String? {
-        let lower = text.lowercased().replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ")
-        var tags: [String] = []
-        if lower.contains("drake") { tags.append("male") }
-        else if lower.contains("male") && !lower.contains("female") { tags.append("male") }
-        if lower.contains("female") || lower.contains("hen") { tags.append("female") }
-        if lower.range(of: "\\bjuvenile\\b|\\bchick\\b|\\bduckling\\b|\\bimmature\\b", options: .regularExpression) != nil {
-            tags.append("juvenile")
-        }
-        return tags.isEmpty ? nil : tags.joined(separator: ", ")
-    }
-
-    private func performCommonsGalleryFetch(displayName: String, leadImageUrl: String?) async {
-        do {
-            let query = "\"\(displayName)\"".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? displayName
-            let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl%7Cmime&iiurlwidth=500&format=json&origin=*"
-            guard let url = URL(string: urlStr) else {
-                log.debug("Commons gallery: invalid URL: \(urlStr)")
-                await MainActor.run { isLoadingWikiImage = false }
-                return
-            }
-            var req = URLRequest(url: url)
-            req.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: req)
-            try Task.checkCancellation()
-
-            let response = try JSONDecoder().decode(CommonsResponse.self, from: data)
+            let items = await CommonsGallery.fetch(
+                displayName: displayName,
+                leadImageUrl: leadImageUrl,
+                plumage: plumage
+            )
             guard !Task.isCancelled else { return }
-            let pageCount = response.query?.pages?.count ?? 0
-            log.debug("Commons gallery: \(pageCount) pages for '\(displayName)'")
-
-            // Score: featured > quality > relevance
-            var scored: [(page: CommonsResponse.Page, score: Int, relevance: Int)] = []
-            if let pages = response.query?.pages?.values {
-                for page in pages {
-                    let assessed = page.imageinfo?.first?.extmetadata?.Assessments?.value ?? ""
-                    let s = assessed.contains("featured") ? 0 : assessed.contains("quality") ? 1 : 2
-                    scored.append((page: page, score: s, relevance: page.index ?? 999))
-                }
-            }
-            scored.sort { $0.score != $1.score ? $0.score < $1.score : $0.relevance < $1.relevance }
-
-            var items: [GalleryItem] = []
-            for entry in scored {
-                let title = entry.page.title ?? ""
-                let titleRange = NSRange(title.startIndex..., in: title)
-                if Self.excludeRE.firstMatch(in: title, range: titleRange) != nil { continue }
-                let info = entry.page.imageinfo?.first
-                // Commons bird photos are JPEG; the PNG and SVG hits are icons and diagrams.
-                guard info?.mime == "image/jpeg" else { continue }
-                guard let thumbStr = info?.thumburl,
-                      let thumbURL = URL(string: thumbStr) else { continue }
-                let rawDesc = info?.extmetadata?.ImageDescription?.value ?? ""
-                let desc = rawDesc.replacingOccurrences(of: "<[^>]*>", with: "", options: String.CompareOptions.regularExpression)
-                let subject = "\(desc) \(title)"
-                    .replacingOccurrences(of: "[_-]", with: " ", options: String.CompareOptions.regularExpression)
-                let subjectRange = NSRange(subject.startIndex..., in: subject)
-                if Self.captionExcludeRE.firstMatch(in: subject, range: subjectRange) != nil { continue }
-                items.append(GalleryItem(
-                    url: thumbURL,
-                    plumage: parseGalleryPlumage([desc, title].joined(separator: " ")),
-                    descriptionUrl: info?.descriptionurl.flatMap(URL.init(string:))
-                ))
-                if items.count >= 6 { break }
-            }
-            guard !Task.isCancelled else { return }
-            log.debug("Commons gallery: \(items.count) URLs after filtering")
-            await MainActor.run {
-                galleryItems = Self.promotingLead(leadImageUrl, in: sortedByPlumage(items))
-                isLoadingWikiImage = false
-            }
-        } catch is CancellationError { /* expected */ }
-        catch {
-            log.debug("Commons gallery fetch failed")
-            await MainActor.run {
-                galleryItems = Self.promotingLead(leadImageUrl, in: [])
-                isLoadingWikiImage = false
-            }
+            galleryItems = items
+            isLoadingWikiImage = false
         }
     }
 }

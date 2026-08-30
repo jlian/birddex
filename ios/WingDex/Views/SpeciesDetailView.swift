@@ -1,39 +1,11 @@
 import SwiftUI
 
-/// Reference type because `NSCache` only stores class instances.
-private final class WikiSummary: Sendable {
-    let extract: String?
-    let imageUrl: String?
-
-    init(extract: String?, imageUrl: String?) {
-        self.extract = extract
-        self.imageUrl = imageUrl
-    }
-}
-
-/// Wikipedia summaries are cached in memory because a context-menu preview and the view
-/// it pops into are separate `SpeciesDetailView` instances with separate state. Without
-/// this the pushed view refetches the summary, so it has no full-res URL on its first
-/// render and replays the blur-up even though the image is already decoded.
-@MainActor
-private final class WikiSummaryCache {
-    static let shared = WikiSummaryCache()
-    private let cache = NSCache<NSString, WikiSummary>()
-
-    init(countLimit: Int = 128) {
-        cache.countLimit = countLimit
-    }
-
-    func summary(for title: String) -> WikiSummary? { cache.object(forKey: title as NSString) }
-    func set(_ summary: WikiSummary, for title: String) { cache.setObject(summary, forKey: title as NSString) }
-}
-
 struct SpeciesDetailView: View {
     let speciesName: String
     @Environment(DataStore.self) private var store
     @State private var wikiExtract: String?
     @State private var fullImageUrl: String?
-    @State private var imageCredit: (artist: String?, license: String?, pageUrl: String)?
+    @State private var imageCredit: WikimediaImageCredit?
     @State private var contextMenuOuting: Outing?
     @State private var imageShareItem: ExportFileItem?
     @State private var imageOperationError: String?
@@ -54,7 +26,7 @@ struct SpeciesDetailView: View {
     /// render, before `.task` has a chance to run.
     private var cachedSummary: WikiSummary? {
         guard let wikiTitle = entry?.wikiTitle else { return nil }
-        return WikiSummaryCache.shared.summary(for: wikiTitle)
+        return WikiSummaryService.cached(for: wikiTitle)
     }
     private var displayedExtract: String? { wikiExtract ?? cachedSummary?.extract }
 
@@ -270,7 +242,7 @@ struct SpeciesDetailView: View {
                 // The hero is an individually licensed Commons photo, so it needs its own credit.
                 if let credit = imageCredit, let url = URL(string: credit.pageUrl) {
                     Link(destination: url) {
-                        Text("Photo \([credit.artist, credit.license].compactMap { $0 }.joined(separator: " / "))")
+                        Text(credit.label)
                             .font(.system(size: 11))
                             .foregroundStyle(Color.accentColor)
                     }
@@ -307,76 +279,17 @@ struct SpeciesDetailView: View {
     @MainActor
     private func fetchWikipediaData() async {
         guard let wikiTitle = entry?.wikiTitle else { return }
-        if let cached = WikiSummaryCache.shared.summary(for: wikiTitle) {
-            wikiExtract = cached.extract
-            fullImageUrl = cached.imageUrl
-            return
-        }
-        let encoded = wikiTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wikiTitle
-        guard let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else {
-            return
-        }
-
-        do {
-            var request = URLRequest(url: url)
-            request.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: request)
-            guard let summary = await Self.parseSummary(data) else { return }
-            WikiSummaryCache.shared.set(summary, for: wikiTitle)
-            wikiExtract = summary.extract
-            fullImageUrl = summary.imageUrl
-        } catch {
-            // Silently fail - the dex thumbnail is still shown. Not cached, so a later
-            // visit retries.
-        }
+        guard let summary = await WikiSummaryService.summary(for: wikiTitle) else { return }
+        wikiExtract = summary.extract
+        fullImageUrl = summary.imageUrl
     }
 
     /// Fetch the creator and license for the hero photo. The file page URL is derived
     /// from the image URL, so this is one request and no extra data in taxonomy.json.
     @MainActor
     private func fetchImageCredit() async {
-        guard imageCredit == nil,
-              let pageUrl = wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl),
-              let separator = pageUrl.range(of: "/wiki/"),
-              // The title came out of a URL path, so it is already percent-encoded.
-              // Encoding it again turns %28 into %2528 and the API rejects the title.
-              let apiUrl = URL(string: "\(pageUrl[..<separator.lowerBound])/w/api.php?action=query&titles=\(pageUrl[separator.upperBound...])&prop=imageinfo&iiprop=extmetadata&format=json")
-        else { return }
-
-        var request = URLRequest(url: apiUrl)
-        request.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
-              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let pages = (json["query"] as? [String: Any])?["pages"] as? [String: Any],
-              let page = pages.values.first as? [String: Any],
-              let info = (page["imageinfo"] as? [[String: Any]])?.first,
-              let meta = info["extmetadata"] as? [String: Any]
-        else { return }
-
-        let read: (String) -> String? = { key in
-            guard let value = (meta[key] as? [String: Any])?["value"] as? String else { return nil }
-            let text = value
-                .replacingOccurrences(of: "<[^>]*>", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return text.isEmpty ? nil : text
-        }
-        imageCredit = (artist: read("Artist"), license: read("LicenseShortName"), pageUrl: pageUrl)
-    }
-
-    /// Off the main actor: extracts run to several KB, and this parse lands on the detail
-    /// push path where a hitch is visible.
-    private nonisolated static func parseSummary(_ data: Data) async -> WikiSummary? {
-        await Task.detached(priority: .utility) {
-            guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                return nil
-            }
-            let original = json["originalimage"] as? [String: Any]
-            return WikiSummary(
-                extract: json["extract"] as? String,
-                imageUrl: original?["source"] as? String
-            )
-        }.value
+        guard imageCredit == nil else { return }
+        imageCredit = await WikimediaCreditService.credit(forImage: entry?.thumbnailUrl)
     }
 
     private var heroImageURL: URL? {

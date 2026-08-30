@@ -20,15 +20,16 @@ import type { RarityState } from '@/lib/rarity'
 export const RARITY_LABELS: Record<Exclude<RarityState, 'none'>, string> = {
   outOfSeason: 'Out of season',
   offRange: 'Off range',
-  both: 'Rarely seen here',
+  both: 'Rare',
 }
 
-const A11Y_LABELS: Record<Exclude<RarityState, 'none'>, string> = {
+/** Full-sentence readings, for assistive technology and anywhere the glyph is explained. */
+export const RARITY_SENTENCES: Record<Exclude<RarityState, 'none'>, string> = {
   outOfSeason: 'Out of season for this area',
   offRange: 'Off its usual range',
   // Both halves, because a screen reader user cannot see that the glyph is a
   // dot inside a ring and would otherwise lose the seasonal reason.
-  both: 'Off its usual range and out of season for this area',
+  both: 'Rarely seen in this area',
 }
 
 export function RarityMark({ state, className = '' }: { state: RarityState; className?: string }) {
@@ -46,9 +47,9 @@ export function RarityMark({ state, className = '' }: { state: RarityState; clas
       viewBox="0 0 10 10"
       className={`inline-block size-[0.7em] shrink-0 text-amber-700 dark:text-amber-400 ${className}`}
       role="img"
-      aria-label={A11Y_LABELS[state]}
+      aria-label={RARITY_SENTENCES[state]}
     >
-      <title>{A11Y_LABELS[state]}</title>
+      <title>{RARITY_SENTENCES[state]}</title>
       {ring && <circle cx="5" cy="5" r="4.25" fill="none" stroke="currentColor" strokeWidth="1.5" />}
       {core && <circle cx="5" cy="5" r={coreRadius} fill="currentColor" />}
     </svg>

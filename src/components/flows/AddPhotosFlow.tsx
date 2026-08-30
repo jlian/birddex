@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card'
 import { Confetti } from '@/components/ui/confetti'
 import {
   CloudArrowUp, CheckCircle, Question,
-  Crop, ArrowRight, ArrowLeft, SkipForward
+  Crop, ArrowRight, ArrowLeft, SkipForward, CaretRight, Info
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { extractEXIF, generateThumbnail, computeFileHash } from '@/lib/photo-utils'
@@ -42,6 +42,7 @@ import { useBirdGallery } from '@/hooks/use-bird-image'
 import { computePaddedSquareCropFromPercent } from '@/lib/crop-math'
 import { WikiBirdThumbnail } from '@/components/ui/wiki-bird-thumbnail'
 import { RarityMark } from '@/components/ui/rarity-mark'
+import { SpeciesPeekSheet, type PeekCandidate } from '@/components/ui/species-peek-sheet'
 import { useRarityResolver } from '@/lib/rarity-client'
 
 interface AddPhotosFlowProps {
@@ -1007,6 +1008,24 @@ function PerPhotoConfirm({
     setSelectedPlumage(top?.plumage)
     setShowAlternatives(false)
   }, [candidates])
+
+  // Read-only until "Use this ID" is pressed, so a curious peek cannot refile the photo.
+  const [peekIndex, setPeekIndex] = useState<number | null>(null)
+  // Memoized because the sheet keys its prefetch effect off this array; a fresh
+  // one per render would re-run the effect on every unrelated state change.
+  const peekCandidates: PeekCandidate[] = useMemo(
+    () => candidates.map(c => ({
+      species: c.species,
+      confidence: c.confidence,
+      plumage: c.plumage,
+      rarity: resolveRarity(c.species, photoLat, photoLon, photoMonth),
+    })),
+    [candidates, resolveRarity, photoLat, photoLon, photoMonth],
+  )
+  const openPeekAtSelection = () => {
+    const i = candidates.findIndex(c => c.species === selectedSpecies)
+    setPeekIndex(i >= 0 ? i : 0)
+  }
   
   // Fetch reference gallery images from Wikimedia Commons
   const { images: galleryImages, loading: galleryLoading } = useBirdGallery(selectedSpecies)
@@ -1138,15 +1157,23 @@ function PerPhotoConfirm({
       <Card className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
-            <h3 className="font-serif text-lg font-semibold text-foreground">
-              {displayName}
-              {selectedPlumage && plumageIcon(selectedPlumage) && (
-                <span className="ml-1 text-base align-baseline opacity-70" aria-label={selectedPlumage} role="img">{plumageIcon(selectedPlumage)}</span>
+            <button
+              type="button"
+              onClick={openPeekAtSelection}
+              className="text-left"
+              aria-label={`Learn more about ${displayName}`}
+            >
+              <h3 className="font-serif text-lg font-semibold text-foreground">
+                {displayName}
+                {selectedPlumage && plumageIcon(selectedPlumage) && (
+                  <span className="ml-1 text-base align-baseline opacity-70" aria-label={selectedPlumage} role="img">{plumageIcon(selectedPlumage)}</span>
+                )}
+                <CaretRight size={14} className="ml-1 inline align-baseline text-muted-foreground/60" />
+              </h3>
+              {scientificName && (
+                <p className="text-sm text-muted-foreground italic">{scientificName}</p>
               )}
-            </h3>
-            {scientificName && (
-              <p className="text-sm text-muted-foreground italic">{scientificName}</p>
-            )}
+            </button>
           </div>
           <span
             className={`font-serif text-3xl font-semibold tabular-nums leading-none ${
@@ -1228,38 +1255,51 @@ function PerPhotoConfirm({
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
                   All possibilities
                 </p>
-                {candidates.map(c => {
+                {candidates.map((c, position) => {
                   const altName = getDisplayName(c.species)
                   const isSelected = c.species === selectedSpecies
                   return (
-                    <button
+                    <div
                       key={c.species}
-                      className={`w-full text-left p-2 rounded-md flex items-center justify-between hover:bg-muted/80 transition-colors ${
+                      className={`w-full rounded-md flex items-center transition-colors ${
                         isSelected
                           ? 'bg-primary/10 border border-primary'
                           : 'bg-muted/40'
                       }`}
-                      onClick={() => selectAlternative(c.species, c.confidence, c.plumage)}
                     >
-                      <span className="text-sm font-medium">
-                        {altName}
-                        {c.plumage && (
-                          <span className="ml-1 text-xs text-muted-foreground font-normal">({c.plumage})</span>
-                        )}
-                        {/* Shown on every candidate, not just the selected one.
-                            When the top pick is a mega and the runner-up is the
-                            ordinary local bird, that contrast is the most useful
-                            thing on the screen. Dimmed when unselected so it
-                            informs without competing with the selection state. */}
-                        <RarityMark
-                          state={resolveRarity(c.species, photoLat, photoLon, photoMonth)}
-                          className={`ml-1.5 ${isSelected ? '' : 'opacity-45'}`}
-                        />
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>
-                      </span>
-                    </button>
+                      <button
+                        className="flex-1 min-w-0 text-left p-2 flex items-center justify-between hover:bg-muted/80 rounded-l-md transition-colors"
+                        onClick={() => selectAlternative(c.species, c.confidence, c.plumage)}
+                      >
+                        <span className="text-sm font-medium">
+                          {altName}
+                          {c.plumage && (
+                            <span className="ml-1 text-xs text-muted-foreground font-normal">({c.plumage})</span>
+                          )}
+                          {/* Shown on every candidate, not just the selected one.
+                              When the top pick is a mega and the runner-up is the
+                              ordinary local bird, that contrast is the most useful
+                              thing on the screen. Dimmed when unselected so it
+                              informs without competing with the selection state. */}
+                          <RarityMark
+                            state={resolveRarity(c.species, photoLat, photoLon, photoMonth)}
+                            className={`ml-1.5 ${isSelected ? '' : 'opacity-45'}`}
+                          />
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">{formatConfidence(c.confidence)}</span>
+                        </span>
+                      </button>
+                      {/* Its own hit area, so reading about a candidate is not the
+                          same click as choosing it. */}
+                      <button
+                        className="px-2 py-2 text-muted-foreground/60 hover:text-foreground transition-colors"
+                        onClick={() => setPeekIndex(position)}
+                        aria-label={`Learn more about ${altName}`}
+                      >
+                        <Info size={16} />
+                      </button>
+                    </div>
                   )
                 })}
               </div>
@@ -1299,6 +1339,18 @@ function PerPhotoConfirm({
       </div>
 
       <PhotoDots current={photoIndex} total={totalPhotos} />
+
+      <SpeciesPeekSheet
+        candidates={peekCandidates}
+        startIndex={peekIndex ?? 0}
+        userPhotoUrl={displayImage}
+        open={peekIndex !== null}
+        onOpenChange={(next) => { if (!next) setPeekIndex(null) }}
+        onConfirm={(candidate) => {
+          selectAlternative(candidate.species, candidate.confidence, candidate.plumage)
+          onConfirm(candidate.species, candidate.confidence, 'confirmed', 1)
+        }}
+      />
     </div>
   )
 }
