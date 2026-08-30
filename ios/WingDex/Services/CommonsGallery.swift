@@ -40,9 +40,14 @@ enum CommonsGallery {
         let raw: [GalleryItem]
         if let cached = await Cache.shared.value(for: displayName) {
             raw = cached
+        } else if let found = await search(displayName: displayName) {
+            raw = found
+            await Cache.shared.store(found, for: displayName)
         } else {
-            raw = await search(displayName: displayName)
-            await Cache.shared.store(raw, for: displayName)
+            // Cancelled. The peek sheet cancels this task on every swipe, so caching
+            // the empty result here would pin the species to its lead image for the
+            // rest of the session.
+            raw = []
         }
         // Lead promotion runs last so the taxonomy lead image cannot be displaced
         // by a plumage match.
@@ -105,7 +110,9 @@ enum CommonsGallery {
         struct MetaValue: Codable { let value: String? }
     }
 
-    private static func search(displayName: String) async -> [GalleryItem] {
+    /// `nil` means the task was cancelled and the caller must not cache the result.
+    /// An empty array is a real answer: the search ran and matched nothing usable.
+    private static func search(displayName: String) async -> [GalleryItem]? {
         do {
             let query = "\"\(displayName)\"".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? displayName
             let urlStr = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\(query)&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata%7Curl%7Cmime&iiurlwidth=500&format=json&origin=*"
@@ -161,7 +168,11 @@ enum CommonsGallery {
             log.debug("Commons gallery: \(items.count) URLs after filtering")
             return items
         } catch is CancellationError {
-            return []
+            return nil
+        } catch let error as URLError where error.code == .cancelled {
+            // URLSession reports cancellation as URLError rather than CancellationError,
+            // and this is the throw that actually fires when a swipe cancels the task.
+            return nil
         } catch {
             log.debug("Commons gallery fetch failed")
             return []

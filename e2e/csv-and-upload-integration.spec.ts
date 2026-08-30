@@ -247,14 +247,31 @@ test.describe('CSV import + photo upload integration', () => {
     await page.keyboard.press('Escape')
     await expect(peek).not.toBeVisible({ timeout: 5_000 })
 
+    // Which species the model picked is not this test's business, so the species
+    // the sheet commits is read off the sheet rather than named here. Reopening
+    // and confirming from inside is the path that must reach the save request.
+    await dialog.getByRole('button', { name: /^Learn more about / }).first().click()
+    await expect(peek).toBeVisible({ timeout: 5_000 })
+    const peekedSpecies = await peek.getByRole('heading').first().innerText()
+    expect(peekedSpecies.trim().length).toBeGreaterThan(0)
+
     const saveObservationsResponse = page.waitForResponse(
       response => response.url().includes('/api/data/observations') && response.request().method() === 'POST'
     )
 
-    // Confirm the species (high confidence = auto-selected with Confirm button)
-    await dialog.getByRole('button', { name: 'Confirm' }).first().click()
+    // Confirm from inside the sheet. This is the new commit path, so the assertion
+    // that matters is that the saved species is the one the sheet was showing,
+    // not merely that something saved.
+    await peek.getByRole('button', { name: 'Confirm' }).click()
+    await expect(peek).not.toBeVisible({ timeout: 5_000 })
 
-    await saveObservationsResponse
+    const saved = await saveObservationsResponse
+    // The POST body is a bare array of observations.
+    const savedObservations = saved.request().postDataJSON() as Array<{ speciesName?: string }>
+    const savedNames = savedObservations.map(o => o.speciesName ?? '')
+    // One confirm, one observation: a duplicate-confirm regression shows up here.
+    expect(savedNames).toHaveLength(1)
+    expect(savedNames[0]).toContain(peekedSpecies.trim())
 
     // Dialog shows upload summary - dismiss it
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 })

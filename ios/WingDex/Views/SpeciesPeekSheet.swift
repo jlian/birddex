@@ -41,6 +41,9 @@ struct SpeciesPeekSheet: View {
     /// photo's credit while its own is still loading.
     @State private var imageCredits: [String: WikimediaImageCredit] = [:]
     @State private var safariLink: SafariLink?
+    /// Width available to the reference row, so the hero and the thumbnail strip are
+    /// derived from the device rather than from a constant that overflows a 390pt phone.
+    @State private var referenceRowWidth: CGFloat = 0
     /// Opens large: the user came here to read. Dragging to medium uncovers the
     /// confirm screen behind, which is why medium stays on offer.
     @State private var detent: PresentationDetent = .large
@@ -203,15 +206,24 @@ struct SpeciesPeekSheet: View {
     /// swipe that could mean either "next photo" or "next bird" resolves to whichever
     /// gesture recogniser wins. Vertical keeps the alternates one tap away without
     /// spending a row of height on them.
+    ///
+    /// Both widths come from the measured row, so the pair always fits the screen.
+    /// The strip is a fixed four slots wide whatever the gallery returned, so paging
+    /// between a bird with four photos and one with two does not resize the hero.
     @ViewBuilder
     private func references(for candidate: SpeciesPeekCandidate) -> some View {
         let items = galleries[candidate.species] ?? []
         let hero = currentHero(for: candidate)
+        let spacing = Self.thumbSpacing
+        // Four square thumbs plus their gaps span exactly the hero's height, and the
+        // hero plus one thumb width plus one gap spans exactly the row.
+        let thumb = max((referenceRowWidth - spacing * CGFloat(Self.thumbSlots)) / CGFloat(Self.thumbSlots + 1), 0)
+        let heroSize = max(referenceRowWidth - spacing - thumb, 0)
 
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: spacing) {
             Group {
                 if let hero {
-                    BirdThumbnail(url: hero.url.absoluteString, size: Self.heroSize, cornerRadius: 12)
+                    BirdThumbnail(url: hero.url.absoluteString, size: heroSize, cornerRadius: 12)
                 } else {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(.regularMaterial)
@@ -222,14 +234,11 @@ struct SpeciesPeekSheet: View {
                         }
                 }
             }
-            .frame(width: Self.heroSize, height: Self.heroSize)
+            .frame(width: heroSize, height: heroSize)
 
             if items.count > 1 {
-                // Sized so the strip is exactly as tall as the hero, whatever the
-                // gallery returned.
-                let shown = Array(items.prefix(4).enumerated())
-                let thumb = (Self.heroSize - Self.thumbSpacing * CGFloat(shown.count - 1)) / CGFloat(shown.count)
-                VStack(spacing: Self.thumbSpacing) {
+                let shown = Array(items.prefix(Self.thumbSlots).enumerated())
+                VStack(spacing: spacing) {
                     ForEach(shown, id: \.element.url) { position, item in
                         Button {
                             heroIndices[candidate.species] = position
@@ -247,13 +256,14 @@ struct SpeciesPeekSheet: View {
                         .accessibilityLabel("Reference photo \(position + 1)")
                     }
                 }
-                .frame(height: Self.heroSize)
+                .frame(width: thumb, height: heroSize, alignment: .top)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { referenceRowWidth = $0 }
     }
 
-    private static let heroSize: CGFloat = 240
+    private static let thumbSlots = 4
     private static let thumbSpacing: CGFloat = 8
 
     private func currentHero(for candidate: SpeciesPeekCandidate) -> GalleryItem? {

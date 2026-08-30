@@ -33,11 +33,24 @@ enum WikimediaCreditService {
 
     static func credit(forFilePage pageUrl: String) async -> WikimediaImageCredit? {
         if let cached = cache[pageUrl] { return cached }
-        guard let separator = pageUrl.range(of: "/wiki/"),
-              // The title came out of a URL path, so it is already percent-encoded.
-              // Encoding it again turns %28 into %2528 and the API rejects the title.
-              let apiUrl = URL(string: "\(pageUrl[..<separator.lowerBound])/w/api.php?action=query&titles=\(pageUrl[separator.upperBound...])&prop=imageinfo&iiprop=extmetadata&format=json")
+        guard let separator = pageUrl.range(of: "/wiki/") else { return nil }
+
+        // The title came out of a URL path, so it is already percent-encoded. Decode
+        // it first, then let URLComponents re-encode it as a query value: a filename
+        // containing `&` (File:A_&_B.jpg) truncates the titles parameter otherwise,
+        // and encoding the raw path form turns %28 into %2528 and the API rejects it.
+        let encodedTitle = String(pageUrl[separator.upperBound...])
+        let title = encodedTitle.removingPercentEncoding ?? encodedTitle
+        guard var components = URLComponents(string: "\(pageUrl[..<separator.lowerBound])/w/api.php")
         else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "action", value: "query"),
+            URLQueryItem(name: "titles", value: title),
+            URLQueryItem(name: "prop", value: "imageinfo"),
+            URLQueryItem(name: "iiprop", value: "extmetadata"),
+            URLQueryItem(name: "format", value: "json"),
+        ]
+        guard let apiUrl = components.url else { return nil }
 
         var request = URLRequest(url: apiUrl)
         request.setValue(WikimediaUserAgent.value, forHTTPHeaderField: "User-Agent")

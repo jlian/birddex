@@ -103,8 +103,20 @@ describe('getEbirdSpeciesUrl', () => {
 })
 
 describe('getWikiTitleForSpecies', () => {
-  it('returns the bundled article title', async () => {
-    expect(await getWikiTitleForSpecies('Northern Cardinal')).toBeTruthy()
+  // Asserted exactly, and on species whose article title differs from the common
+  // name, so reading a neighbouring taxonomy column cannot pass. `toBeTruthy` did:
+  // the scientific name and the eBird code sit either side of this one and are
+  // also non-empty strings, so an index slip produced broken links silently.
+  it.each([
+    ['Northern Cardinal', 'Northern cardinal'],
+    ['Rock Pigeon', 'Rock dove'],
+    ['Chukar', 'Chukar partridge'],
+  ])('resolves %s to the bundled article title %s', async (name, title) => {
+    expect(await getWikiTitleForSpecies(name)).toBe(title)
+  })
+
+  it('strips the parenthesized scientific name before lookup', async () => {
+    expect(await getWikiTitleForSpecies('Rock Pigeon (Columba livia)')).toBe('Rock dove')
   })
 
   it('returns undefined for an unknown species', async () => {
