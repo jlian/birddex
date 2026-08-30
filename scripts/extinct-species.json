@@ -1,0 +1,924 @@
+{
+ "excluded_statuses": [
+  "EW",
+  "EX"
+ ],
+ "taxonomy_rows": 11167,
+ "count": 152,
+ "species": [
+  {
+   "scientific": "Alopochen mauritiana",
+   "common": "Mauritius Shelduck",
+   "status": "EX"
+  },
+  {
+   "scientific": "Alopochen kervazoi",
+   "common": "Reunion Shelduck",
+   "status": "EX"
+  },
+  {
+   "scientific": "Mareca marecula",
+   "common": "Amsterdam Duck",
+   "status": "EX"
+  },
+  {
+   "scientific": "Anas theodori",
+   "common": "Mauritius Duck",
+   "status": "EX"
+  },
+  {
+   "scientific": "Camptorhynchus labradorius",
+   "common": "Labrador Duck",
+   "status": "EX"
+  },
+  {
+   "scientific": "Mergus australis",
+   "common": "Auckland Islands Merganser",
+   "status": "EX"
+  },
+  {
+   "scientific": "Mitu mitu",
+   "common": "Alagoas Curassow",
+   "status": "EW"
+  },
+  {
+   "scientific": "Coturnix novaezelandiae",
+   "common": "New Zealand Quail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Columba jouyi",
+   "common": "Ryukyu Pigeon",
+   "status": "EX"
+  },
+  {
+   "scientific": "Columba versicolor",
+   "common": "Bonin Pigeon",
+   "status": "EX"
+  },
+  {
+   "scientific": "Ectopistes migratorius",
+   "common": "Passenger Pigeon",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nesoenas rodericanus",
+   "common": "Rodrigues Turtle-Dove",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pampusana salamonis",
+   "common": "Thick-billed Ground Dove",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pampusana ferruginea",
+   "common": "Tanna Ground Dove",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zenaida graysoni",
+   "common": "Socorro Dove",
+   "status": "EW"
+  },
+  {
+   "scientific": "Caloenas maculata",
+   "common": "Spotted Green Pigeon",
+   "status": "EX"
+  },
+  {
+   "scientific": "Raphus cucullatus",
+   "common": "Dodo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pezophaps solitaria",
+   "common": "Rodrigues Solitaire",
+   "status": "EX"
+  },
+  {
+   "scientific": "Microgoura meeki",
+   "common": "Choiseul Pigeon",
+   "status": "EX"
+  },
+  {
+   "scientific": "Alectroenas nitidissimus",
+   "common": "Mauritius Blue-Pigeon",
+   "status": "EX"
+  },
+  {
+   "scientific": "Ptilinopus mercierii",
+   "common": "Red-moustached Fruit-Dove",
+   "status": "EX"
+  },
+  {
+   "scientific": "Coua delalandei",
+   "common": "Snail-eating Coua",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nannococcyx psix",
+   "common": "St. Helena Cuckoo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Riccordia bracei",
+   "common": "Brace's Emerald",
+   "status": "EX"
+  },
+  {
+   "scientific": "Dryolimnas augusti",
+   "common": "Reunion Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Aphanapteryx bonasia",
+   "common": "Red Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Erythromachus leguati",
+   "common": "Rodrigues Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Aphanocrex podarces",
+   "common": "St. Helena Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Mundia elpenor",
+   "common": "Ascension Crake",
+   "status": "EX"
+  },
+  {
+   "scientific": "Diaphorapteryx hawkinsi",
+   "common": "Hawkins's Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gallirallus pacificus",
+   "common": "Tahiti Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gallirallus modestus",
+   "common": "Chatham Islands Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gallirallus dieffenbachii",
+   "common": "Dieffenbach's Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gallirallus poecilopterus",
+   "common": "Bar-winged Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gallirallus wakensis",
+   "common": "Wake Island Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gallinula nesiotis",
+   "common": "Tristan Moorhen",
+   "status": "EX"
+  },
+  {
+   "scientific": "Fulica newtonii",
+   "common": "Mascarene Coot",
+   "status": "EX"
+  },
+  {
+   "scientific": "Porphyrio paepae",
+   "common": "Marquesan Swamphen",
+   "status": "EX"
+  },
+  {
+   "scientific": "Porphyrio mantelli",
+   "common": "North Island Takahe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Porphyrio albus",
+   "common": "Lord Howe Swamphen",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zapornia astrictocarpus",
+   "common": "St. Helena Crake",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zapornia palmeri",
+   "common": "Laysan Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zapornia sandwichensis",
+   "common": "Hawaiian Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zapornia nigra",
+   "common": "Miller's Rail",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zapornia monasa",
+   "common": "Kosrae Crake",
+   "status": "EX"
+  },
+  {
+   "scientific": "Haematopus meadewaldoi",
+   "common": "Canarian Oystercatcher",
+   "status": "EX"
+  },
+  {
+   "scientific": "Numenius tenuirostris",
+   "common": "Slender-billed Curlew",
+   "status": "EX"
+  },
+  {
+   "scientific": "Coenocorypha barrierensis",
+   "common": "North Island Snipe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Coenocorypha iredalei",
+   "common": "South Island Snipe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Prosobonia cancellata",
+   "common": "Kiritimati Sandpiper",
+   "status": "EX"
+  },
+  {
+   "scientific": "Prosobonia leucoptera",
+   "common": "White-winged Sandpiper",
+   "status": "EX"
+  },
+  {
+   "scientific": "Prosobonia ellisi",
+   "common": "Moorea Sandpiper",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pinguinus impennis",
+   "common": "Great Auk",
+   "status": "EX"
+  },
+  {
+   "scientific": "Tachybaptus rufolavatus",
+   "common": "Alaotra Grebe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Podilymbus gigas",
+   "common": "Atitlan Grebe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Podiceps andinus",
+   "common": "Colombian Grebe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pterodroma rupinarum",
+   "common": "Large St. Helena Petrel",
+   "status": "EX"
+  },
+  {
+   "scientific": "Bulweria bifax",
+   "common": "Small St. Helena Petrel",
+   "status": "EX"
+  },
+  {
+   "scientific": "Urile perspicillatus",
+   "common": "Pallas's Cormorant",
+   "status": "EX"
+  },
+  {
+   "scientific": "Threskiornis solitarius",
+   "common": "Reunion Ibis",
+   "status": "EX"
+  },
+  {
+   "scientific": "Botaurus novaezelandiae",
+   "common": "New Zealand Bittern",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nyctanassa carcinocatactes",
+   "common": "Bermuda Night Heron",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nycticorax duboisi",
+   "common": "Reunion Night Heron",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nycticorax mauritianus",
+   "common": "Mauritius Night Heron",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nycticorax megacephalus",
+   "common": "Rodrigues Night Heron",
+   "status": "EX"
+  },
+  {
+   "scientific": "Bermuteo avivorus",
+   "common": "Bermuda Hawk",
+   "status": "EX"
+  },
+  {
+   "scientific": "Otus grucheti",
+   "common": "Reunion Scops-Owl",
+   "status": "EX"
+  },
+  {
+   "scientific": "Otus murivorus",
+   "common": "Rodrigues Scops-Owl",
+   "status": "EX"
+  },
+  {
+   "scientific": "Otus sauzieri",
+   "common": "Mauritius Scops-Owl",
+   "status": "EX"
+  },
+  {
+   "scientific": "Aegolius gradyi",
+   "common": "Bermuda Saw-whet Owl",
+   "status": "EX"
+  },
+  {
+   "scientific": "Ninox albifacies",
+   "common": "Laughing Owl",
+   "status": "EX"
+  },
+  {
+   "scientific": "Upupa antaios",
+   "common": "St. Helena Hoopoe",
+   "status": "EX"
+  },
+  {
+   "scientific": "Todiramphus cinnamominus",
+   "common": "Guam Kingfisher",
+   "status": "EW"
+  },
+  {
+   "scientific": "Colaptes oceanicus",
+   "common": "Bermuda Flicker",
+   "status": "EX"
+  },
+  {
+   "scientific": "Caracara lutosa",
+   "common": "Guadalupe Caracara",
+   "status": "EX"
+  },
+  {
+   "scientific": "Falco duboisi",
+   "common": "Reunion Kestrel",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nestor productus",
+   "common": "Norfolk Island Kaka",
+   "status": "EX"
+  },
+  {
+   "scientific": "Eclectus infectus",
+   "common": "Oceanic Eclectus",
+   "status": "EX"
+  },
+  {
+   "scientific": "Mascarinus mascarinus",
+   "common": "Mascarene Parrot",
+   "status": "EX"
+  },
+  {
+   "scientific": "Psittacula wardi",
+   "common": "Seychelles Parakeet",
+   "status": "EX"
+  },
+  {
+   "scientific": "Psittacula exsul",
+   "common": "Newton's Parakeet",
+   "status": "EX"
+  },
+  {
+   "scientific": "Psittacula bensoni",
+   "common": "Mauritius Gray Parrot",
+   "status": "EX"
+  },
+  {
+   "scientific": "Lophopsittacus mauritianus",
+   "common": "Broad-billed Parrot",
+   "status": "EX"
+  },
+  {
+   "scientific": "Necropsittacus rodricanus",
+   "common": "Rodrigues Parrot",
+   "status": "EX"
+  },
+  {
+   "scientific": "Cyanoramphus ulietanus",
+   "common": "Raiatea Parakeet",
+   "status": "EX"
+  },
+  {
+   "scientific": "Cyanoramphus zealandicus",
+   "common": "Black-fronted Parakeet",
+   "status": "EX"
+  },
+  {
+   "scientific": "Psephotellus pulcherrimus",
+   "common": "Paradise Parrot",
+   "status": "EX"
+  },
+  {
+   "scientific": "Conuropsis carolinensis",
+   "common": "Carolina Parakeet",
+   "status": "EX"
+  },
+  {
+   "scientific": "Cyanopsitta spixii",
+   "common": "Spix's Macaw",
+   "status": "EW"
+  },
+  {
+   "scientific": "Ara tricolor",
+   "common": "Cuban Macaw",
+   "status": "EX"
+  },
+  {
+   "scientific": "Traversia lyalli",
+   "common": "Stephens Island Wren",
+   "status": "EX"
+  },
+  {
+   "scientific": "Xenicus longipes",
+   "common": "Bush Wren",
+   "status": "EX"
+  },
+  {
+   "scientific": "Cichlocolaptes mazarbarnetti",
+   "common": "Cryptic Treehunter",
+   "status": "EX"
+  },
+  {
+   "scientific": "Philydor novaesi",
+   "common": "Alagoas Foliage-gleaner",
+   "status": "EX"
+  },
+  {
+   "scientific": "Anthornis melanocephala",
+   "common": "Chatham Islands Bellbird",
+   "status": "EX"
+  },
+  {
+   "scientific": "Gerygone insularis",
+   "common": "Lord Howe Gerygone",
+   "status": "EX"
+  },
+  {
+   "scientific": "Turnagra tanagra",
+   "common": "North Island Piopio",
+   "status": "EX"
+  },
+  {
+   "scientific": "Turnagra capensis",
+   "common": "South Island Piopio",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pomarea maupitiensis",
+   "common": "Maupiti Monarch",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pomarea fluxa",
+   "common": "Eiao Monarch",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pomarea nukuhivae",
+   "common": "Nuku Hiva Monarch",
+   "status": "EX"
+  },
+  {
+   "scientific": "Myiagra freycineti",
+   "common": "Guam Flycatcher",
+   "status": "EX"
+  },
+  {
+   "scientific": "Corvus hawaiiensis",
+   "common": "Hawaiian Crow",
+   "status": "EW"
+  },
+  {
+   "scientific": "Heteralocha acutirostris",
+   "common": "Huia",
+   "status": "EX"
+  },
+  {
+   "scientific": "Nesillas aldabrana",
+   "common": "Aldabra Brush-Warbler",
+   "status": "EX"
+  },
+  {
+   "scientific": "Acrocephalus luscinius",
+   "common": "Nightingale Reed Warbler",
+   "status": "EX"
+  },
+  {
+   "scientific": "Acrocephalus nijoi",
+   "common": "Aguiguan Reed Warbler",
+   "status": "EX"
+  },
+  {
+   "scientific": "Acrocephalus yamashinae",
+   "common": "Pagan Reed Warbler",
+   "status": "EX"
+  },
+  {
+   "scientific": "Acrocephalus musae",
+   "common": "Society Islands Reed Warbler",
+   "status": "EX"
+  },
+  {
+   "scientific": "Acrocephalus astrolabii",
+   "common": "Mangareva Reed Warbler",
+   "status": "EX"
+  },
+  {
+   "scientific": "Poodytes rufescens",
+   "common": "Chatham Islands Fernbird",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zosterops semiflavus",
+   "common": "Marianne White-eye",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zosterops albogularis",
+   "common": "White-chested White-eye",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zosterops strenuus",
+   "common": "Robust White-eye",
+   "status": "EX"
+  },
+  {
+   "scientific": "Aplonis corvina",
+   "common": "Kosrae Starling",
+   "status": "EX"
+  },
+  {
+   "scientific": "Aplonis mavornata",
+   "common": "Mysterious Starling",
+   "status": "EX"
+  },
+  {
+   "scientific": "Aplonis fusca",
+   "common": "Tasman Starling",
+   "status": "EX"
+  },
+  {
+   "scientific": "Necropsar rodericanus",
+   "common": "Rodrigues Starling",
+   "status": "EX"
+  },
+  {
+   "scientific": "Fregilupus varius",
+   "common": "Reunion Starling",
+   "status": "EX"
+  },
+  {
+   "scientific": "Myadestes myadestinus",
+   "common": "Kamao",
+   "status": "EX"
+  },
+  {
+   "scientific": "Myadestes woahensis",
+   "common": "Amaui",
+   "status": "EX"
+  },
+  {
+   "scientific": "Zoothera terrestris",
+   "common": "Bonin Thrush",
+   "status": "EX"
+  },
+  {
+   "scientific": "Turdus ravidus",
+   "common": "Grand Cayman Thrush",
+   "status": "EX"
+  },
+  {
+   "scientific": "Moho braccatus",
+   "common": "Kauai Oo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Moho apicalis",
+   "common": "Oahu Oo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Moho bishopi",
+   "common": "Bishop's Oo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Moho nobilis",
+   "common": "Hawaii Oo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Chaetoptila angustipluma",
+   "common": "Kioea",
+   "status": "EX"
+  },
+  {
+   "scientific": "Melamprosops phaeosoma",
+   "common": "Poo-uli",
+   "status": "EX"
+  },
+  {
+   "scientific": "Paroreomyza flammea",
+   "common": "Kakawahie",
+   "status": "EX"
+  },
+  {
+   "scientific": "Chloridops kona",
+   "common": "Kona Grosbeak",
+   "status": "EX"
+  },
+  {
+   "scientific": "Rhodacanthis flaviceps",
+   "common": "Lesser Koa-Finch",
+   "status": "EX"
+  },
+  {
+   "scientific": "Rhodacanthis palmeri",
+   "common": "Greater Koa-Finch",
+   "status": "EX"
+  },
+  {
+   "scientific": "Ciridops anna",
+   "common": "Ula-ai-hawane",
+   "status": "EX"
+  },
+  {
+   "scientific": "Himatione fraithii",
+   "common": "Laysan Honeycreeper",
+   "status": "EX"
+  },
+  {
+   "scientific": "Drepanis pacifica",
+   "common": "Hawaii Mamo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Drepanis funerea",
+   "common": "Black Mamo",
+   "status": "EX"
+  },
+  {
+   "scientific": "Psittirostra psittacea",
+   "common": "Ou",
+   "status": "EX"
+  },
+  {
+   "scientific": "Dysmorodrepanis munroi",
+   "common": "Lanai Hookbill",
+   "status": "EX"
+  },
+  {
+   "scientific": "Hemignathus hanapepe",
+   "common": "Kauai Nukupuu",
+   "status": "EX"
+  },
+  {
+   "scientific": "Hemignathus lucidus",
+   "common": "Oahu Nukupuu",
+   "status": "EX"
+  },
+  {
+   "scientific": "Hemignathus affinis",
+   "common": "Maui Nukupuu",
+   "status": "EX"
+  },
+  {
+   "scientific": "Akialoa obscura",
+   "common": "Lesser Akialoa",
+   "status": "EX"
+  },
+  {
+   "scientific": "Akialoa ellisiana",
+   "common": "Oahu Akialoa",
+   "status": "EX"
+  },
+  {
+   "scientific": "Akialoa stejnegeri",
+   "common": "Kauai Akialoa",
+   "status": "EX"
+  },
+  {
+   "scientific": "Akialoa lanaiensis",
+   "common": "Maui-nui Akialoa",
+   "status": "EX"
+  },
+  {
+   "scientific": "Viridonia sagittirostris",
+   "common": "Greater Amakihi",
+   "status": "EX"
+  },
+  {
+   "scientific": "Loxops wolstenholmei",
+   "common": "Oahu Akepa",
+   "status": "EX"
+  },
+  {
+   "scientific": "Loxops ochraceus",
+   "common": "Maui Akepa",
+   "status": "EX"
+  },
+  {
+   "scientific": "Carpodacus ferreorostris",
+   "common": "Bonin Grosbeak",
+   "status": "EX"
+  },
+  {
+   "scientific": "Pipilo naufragus",
+   "common": "Bermuda Towhee",
+   "status": "EX"
+  },
+  {
+   "scientific": "Quiscalus palustris",
+   "common": "Slender-billed Grackle",
+   "status": "EX"
+  }
+ ],
+ "indexes_for_reference_only": [
+  110,
+  111,
+  154,
+  177,
+  206,
+  223,
+  289,
+  508,
+  574,
+  575,
+  597,
+  601,
+  654,
+  655,
+  731,
+  733,
+  734,
+  735,
+  743,
+  799,
+  830,
+  992,
+  1060,
+  1618,
+  1759,
+  1760,
+  1761,
+  1765,
+  1766,
+  1775,
+  1783,
+  1785,
+  1786,
+  1789,
+  1791,
+  1820,
+  1831,
+  1840,
+  1847,
+  1850,
+  1872,
+  1873,
+  1876,
+  1877,
+  1880,
+  1954,
+  2051,
+  2069,
+  2070,
+  2111,
+  2112,
+  2113,
+  2200,
+  2322,
+  2328,
+  2336,
+  2428,
+  2474,
+  2569,
+  2609,
+  2650,
+  2652,
+  2654,
+  2655,
+  2656,
+  2945,
+  3047,
+  3048,
+  3049,
+  3180,
+  3194,
+  3277,
+  3476,
+  3969,
+  3985,
+  4008,
+  4042,
+  4100,
+  4106,
+  4108,
+  4120,
+  4122,
+  4123,
+  4124,
+  4149,
+  4150,
+  4172,
+  4412,
+  4419,
+  4427,
+  4451,
+  4453,
+  5055,
+  5059,
+  5928,
+  6182,
+  6500,
+  6501,
+  6819,
+  6821,
+  6822,
+  6878,
+  7053,
+  7092,
+  7521,
+  7560,
+  7564,
+  7567,
+  7574,
+  7579,
+  7616,
+  8164,
+  8257,
+  8259,
+  8729,
+  8731,
+  8732,
+  8761,
+  8762,
+  8880,
+  8881,
+  8899,
+  9013,
+  9413,
+  9414,
+  9415,
+  9416,
+  9417,
+  10112,
+  10115,
+  10120,
+  10121,
+  10122,
+  10123,
+  10125,
+  10128,
+  10129,
+  10130,
+  10131,
+  10133,
+  10134,
+  10135,
+  10137,
+  10138,
+  10139,
+  10140,
+  10145,
+  10149,
+  10150,
+  10153,
+  10450,
+  10582
+ ]
+}

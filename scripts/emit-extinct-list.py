@@ -30,11 +30,24 @@ except ImportError:
     sys.exit("pip install openpyxl first")
 
 # IUCN codes that mean "cannot be photographed alive in the wild".
-# EW is included: an Extinct in the Wild species exists only in captivity, so a
-# wild-bird identifier should not offer it either. CR is deliberately NOT here,
-# even though it contains probably-extinct species like Ivory-billed
-# Woodpecker: those are exactly the records that would matter most.
+#
+# Measured on AviList v2025b: EX 147, EW 5, CR (PE) 17, CR (PEW) 2, CR 183.
+#
+# EW is included because an Extinct in the Wild species exists only in
+# captivity, so a wild-bird identifier should not offer it.
+#
+# CR (PE), "Critically Endangered, Possibly Extinct", is deliberately NOT
+# excluded, and neither is plain CR. Ivory-billed Woodpecker sits in that group,
+# and those are exactly the records that would matter most if one were ever
+# photographed. Excluding them would make the app unable to report the single
+# most significant sighting it could ever receive.
 EXCLUDE = {"EX", "EW"}
+
+# AviList v2025b column headers, matched case-insensitively. Falls back to a
+# fuzzy search so a header rename does not silently exclude nothing.
+SCI_HEADERS = ("scientific_name",)
+STATUS_HEADERS = ("iucn_red_list_category",)
+CODE_HEADERS = ("species_code_cornell_lab",)
 
 
 def norm(s):
@@ -57,23 +70,43 @@ def main():
     wb = openpyxl.load_workbook(args.avilist, read_only=True)
     ws = wb[wb.sheetnames[0]]
 
+    by_code = {}
+    for i, row in enumerate(tax):
+        if len(row) > 2 and row[2]:
+            by_code.setdefault(row[2], i)
+
     header = None
-    sci_col = status_col = None
+    sci_col = status_col = code_col = rank_col = None
     hits = []
     unmatched = []
     seen_status = {}
 
+    def find(headers, exact, *fuzzy):
+        for j, h in enumerate(headers):
+            if h in exact:
+                return j
+        for j, h in enumerate(headers):
+            if all(f in h for f in fuzzy):
+                return j
+        return None
+
     for row in ws.iter_rows(min_row=1, values_only=True):
         if header is None:
             header = [norm(c) for c in row]
-            for j, h in enumerate(header):
-                if h in ("scientific_name", "scientific name", "species"):
-                    sci_col = j
-                if "iucn" in h and ("red" in h or "status" in h or "category" in h):
-                    status_col = j
+            sci_col = find(header, SCI_HEADERS, "scientific")
+            status_col = find(header, STATUS_HEADERS, "iucn")
+            code_col = find(header, CODE_HEADERS, "species_code")
+            rank_col = find(header, ("taxon_rank",), "rank")
             if sci_col is None or status_col is None:
                 sys.exit("could not find scientific-name and IUCN columns; "
                          f"headers were: {header}")
+            print(f"columns: scientific={sci_col} iucn={status_col} "
+                  f"code={code_col} rank={rank_col}")
+            continue
+
+        # Subspecies rows carry their parent's status; only species rows map
+        # onto our taxonomy, and counting both would inflate the total.
+        if rank_col is not None and norm(row[rank_col]) != "species":
             continue
 
         sci = norm(row[sci_col])
@@ -83,7 +116,13 @@ def main():
         seen_status[status] = seen_status.get(status, 0) + 1
         if status not in EXCLUDE:
             continue
-        idx = by_sci.get(sci)
+        # Match on the eBird code first: it is the join key the rest of the
+        # pipeline uses, and it survives a scientific-name revision.
+        idx = None
+        if code_col is not None and row[code_col]:
+            idx = by_code.get(str(row[code_col]).strip())
+        if idx is None:
+            idx = by_sci.get(sci)
         if idx is None:
             unmatched.append((sci, status))
             continue
