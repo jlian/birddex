@@ -154,7 +154,17 @@ console.log(`target: ${remote ? 'REMOTE' : 'local'} ${DB}`)
 console.log(`plan  : ${plan.count} names resolved, built ${plan.builtAt}`)
 if (remote && !apply) console.log('(dry run)')
 
-for (const table of ['observation', 'dex_meta']) {
+// PREFLIGHT: resolve and validate EVERY table before writing ANY of them.
+//
+// Validating inside the write loop meant `observation` could already be
+// modified before `dex_meta` tripped the threshold, which contradicts an error
+// message telling the operator to investigate before writing. Separating the
+// passes makes --strict a real gate rather than a partial one.
+const TABLES = ['observation', 'dex_meta']
+const plans = []
+let strictViolation = null
+
+for (const table of TABLES) {
   const rows = d1(
     `SELECT DISTINCT speciesName FROM ${table} WHERE speciesName IS NOT NULL`)
   const names = rows.map(r => r.speciesName).filter(Boolean)
@@ -176,14 +186,26 @@ for (const table of ['observation', 'dex_meta']) {
   for (const name of unresolved) console.log(`      ${name}`)
 
   if (strictMax !== null && unresolved.length > strictMax) {
-    console.error(
-      `\nERROR: ${unresolved.length} unresolved names in ${table} exceeds ` +
-      `--strict ${strictMax}. A large tail means the resolver regressed, not ` +
-      `that the data is unusual; investigate before writing.`)
-    process.exit(1)
+    strictViolation = strictViolation ?? { table, count: unresolved.length }
   }
+  plans.push({ table, resolved })
+}
 
-  if (!apply) continue
+if (strictViolation) {
+  console.error(
+    `\nERROR: ${strictViolation.count} unresolved names in ` +
+    `${strictViolation.table} exceeds --strict ${strictMax}. A large tail ` +
+    `means the resolver regressed, not that the data is unusual; investigate ` +
+    `before writing. Nothing has been written.`)
+  process.exit(1)
+}
+
+if (!apply) {
+  console.log('\nDRY RUN. Re-run with --apply to write.')
+  process.exit(0)
+}
+
+for (const { table, resolved } of plans) {
 
   // ONE statement, not one per species.
   //
@@ -210,8 +232,4 @@ for (const table of ['observation', 'dex_meta']) {
   const after = d1(
     `SELECT COUNT(*) AS total, COUNT(speciesCode) AS coded FROM ${table}`)[0]
   console.log(`  verified   : ${after.coded}/${after.total} rows carry a code`)
-}
-
-if (!apply) {
-  console.log('\nDRY RUN. Re-run with --apply to write.')
 }
