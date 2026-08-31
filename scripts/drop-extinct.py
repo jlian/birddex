@@ -127,8 +127,12 @@ def main():
            --map {args.map_out} --csv <target_taxa.csv>
 
     3. re-emit the int8 classifier, keeping ONLY the rows in
-       taxonomy-keep-map.json kept_old_indexes, in order, then the probe row:
-         ml/distill/jobs/emit_int8_classifier.py
+       taxonomy-keep-map.json kept_old_indexes, in order, then the probe row.
+       --keep-map is NOT optional here: it defaults to empty, and without it
+       the emitter writes every source row and produces a classifier with the
+       OLD species count:
+         python3 ml/distill/jobs/emit_int8_classifier.py \\
+           --keep-map {args.map_out}
 
     4. rebuild the occurrence blob against the NEW taxonomy and the
        REMAPPED csv:
