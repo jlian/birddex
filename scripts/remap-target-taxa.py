@@ -52,10 +52,19 @@ def main():
 
     seen = {int(r["app_idx"]) for r in rows}
     expected = keep["old_rows"]
-    if max(seen) >= expected:
-        sys.exit(f"ERROR: {src} holds app_idx {max(seen)}, but the map was "
-                 f"built from a {expected}-row taxonomy. This CSV does not "
-                 f"match the pre-drop taxonomy and may already be remapped.")
+    # The CSV must span the PRE-DROP taxonomy exactly. Checking only the upper
+    # bound let an already-remapped file through: its max is new_rows - 1, which
+    # is below old_rows, so a second run would remap new indexes as if they were
+    # old and shift every row a second time. Requiring the exact last index
+    # makes the operation refuse to repeat itself.
+    if max(seen) != expected - 1:
+        already = ""
+        if max(seen) == keep["new_rows"] - 1:
+            already = ("  That is exactly the post-drop range, so this CSV has "
+                       "ALREADY been remapped.")
+        sys.exit(f"ERROR: {src} spans app_idx 0..{max(seen)}, but the map was "
+                 f"built from a {expected}-row taxonomy and needs "
+                 f"0..{expected - 1}.{already}")
 
     out_rows, dropped = [], []
     for r in rows:
