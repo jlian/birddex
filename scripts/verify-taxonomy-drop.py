@@ -61,6 +61,55 @@ def norm(s):
     return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
 
+def max_species_index(raw):
+    """Highest species index referenced by a decoded WDOP payload.
+
+    Port of read_wdop + decode_slot in ml/distill/build_rarity_blob.py. Slices
+    store species indexes as varint DELTAS, so the running total is the index.
+
+    Returns None when the layout does not decode, so a format change reports
+    "not checked" rather than a false pass.
+    """
+    try:
+        if raw[:4] != b"WDOP" or raw[4] < 4:
+            return None
+        n_cells = struct.unpack("<I", raw[16:20])[0]
+        idx_start = 20
+        totals_start = idx_start + (n_cells + 1) * 8
+        payload_start = totals_start + n_cells * 4
+        if payload_start > len(raw):
+            return None
+
+        top = -1
+        for slot in range(n_cells):
+            a = idx_start + slot * 8 + 4
+            b = idx_start + (slot + 1) * 8 + 4
+            start = struct.unpack("<I", raw[a:a + 4])[0]
+            end = struct.unpack("<I", raw[b:b + 4])[0]
+            p = payload_start + start
+            stop = payload_start + end
+            if stop > len(raw):
+                return None
+            cur = 0
+            while p < stop:
+                shift = 0
+                v = 0
+                while True:
+                    byte = raw[p]
+                    p += 1
+                    v |= (byte & 0x7F) << shift
+                    if not (byte & 0x80):
+                        break
+                    shift += 7
+                cur += v
+                p += 1          # quantised probability byte
+                if cur > top:
+                    top = cur
+        return None if top < 0 else top
+    except (IndexError, struct.error):
+        return None
+
+
 def fail(msg):
     print(f"  FAIL  {msg}")
     return 1
@@ -307,6 +356,34 @@ def main():
                          f"taxonomy is {new_hash}  -> parser WILL throw")
         else:
             errs += ok(f"{label} blob ({magic}) carries the new taxonomy hash")
+
+        # The header hash is NOT artifact alignment. build_prior_blob_month.py
+        # hashes taxonomy.json independently while reading app_idx straight out
+        # of target_taxa.csv, so a blob built from the PRE-DROP csv carries the
+        # NEW hash with OLD indexes. Both checks above pass and every species
+        # past the first drop is mis-keyed.
+        #
+        # That specific failure is visible in the payload: a pre-drop csv
+        # references indexes up to old_rows-1, which is out of range for the
+        # new taxonomy. Decode the species indexes and bound them.
+        #
+        # This does NOT prove alignment in general. A permutation that stays
+        # under new_rows passes, so it catches the stale-csv case this drop can
+        # actually produce, not every conceivable mis-key.
+        if magic == "WDOP":
+            top = max_species_index(raw)
+            if top is None:
+                print("        note: could not decode the WDOP payload, so "
+                      "species indexes were not bounds-checked")
+            elif top >= len(tax):
+                errs += fail(f"occurrence blob references species index "
+                             f"{top:,}, but the taxonomy has {len(tax):,} "
+                             f"rows (0..{len(tax) - 1:,})  -> built from a "
+                             f"PRE-DROP target_taxa.csv; the header hash "
+                             f"cannot see this")
+            else:
+                errs += ok(f"occurrence species indexes are in range "
+                           f"(max {top:,} < {len(tax):,})")
 
     print()
     if errs:
