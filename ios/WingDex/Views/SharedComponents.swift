@@ -372,12 +372,21 @@ struct BirdHeroImage: View {
 @MainActor
 private final class MapSnapshotCache {
     static let shared = MapSnapshotCache()
-    private let cache = NSCache<NSString, UIImage>()
+    private let images = NSCache<NSString, UIImage>()
 
-    init() { cache.countLimit = 100 }
+    private init() {
+        images.countLimit = 256
+        images.totalCostLimit = 24 * 1_024 * 1_024
+    }
 
-    func image(for key: String) -> UIImage? { cache.object(forKey: key as NSString) }
-    func set(_ image: UIImage, for key: String) { cache.setObject(image, forKey: key as NSString) }
+    func image(for key: String) -> UIImage? {
+        images.object(forKey: key as NSString)
+    }
+
+    func set(_ image: UIImage, for key: String) {
+        let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? 1
+        images.setObject(image, forKey: key as NSString, cost: cost)
+    }
 }
 
 // MARK: - Bird Row
@@ -604,20 +613,35 @@ struct OutingRow: View {
 
 /// Static map snapshot image - no controls, no "Legal" text.
 private struct MiniMapSnapshot: View {
+    private struct LoadedSnapshot {
+        let key: String
+        let image: UIImage
+    }
+
     let latitude: Double
     let longitude: Double
     let size: CGFloat
     @Environment(\.colorScheme) private var colorScheme
-    @State private var image: UIImage?
+    @Environment(\.displayScale) private var displayScale
+    @State private var loadedSnapshot: LoadedSnapshot?
 
     private var cacheKey: String {
-        "\(latitude):\(longitude):\(Int(size)):\(colorScheme == .dark ? "dark" : "light")"
+        [
+            String(latitude.bitPattern, radix: 16),
+            String(longitude.bitPattern, radix: 16),
+            String(Double(size).bitPattern, radix: 16),
+            String(Double(displayScale).bitPattern, radix: 16),
+            colorScheme == .dark ? "dark" : "light",
+        ].joined(separator: ":")
     }
 
     var body: some View {
+        let displayedImage = loadedSnapshot?.key == cacheKey
+            ? loadedSnapshot?.image
+            : MapSnapshotCache.shared.image(for: cacheKey)
         Group {
-            if let image {
-                Image(uiImage: image)
+            if let displayedImage {
+                Image(uiImage: displayedImage)
                     .resizable()
                     .scaledToFill()
             } else {
@@ -627,38 +651,38 @@ private struct MiniMapSnapshot: View {
         }
         .frame(width: size, height: size)
         .task(id: cacheKey) {
-            image = nil
-            await snapshot(cacheKey: cacheKey)
-        }
-    }
+            if let cached = MapSnapshotCache.shared.image(for: cacheKey) {
+                loadedSnapshot = LoadedSnapshot(key: cacheKey, image: cached)
+                return
+            }
+            let options = MKMapSnapshotter.Options()
+            options.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                latitudinalMeters: 4_000,
+                longitudinalMeters: 4_000
+            )
+            options.size = CGSize(width: size, height: size)
+            options.traitCollection = UITraitCollection(traitsFrom: [
+                UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light),
+                UITraitCollection(displayScale: displayScale),
+            ])
+            options.pointOfInterestFilter = .excludingAll
 
-    private func snapshot(cacheKey: String) async {
-        if let cached = MapSnapshotCache.shared.image(for: cacheKey) {
-            image = cached
-            return
-        }
-        let options = MKMapSnapshotter.Options()
-        options.region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-            latitudinalMeters: 4000,
-            longitudinalMeters: 4000
-        )
-        // Use 2x for snapshot; actual screen scale not needed for thumbnails
-        options.size = CGSize(width: size * 2, height: size * 2)
-        options.traitCollection = UITraitCollection(
-            userInterfaceStyle: colorScheme == .dark ? .dark : .light
-        )
-        options.pointOfInterestFilter = .excludingAll
-        options.showsBuildings = false
-
-        do {
             let snapshotter = MKMapSnapshotter(options: options)
-            let result = try await snapshotter.start()
-            try Task.checkCancellation()
-            MapSnapshotCache.shared.set(result.image, for: cacheKey)
-            image = result.image
-        } catch {
-            // Leave placeholder
+            let snapshot: MKMapSnapshotter.Snapshot
+            do {
+                snapshot = try await withTaskCancellationHandler {
+                    try Task.checkCancellation()
+                    return try await snapshotter.start()
+                } onCancel: {
+                    snapshotter.cancel()
+                }
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            MapSnapshotCache.shared.set(snapshot.image, for: cacheKey)
+            loadedSnapshot = LoadedSnapshot(key: cacheKey, image: snapshot.image)
         }
     }
 }
