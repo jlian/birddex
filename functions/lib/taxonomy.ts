@@ -1,4 +1,5 @@
 import rawTaxonomy from '../../src/lib/taxonomy.json'
+import rawExtra from '../../src/lib/taxonomy-extra.json'
 
 /** Shared prefix stripped from thumbnail paths in taxonomy.json to save ~490 KB. */
 const COMMONS_PREFIX = 'https://upload.wikimedia.org/wikipedia/commons/'
@@ -36,6 +37,27 @@ for (const taxon of taxonomy) {
   byCommonLower.set(taxon.common.toLowerCase(), taxon)
   byScientificLower.set(taxon.scientific.toLowerCase(), taxon)
   if (taxon.ebirdCode) byCodeLower.set(taxon.ebirdCode.toLowerCase(), taxon)
+}
+
+// Display sidecar: eBird taxa that are NOT in the classifier (spuh, slash,
+// hybrid, issf, domestic, and the species dropped by the extinct-taxa change).
+// Held in separate maps so nothing that walks `taxonomy` can pick them up: that
+// array is index-aligned with the int8 matrix and both prior blobs, and these
+// entries have no row in either.
+const extraByCommon = new Map<string, TaxonEntry>()
+const extraByScientific = new Map<string, TaxonEntry>()
+
+for (const entry of (rawExtra as { entries: unknown[][] }).entries) {
+  const [code, common, scientific] = entry as [string, string, string]
+  const taxon: TaxonEntry = { common, scientific, ebirdCode: code }
+  const commonKey = common.toLowerCase()
+  const scientificKey = scientific.toLowerCase()
+  // The classifier always wins, so an eBird revision that reuses a name cannot
+  // shadow a species we actually identify.
+  if (!byCommonLower.has(commonKey)) extraByCommon.set(commonKey, taxon)
+  if (!byScientificLower.has(scientificKey)) {
+    extraByScientific.set(scientificKey, taxon)
+  }
 }
 
 export function getWikiTitle(commonName: string): string | undefined {
@@ -139,6 +161,73 @@ export function getEbirdCode(commonName: string): string {
 
 export function getSpeciesByCode(code: string): TaxonEntry | undefined {
   return byCodeLower.get(code.toLowerCase())
+}
+
+/**
+ * Resolve a stored speciesName to an eBird species code, or '' if it cannot be
+ * resolved. This is the key #306 groups on.
+ *
+ * WHY THIS IS NOT getEbirdCode
+ * ----------------------------
+ * getEbirdCode strips the parenthesised part and matches the COMMON name
+ * against the classifier taxonomy only. That misses two whole classes of row
+ * that a real eBird export produces:
+ *
+ *   - non-species taxa. "Gull sp.", "Greater/Lesser Scaup", "Mallard x
+ *     American Black Duck" are legitimate eBird taxa that are deliberately not
+ *     in the classifier.
+ *   - domestic forms, where eBird's common name and ours disagree entirely.
+ *     Production holds "Pekin Duck (Anas platyrhynchos domesticus)" while
+ *     eBird calls the taxon "Mallard (Domestic type)". No common-name rule
+ *     connects those; only the scientific name does.
+ *
+ * So this consults the sidecar too and prefers the SCIENTIFIC name, which is
+ * far more stable across eBird revisions than the common name. Trinomials fall
+ * back to their binomial, which is what turns the two production misses above
+ * into hits.
+ *
+ * It deliberately does NOT rewrite the stored name. Normalising import names
+ * to canonical form was tried in 5b1cb31e and reverted in 3efe9080: our
+ * taxonomy IS the eBird taxonomy, and the only divergence was a local edit.
+ * Resolving a code alongside the name is additive; rewriting the name is what
+ * caused trouble before.
+ */
+export function resolveSpeciesCode(speciesName: string): string {
+  if (!speciesName) return ''
+  const raw = speciesName.trim()
+
+  // "Common (Scientific)" is the canonical stored shape.
+  const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const commonPart = (paren ? paren[1] : raw).trim().toLowerCase()
+  const scientificPart = paren ? paren[2].trim().toLowerCase() : ''
+
+  // 1. scientific name, exact
+  if (scientificPart) {
+    const hit = byScientificLower.get(scientificPart) ?? extraByScientific.get(scientificPart)
+    if (hit?.ebirdCode) return hit.ebirdCode
+
+    // 2. trinomial -> binomial. "anas platyrhynchos domesticus" is not an
+    //    eBird scientific name, but "anas platyrhynchos" is.
+    const words = scientificPart.split(/\s+/)
+    if (words.length > 2) {
+      const binomial = words.slice(0, 2).join(' ')
+      const viaBinomial =
+        byScientificLower.get(binomial) ?? extraByScientific.get(binomial)
+      if (viaBinomial?.ebirdCode) return viaBinomial.ebirdCode
+    }
+  }
+
+  // 3. common name, classifier first so it wins any collision
+  const byCommon = byCommonLower.get(commonPart) ?? extraByCommon.get(commonPart)
+  if (byCommon?.ebirdCode) return byCommon.ebirdCode
+
+  // 4. the full stored string as a common name, for taxa whose own name
+  //    contains parentheses, e.g. "Mallard (Domestic type)".
+  const whole = raw.toLowerCase()
+  const asWhole = byCommonLower.get(whole) ?? extraByCommon.get(whole)
+  if (asWhole?.ebirdCode) return asWhole.ebirdCode
+
+  return ''
 }
 
 /** Return the BirdLife DataZone factsheet URL for a species, or undefined if unknown. */
