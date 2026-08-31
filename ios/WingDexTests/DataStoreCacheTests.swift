@@ -283,6 +283,104 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(cache.replacements.last?.response.dex, authoritativeDex)
     }
 
+    func testDeleteOutingKeepsLocalDataUntilServerConfirms() async throws {
+        let response = fixtureResponseWithDependentData(locationName: "Fresh Marsh")
+        let service = SuspendedDeleteService(response: response)
+        let cache = CacheStub(snapshot: nil)
+        let store = DataStore(service: service, cache: cache)
+        store.activate(accountID: "account-a")
+        await store.loadAll()
+        cache.replacements.removeAll()
+
+        let deletion = Task { try await store.deleteOuting(id: "outing-1") }
+        await service.waitUntilDeleteStarts()
+
+        XCTAssertEqual(store.outings.map(\.id), ["outing-1"])
+        XCTAssertEqual(store.observations.map(\.id), ["observation-1"])
+        XCTAssertEqual(store.photos.map(\.id), ["photo-1"])
+
+        await service.completeDelete()
+        try await deletion.value
+
+        XCTAssertTrue(store.outings.isEmpty)
+        XCTAssertTrue(store.observations.isEmpty)
+        XCTAssertTrue(store.photos.isEmpty)
+        XCTAssertTrue(cache.replacements.last?.response.outings.isEmpty == true)
+    }
+
+    func testFailedDeleteNeverOptimisticallyRemovesOuting() async {
+        let response = fixtureResponseWithDependentData(locationName: "Fresh Marsh")
+        let service = SuspendedDeleteService(response: response)
+        let store = DataStore(service: service)
+        store.activate(accountID: "account-a")
+        await store.loadAll()
+
+        let deletion = Task { try await store.deleteOuting(id: "outing-1") }
+        await service.waitUntilDeleteStarts()
+        await Task.yield()
+
+        XCTAssertEqual(store.outings.map(\.id), ["outing-1"])
+
+        await service.completeDelete(with: .failure(URLError(.notConnectedToInternet)))
+        do {
+            try await deletion.value
+            XCTFail("Expected deletion to fail")
+        } catch {
+            XCTAssertTrue(error is URLError)
+        }
+        XCTAssertEqual(store.outings.map(\.id), ["outing-1"])
+    }
+
+    func testQueuedDuplicateDeleteOnlyCallsServerOnce() async throws {
+        let response = fixtureResponse(locationName: "Fresh Marsh")
+        let service = SuspendedDeleteService(response: response)
+        let store = DataStore(service: service)
+        store.activate(accountID: "account-a")
+        await store.loadAll()
+
+        let firstDeletion = Task { try await store.deleteOuting(id: "outing-1") }
+        await service.waitUntilDeleteStarts()
+        let duplicateDeletion = Task { try await store.deleteOuting(id: "outing-1") }
+        await Task.yield()
+
+        let callsWhilePending = await service.deleteCallCount()
+        XCTAssertEqual(callsWhilePending, 1)
+
+        await service.completeDelete()
+        try await firstDeletion.value
+        try await duplicateDeletion.value
+
+        let finalCalls = await service.deleteCallCount()
+        XCTAssertEqual(finalCalls, 1)
+        XCTAssertTrue(store.outings.isEmpty)
+    }
+
+    func testQueuedDuplicateDeleteSharesAmbiguousFailure() async {
+        let response = fixtureResponse(locationName: "Fresh Marsh")
+        let service = SuspendedDeleteService(response: response)
+        let store = DataStore(service: service)
+        store.activate(accountID: "account-a")
+        await store.loadAll()
+
+        let firstDeletion = Task { try await store.deleteOuting(id: "outing-1") }
+        await service.waitUntilDeleteStarts()
+        let duplicateDeletion = Task { try await store.deleteOuting(id: "outing-1") }
+        await Task.yield()
+
+        await service.completeDelete(with: .failure(URLError(.timedOut)))
+        for deletion in [firstDeletion, duplicateDeletion] {
+            do {
+                try await deletion.value
+                XCTFail("Expected the shared deletion to fail")
+            } catch {
+                XCTAssertTrue(error is URLError)
+            }
+        }
+
+        let deleteCallCount = await service.deleteCallCount()
+        XCTAssertEqual(deleteCallCount, 1)
+    }
+
     func testAmbiguousMutationFailureReconcilesServerAuthoritativeState() async {
         let authoritativeEmpty = AllDataResponse(outings: [], photos: [], observations: [], dex: [])
         let service = AmbiguousDeleteService(
@@ -467,13 +565,14 @@ final class DataStoreCacheTests: XCTestCase {
         await Task.yield()
         store.activate(accountID: "account-b")
         await accountAService.completeDelete()
-        _ = try await firstDelete.value
-        do {
-            try await queuedDelete.value
-            XCTFail("Expected queued departed-account mutation to be cancelled")
-        } catch is CancellationError {
-        } catch {
-            XCTFail("Expected cancellation, got \(error)")
+        for deletion in [firstDelete, queuedDelete] {
+            do {
+                try await deletion.value
+                XCTFail("Expected departed-account mutation to be cancelled")
+            } catch is CancellationError {
+            } catch {
+                XCTFail("Expected cancellation, got \(error)")
+            }
         }
         await store.loadAll()
 
@@ -503,6 +602,30 @@ final class DataStoreCacheTests: XCTestCase {
             photos: [],
             observations: [],
             dex: []
+        )
+    }
+
+    private func fixtureResponseWithDependentData(locationName: String) -> AllDataResponse {
+        let response = fixtureResponse(locationName: locationName)
+        return AllDataResponse(
+            outings: response.outings,
+            photos: [Photo(
+                id: "photo-1",
+                outingId: "outing-1",
+                dataUrl: "data:image/jpeg;base64,",
+                thumbnail: "data:image/jpeg;base64,",
+                fileHash: "photo-hash",
+                fileName: "bird.jpg"
+            )],
+            observations: [BirdObservation(
+                id: "observation-1",
+                outingId: "outing-1",
+                speciesName: "American Robin",
+                count: 1,
+                certainty: .confirmed,
+                notes: ""
+            )],
+            dex: [fixtureDex(speciesName: "American Robin", totalCount: 1)]
         )
     }
 
@@ -693,7 +816,7 @@ private actor RefreshDeleteRaceService: DataStoreService {
 private actor SuspendedDeleteService: DataStoreService {
     private let response: AllDataResponse
     private var deleteCalls = 0
-    private var deleteContinuation: CheckedContinuation<Void, Never>?
+    private var deleteContinuation: CheckedContinuation<DexUpdateResponse, Error>?
     private var deleteWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(response: AllDataResponse) {
@@ -704,10 +827,12 @@ private actor SuspendedDeleteService: DataStoreService {
 
     func deleteOuting(id _: String) async throws -> DexUpdateResponse {
         deleteCalls += 1
+        if deleteCalls > 1 {
+            return DexUpdateResponse(dexUpdates: [])
+        }
         deleteWaiters.forEach { $0.resume() }
         deleteWaiters.removeAll()
-        await withCheckedContinuation { deleteContinuation = $0 }
-        return DexUpdateResponse(dexUpdates: [])
+        return try await withCheckedThrowingContinuation { deleteContinuation = $0 }
     }
 
     func waitUntilDeleteStarts() async {
@@ -715,8 +840,10 @@ private actor SuspendedDeleteService: DataStoreService {
         await withCheckedContinuation { deleteWaiters.append($0) }
     }
 
-    func completeDelete() {
-        deleteContinuation?.resume()
+    func completeDelete(
+        with result: Result<DexUpdateResponse, Error> = .success(DexUpdateResponse(dexUpdates: []))
+    ) {
+        deleteContinuation?.resume(with: result)
         deleteContinuation = nil
     }
 
