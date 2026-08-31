@@ -79,7 +79,7 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
  * (`cat wingclip_visual_int8.onnx wingclip_visual_int8.data
  * text_classifier_int8.bin | sha256sum`).
  */
-export const MODEL_VERSION = "62a76a30"
+export const MODEL_VERSION = "650a8d93"
 
 /**
  * The four served assets, 56.39 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
@@ -97,12 +97,17 @@ export const MODEL_VERSION = "62a76a30"
  * model data to deliver an identical model.
  *
  * It IS bumped for the probe row. text_classifier_int8.bin gained a 772-byte
- * 11,168th row, so the model bytes genuinely changed and a stale immutable
- * cache entry would hand an existing user an 11,167-row file. That file still
- * decodes and still matches the taxonomy count, so the mismatch would NOT
- * throw: the engine would simply read a species row as the probe and gate on
- * noise. This is exactly the silent-staleness case the version query exists
- * for.
+ * trailing probe row, so the model bytes genuinely changed and a stale
+ * immutable cache entry would hand an existing user a probe-less file. That
+ * file still decodes and still matches the taxonomy count, so the mismatch
+ * would NOT throw: the engine would simply read a species row as the probe and
+ * gate on noise. This is exactly the silent-staleness case the version query
+ * exists for.
+ *
+ * It IS bumped again for the extinct-species drop. The classifier lost 152
+ * rows, so every species index past the first dropped row shifted. A stale
+ * cache entry here is the worst case the query string exists to prevent: the
+ * old file decodes cleanly against the NEW taxonomy and mis-keys the names.
  */
 export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
