@@ -978,7 +978,8 @@ struct AccountAvatarView: View {
     ContentView()
         .environment(AuthService())
         .environment(previewStore())
-    .environment(AppNavigationModel())
+        .environment(AppNavigationModel())
+        .environment(ToastCenter())
 }
 
 #Preview("App - Signed Out") {
@@ -986,5 +987,6 @@ struct AccountAvatarView: View {
         .environment(AuthService())
         .environment(previewStore(empty: true))
         .environment(AppNavigationModel())
+        .environment(ToastCenter())
 }
 #endif

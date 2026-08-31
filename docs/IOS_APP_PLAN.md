@@ -932,7 +932,7 @@ Phase 9 contains the native platform work required for the iPhone 1.0 launch. Sh
 
 #### 9.3.2 Swipe Actions
 
-- [x] Outing: leading export and trailing delete with confirmation
+- [x] Outing: leading export; deletion stays in the context menu and detail view
 - [x] Outing species: trailing remove
 - [x] Passkey: trailing delete
 

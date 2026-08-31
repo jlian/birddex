@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SpeciesDetailView: View {
     let speciesName: String
+    @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
     @State private var wikiExtract: String?
     @State private var fullImageUrl: String?
     @State private var imageCredit: WikimediaImageCredit?
@@ -73,7 +75,7 @@ struct SpeciesDetailView: View {
                         Button {
                             contextMenuOuting = item.outing
                         } label: {
-                            Label("View Outing", systemImage: "binoculars")
+                            Label("View Details", systemImage: "binoculars")
                         }
                         if let lat = item.outing.lat, let lon = item.outing.lon {
                             Button {
@@ -83,10 +85,13 @@ struct SpeciesDetailView: View {
                             }
                         }
                     } preview: {
+                        // Context-menu previews render outside the app's environment hierarchy.
                         NavigationStack {
                             OutingDetailView(outingId: item.outing.id)
                         }
+                        .environment(auth)
                         .environment(store)
+                        .environment(toasts)
                     }
                 }
             } header: {
@@ -332,6 +337,7 @@ struct SpeciesDetailView: View {
     PreviewTabs(.wingdex) {
         NavigationStack {
             SpeciesDetailView(speciesName: PreviewData.sampleSpecies)
+                .environment(AuthService())
                 .environment(previewStore())
                 .environment(ToastCenter())
         }
@@ -343,6 +349,7 @@ struct SpeciesDetailView: View {
     PreviewTabs(.wingdex) {
         NavigationStack {
             SpeciesDetailView(speciesName: PreviewData.sampleSpecies)
+                .environment(AuthService())
                 .environment(previewStore())
                 .environment(ToastCenter())
         }

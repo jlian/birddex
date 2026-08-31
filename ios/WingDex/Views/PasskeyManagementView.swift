@@ -183,6 +183,7 @@ struct PasskeyManagementView: View {
     NavigationStack {
         PasskeyManagementView()
             .environment(AuthService())
+            .environment(ToastCenter())
     }
 }
 #endif
