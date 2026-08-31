@@ -78,19 +78,26 @@ describe('Guatemala vulture', () => {
     // decodes. Fixing the TEXT side too swapped one shortlist member
     // (942 out, 2821 in) and moved this to 0.6088.
     //
-    // Dropping the 152 extinct species moved it again, to 0.6159. One of the
-    // 25 shortlist members was itself extinct (old index 3985), so the
-    // fixture now carries 24 candidates and the softmax denominator lost a
-    // term. A smaller denominator raises every surviving probability, which
-    // is why this went UP by 0.007 without the ranking changing. Black
-    // Vulture still wins and the bounds below still hold.
+    // Dropping the 152 extinct species moved it slightly, to 0.6141. One of
+    // the 25 shortlist members was itself extinct (old index 3985). The
+    // shortlist is NOT simply one shorter for it: both clients take a fixed
+    // top-25 out of the CURRENT classifier (K = 25 in bird-id-local.ts,
+    // candidateCount in BirdIdEngine.swift), so the freed slot is refilled by
+    // the next surviving species. Here that is Red-legged Crake, promoted to
+    // rank 25 at sim 0.551366, and the other 24 members carry over unchanged.
+    // A 24-candidate fixture would have tested a state production cannot
+    // produce, which is why this is regenerated rather than trimmed.
+    //
+    // The softmax denominator therefore keeps 25 terms and the displayed
+    // value barely moves: 0.6088 -> 0.6141. Black Vulture still wins and the
+    // bounds below still hold.
     //
     // The upper bound is the point of the change: at the old floor this read
     // 0.999999, and anything above 0.9 means the floor regressed.
     const displayed = fix.p_bird * probs[0]
     expect(displayed).toBeGreaterThan(0.5)
     expect(displayed).toBeLessThan(0.65)
-    expect(displayed).toBeCloseTo(0.6159, 3)
+    expect(displayed).toBeCloseTo(0.6141, 3)
     // The probe only scales, so it cannot have moved the winner.
     expect(fix.p_bird).toBeGreaterThan(MODEL_ASSETS.calibration.probe.threshold)
   })
