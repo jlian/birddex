@@ -43,6 +43,24 @@ describe('resolveSpeciesCode', () => {
     expect(resolveSpeciesCode('')).toBe('')
   })
 
+  it('resolves a hybrid whose eBird category suffix was omitted', () => {
+    // eBird spells these "Western x Glaucous-winged Gull (hybrid)", but the
+    // suffix reads like an annotation, so users and non-eBird imports drop it.
+    // Without this the name has a real code but grouped by name instead.
+    expect(resolveSpeciesCode('Western x Glaucous-winged Gull')).toBe('x00051')
+    expect(resolveSpeciesCode('Mallard x American Black Duck')).toBe('x00004')
+    // The canonical spelling must keep resolving identically.
+    expect(resolveSpeciesCode('Western x Glaucous-winged Gull (hybrid)')).toBe('x00051')
+  })
+
+  it('does not invent a hybrid for a name that is not one', () => {
+    // The suffix is only appended after every exact lookup has failed, so a
+    // real species and outright junk are both unaffected.
+    expect(resolveSpeciesCode('Mallard')).toBe('mallar3')
+    expect(resolveSpeciesCode('Sparrow')).toBe('')
+    expect(resolveSpeciesCode('Unknown bird')).toBe('')
+  })
+
   it('prefers the scientific name when common names collide', () => {
     // The scientific name is the more stable key across eBird revisions.
     expect(resolveSpeciesCode('Anything At All (Cardinalis cardinalis)')).toBe('norcar')

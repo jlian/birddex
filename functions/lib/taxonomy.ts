@@ -233,6 +233,26 @@ export function resolveSpeciesCode(speciesName: string): string {
   const byCommon = byCommonLower.get(commonPart) ?? extraByCommon.get(commonPart)
   if (byCommon?.ebirdCode) return byCommon.ebirdCode
 
+  // 5. hybrid and intergrade names without eBird's category suffix.
+  //
+  //    eBird spells these "Western x Glaucous-winged Gull (hybrid)", but the
+  //    suffix reads like an annotation rather than part of the name, so users
+  //    and non-eBird imports routinely drop it. Those strings resolved to
+  //    nothing and fell back to name grouping, which splits a bird that DOES
+  //    have a code away from other records of the same cross.
+  //
+  //    Appending the suffix is safe rather than a guess: across the 791 sidecar
+  //    hybrid and intergrade taxa, no stripped form collides with another
+  //    stripped form, and none collides with a name that already resolves. So
+  //    this only ever recovers an exact taxon, and it runs last, after every
+  //    exact lookup above has already failed.
+  if (!/\((hybrid|intergrade)\)$/i.test(whole)) {
+    for (const suffix of [' (hybrid)', ' (intergrade)']) {
+      const hit = extraByCommon.get(whole + suffix)
+      if (hit?.ebirdCode) return hit.ebirdCode
+    }
+  }
+
   return ''
 }
 
