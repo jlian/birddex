@@ -49,8 +49,19 @@ def main():
     drop_sci = {norm(s["scientific"]) for s in spec["species"]}
 
     if spec.get("taxonomy_rows") != len(tax):
-        print(f"WARNING: list was built against {spec.get('taxonomy_rows')} rows, "
-              f"taxonomy.json now has {len(tax)}", file=sys.stderr)
+        msg = (f"list was built against {spec.get('taxonomy_rows')} rows, "
+               f"taxonomy.json now has {len(tax)}")
+        # A stale list must not be allowed to write. Re-running the documented
+        # --apply command against an already-dropped taxonomy matches zero rows,
+        # so it would rewrite taxonomy.json unchanged and emit a keep-map that
+        # is the identity, silently overwriting the real map that records which
+        # 152 rows went. The classifier re-emit reads that map, so the damage
+        # only surfaces later as mis-keyed species.
+        if args.apply:
+            sys.exit(f"ERROR: {msg}\n"
+                     f"       Re-run scripts/emit-extinct-list.py against the "
+                     f"current taxonomy, or drop --apply to dry-run.")
+        print(f"WARNING: {msg}", file=sys.stderr)
 
     keep, dropped = [], []
     for i, row in enumerate(tax):
@@ -88,17 +99,25 @@ def main():
     print(f"""
   REMAINING STEPS, all four artifacts must ship together:
 
-    2. re-emit the int8 classifier, keeping ONLY the rows in
+    2. remap app_idx in the target taxa CSV, THEN re-emit the classifier.
+       build_prior_blob.py and build_rarity_blob.py read app_idx straight
+       out of that CSV, so a blob built against the old column is keyed to
+       the OLD row numbers and mis-names every species after the first drop:
+         python3 scripts/remap-target-taxa.py \\
+           --map {args.map_out} --csv <target_taxa.csv>
+
+    3. re-emit the int8 classifier, keeping ONLY the rows in
        taxonomy-keep-map.json kept_old_indexes, in order, then the probe row:
          ml/distill/jobs/emit_int8_classifier.py
 
-    3. rebuild the occurrence blob against the NEW taxonomy:
+    4. rebuild the occurrence blob against the NEW taxonomy and the
+       REMAPPED csv:
          ml/distill/build_prior_blob.py --taxonomy src/lib/taxonomy.json ...
 
-    4. rebuild the rarity blob against the NEW taxonomy:
+    5. rebuild the rarity blob against the NEW taxonomy and the REMAPPED csv:
          ml/distill/build_rarity_blob.py --taxonomy src/lib/taxonomy.json ...
 
-    5. update the hash in BOTH clients:
+    6. update the hash in BOTH clients:
          src/lib/taxonomy-hash.ts          TAXONOMY_SHA16 = "{new_hash}"
          ios/.../BirdIdEngine.swift        taxonomySha16  = "{new_hash}"
 
