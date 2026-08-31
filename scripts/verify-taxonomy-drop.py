@@ -142,6 +142,15 @@ def main():
     if part_errs:
         for e in part_errs:
             errs += fail(f"keep-map is not a partition: {e}")
+        # Every check below indexes `old` and `tax` THROUGH this map. Carrying
+        # on with a map already proven invalid turns a diagnosed failure into
+        # an IndexError traceback, which hides the diagnosis that was just
+        # printed. Stop here and report normally.
+        print()
+        print(f"{errs} CHECK(S) FAILED -- do not ship")
+        print("  the keep-map is not a valid partition, so no artifact check "
+              "below it can be trusted; fix the map first")
+        return 1
     else:
         errs += ok(f"keep-map partitions all {old_rows:,} old rows exactly "
                    f"({len(kept):,} kept + {len(dropped_idx):,} dropped)")
@@ -172,19 +181,31 @@ def main():
             errs += fail(f"--old-taxonomy has {len(old):,} rows, keep-map "
                          f"expects {m['old_rows']:,}")
         else:
+            # Compare the WHOLE row, not just the scientific name. Every field
+            # here is row-indexed by some consumer: common name and eBird code
+            # go out in labels.json, and the image path renders in the UI. A
+            # taxonomy whose scientific names are correctly ordered but whose
+            # common names or codes shifted by one would pass a name-only
+            # check and ship mislabelled birds, which is the exact failure
+            # this script exists to catch.
             bad = 0
             for new_i, old_i in enumerate(kept):
-                if norm(old[old_i][1]) != norm(tax[new_i][1]):
+                if old[old_i] != tax[new_i]:
                     bad += 1
                     if bad <= 5:
-                        print(f"        row {new_i}: expected "
-                              f"{old[old_i][1]!r}, got {tax[new_i][1]!r}")
+                        diff = [j for j in range(max(len(old[old_i]),
+                                                     len(tax[new_i])))
+                                if (old[old_i][j:j + 1] != tax[new_i][j:j + 1])]
+                        j = diff[0]
+                        print(f"        row {new_i} (old {old_i}): fields "
+                              f"{diff} differ; field {j} expected "
+                              f"{old[old_i][j:j + 1]}, got {tax[new_i][j:j + 1]}")
             if bad:
-                errs += fail(f"{bad:,} of {len(kept):,} kept rows do not hold "
-                             f"the species the keep-map assigns them")
+                errs += fail(f"{bad:,} of {len(kept):,} kept rows do not match "
+                             f"their source row field for field")
             else:
-                errs += ok(f"all {len(kept):,} kept rows hold the species the "
-                           f"keep-map assigns them")
+                errs += ok(f"all {len(kept):,} kept rows match their source "
+                           f"row field for field")
 
             # The dropped rows must be GONE, not merely absent from the map.
             dropped_sci = {norm(old[i][1]) for i in m["dropped_old_indexes"]}
