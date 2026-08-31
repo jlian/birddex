@@ -57,11 +57,16 @@ if args.keep_map:
     with open(args.keep_map) as f:
         km = json.load(f)
     keep = np.asarray(km["kept_old_indexes"], dtype=np.int64)
-    if tf.shape[0] < int(keep.max()) + 1:
+    # The map describes exactly old_rows source rows, so the matrix must have
+    # exactly that many. A minimum-size check accepted a LARGER matrix, and a
+    # taxonomy that inserted rows would then be indexed by an older map: the
+    # output has the right row count and the wrong species in most of them.
+    # Nothing downstream can see it, because the count and the hash both agree.
+    if tf.shape[0] != int(km["old_rows"]):
         raise SystemExit(
-            "keep-map indexes up to %d but the matrix has %d rows; the .npy "
-            "predates the taxonomy it is being filtered against"
-            % (int(keep.max()), tf.shape[0]))
+            "keep-map was built from a %d-row taxonomy but the matrix has %d "
+            "rows; the .npy does not match the taxonomy the map describes"
+            % (int(km["old_rows"]), tf.shape[0]))
     before = tf.shape[0]
     tf = tf[keep]
     print("keep-map: %d -> %d rows (dropped %d)"
