@@ -124,12 +124,21 @@ struct SettingsView: View {
             // Version info
             Section {
                 let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+                let releaseURL = URL(string: "https://github.com/jlian/wingdex/releases/tag/ios-v\(version)")!
                 HStack {
                     Spacer()
-                    VStack(spacing: 2) {
-                        Text("WingDex v\(version)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    VStack(spacing: 6) {
+                        HStack(spacing: 8) {
+                            Link("WingDex™ \(version)", destination: releaseURL)
+                            .accessibilityIdentifier("settings.versionLink")
+                            Text("·")
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
+                            Link("By John Lian", destination: URL(string: "https://johnlian.net")!)
+                                .accessibilityIdentifier("settings.authorLink")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         #if DEBUG
                         Text("\(GitInfo.branch)@\(GitInfo.commit)")
                             .font(.caption2)
