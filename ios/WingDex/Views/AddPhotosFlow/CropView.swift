@@ -7,7 +7,7 @@ import UIKit
 struct CropView: View {
     let imageData: Data
     let initialCropBox: CropBoxResult?
-    var reason: String = "For best results, crop to one bird"
+    var reason: String = "Crop around one bird, then try again."
     let onBack: () -> Void
     let onSkip: () -> Void
     let onApply: (CropBoxResult) -> Void
@@ -21,7 +21,7 @@ struct CropView: View {
     init(
         imageData: Data,
         initialCropBox: CropBoxResult?,
-        reason: String = "For best results, crop to one bird",
+        reason: String = "Crop around one bird, then try again.",
         onBack: @escaping () -> Void,
         onSkip: @escaping () -> Void,
         onApply: @escaping (CropBoxResult) -> Void
@@ -511,12 +511,12 @@ extension View {
     }
 }
 
-#Preview("Multi-Bird") {
+#Preview("Low Confidence") {
     NavigationStack {
         CropView(
             imageData: PreviewData.placeholderImageData(systemName: "bird.fill", size: 400),
             initialCropBox: CropBoxResult(x: 20, y: 30, width: 40, height: 40),
-            reason: "Multiple birds detected, crop to one",
+            reason: "The identification is uncertain. Crop around one bird and try again.",
             onBack: {},
             onSkip: {}
         ) { _ in }
