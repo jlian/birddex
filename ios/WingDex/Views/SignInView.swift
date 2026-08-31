@@ -126,7 +126,7 @@ struct SignInView: View {
                 .padding(.bottom, 32)
 
                 if hasAnonymousData {
-                    Text("Your sightings are saved only on this device. They can disappear if the app's data is removed or you switch devices. An account keeps them and unlocks import and export. It takes one tap and no email.")
+                    Text("Your sightings are tied to this app on this device. You may lose access if its data is removed or you switch devices. Create an account to keep them and unlock import and export. A passkey needs no email or password.")
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
                     .foregroundStyle(.white)

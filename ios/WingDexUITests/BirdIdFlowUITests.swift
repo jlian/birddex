@@ -84,7 +84,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
             app.staticTexts["Keep your"].existsOrWait(timeout: 10),
             "The first anonymous save did not show the durability prompt"
         )
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'An account keeps them'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'Create an account to keep them'")).firstMatch.exists)
         XCTAssertFalse(app.buttons["Delete Data"].exists)
         app.buttons["Close"].tap()
         let accountButton = app.buttons["Log in"]
