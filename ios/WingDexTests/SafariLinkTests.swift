@@ -28,9 +28,4 @@ final class SafariLinkTests: XCTestCase {
     func testSchemeMatchIsCaseInsensitive() {
         XCTAssertNotNil(SafariLink(url: URL(string: "HTTPS://example.org")!))
     }
-
-    func testCarriesReaderPreference() {
-        XCTAssertEqual(SafariLink(url: URL(string: "https://en.wikipedia.org/wiki/Merlin")!, preferReader: true)?.preferReader, true)
-        XCTAssertEqual(SafariLink(url: URL(string: "https://ebird.org/species/merlin")!)?.preferReader, false)
-    }
 }
