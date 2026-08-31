@@ -517,7 +517,7 @@ embedding space and L2-normalized. `Student.forward()` IS the exportable graph.
 Input resolution 224.
 
 Classification uses zero-shot cosine similarity. It compares the student embedding
-against an **11,167 × 768 matrix of BioCLIP-2 text embeddings**. The build computes
+against an **11,015 × 768 matrix of BioCLIP-2 text embeddings**. The build computes
 that matrix one time and ships it frozen. **The text encoder never runs on the
 device.**
 
