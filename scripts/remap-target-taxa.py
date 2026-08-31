@@ -50,13 +50,20 @@ def main():
         sys.exit(f"ERROR: {src} has no app_idx column; columns are "
                  f"{list(rows[0])}")
 
-    seen = {int(r["app_idx"]) for r in rows}
+    idxs = [int(r["app_idx"]) for r in rows]
+    seen = set(idxs)
     expected = keep["old_rows"]
-    # The CSV must span the PRE-DROP taxonomy exactly. Checking only the upper
-    # bound let an already-remapped file through: its max is new_rows - 1, which
-    # is below old_rows, so a second run would remap new indexes as if they were
-    # old and shift every row a second time. Requiring the exact last index
-    # makes the operation refuse to repeat itself.
+    # The CSV must span the PRE-DROP taxonomy EXACTLY: every index from 0 to
+    # old_rows - 1, once each.
+    #
+    # Checking only the upper bound let an already-remapped file through: its
+    # max is new_rows - 1, which is below old_rows, so a second run would remap
+    # new indexes as if they were old and shift every row again.
+    #
+    # Checking only the maximum is also not enough on its own. A CSV missing an
+    # index, or carrying a duplicate row, still ends at 11166 and would pass,
+    # then hand the blob builders a taxon that never appears or appears twice,
+    # while this script printed a contiguous range and looked correct.
     if max(seen) != expected - 1:
         already = ""
         if max(seen) == keep["new_rows"] - 1:
@@ -65,6 +72,18 @@ def main():
         sys.exit(f"ERROR: {src} spans app_idx 0..{max(seen)}, but the map was "
                  f"built from a {expected}-row taxonomy and needs "
                  f"0..{expected - 1}.{already}")
+
+    if len(idxs) != len(seen):
+        dupes = sorted({i for i in seen if idxs.count(i) > 1})
+        sys.exit(f"ERROR: {src} repeats app_idx {dupes[:10]}"
+                 f"{' and more' if len(dupes) > 10 else ''}; each taxon must "
+                 f"appear exactly once or the blobs double-count it")
+
+    missing = sorted(set(range(expected)) - seen)
+    if missing:
+        sys.exit(f"ERROR: {src} is missing {len(missing)} app_idx value(s), "
+                 f"starting {missing[:10]}; the CSV must cover every row of "
+                 f"the pre-drop taxonomy or those taxa vanish from the blobs")
 
     out_rows, dropped = [], []
     for r in rows:

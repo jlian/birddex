@@ -101,22 +101,55 @@ def main():
     else:
         errs += ok("kept order is monotonic (a pure drop, no reordering)")
 
-    # 4. anchors: species must sit where the keep-map says
+    # 4. EVERY kept row must be the species the keep-map says it is.
+    #
+    # This was a ~51-row sample, which cannot establish the property. The
+    # keep-map is the input to both the taxonomy edit and the classifier
+    # re-emit, and the row-identity check below re-uses that same map, so a
+    # wrong kept_old_indexes entry outside the sample would drive the rebuild
+    # AND satisfy the check that is supposed to catch it. Comparing every row
+    # against the old taxonomy is the only step here that ties the map to
+    # something it did not produce, so it has to be exhaustive.
     if args.old_taxonomy:
         old = json.loads(Path(args.old_taxonomy).read_text())
-        bad = 0
-        step = max(1, len(kept) // 50)
-        for new_i in range(0, len(kept), step):
-            old_i = kept[new_i]
-            if norm(old[old_i][1]) != norm(tax[new_i][1]):
-                bad += 1
-                if bad <= 5:
-                    print(f"        row {new_i}: expected {old[old_i][1]!r}, "
-                          f"got {tax[new_i][1]!r}")
-        if bad:
-            errs += fail(f"{bad} sampled anchors landed on the wrong row")
+
+        old_hash = hashlib.sha256(Path(args.old_taxonomy).read_bytes()) \
+            .hexdigest()[:16]
+        if old_hash != m["old_sha16"]:
+            errs += fail(f"--old-taxonomy hash {old_hash} != keep-map "
+                         f"{m['old_sha16']}; this is not the taxonomy the map "
+                         f"was built from, so the comparison below is "
+                         f"meaningless")
         else:
-            errs += ok(f"{len(range(0, len(kept), step))} sampled anchors align")
+            errs += ok("old taxonomy hash matches the keep-map")
+
+        if len(old) != m["old_rows"]:
+            errs += fail(f"--old-taxonomy has {len(old):,} rows, keep-map "
+                         f"expects {m['old_rows']:,}")
+        else:
+            bad = 0
+            for new_i, old_i in enumerate(kept):
+                if norm(old[old_i][1]) != norm(tax[new_i][1]):
+                    bad += 1
+                    if bad <= 5:
+                        print(f"        row {new_i}: expected "
+                              f"{old[old_i][1]!r}, got {tax[new_i][1]!r}")
+            if bad:
+                errs += fail(f"{bad:,} of {len(kept):,} kept rows do not hold "
+                             f"the species the keep-map assigns them")
+            else:
+                errs += ok(f"all {len(kept):,} kept rows hold the species the "
+                           f"keep-map assigns them")
+
+            # The dropped rows must be GONE, not merely absent from the map.
+            dropped_sci = {norm(old[i][1]) for i in m["dropped_old_indexes"]}
+            survivors = sorted(dropped_sci & {norm(r[1]) for r in tax})
+            if survivors:
+                errs += fail(f"{len(survivors)} dropped species survive in the "
+                             f"taxonomy, e.g. {survivors[:5]}")
+            else:
+                errs += ok(f"none of the {len(dropped_sci):,} dropped species "
+                           f"survive in the taxonomy")
 
     # 5. classifier row count
     if args.classifier:
@@ -206,6 +239,7 @@ def main():
     skipped = [name for name, path in (("--classifier", args.classifier),
                                        ("--occurrence", args.occurrence),
                                        ("--rarity", args.rarity),
+                                       ("--old-taxonomy", args.old_taxonomy),
                                        ("--old-classifier", args.old_classifier))
                if not path]
     if skipped:

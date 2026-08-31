@@ -1,5 +1,5 @@
 {
-  "note": "Real 24-candidate shortlist for the Guatemala vulture (the model returns a top-25; one member, old index 3985, was an extinct species dropped in this PR), emitted by ml/distill/vemb_fixture_onnx.py through the SHIPPED path on BOTH sides of the dot product: the int8 ONNX visual encoder (public/models/wingclip_visual_int8.onnx) and the dequantised int8 text rows the browser decodes out of public/models/text_classifier_int8.bin. Earlier revisions used the fp32 PyTorch student, and then the ONNX encoder against fp32 build_text() rows, both of which pinned similarities the browser never produces. lat/lon/month are the photo EXIF.",
+  "note": "Real 25-candidate shortlist for the Guatemala vulture, emitted by ml/distill/vemb_fixture_onnx.py through the SHIPPED path on BOTH sides of the dot product: the int8 ONNX visual encoder (public/models/wingclip_visual_int8.onnx) and the dequantised int8 text rows the browser decodes out of public/models/text_classifier_int8.bin. Earlier revisions used the fp32 PyTorch student, and then the ONNX encoder against fp32 build_text() rows, both of which pinned similarities the browser never produces. lat/lon/month are the photo EXIF.",
   "lat": 14.752512,
   "lon": -91.165575,
   "month": 8,
@@ -27,7 +27,8 @@
     3267,
     2128,
     4596,
-    2756
+    2756,
+    1824
   ],
   "cand_sim": [
     0.5884584558424837,
@@ -53,7 +54,8 @@
     0.5527689109625845,
     0.5526642655253295,
     0.5519080660182925,
-    0.5514512729570603
+    0.5514512729570603,
+    0.5513661266307675
   ],
   "p_bird": 0.9878467939395326,
   "p_bird_note": "Calibrated P(bird) for this crop, computed through the SAME int8 ONNX encoder and the same last-row probe decode the app uses. The displayed confidence is p_bird * P(species | bird)."
