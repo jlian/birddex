@@ -115,11 +115,16 @@ struct WingDexView: View {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 5) {
                 Menu {
-                    ForEach(DexSortField.allCases, id: \.self) { field in
-                        Button {
-                            selectSortField(field)
-                        } label: {
+                    Picker(
+                        "Sort by",
+                        selection: Binding(
+                            get: { sortField },
+                            set: { selectSortField($0) }
+                        )
+                    ) {
+                        ForEach(DexSortField.allCases, id: \.self) { field in
                             Label(field.label, systemImage: field.icon)
+                                .tag(field)
                         }
                     }
 
