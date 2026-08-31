@@ -8,6 +8,7 @@ different fine-tune, so the path is asserted rather than globbed.
 Run from ml/distill with .venv/bin/python. Pass --dry-run to stage only.
 """
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -83,8 +84,22 @@ def main():
         if tf.shape[0] != int(km["old_rows"]):
             sys.exit("keep-map was built from a %d-row taxonomy but the "
                      "matrix has %d rows" % (int(km["old_rows"]), tf.shape[0]))
+
+        # Row counts alone do not tie the map to THIS taxonomy. A stale map
+        # from a different same-sized taxonomy keeps 11,015 WRONG rows, and the
+        # count assertion below passes just as happily, so the release would
+        # publish embeddings under the wrong labels. The map records the hash
+        # it was built against, so bind to that instead.
+        tx_hash = hashlib.sha256(open(TAXONOMY, "rb").read()).hexdigest()[:16]
+        if tx_hash != km["new_sha16"]:
+            sys.exit("taxonomy sha256[:16] %s does not match the keep-map's "
+                     "new_sha16 %s; that map was built for a different "
+                     "taxonomy and its indexes would mis-key the release"
+                     % (tx_hash, km["new_sha16"]))
+
         tf = tf[np.asarray(km["kept_old_indexes"], dtype=np.int64)]
-        log("keep-map: %d -> %d rows" % (km["old_rows"], tf.shape[0]))
+        log("keep-map: %d -> %d rows (taxonomy %s)"
+            % (km["old_rows"], tf.shape[0], tx_hash))
 
     np.save(os.path.join(STAGE, "text_classifier_fp32.npy"), tf)
     log("copied text classifier " + str(tf.shape))
