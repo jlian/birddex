@@ -20,14 +20,23 @@ species' range.
 
 Usage:
   python3 scripts/remap-target-taxa.py --map scripts/taxonomy-keep-map.json \
-    --csv ml/distill/target_taxa.csv
+    --csv ml/distill/target_taxa.csv --old-taxonomy <pre-drop taxonomy.json>
   python3 scripts/remap-target-taxa.py --map ... --csv ... --out remapped.csv
+
+The pre-drop taxonomy comes out of git, e.g.
+  git show <pre-drop-sha>:src/lib/taxonomy.json > /tmp/old-taxonomy.json
 """
 import argparse
 import csv
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
+
+
+def norm(s):
+    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
 
 def main():
@@ -36,6 +45,12 @@ def main():
                     help="taxonomy-keep-map.json from drop-extinct.py")
     ap.add_argument("--csv", required=True, help="target taxa CSV to remap")
     ap.add_argument("--out", help="output path; default is in place")
+    ap.add_argument("--old-taxonomy",
+                    help="the PRE-DROP taxonomy.json the CSV was built "
+                         "against. Its hash is checked against the map's "
+                         "old_sha16 and every CSV scientific name is compared "
+                         "at its app_idx. Skipping it leaves the CSV bound to "
+                         "the taxonomy by index arithmetic alone.")
     args = ap.parse_args()
 
     keep = json.loads(Path(args.map).read_text())
@@ -84,6 +99,51 @@ def main():
         sys.exit(f"ERROR: {src} is missing {len(missing)} app_idx value(s), "
                  f"starting {missing[:10]}; the CSV must cover every row of "
                  f"the pre-drop taxonomy or those taxa vanish from the blobs")
+
+    # Numeric coverage still does not say the CSV belongs to THIS taxonomy. A
+    # CSV from a different or reordered 11,167-row taxonomy holds every app_idx
+    # exactly once and passes everything above, and the remap would then bind
+    # its iNaturalist ids to the wrong post-drop species while the blob
+    # builders embed the correct new taxonomy hash. The result is a blob that
+    # verifies clean and is mis-keyed.
+    #
+    # The only fix is to check the NAMES against the pre-drop taxonomy the map
+    # was built from, which is what old_sha16 identifies.
+    if args.old_taxonomy:
+        old_path = Path(args.old_taxonomy)
+        old_hash = hashlib.sha256(old_path.read_bytes()).hexdigest()[:16]
+        if old_hash != keep["old_sha16"]:
+            sys.exit(f"ERROR: {old_path} has sha256[:16] {old_hash}, but the "
+                     f"map was built from {keep['old_sha16']}. This is not the "
+                     f"pre-drop taxonomy, so comparing names against it proves "
+                     f"nothing.")
+        old_tax = json.loads(old_path.read_text())
+        if len(old_tax) != expected:
+            sys.exit(f"ERROR: {old_path} has {len(old_tax):,} rows, the map "
+                     f"expects {expected:,}")
+        if "scientific" not in rows[0]:
+            sys.exit(f"ERROR: {src} has no scientific column, so it cannot be "
+                     f"checked against the taxonomy; columns are "
+                     f"{list(rows[0])}")
+
+        bad = []
+        for r in rows:
+            i = int(r["app_idx"])
+            if norm(old_tax[i][1]) != norm(r["scientific"]):
+                bad.append((i, r["scientific"], old_tax[i][1]))
+        if bad:
+            print(f"ERROR: {len(bad)} row(s) name a different species than the "
+                  f"pre-drop taxonomy holds at that app_idx:", file=sys.stderr)
+            for i, got, want in bad[:10]:
+                print(f"    app_idx {i}: csv {got!r}, taxonomy {want!r}",
+                      file=sys.stderr)
+            sys.exit("this CSV was not built against the taxonomy the map "
+                     "describes; remapping it would mis-key the blobs")
+        print(f"  checked {len(rows):,} scientific names against "
+              f"{old_path.name} ({old_hash})")
+    else:
+        print("  WARNING: no --old-taxonomy given, so the CSV is bound to the "
+              "taxonomy by index arithmetic only", file=sys.stderr)
 
     out_rows, dropped = [], []
     for r in rows:
