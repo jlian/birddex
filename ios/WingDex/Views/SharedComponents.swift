@@ -59,6 +59,9 @@ private struct OutingRowActionsModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .contextMenu {
+                Button(action: onView) {
+                    Label("View Details", systemImage: "binoculars")
+                }
                 Button(action: onEditLocation) {
                     Label("Edit Location", systemImage: "pencil")
                 }
@@ -81,11 +84,13 @@ private struct OutingRowActionsModifier: ViewModifier {
                 }
                 .disabled(!store.hasLoadedAll)
             } preview: {
+                // Context-menu previews render outside the app's environment hierarchy.
                 NavigationStack {
                     OutingDetailView(outingId: outing.id)
                 }
                 .environment(auth)
                 .environment(store)
+                .environment(toasts)
             }
             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                 if auth.isRegisteredAccount {
@@ -98,14 +103,6 @@ private struct OutingRowActionsModifier: ViewModifier {
                     .disabled(observations.isEmpty || isExporting)
                 }
             }
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
-                    pendingDeletion = outing
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(!store.hasLoadedAll)
-            }
             .sheet(item: $exportItem) { item in
                 ActivityView(item: item)
             }
@@ -114,7 +111,7 @@ private struct OutingRowActionsModifier: ViewModifier {
             } message: {
                 Text(operationError ?? "Something went wrong. Try again.")
             }
-            .accessibilityAction(named: "View Outing", onView)
+            .accessibilityAction(named: "View Details", onView)
     }
 
     @MainActor

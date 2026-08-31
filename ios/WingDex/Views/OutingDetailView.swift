@@ -361,7 +361,9 @@ struct OutingDetailView: View {
                         NavigationStack {
                             SpeciesDetailView(speciesName: speciesName)
                         }
+                        .environment(auth)
                         .environment(store)
+                        .environment(toasts)
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
@@ -428,7 +430,9 @@ struct OutingDetailView: View {
                         NavigationStack {
                             SpeciesDetailView(speciesName: speciesName)
                         }
+                        .environment(auth)
                         .environment(store)
+                        .environment(toasts)
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {

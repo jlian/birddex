@@ -4,6 +4,7 @@ import UIKit
 struct HomeView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
     @Environment(\.showAddPhotos) private var showAddPhotos
     @Environment(\.showWingDex) private var showWingDex
     @Environment(\.showOutings) private var showOutings
@@ -211,7 +212,9 @@ struct HomeView: View {
                         let cardSize = (geo.size.width - padding * 2 - spacing * 2) / visibleCards
                         SpeciesCarousel(
                             entries: recentSpecies,
+                            auth: auth,
                             store: store,
+                            toasts: toasts,
                             cardSize: cardSize,
                             menu: { speciesContextMenu(for: $0) },
                             accessibilityActions: { speciesAccessibilityActions(for: $0) },

@@ -4,6 +4,7 @@ struct WingDexView: View {
     @Environment(AuthService.self) private var auth
     @Environment(DataStore.self) private var store
     @Environment(AppNavigationModel.self) private var navigation
+    @Environment(ToastCenter.self) private var toasts
     @Environment(\.showSettings) private var showSettings
     @State private var sortField: DexSortField = .date
     @State private var sortAscending = false
@@ -247,15 +248,16 @@ struct WingDexView: View {
                     }
                 }
             } preview: {
-                // WHY NavigationStack + .environment(store): context menu previews render
+                // WHY NavigationStack + explicit environments: context menu previews render
                 // in an isolated view hierarchy outside the parent NavigationStack. Without
                 // wrapping in NavigationStack, navigation titles and toolbars are missing.
-                // Without .environment(store), the preview crashes because child views
-                // (e.g., SpeciesDetailView) can't find the DataStore in the environment.
+                // Child views must receive their observable dependencies again here.
                 NavigationStack {
                     SpeciesDetailView(speciesName: entry.speciesName)
                 }
+                .environment(auth)
                 .environment(store)
+                .environment(toasts)
             }
         }
         .listStyle(.plain)

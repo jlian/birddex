@@ -8,7 +8,9 @@ struct ContextMenuAccessibilityAction {
 
 struct SpeciesCarousel: UIViewRepresentable {
     let entries: [DexEntry]
+    let auth: AuthService
     let store: DataStore
+    let toasts: ToastCenter
     let cardSize: CGFloat
     let menu: (DexEntry) -> UIMenu
     let accessibilityActions: (DexEntry) -> [ContextMenuAccessibilityAction]
@@ -17,7 +19,9 @@ struct SpeciesCarousel: UIViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             entries: entries,
+            auth: auth,
             store: store,
+            toasts: toasts,
             cardSize: cardSize,
             menu: menu,
             accessibilityActions: accessibilityActions,
@@ -50,7 +54,9 @@ struct SpeciesCarousel: UIViewRepresentable {
         let needsReload = coordinator.entries != entries || coordinator.cardSize != cardSize
         coordinator.update(
             entries: entries,
+            auth: auth,
             store: store,
+            toasts: toasts,
             cardSize: cardSize,
             menu: menu,
             accessibilityActions: accessibilityActions,
@@ -68,7 +74,9 @@ struct SpeciesCarousel: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegate {
         var entries: [DexEntry]
+        var auth: AuthService
         var store: DataStore
+        var toasts: ToastCenter
         var cardSize: CGFloat
         var menu: (DexEntry) -> UIMenu
         var accessibilityActions: (DexEntry) -> [ContextMenuAccessibilityAction]
@@ -76,14 +84,18 @@ struct SpeciesCarousel: UIViewRepresentable {
 
         init(
             entries: [DexEntry],
+            auth: AuthService,
             store: DataStore,
+            toasts: ToastCenter,
             cardSize: CGFloat,
             menu: @escaping (DexEntry) -> UIMenu,
             accessibilityActions: @escaping (DexEntry) -> [ContextMenuAccessibilityAction],
             onSelect: @escaping (DexEntry) -> Void
         ) {
             self.entries = entries
+            self.auth = auth
             self.store = store
+            self.toasts = toasts
             self.cardSize = cardSize
             self.menu = menu
             self.accessibilityActions = accessibilityActions
@@ -92,14 +104,18 @@ struct SpeciesCarousel: UIViewRepresentable {
 
         func update(
             entries: [DexEntry],
+            auth: AuthService,
             store: DataStore,
+            toasts: ToastCenter,
             cardSize: CGFloat,
             menu: @escaping (DexEntry) -> UIMenu,
             accessibilityActions: @escaping (DexEntry) -> [ContextMenuAccessibilityAction],
             onSelect: @escaping (DexEntry) -> Void
         ) {
             self.entries = entries
+            self.auth = auth
             self.store = store
+            self.toasts = toasts
             self.cardSize = cardSize
             self.menu = menu
             self.accessibilityActions = accessibilityActions
@@ -152,7 +168,9 @@ struct SpeciesCarousel: UIViewRepresentable {
                         rootView: NavigationStack {
                             SpeciesDetailView(speciesName: entry.speciesName)
                         }
+                        .environment(self.auth)
                         .environment(self.store)
+                        .environment(self.toasts)
                     )
                     controller.view.backgroundColor = .clear
                     controller.sizingOptions = [.preferredContentSize]

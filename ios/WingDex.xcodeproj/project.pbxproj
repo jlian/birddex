@@ -30,6 +30,7 @@
 		2284F98CC028B45FC6FE48A5 /* AccountDataCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F5471006ACBF058737B455 /* AccountDataCache.swift */; };
 		2300C447E8E145BFE9E12FA5 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B8621A8E42D9A18A2125F8 /* Config.swift */; };
 		2314AD2B5AD2CAE6D1426754 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A98BE3CB346AC4FFC28246D /* SharedComponents.swift */; };
+		254D34CAC9D06DD06A59AF67 /* OutingListRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A7EB7A927DD7466090098B /* OutingListRegressionUITests.swift */; };
 		27F3FC5181B71ADB687A56CC /* CropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E26C4686392C96AAB515199 /* CropView.swift */; };
 		28C700594AF36399A460FAAB /* CollageImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A1D850B642C51F0AEA560F3 /* CollageImageCache.swift */; };
 		2CDDDF5ED153526ADF124174 /* collage21.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7A292B9762D444579B157E2C /* collage21.jpg */; };
@@ -332,6 +333,7 @@
 		D695216CCB35E38C87F3A7E3 /* collage18.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage18.jpg; sourceTree = "<group>"; };
 		D695C5A3092D731C50F4DDB0 /* collage6.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage6.jpg; sourceTree = "<group>"; };
 		D6BE01C34369162F9C9D17E7 /* collage15.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage15.jpg; sourceTree = "<group>"; };
+		D7A7EB7A927DD7466090098B /* OutingListRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutingListRegressionUITests.swift; sourceTree = "<group>"; };
 		DE1613DCCF3480F9644D0D29 /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		E01D6CCC5A4C9255372AFD03 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		E3267AD348C875809EB03958 /* collage4.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = collage4.jpg; sourceTree = "<group>"; };
@@ -552,6 +554,7 @@
 				259B1F2D858EDAE9375BD7CD /* AccessibilityAuditJourneys.swift */,
 				0DCAA3DD89775D5E47432890 /* BirdIdFlowUITestCase.swift */,
 				1E50D8A8630F0A8BBDB0CCEB /* BirdIdFlowUITests.swift */,
+				D7A7EB7A927DD7466090098B /* OutingListRegressionUITests.swift */,
 			);
 			path = WingDexUITests;
 			sourceTree = "<group>";
@@ -1039,6 +1042,7 @@ CAF5CA6AE5E559BB812F83AC /* Assets.xcassets in Resources */,
 			files = (
 				BF0095A16E14CCEB6019BEA9 /* BirdIdFlowUITestCase.swift in Sources */,
 				3F1EE669013316073161A378 /* BirdIdFlowUITests.swift in Sources */,
+				254D34CAC9D06DD06A59AF67 /* OutingListRegressionUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
