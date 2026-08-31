@@ -11,7 +11,7 @@ export type { RarityState }
  *
  * Fetched eagerly wherever a list of birds renders, with no download gate. That
  * is only defensible because it is 1.38 MiB and served immutable, unlike the
- * 56.39 MiB model set behind ModelDownloadGate.
+ * 56.25 MiB model set behind ModelDownloadGate.
  *
  * Once resolved, every lookup is synchronous, so a row computes its own verdict
  * during render with no per-row state. Mirrors RarityStore on iOS.

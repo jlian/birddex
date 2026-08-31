@@ -1,6 +1,6 @@
 /**
- * Persistent caching for the 56.39 MiB of model assets (MODEL_BYTES; the
- * decoded total is 67.52 MiB and is not a transfer size).
+ * Persistent caching for the 56.25 MiB of model assets (MODEL_BYTES; the
+ * decoded total is 67.37 MiB and is not a transfer size).
  *
  * Uses the Cache API directly rather than a service worker. main.tsx
  * deliberately unregisters service workers, so adding one back would fight an
@@ -11,8 +11,8 @@
  * collides with a cached old one:
  *   wingclip_visual_int8.onnx   13.72 MiB
  *   wingclip_visual_int8.data   24.00 MiB
- *   text_classifier_int8.bin     8.22 MiB
- *   occurrence.<hash>.bin.gz    21.58 MiB
+ *   text_classifier_int8.bin     8.11 MiB
+ *   occurrence.<hash>.bin.gz    21.54 MiB
  *
  * The HTTP cache alone is not enough: it is best-effort and the browser can
  * evict 24 MiB of weights whenever it likes, which would silently turn a free

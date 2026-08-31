@@ -93,16 +93,25 @@ def main():
     old_bytes = TAX.read_bytes()
     old_hash = hashlib.sha256(old_bytes).hexdigest()[:16]
     new_tax = [tax[i] for i in keep]
-    # Match the existing file's formatting so the diff is only the removals.
-    new_bytes = (json.dumps(new_tax, ensure_ascii=False,
-                            separators=(",", ":")) + "\n").encode()
+    # Match the existing file's formatting: "[", then ONE ROW PER LINE, then
+    # "]". Serialising the whole array on a single line collapses the file to
+    # one line, so a 152-row removal renders as 11,169 deletions and 1
+    # insertion and no reviewer can see WHICH species went. Verified this
+    # round-trips the pre-drop file byte for byte.
+    body = ",\n".join(json.dumps(r, ensure_ascii=False, separators=(",", ":"))
+                      for r in new_tax)
+    new_bytes = ("[\n" + body + "\n]\n").encode()
     new_hash = hashlib.sha256(new_bytes).hexdigest()[:16]
 
     print(f"  taxonomy rows : {len(tax):,} -> {len(new_tax):,}  "
           f"(dropped {len(dropped)})")
     print(f"  first dropped : index {dropped[0] if dropped else '-'}"
           f"  ({tax[dropped[0]][0] if dropped else '-'})")
-    print(f"  renumbered    : {len(tax) - (dropped[0] if dropped else len(tax)) - 1:,} rows")
+    # Rows AFTER the first removal that survive to be renumbered. Counting
+    # len(tax) - first - 1 overcounts, because the later dropped rows do not
+    # survive to be renumbered at all.
+    renumbered = sum(1 for i in keep if dropped and i > dropped[0])
+    print(f"  renumbered    : {renumbered:,} rows")
     print(f"  sha256[:16]   : {old_hash} -> {new_hash}")
 
     if not args.apply:

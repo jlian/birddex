@@ -94,12 +94,51 @@ def main():
     else:
         errs += ok("taxonomy hash matches the keep-map")
 
-    # 3. kept order monotonic: a drop must preserve relative order
+    # 3. the keep-map must be an exact partition of the OLD row space.
+    #
+    # Ascending order alone does not establish a pure drop, because duplicates
+    # sort too: a map of [0, 1, 1] with dropped [3] is ascending, has the right
+    # length, and drives a taxonomy where old row 2 silently disappears and row
+    # 1 appears twice. Kept and dropped must be disjoint, in range, and cover
+    # 0..old_rows-1 exactly once between them.
     kept = m["kept_old_indexes"]
+    dropped_idx = m["dropped_old_indexes"]
+    old_rows = m["old_rows"]
+
     if kept != sorted(kept):
         errs += fail("kept indexes are NOT ascending; rows were reordered")
     else:
         errs += ok("kept order is monotonic (a pure drop, no reordering)")
+
+    kept_set, dropped_set = set(kept), set(dropped_idx)
+    part_errs = []
+    if len(kept_set) != len(kept):
+        dupes = sorted({i for i in kept if kept.count(i) > 1})
+        part_errs.append(f"kept repeats {dupes[:5]}")
+    if len(dropped_set) != len(dropped_idx):
+        part_errs.append("dropped repeats an index")
+    if kept_set & dropped_set:
+        part_errs.append(f"kept and dropped overlap at "
+                         f"{sorted(kept_set & dropped_set)[:5]}")
+    out_of_range = sorted(i for i in kept_set | dropped_set
+                          if i < 0 or i >= old_rows)
+    if out_of_range:
+        part_errs.append(f"indexes outside 0..{old_rows - 1}: "
+                         f"{out_of_range[:5]}")
+    uncovered = set(range(old_rows)) - kept_set - dropped_set
+    if uncovered:
+        part_errs.append(f"{len(uncovered)} old row(s) neither kept nor "
+                         f"dropped, starting {sorted(uncovered)[:5]}")
+    if len(kept) != m["new_rows"]:
+        part_errs.append(f"kept length {len(kept):,} != new_rows "
+                         f"{m['new_rows']:,}")
+
+    if part_errs:
+        for e in part_errs:
+            errs += fail(f"keep-map is not a partition: {e}")
+    else:
+        errs += ok(f"keep-map partitions all {old_rows:,} old rows exactly "
+                   f"({len(kept):,} kept + {len(dropped_idx):,} dropped)")
 
     # 4. EVERY kept row must be the species the keep-map says it is.
     #
