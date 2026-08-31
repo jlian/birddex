@@ -137,10 +137,10 @@ def main():
   REMAINING STEPS, all four artifacts must ship together:
 
     2. remap app_idx in the target taxa CSV, THEN re-emit the classifier.
-       build_prior_blob.py reads app_idx STRAIGHT out of that CSV, so an
-       occurrence blob built against the old column is keyed to the OLD row
-       numbers and mis-names every species after the first drop. The rarity
-       blob does not read the CSV at all, but it is derived FROM the
+       jobs/build_prior_blob_month.py reads app_idx STRAIGHT out of that CSV,
+       so an occurrence blob built against the old column is keyed to the OLD
+       row numbers and mis-names every species after the first drop. The
+       rarity blob does not read the CSV at all, but it is derived FROM the
        occurrence blob, so it inherits the same mis-keying.
        Pass --old-taxonomy: without it the CSV is bound to the taxonomy by
        index arithmetic alone, and a CSV from a different {len(tax)}-row
@@ -159,8 +159,14 @@ def main():
            --keep-map {args.map_out}
 
     4. rebuild the occurrence blob against the NEW taxonomy and the
-       REMAPPED csv:
-         ml/distill/build_prior_blob.py --taxonomy src/lib/taxonomy.json ...
+       REMAPPED csv. It MUST be the month builder with --v4: the older
+       ml/distill/build_prior_blob.py writes VERSION = 2, and step 5 rejects
+       anything below v4, so that path cannot complete. The shipped blob was
+       built with --v4 and k 0.3:
+         python3 ml/distill/jobs/build_prior_blob_month.py --v4 --k 0.3 \\
+           --taxonomy src/lib/taxonomy.json \\
+           --target-taxa <remapped target_taxa.csv> \\
+           --occurrence <occurrence_month.parquet> --out <new blob>
 
     5. rebuild the rarity blob. It takes NO csv: it reads the occurrence
        blob from step 4 and re-keys off that, so step 4 must land first:

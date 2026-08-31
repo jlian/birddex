@@ -3,12 +3,12 @@
 
 WHY THIS IS A SEPARATE STEP
 ---------------------------
-build_prior_blob.py keys species by app_idx read STRAIGHT OUT of the target
-taxa CSV, not by looking anything up in taxonomy.json. It hashes the taxonomy
-and embeds that hash, so an occurrence blob built from a stale CSV still
-carries the NEW hash and passes every client check while being keyed to the
-OLD row numbers. Nothing downstream can catch it: the mis-keying is silent and
-shifts by one more row for every dropped species that sorts before it.
+jobs/build_prior_blob_month.py keys species by app_idx read STRAIGHT OUT of the
+target taxa CSV, not by looking anything up in taxonomy.json. It hashes the
+taxonomy and embeds that hash, so an occurrence blob built from a stale CSV
+still carries the NEW hash and passes every client check while being keyed to
+the OLD row numbers. Nothing downstream can catch it: the mis-keying is silent
+and shifts by one more row for every dropped species that sorts before it.
 
 build_rarity_blob.py does NOT read the CSV. It takes --occurrence and derives
 its taxonomy-indexed data from the rebuilt WDOP blob, refusing to run if that
