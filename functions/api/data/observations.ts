@@ -109,11 +109,16 @@ async function listObservationsByIds(db: D1Database, userId: string, ids: string
 
   const supportsSpeciesComments = await hasObservationColumn(db, 'speciesComments')
   const speciesCommentsSelect = supportsSpeciesComments ? 'speciesComments' : 'NULL as speciesComments'
+  // Return the code the SERVER resolved, not whatever the client sent. Without
+  // it a create or patch response carries no grouping key, so the client keeps
+  // grouping by name until the next full reload.
+  const supportsSpeciesCode = await hasObservationColumn(db, 'speciesCode')
+  const speciesCodeSelect = supportsSpeciesCode ? 'speciesCode' : 'NULL as speciesCode'
 
   const rows = await queryInChunks(ids, (chunk, placeholders) =>
     db
       .prepare(
-        `SELECT id, outingId, speciesName, count, certainty, representativePhotoId, aiConfidence, ${speciesCommentsSelect}, notes
+        `SELECT id, outingId, speciesName, ${speciesCodeSelect}, count, certainty, representativePhotoId, aiConfidence, ${speciesCommentsSelect}, notes
        FROM observation
        WHERE userId = ? AND id IN (${placeholders})`
       )
@@ -122,6 +127,7 @@ async function listObservationsByIds(db: D1Database, userId: string, ids: string
         id: string
         outingId: string
         speciesName: string
+        speciesCode?: string | null
         count: number
         certainty: ObservationCertainty
         representativePhotoId?: string | null
@@ -134,6 +140,7 @@ async function listObservationsByIds(db: D1Database, userId: string, ids: string
 
   return rows.map(observation => ({
     ...observation,
+    speciesCode: observation.speciesCode || undefined,
     representativePhotoId: observation.representativePhotoId || undefined,
     aiConfidence: observation.aiConfidence ?? undefined,
     speciesComments: observation.speciesComments || undefined,

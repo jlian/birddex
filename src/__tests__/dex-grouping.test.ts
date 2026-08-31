@@ -133,6 +133,38 @@ describe('dex grouping by species code', () => {
     expect(rows[0].notes).toBe('could not tell which')
   })
 
+  it('finds legacy metadata saved under a non-minimum alias', () => {
+    // The group displays MIN(speciesName), but old name-keyed metadata can sit
+    // under any of the spellings that share the code. Joining only through the
+    // displayed name orphaned it, which is the same silent loss this change is
+    // meant to fix.
+    seed([
+      { name: 'Northern Cardinal', code: 'norcar', outing: 'o1' },
+      { name: 'Northern Cardinal (Cardinalis cardinalis)', code: 'norcar', outing: 'o1' },
+    ])
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal (Cardinalis cardinalis)', NULL, 'legacy note')`).run()
+    const rows = run()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].notes).toBe('legacy note')
+  })
+
+  it('attaches a name-keyed note to the coded group, not to two groups', () => {
+    // During rollout the same name can exist both coded and uncoded. The note
+    // must land on one entry, not be duplicated across both.
+    seed([
+      { name: 'Rock Pigeon', code: 'rocpig', outing: 'o1' },
+      { name: 'Rock Pigeon', code: null, outing: 'o2' },
+    ])
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Rock Pigeon', NULL, 'one note')`).run()
+    const rows = run()
+    const withNote = rows.filter(r => r.notes === 'one note')
+    expect(withNote).toHaveLength(1)
+  })
+
   it('does not lose metadata that was saved by name before the code existed', () => {
     // functions/api/data/dex.ts still upserts by (userId, speciesName) and
     // leaves speciesCode NULL. Without the name-resolution CTE the note written

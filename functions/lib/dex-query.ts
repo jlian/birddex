@@ -64,34 +64,59 @@ export const DEX_QUERY = `
     WHERE obs.userId = ?1 AND obs.certainty IN ('confirmed', 'possible')
     GROUP BY groupKey
   ),
+  -- Metadata that already carries a code. Name-keyed rows are handled by
+  -- metaByName below; including them here too would attach one note to two
+  -- groups when the same name exists both coded and uncoded, which is a normal
+  -- state mid-rollout.
   meta AS (
     SELECT
-      CASE
-        WHEN dm.speciesCode IS NOT NULL THEN 'code:' || dm.speciesCode
-        ELSE 'name:' || dm.speciesName
-      END AS groupKey,
+      'code:' || dm.speciesCode AS groupKey,
       MIN(dm.addedDate) AS addedDate,
       MIN(dm.bestPhotoId) AS bestPhotoId,
       COALESCE(MIN(dm.notes), '') AS notes
     FROM dex_meta dm
-    WHERE dm.userId = ?1
+    WHERE dm.userId = ?1 AND dm.speciesCode IS NOT NULL
     GROUP BY groupKey
   ),
   -- Metadata saved BEFORE this migration, or by a writer that has not been
   -- updated yet, carries a NULL speciesCode and is keyed by name. Resolve it
-  -- to the same group through the observation that shares its name, so a note
+  -- to the same group through an observation that shares its name, so a note
   -- written by the old path is not lost the moment the observation gains a
   -- code.
+  --
+  -- The join has to go through EVERY observation name in the group, not the
+  -- single MIN(speciesName) the group displays. Metadata saved under a
+  -- non-minimum alias would otherwise stay orphaned, which is precisely the
+  -- duplicate-spelling case this change consolidates.
+  --
+  -- A name is bound to at most one group here: coded observations win, so a
+  -- name that appears both coded and uncoded resolves to its coded group
+  -- rather than attaching one note to two dex entries.
+  nameToGroup AS (
+    SELECT
+      obs.speciesName AS speciesName,
+      MIN(CASE
+        WHEN obs.speciesCode IS NOT NULL THEN 'code:' || obs.speciesCode
+        ELSE 'name:' || obs.speciesName
+      END) AS groupKey
+    FROM observation obs
+    WHERE obs.userId = ?1 AND obs.certainty IN ('confirmed', 'possible')
+    GROUP BY obs.speciesName
+  ),
   metaByName AS (
     SELECT
-      g.groupKey AS groupKey,
+      -- Prefer the group an observation with this exact name belongs to, which
+      -- routes a legacy note onto the coded entry. Fall back to the plain name
+      -- key so metadata for a species with no matching observation is not
+      -- silently dropped.
+      COALESCE(n.groupKey, 'name:' || dm.speciesName) AS groupKey,
       MIN(dm.addedDate) AS addedDate,
       MIN(dm.bestPhotoId) AS bestPhotoId,
       COALESCE(MIN(dm.notes), '') AS notes
     FROM dex_meta dm
-    JOIN grouped g ON g.speciesName = dm.speciesName
+    LEFT JOIN nameToGroup n ON n.speciesName = dm.speciesName
     WHERE dm.userId = ?1 AND dm.speciesCode IS NULL
-    GROUP BY g.groupKey
+    GROUP BY COALESCE(n.groupKey, 'name:' || dm.speciesName)
   )
   SELECT
     g.speciesName AS speciesName,

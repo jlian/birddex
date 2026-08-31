@@ -36,11 +36,13 @@ final class DataStore {
     private var outingObservationsByID: [String: [BirdObservation]] = [:]
     private var confirmedObservationsByOutingID: [String: [BirdObservation]] = [:]
     private var possibleObservationsByOutingID: [String: [BirdObservation]] = [:]
-    private var observationsBySpeciesName: [String: [BirdObservation]] = [:]
+    private var observationsBySpeciesKey: [String: [BirdObservation]] = [:]
     private var speciesCountByOutingID: [String: Int] = [:]
     private var outingsByID: [String: Outing] = [:]
     private var outingDateByID: [String: Date] = [:]
     private var dexEntryBySpeciesName: [String: DexEntry] = [:]
+    /// Keyed by DexEntry.id, the code-or-name grouping key.
+    private var dexEntryBySpeciesKey: [String: DexEntry] = [:]
     private var dexDateBySpeciesName: [String: Date] = [:]
     private var recentOutingsByDate: [Outing] = []
     private var recentSpeciesByDate: [DexEntry] = []
@@ -295,8 +297,13 @@ final class DataStore {
     }
 
     /// All sightings of a species across outings.
+    ///
+    /// Resolves through the dex entry when one exists, so a lookup by display
+    /// name still finds sightings recorded under a different spelling of the
+    /// same coded species.
     func sightings(for speciesName: String) -> [(observation: BirdObservation, outing: Outing)] {
-        let matches = (observationsBySpeciesName[speciesName] ?? [])
+        let key = dexEntryBySpeciesName[speciesName]?.id ?? "name:\(speciesName)"
+        let matches = (observationsBySpeciesKey[key] ?? [])
             .compactMap { observation -> (observation: BirdObservation, outing: Outing)? in
                 guard let outing = outingsByID[observation.outingId] else { return nil }
                 return (observation: observation, outing: outing)
@@ -504,15 +511,22 @@ final class DataStore {
         outingObservationsByID = Dictionary(grouping: observations.filter { $0.certainty != .rejected }, by: \.outingId)
         confirmedObservationsByOutingID = Dictionary(grouping: observations.filter { $0.certainty == .confirmed }, by: \.outingId)
         possibleObservationsByOutingID = Dictionary(grouping: observations.filter { $0.certainty == .possible }, by: \.outingId)
-        observationsBySpeciesName = Dictionary(grouping: observations.filter { $0.certainty != .rejected }, by: \.speciesName)
+        // Index by the dex grouping key, not the display name. The server
+        // combines two spellings of one bird into a single dex entry, so a
+        // name-keyed index here would miss the sightings stored under the other
+        // spelling and count one species twice.
+        observationsBySpeciesKey = Dictionary(
+            grouping: observations.filter { $0.certainty != .rejected },
+            by: { dexGroupKey(speciesCode: $0.speciesCode, speciesName: $0.speciesName) })
         speciesCountByOutingID = confirmedObservationsByOutingID.mapValues {
-            Set($0.map(\.speciesName)).count
+            Set($0.map { dexGroupKey(speciesCode: $0.speciesCode, speciesName: $0.speciesName) }).count
         }
     }
 
     private func rebuildDexDerivedData() {
         let datedEntries = dex.map { (entry: $0, date: DateFormatting.sortDate($0.firstSeenDate)) }
         dexEntryBySpeciesName = Dictionary(dex.map { ($0.speciesName, $0) }, uniquingKeysWith: { _, latest in latest })
+        dexEntryBySpeciesKey = Dictionary(dex.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         dexDateBySpeciesName = Dictionary(uniqueKeysWithValues: datedEntries.map { ($0.entry.speciesName, $0.date) })
         recentSpeciesByDate = datedEntries
             .sorted { $0.date > $1.date }

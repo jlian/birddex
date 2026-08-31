@@ -53,6 +53,9 @@ struct BirdObservation: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let outingId: String
     let speciesName: String
+    /// eBird species code, nil when the name resolves to no known taxon.
+    /// The dex grouping key when present; speciesName is the fallback.
+    var speciesCode: String?
     var count: Int
     var certainty: ObservationStatus
     var representativePhotoId: String?
@@ -61,8 +64,18 @@ struct BirdObservation: Codable, Identifiable, Hashable, Sendable {
     var notes: String
 }
 
+/// The key the dex groups on, matching DEX_QUERY on the server and
+/// rebuildDexFromState on web: the eBird code when present, the display name
+/// otherwise, in separate namespaces so a name cannot collide with a code.
+func dexGroupKey(speciesCode: String?, speciesName: String) -> String {
+    if let code = speciesCode, !code.isEmpty { return "code:\(code)" }
+    return "name:\(speciesName)"
+}
+
 struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     let speciesName: String
+    /// eBird species code for this entry, nil for an unresolvable taxon.
+    var speciesCode: String?
     let firstSeenDate: String
     let lastSeenDate: String
     var addedDate: String?
@@ -73,8 +86,10 @@ struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     var wikiTitle: String?
     var thumbnailUrl: String?
 
-    /// Use speciesName as the stable identity.
-    var id: String { speciesName }
+    /// Identity is the grouping key, not the display name. Two spellings of one
+    /// bird are a single entry server-side, so keying on speciesName here would
+    /// disagree with the dex the server returns.
+    var id: String { dexGroupKey(speciesCode: speciesCode, speciesName: speciesName) }
 }
 
 // MARK: - API Response Types
