@@ -13,7 +13,7 @@ import Foundation
 /// ios/scripts/sync-birdid-assets.sh: 34,541,674 bytes = 32.94 MiB, from a
 /// 21.54 MiB .gz. The 23 MiB quoted here before was the v3 blob.
 ///
-/// Classification is a cosine similarity against a frozen 11,015 x 768 matrix
+/// Classification is a cosine similarity against a frozen 10,994 x 768 matrix
 /// of BioCLIP-2 text embeddings, so the text encoder never runs on device.
 actor BirdIdEngine {
     static let shared = BirdIdEngine()
@@ -72,7 +72,7 @@ actor BirdIdEngine {
             threshold: 0.3736373465
         )
     )
-    static let taxonomySha16 = "61cd7f2a1e3093e9"
+    static let taxonomySha16 = "a217aceafc34f8ba"
 
     /// Abstention threshold on the CALIBRATED P(bird) scale.
     ///
@@ -88,7 +88,7 @@ actor BirdIdEngine {
     /// 76% of dog photos, against 95% / 70% at 0.7.
     ///
     /// A dog is the hard case and no threshold fixes it, because this is
-    /// zero-shot cosine over 11,015 BIRD names with no "not a bird" class, so a
+    /// zero-shot cosine over 10,994 BIRD names with no "not a bird" class, so a
     /// furry four-legged animal lands somewhere plausible. A pre-rerank vision
     /// gate was measured as an alternative and is WORSE on dogs while costing
     /// 17 points of bird coverage, so it is not shipped.
@@ -155,7 +155,7 @@ actor BirdIdEngine {
         //
         // The count check is what catches a stale bundled classifier: an older
         // 11,167-row file decodes fine and would otherwise silently hand its
-        // last SPECIES row to the probe. It is now 11,015 rows plus the probe.
+        // last SPECIES row to the probe. It is now 10,994 rows plus the probe.
         let speciesCount = rowCount - 1
         let names = try Self.loadTaxonomyNames()
         guard speciesCount > 0, names.count == speciesCount else {
@@ -272,7 +272,7 @@ actor BirdIdEngine {
         return 1.0 / (1.0 + exp(-(calibration.probe.plattA * z + calibration.probe.plattB)))
     }
 
-    /// Full 11,015-way cosine, then the caller keeps the top 25.
+    /// Full 10,994-way cosine, then the caller keeps the top 25.
     private func similarities(_ embedding: [Float], _ l: Loaded) -> [Float] {
         var norm: Float = 0
         vDSP_svesq(embedding, 1, &norm, vDSP_Length(Self.embedDim))
@@ -290,7 +290,7 @@ actor BirdIdEngine {
         return sims
     }
 
-    /// Partial top-K rather than a full sort: 11,015 sorted to take 25 is
+    /// Partial top-K rather than a full sort: 10,994 sorted to take 25 is
     /// wasted work for identical output.
     private func topCandidates(_ sims: [Float], count: Int) -> [BirdRanker.Candidate] {
         var best: [(idx: Int, sim: Float)] = []

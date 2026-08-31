@@ -93,8 +93,8 @@ describe('Guatemala vulture', () => {
     // decodes. Fixing the TEXT side too swapped one shortlist member
     // (942 out, 2821 in) and moved this to 0.6088.
     //
-    // Dropping the 152 extinct species moved it slightly, to 0.6141. One of
-    // the 25 shortlist members was itself extinct (old index 3985). The
+    // Dropping the extinct species moved it slightly, to 0.6141. One of
+    // the 25 shortlist members was itself extinct. The
     // shortlist is NOT simply one shorter for it: both clients take a fixed
     // top-25 out of the CURRENT classifier (K = 25 in bird-id-local.ts,
     // candidateCount in BirdIdEngine.swift), so the freed slot is refilled by
@@ -102,6 +102,12 @@ describe('Guatemala vulture', () => {
     // rank 25 at sim 0.551366, and the other 24 members carry over unchanged.
     // A 24-candidate fixture would have tested a state production cannot
     // produce, which is why this is regenerated rather than trimmed.
+    //
+    // Switching the exclusion rule from AviList/IUCN to eBird's own EXTINCT
+    // column changed WHICH species go (173 rather than 152, keeping the five
+    // Extinct in the Wild ones) but not this shortlist: the same 25 members
+    // survive and the displayed value is unchanged. Only the row indexes
+    // shifted, Black Vulture from 2652 to 2637.
     //
     // The softmax denominator therefore keeps 25 terms and the displayed
     // value barely moves: 0.6088 -> 0.6141. Black Vulture still wins and the

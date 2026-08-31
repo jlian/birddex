@@ -24,7 +24,7 @@ import { MODEL_ASSETS } from '@/lib/bird-id-local-adapter'
 
 const PRIORS = resolve(__dirname, '../../public/priors')
 const V3 = resolve(PRIORS, 'occurrence.1fb61779.bin.gz')
-const V4 = resolve(PRIORS, 'occurrence.7c39b341.bin.gz')
+const V4 = resolve(PRIORS, 'occurrence.d0abc168.bin.gz')
 
 /**
  * The v3 asset was built against the PRE-extinct-drop taxonomy and is frozen:
