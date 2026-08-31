@@ -198,6 +198,22 @@ def main():
     if errs:
         print(f"{errs} CHECK(S) FAILED -- do not ship")
         return 1
+
+    # "all checks passed" with no artifacts to inspect is a lie: the taxonomy
+    # and keep-map checks alone say nothing about whether the classifier or the
+    # blobs are aligned, which is the entire point of the script. Report what
+    # was NOT checked rather than implying a clean bill of health.
+    skipped = [name for name, path in (("--classifier", args.classifier),
+                                       ("--occurrence", args.occurrence),
+                                       ("--rarity", args.rarity),
+                                       ("--old-classifier", args.old_classifier))
+               if not path]
+    if skipped:
+        print("PARTIAL VERIFICATION -- taxonomy and keep-map only.")
+        print(f"  not inspected: {', '.join(skipped)}")
+        print("  this does NOT establish that the artifacts are aligned.")
+        return 2
+
     print("all checks passed")
     return 0
 

@@ -59,6 +59,9 @@ def main():
     ap.add_argument("--avilist", required=True)
     ap.add_argument("--taxonomy", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--allow-unmatched", action="store_true",
+                    help="write the list even if an EX/EW row did not match "
+                         "into the taxonomy; use only after checking the names")
     args = ap.parse_args()
 
     tax = json.loads(Path(args.taxonomy).read_text())
@@ -143,6 +146,26 @@ def main():
     print(f"IUCN status values seen: {dict(sorted(seen_status.items()))}")
     print(f"EX/EW rows matched into taxonomy: {len(hits)}")
     print(f"EX/EW rows NOT in our taxonomy:   {len(unmatched)}")
+
+    # An unmatched EX/EW row means an extinct species SURVIVES the drop while
+    # the taxonomy, classifier and both blobs stay internally consistent, so
+    # verify-taxonomy-drop.py passes and nothing downstream notices. That makes
+    # a silent regression in either join key ship extinct birds.
+    #
+    # It is currently zero against AviList v2025b, so zero is the contract. A
+    # future workbook may legitimately carry an extinct species absent from our
+    # taxonomy; --allow-unmatched exists for that, and forces someone to look at
+    # the names first.
+    if unmatched and not args.allow_unmatched:
+        print(f"\nERROR: {len(unmatched)} EX/EW row(s) did not match into the "
+              f"taxonomy by species code or scientific name.", file=sys.stderr)
+        for sci, status in unmatched[:20]:
+            print(f"    {status}  {sci}", file=sys.stderr)
+        if len(unmatched) > 20:
+            print(f"    ... and {len(unmatched) - 20} more", file=sys.stderr)
+        sys.exit("refusing to write an incomplete exclusion list; re-run with "
+                 "--allow-unmatched once the names above are confirmed absent "
+                 "from src/lib/taxonomy.json")
 
     out = dict(
         excluded_statuses=sorted(EXCLUDE),

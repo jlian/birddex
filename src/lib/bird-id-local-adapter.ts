@@ -82,7 +82,7 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
 export const MODEL_VERSION = "650a8d93"
 
 /**
- * The four served assets, 56.39 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
+ * The four served assets, 56.25 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
  * new model can never
  * be served from a stale immutable cache entry: the prior carries its CONTENT
  * HASH in the file name, and the three model files carry MODEL_VERSION as a
@@ -125,19 +125,25 @@ export const MODEL_ASSET_URLS = [
  * The earlier figure counted only the prior's compression and overstated this
  * by 22 percent. Production may negotiate brotli and send less again.
  *
- * The v4 prior is 21.58 MiB against v3's 15.71 MiB, so the bundle grows by
- * 5.87 MiB (+10.4 percent of the total download). That pays for the pooled
+ * The v4 prior is 21.54 MiB against v3's 15.71 MiB, so the bundle grows by
+ * 5.83 MiB (+10.4 percent of the total download). That pays for the pooled
  * per-cell slice and the n_cm table, which are what let the backoff strength
  * live on the client instead of being frozen into the asset.
  *
- * TWO TOTALS, NEVER INTERCHANGEABLE. This constant is 59,131,045 bytes =
- * 56.39 MiB and is the only one that describes a download. MODEL_DECODED_BYTES
- * below is 70,797,545 = 67.52 MiB and describes bytes seen by the fetch reader
+ * TWO TOTALS, NEVER INTERCHANGEABLE. This constant is 58,980,425 bytes =
+ * 56.25 MiB and is the only one that describes a download. MODEL_DECODED_BYTES
+ * below is 70,647,290 = 67.37 MiB and describes bytes seen by the fetch reader
  * AFTER transport decoding. Quoting the decoded figure as a download size is
  * the specific error that made an earlier gate claim 72 MB for a 53 MB
  * transfer. Neither total is 61.66 MiB; that figure matches nothing here.
+ *
+ * The classifier and prior terms are the post-extinct-drop artifacts:
+ * 8,504,352 (11,016 x 772) and 22,590,550. Both shrank, so leaving the old
+ * figures here would have stalled the progress bar short of 100 percent.
+ * The two transport-compressed terms are measured, not derived, so they are
+ * only re-measured when those files change; neither did in this PR.
  */
-export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_621_696 + 22_623_826
+export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_504_352 + 22_590_550
 
 /**
  * Bytes exposed to the fetch reader across the four assets.
@@ -147,10 +153,13 @@ export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_621_696 + 22_623_826
  * This progress total is deliberately not shown to the user: quoting decoded
  * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
  *
- * 70,797,545 bytes = 67.52 MiB. This is NOT the served or downloaded size.
- * Use MODEL_BYTES (56.39 MiB) for anything user-facing or for release notes.
+ * 70,647,290 bytes = 67.37 MiB. This is NOT the served or downloaded size.
+ * Use MODEL_BYTES (56.25 MiB) for anything user-facing or for release notes.
+ *
+ * The onnx term is the on-disk size of the shipped file (14,386,564). It read
+ * 14,386,199 until this PR, which was the pre-provenance-pin build.
  */
-export const MODEL_DECODED_BYTES = 14_386_199 + 25_165_824 + 8_621_696 + 22_623_826
+export const MODEL_DECODED_BYTES = 14_386_564 + 25_165_824 + 8_504_352 + 22_590_550
 
 /**
  * Bird/not-bird probe: the abstention signal, and the only thing that can make
