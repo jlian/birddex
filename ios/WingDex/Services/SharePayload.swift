@@ -19,25 +19,25 @@ enum SharePayload {
         let confirmed = observations.filter { $0.certainty == .confirmed }
         // Group by the dex key so a bird recorded under two spellings shares one
         // line and the species count matches what the app shows elsewhere.
-        let grouped = groupByDexKey(confirmed)
-        let species = grouped.map(\.label).sorted {
-            getDisplayName($0).localizedCaseInsensitiveCompare(getDisplayName($1)) == .orderedAscending
+        let grouped = groupByDexKey(confirmed).sorted {
+            getDisplayName($0.label).localizedCaseInsensitiveCompare(getDisplayName($1.label)) == .orderedAscending
         }
         let totalBirds = confirmed.reduce(0) { $0 + $1.count }
 
         var lines = [
             outing.locationName,
             DateFormatting.formatDate(outing.startTime, style: .medium),
-            "\(species.count) species, \(totalBirds) bird\(totalBirds == 1 ? "" : "s")",
+            "\(grouped.count) species, \(totalBirds) bird\(totalBirds == 1 ? "" : "s")",
         ]
 
-        if !species.isEmpty {
+        if !grouped.isEmpty {
             lines.append("")
-            lines.append(contentsOf: species.map { speciesName in
-                let count = grouped
-                    .first { $0.label == speciesName }?
-                    .observations.reduce(0) { $0 + $1.count } ?? 0
-                return "\(count)x \(getDisplayName(speciesName))"
+            // Reduce each group's own observations. Two groups can share a label,
+            // so searching back by label would print the first group's count
+            // twice and drop the second; mapping the groups keeps them distinct.
+            lines.append(contentsOf: grouped.map { group in
+                let count = group.observations.reduce(0) { $0 + $1.count }
+                return "\(count)x \(getDisplayName(group.label))"
             })
         }
 

@@ -3,6 +3,11 @@ import SwiftUI
 struct SpeciesDetailView: View {
     let speciesName: String
     @Environment(AuthService.self) private var auth
+    /// The dex grouping key, when the caller has it (e.g. a grouped outing row).
+    /// Two groups can share a display label, so resolving by key keeps this
+    /// screen bound to the exact group the user tapped. Callers that only hold
+    /// a name (the dex list) leave this nil and resolve by name.
+    var speciesKey: String?
     @Environment(DataStore.self) private var store
     @Environment(ToastCenter.self) private var toasts
     @State private var wikiExtract: String?
@@ -13,9 +18,13 @@ struct SpeciesDetailView: View {
     @State private var imageOperationError: String?
     @State private var savedImageToPhotos = false
 
-    private var entry: DexEntry? { store.dexEntry(for: speciesName) }
+    private var entry: DexEntry? {
+        if let speciesKey { return store.dexEntry(byKey: speciesKey) }
+        return store.dexEntry(for: speciesName)
+    }
     private var sightings: [(observation: BirdObservation, outing: Outing)] {
-        store.sightings(for: speciesName)
+        if let speciesKey { return store.sightings(byKey: speciesKey) }
+        return store.sightings(for: speciesName)
     }
 
     /// Several photos of the same bird on one outing are stored as separate observations, so

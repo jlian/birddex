@@ -303,6 +303,15 @@ final class DataStore {
     /// same coded species.
     func sightings(for speciesName: String) -> [(observation: BirdObservation, outing: Outing)] {
         let key = dexEntryBySpeciesName[speciesName]?.id ?? "name:\(speciesName)"
+        return sightings(byKey: key)
+    }
+
+    /// All sightings of a species identified by its dex grouping key.
+    ///
+    /// Two groups can share a display label, so callers that already hold the
+    /// key (grouped outing rows) must resolve by key to avoid returning the
+    /// wrong group's sightings.
+    func sightings(byKey key: String) -> [(observation: BirdObservation, outing: Outing)] {
         let matches = (observationsBySpeciesKey[key] ?? [])
             .compactMap { observation -> (observation: BirdObservation, outing: Outing)? in
                 guard let outing = outingsByID[observation.outingId] else { return nil }
@@ -319,6 +328,14 @@ final class DataStore {
     /// Find a dex entry by species name.
     func dexEntry(for speciesName: String) -> DexEntry? {
         dexEntryBySpeciesName[speciesName]
+    }
+
+    /// Find a dex entry by its grouping key (DexEntry.id).
+    ///
+    /// Grouped outing rows carry the key, so they resolve here rather than by
+    /// label, which two distinct groups can share.
+    func dexEntry(byKey key: String) -> DexEntry? {
+        dexEntryBySpeciesKey[key]
     }
 
     /// Search the server taxonomy for manual observation entry.

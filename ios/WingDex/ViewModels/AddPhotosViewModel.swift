@@ -1027,11 +1027,16 @@ final class AddPhotosViewModel {
                     store.dex = dexUpdates
                 }
 
-                // Count new species
-                var clusterNewSpecies = 0
-                for obs in observations where !existingSpecies.contains(dexGroupKey(speciesCode: obs.speciesCode, speciesName: obs.speciesName)) {
-                    clusterNewSpecies += 1
-                    newSpeciesNames.append(getDisplayName(obs.speciesName))
+                // Count new species by diffing the recomputed dex against the
+                // snapshot taken before the save. The observations built above
+                // omit speciesCode, so keying them would read as name:<name>
+                // while the dex keys as code:<code>, flagging existing species
+                // as new after almost every save. The server resolves codes and
+                // returns the authoritative dex, so a key diff is exact.
+                let newDexEntries = store.dex.filter { !existingSpecies.contains($0.id) }
+                let clusterNewSpecies = newDexEntries.count
+                for entry in newDexEntries {
+                    newSpeciesNames.append(getDisplayName(entry.speciesName))
                 }
                 newSpeciesCount += clusterNewSpecies
                 savedOutingCount += 1
