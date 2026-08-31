@@ -46,9 +46,11 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   // caller a fabricated index would read off the end of the matrix or the
   // occurrence blob.
   //
-  // sort order comes from eBird's own TAXON_ORDER, which interleaves these
-  // with the real species. It is a float across the whole taxonomy, so it is
-  // scaled into the tail of the index space rather than colliding with a row.
+  // Sort position is eBird's TAXON_ORDER offset past every classifier row, so
+  // sidecar taxa order correctly among themselves and land after all real
+  // species rather than colliding with a row index. They are deliberately NOT
+  // interleaved with the classifier: that would need classifier order keyed off
+  // TAXON_ORDER as well.
   const extra = (await import('./taxonomy-extra.json')).default as unknown as {
     entries: [string, string, string, string, number, string][]
   }

@@ -85,8 +85,8 @@ def main():
     rows = list(csv.DictReader(load_ebird(args.ebird).splitlines()))
     if not rows:
         sys.exit("the eBird CSV parsed to zero rows")
-    for col in ("SPECIES_CODE", "CATEGORY", "EXTINCT", "COMMON_NAME",
-                "SCIENTIFIC_NAME"):
+    for col in ("SPECIES_CODE", "CATEGORY", "EXTINCT", "EXTINCT_YEAR",
+                "COMMON_NAME", "SCIENTIFIC_NAME"):
         if col not in rows[0]:
             sys.exit(f"eBird CSV has no {col} column; headers are "
                      f"{list(rows[0])}")

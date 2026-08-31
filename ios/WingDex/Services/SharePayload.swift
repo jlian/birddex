@@ -17,8 +17,10 @@ enum SharePayload {
 
     static func outing(_ outing: Outing, observations: [BirdObservation]) -> String {
         let confirmed = observations.filter { $0.certainty == .confirmed }
-        let grouped = Dictionary(grouping: confirmed, by: \BirdObservation.speciesName)
-        let species = grouped.keys.sorted {
+        // Group by the dex key so a bird recorded under two spellings shares one
+        // line and the species count matches what the app shows elsewhere.
+        let grouped = groupByDexKey(confirmed)
+        let species = grouped.map(\.label).sorted {
             getDisplayName($0).localizedCaseInsensitiveCompare(getDisplayName($1)) == .orderedAscending
         }
         let totalBirds = confirmed.reduce(0) { $0 + $1.count }
@@ -32,7 +34,9 @@ enum SharePayload {
         if !species.isEmpty {
             lines.append("")
             lines.append(contentsOf: species.map { speciesName in
-                let count = grouped[speciesName, default: []].reduce(0) { $0 + $1.count }
+                let count = grouped
+                    .first { $0.label == speciesName }?
+                    .observations.reduce(0) { $0 + $1.count } ?? 0
                 return "\(count)x \(getDisplayName(speciesName))"
             })
         }

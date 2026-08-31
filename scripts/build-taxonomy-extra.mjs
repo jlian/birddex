@@ -115,9 +115,14 @@ function main(csvText) {
   }
 
   // eBird's TAXON_ORDER is a float ordering across the WHOLE taxonomy, so it
-  // interleaves these entries with the classifier species correctly. It is a
-  // sort hint only: it renumbers whenever eBird inserts or splits a taxon, so
-  // it must never be used as a key.
+  // orders these entries correctly RELATIVE TO EACH OTHER. It does not
+  // interleave them with the classifier species: taxonomy-order.ts offsets
+  // them past the classifier rows on purpose, so sidecar taxa sort after every
+  // real species rather than next to their relatives. Interleaving would mean
+  // keying classifier order off TAXON_ORDER too, which is a larger change.
+  //
+  // It is a sort hint only: it renumbers whenever eBird inserts or splits a
+  // taxon, so it must never be used as a key.
   extra.sort((a, b) => a[4] - b[4])
 
   const out = {

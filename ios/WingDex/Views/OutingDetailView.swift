@@ -224,7 +224,7 @@ struct OutingDetailView: View {
     private func statsSection(_ outing: Outing) -> some View {
         HStack(spacing: 0) {
             statCard(
-                value: "\(Set(confirmed.map(\.speciesName)).count)",
+                value: "\(groupByDexKey(confirmed).count)",
                 label: "Species",
                 icon: "bird.fill"
             )
@@ -306,12 +306,14 @@ struct OutingDetailView: View {
 
     @ViewBuilder
     private var confirmedListSection: some View {
-        let grouped = Dictionary(grouping: confirmed, by: \.speciesName)
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+        // Group by the dex key, not the display name, so two spellings of one
+        // coded species render as one row and the header count agrees with
+        // DataStore.speciesCount and the server dex.
+        let grouped = groupByDexKey(confirmed)
 
         Section {
             speciesSectionTitle(
-                title: "Species (\(Set(confirmed.map(\.speciesName)).count))",
+                title: "Species (\(grouped.count))",
                 showsAddAction: true
             )
             .listRowSeparator(.hidden)
@@ -325,7 +327,9 @@ struct OutingDetailView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(Color.mutedText)
             } else {
-                ForEach(grouped, id: \.key) { speciesName, obs in
+                ForEach(grouped, id: \.key) { group in
+                    let speciesName = group.label
+                    let obs = group.observations
                     let totalCount = obs.reduce(0) { $0 + $1.count }
                     let entry = store.dexEntry(for: speciesName)
                     NavigationLink(value: speciesName) {
@@ -387,14 +391,15 @@ struct OutingDetailView: View {
     @ViewBuilder
     private var possibleListSection: some View {
         if !possible.isEmpty {
-            let grouped = Dictionary(grouping: possible, by: \.speciesName)
-                .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+            let grouped = groupByDexKey(possible)
 
             Section {
                 speciesSectionTitle(title: "Possible (\(possible.count))")
                     .listRowSeparator(.hidden)
 
-                ForEach(grouped, id: \.key) { speciesName, obs in
+                ForEach(grouped, id: \.key) { group in
+                    let speciesName = group.label
+                    let obs = group.observations
                     let totalCount = obs.reduce(0) { $0 + $1.count }
                     let entry = store.dexEntry(for: speciesName)
                     NavigationLink(value: speciesName) {

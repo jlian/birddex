@@ -520,7 +520,9 @@ struct OutingRow: View {
 
     var body: some View {
         let confirmed = store.confirmedObservations(outing.id)
-        let speciesNames = Array(Set(confirmed.map(\.speciesName))).sorted()
+        // Deduplicate by dex key so two spellings of one coded bird show once,
+        // matching store.speciesCount for the same outing.
+        let speciesNames = groupByDexKey(confirmed).map(\.label).sorted()
 
         HStack(alignment: .center, spacing: 12) {
             outingLeadingIcon
@@ -586,10 +588,7 @@ struct OutingRow: View {
             return "\(location), \(date), \(getDisplayName(observation.speciesName)), \(observation.certainty.rawValue)"
                 + (rarity.accessibilityLabel.map { ", \($0)" } ?? "")
         }
-        let speciesCount = store.confirmedObservations(outing.id)
-            .map(\.speciesName)
-            .reduce(into: Set<String>()) { $0.insert($1) }
-            .count
+        let speciesCount = store.speciesCount(for: outing.id)
         return "\(location), \(date), \(speciesCount) species"
     }
 

@@ -983,7 +983,10 @@ final class AddPhotosViewModel {
         errorRecovery = nil
 
         let confirmed = sightingResults(photoResults)
-        let existingSpecies = Set(store.dex.map(\.speciesName))
+        // Compare on the dex key, not the display name. DexEntry.id is the
+        // code-or-name key, so a bird saved under a different spelling of a
+        // species already in the dex is no longer announced as new.
+        let existingSpecies = Set(store.dex.map(\.id))
 
         // Group by species, sum counts
         var speciesMap: [String: (count: Int, status: ObservationStatus, photoId: String, confidences: [Double])] = [:]
@@ -1026,7 +1029,7 @@ final class AddPhotosViewModel {
 
                 // Count new species
                 var clusterNewSpecies = 0
-                for obs in observations where !existingSpecies.contains(obs.speciesName) {
+                for obs in observations where !existingSpecies.contains(dexGroupKey(speciesCode: obs.speciesCode, speciesName: obs.speciesName)) {
                     clusterNewSpecies += 1
                     newSpeciesNames.append(getDisplayName(obs.speciesName))
                 }

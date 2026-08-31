@@ -72,6 +72,32 @@ func dexGroupKey(speciesCode: String?, speciesName: String) -> String {
     return "name:\(speciesName)"
 }
 
+/// One dex group: the observations that share a key, plus the label to show.
+struct SpeciesGroup {
+    let key: String
+    let label: String
+    let observations: [BirdObservation]
+}
+
+/// Group observations the way the dex does, sorted for display.
+///
+/// The label is the smallest spelling in the group, mirroring MIN(speciesName)
+/// in DEX_QUERY, so a bird recorded under two spellings shows one row with a
+/// stable name rather than two rows that disagree with the dex count.
+func groupByDexKey(_ observations: [BirdObservation]) -> [SpeciesGroup] {
+    Dictionary(grouping: observations) {
+        dexGroupKey(speciesCode: $0.speciesCode, speciesName: $0.speciesName)
+    }
+    .map { key, group in
+        SpeciesGroup(
+            key: key,
+            label: group.map(\.speciesName).min() ?? "",
+            observations: group
+        )
+    }
+    .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+}
+
 struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     let speciesName: String
     /// eBird species code for this entry, nil for an unresolvable taxon.
