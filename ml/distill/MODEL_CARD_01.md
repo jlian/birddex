@@ -50,9 +50,13 @@ A ViT-B-16 visual tower whose output is projected into the 768-d BioCLIP-2
 embedding space and L2-normalized. `forward()` is the whole exportable graph: no
 text encoder runs at inference time.
 
-Classification is a cosine similarity against a frozen **11,167 x 768** matrix
+Classification is a cosine similarity against a frozen **11,015 x 768** matrix
 of BioCLIP-2 text embeddings, shipped here as `text_classifier_fp32.npy`. It is
 byte-identical to the one in the 0.3 repo; both models target the same space.
+
+The matrix held 11,167 rows until 152 species with IUCN status EX or EW were
+dropped from the taxonomy. Rows are keyed by position, so the published matrix
+and `labels.json` are filtered together and stay row-aligned.
 
 ## Files
 
@@ -62,8 +66,8 @@ byte-identical to the one in the 0.3 repo; both models target the same space.
 | `wingclip-0.1.safetensors` | the same weights, without the pickle |
 | `wingclip-0.1-alpha.pt` | after distillation, before fine-tuning. NABirds 81.83 |
 | `wingclip-0.1-beta.pt` | after fine-tuning, before the WiSE-FT merge |
-| `text_classifier_fp32.npy` | 11,167 x 768 frozen BioCLIP-2 text embeddings |
-| `labels.json` | 11,167 rows of `[common name, scientific name, eBird code]`, in classifier row order |
+| `text_classifier_fp32.npy` | 11,015 x 768 frozen BioCLIP-2 text embeddings |
+| `labels.json` | 11,015 rows of `[common name, scientific name, eBird code]`, in classifier row order |
 
 No ONNX here. 0.1 is not deployed anywhere, and the exports on hand predate the
 released checkpoint by enough that I could not confirm they came from it. Use
@@ -170,8 +174,10 @@ int3 does not degrade, it fails outright.
   against relative bird area is Pearson 0.051.
 - **North-American evaluation.** NABirds is the deciding benchmark, so accuracy
   elsewhere is less well characterised.
-- **Long tail.** Of 11,167 predictable species, 7,555 were distilled on. The rest
-  ride entirely on the text embedding of their name.
+- **Long tail.** Training covered the pre-drop taxonomy of 11,167 species, of
+  which 7,555 were distilled on. The rest ride entirely on the text embedding of
+  their name. The shipped matrix is now 11,015 rows, since 152 extinct species
+  were dropped after training.
 
 ## Licence and attribution
 
