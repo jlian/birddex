@@ -46,7 +46,25 @@ def main():
 
     tax = json.loads(TAX.read_text())
     spec = json.loads(Path(args.list).read_text())
-    drop_sci = {norm(s["scientific"]) for s in spec["species"]}
+
+    # Collapsing straight to a set hides duplicates. If two AviList rows
+    # normalise to the same name, the set is smaller than the list, so FEWER
+    # rows drop than the list claims while every downstream check still
+    # agrees: the keep-map, the classifier and the blobs are all derived from
+    # this same set, so they stay mutually consistent around a wrong count.
+    # The species that should have gone simply survives.
+    sci_list = [norm(s["scientific"]) for s in spec["species"]]
+    drop_sci = set(sci_list)
+    if len(drop_sci) != len(sci_list):
+        dupes = sorted({s for s in drop_sci if sci_list.count(s) > 1})
+        sys.exit(f"ERROR: {args.list} repeats {len(sci_list) - len(drop_sci)} "
+                 f"scientific name(s), e.g. {dupes[:5]}; each species must "
+                 f"appear once or the drop count is not what the list says")
+
+    listed = spec.get("count")
+    if listed is not None and listed != len(sci_list):
+        sys.exit(f"ERROR: {args.list} reports count {listed} but holds "
+                 f"{len(sci_list)} species entries")
 
     if spec.get("taxonomy_rows") != len(tax):
         msg = (f"list was built against {spec.get('taxonomy_rows')} rows, "
