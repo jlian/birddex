@@ -120,9 +120,11 @@ def main():
   REMAINING STEPS, all four artifacts must ship together:
 
     2. remap app_idx in the target taxa CSV, THEN re-emit the classifier.
-       build_prior_blob.py and build_rarity_blob.py read app_idx straight
-       out of that CSV, so a blob built against the old column is keyed to
-       the OLD row numbers and mis-names every species after the first drop.
+       build_prior_blob.py reads app_idx STRAIGHT out of that CSV, so an
+       occurrence blob built against the old column is keyed to the OLD row
+       numbers and mis-names every species after the first drop. The rarity
+       blob does not read the CSV at all, but it is derived FROM the
+       occurrence blob, so it inherits the same mis-keying.
        Pass --old-taxonomy: without it the CSV is bound to the taxonomy by
        index arithmetic alone, and a CSV from a different {len(tax)}-row
        taxonomy would remap cleanly into a mis-keyed blob:
@@ -143,8 +145,10 @@ def main():
        REMAPPED csv:
          ml/distill/build_prior_blob.py --taxonomy src/lib/taxonomy.json ...
 
-    5. rebuild the rarity blob against the NEW taxonomy and the REMAPPED csv:
-         ml/distill/build_rarity_blob.py --taxonomy src/lib/taxonomy.json ...
+    5. rebuild the rarity blob. It takes NO csv: it reads the occurrence
+       blob from step 4 and re-keys off that, so step 4 must land first:
+         ml/distill/build_rarity_blob.py --taxonomy src/lib/taxonomy.json \\
+           --occurrence public/priors/occurrence.<new-hash>.bin.gz ...
 
     6. update the hash in BOTH clients:
          src/lib/taxonomy-hash.ts          TAXONOMY_SHA16 = "{new_hash}"
