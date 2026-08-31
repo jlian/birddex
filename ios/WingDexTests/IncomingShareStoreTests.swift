@@ -15,6 +15,8 @@ final class IncomingShareStoreTests: XCTestCase {
 
         let pendingSnapshot = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
         let snapshot = try XCTUnwrap(pendingSnapshot)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
         XCTAssertEqual(
             try snapshot.photos.map { try String(decoding: Data(contentsOf: $0.fileURL), as: UTF8.self) },
             ["first", "second"]
@@ -25,6 +27,40 @@ final class IncomingShareStoreTests: XCTestCase {
         XCTAssertTrue(firstAcceptance)
         XCTAssertFalse(secondAcceptance)
         XCTAssertNil(remaining)
+    }
+
+    func testConsumingStageTransfersTemporarySources() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let first = try fixture.source(name: "first.jpg", contents: "first")
+        let second = try fixture.source(name: "second.png", contents: "second")
+
+        try await IncomingShareStore.stageConsuming(
+            fileURLs: [first, second],
+            in: fixture.container
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: second.path))
+        let pendingSnapshot = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
+        let snapshot = try XCTUnwrap(pendingSnapshot)
+        XCTAssertEqual(
+            try snapshot.photos.map { try String(decoding: Data(contentsOf: $0.fileURL), as: UTF8.self) },
+            ["first", "second"]
+        )
+    }
+
+    func testNormalizesDiskFullErrors() {
+        XCTAssertEqual(
+            IncomingShareStore.normalizeStorageError(CocoaError(.fileWriteOutOfSpace))
+                as? IncomingShareError,
+            .insufficientStorage
+        )
+        XCTAssertEqual(
+            IncomingShareStore.normalizeStorageError(POSIXError(.ENOSPC))
+                as? IncomingShareError,
+            .insufficientStorage
+        )
     }
 
     func testReturnsBatchesInFIFOOrder() async throws {

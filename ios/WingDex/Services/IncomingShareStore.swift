@@ -13,8 +13,10 @@ struct IncomingShareSnapshot: Equatable, Sendable {
 
 enum IncomingShareStore {
     static let appGroupIdentifier = "group.app.wingdex"
+    /// The review flow confirms every photo individually. Keep this bounded until
+    /// selected originals become file-backed instead of remaining in memory.
     static let maximumPhotoCount = 50
-    static let maximumTotalBytes = 250 * 1_024 * 1_024
+    static let maximumTotalBytes = 512 * 1_024 * 1_024
     static let maximumPhotoBytes = 50 * 1_024 * 1_024
 
     private static let queueDirectoryName = "incoming-shares-v2"
@@ -48,6 +50,14 @@ enum IncomingShareStore {
         return try await stage(fileURLs: fileURLs, in: container)
     }
 
+    /// Transfers ownership of extension-created temporary files into the queue.
+    /// Avoids retaining a second full copy of a large Photos share while publishing.
+    @discardableResult
+    nonisolated static func stageConsuming(fileURLs: [URL]) async throws -> String {
+        guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
+        return try await stageConsuming(fileURLs: fileURLs, in: container)
+    }
+
     nonisolated static func oldestPendingShare() async throws -> IncomingShareSnapshot? {
         guard let container = containerURL else { throw IncomingShareError.containerUnavailable }
         return try await oldestPendingShare(in: container)
@@ -77,8 +87,28 @@ enum IncomingShareStore {
         fileURLs: [URL],
         in directory: URL
     ) async throws -> String {
+        try await stage(fileURLs: fileURLs, in: directory, consumeSources: false)
+    }
+
+    @discardableResult
+    nonisolated static func stageConsuming(
+        fileURLs: [URL],
+        in directory: URL
+    ) async throws -> String {
+        try await stage(fileURLs: fileURLs, in: directory, consumeSources: true)
+    }
+
+    private nonisolated static func stage(
+        fileURLs: [URL],
+        in directory: URL,
+        consumeSources: Bool
+    ) async throws -> String {
         let task = Task.detached(priority: .userInitiated) {
-            try stageSynchronously(fileURLs: fileURLs, in: directory)
+            try stageSynchronously(
+                fileURLs: fileURLs,
+                in: directory,
+                consumeSources: consumeSources
+            )
         }
         return try await withTaskCancellationHandler {
             try await task.value
@@ -122,31 +152,56 @@ enum IncomingShareStore {
 
     private nonisolated static func stageSynchronously(
         fileURLs: [URL],
-        in directory: URL
+        in directory: URL,
+        consumeSources: Bool
     ) throws -> String {
         guard !fileURLs.isEmpty else { throw IncomingShareError.noPhotos }
         guard fileURLs.count <= maximumPhotoCount else { throw IncomingShareError.tooManyPhotos }
-
-        let layout = try prepareLayout(in: directory)
-        let id = UUID().uuidString
-        let stagingBatch = layout.staging.appendingPathComponent(id, isDirectory: true)
-        try FileManager.default.createDirectory(at: stagingBatch, withIntermediateDirectories: false)
+        try Task.checkCancellation()
 
         var totalBytes = 0
+        let sourceBytes = try fileURLs.map { sourceURL in
+            try Task.checkCancellation()
+            guard let bytes = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                  bytes > 0
+            else { throw IncomingShareError.stagingFailed }
+            guard bytes <= maximumPhotoBytes else { throw IncomingShareError.photoTooLarge }
+            totalBytes += bytes
+            guard totalBytes <= maximumTotalBytes else { throw IncomingShareError.shareTooLarge }
+            return bytes
+        }
+
+        let layout: Layout
+        do {
+            layout = try prepareLayout(in: directory)
+        } catch {
+            throw normalizeStorageError(error)
+        }
+        let id = UUID().uuidString
+        let stagingBatch = layout.staging.appendingPathComponent(id, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: stagingBatch, withIntermediateDirectories: false)
+        } catch {
+            throw normalizeStorageError(error)
+        }
+
         var files: [String] = []
+        var transfers: [(source: URL, destination: URL)] = []
         do {
             for (index, sourceURL) in fileURLs.enumerated() {
                 try Task.checkCancellation()
                 let fileExtension = sourceURL.pathExtension.isEmpty ? "jpg" : sourceURL.pathExtension
                 let fileName = "photo-\(index + 1).\(fileExtension)"
                 let destination = stagingBatch.appendingPathComponent(fileName)
-                try FileManager.default.copyItem(at: sourceURL, to: destination)
+                if consumeSources {
+                    try FileManager.default.moveItem(at: sourceURL, to: destination)
+                    transfers.append((sourceURL, destination))
+                } else {
+                    try FileManager.default.copyItem(at: sourceURL, to: destination)
+                }
                 guard let fileBytes = try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-                      fileBytes > 0
+                      fileBytes == sourceBytes[index]
                 else { throw IncomingShareError.stagingFailed }
-                guard fileBytes <= maximumPhotoBytes else { throw IncomingShareError.photoTooLarge }
-                totalBytes += fileBytes
-                guard totalBytes <= maximumTotalBytes else { throw IncomingShareError.shareTooLarge }
                 files.append(fileName)
             }
 
@@ -173,9 +228,41 @@ enum IncomingShareStore {
             log.info("Published share \(id, privacy: .public) with \(files.count) photos and \(totalBytes) bytes")
             return id
         } catch {
-            try? FileManager.default.removeItem(at: stagingBatch)
-            throw error
+            var restoredAllSources = true
+            if consumeSources {
+                for transfer in transfers.reversed()
+                where FileManager.default.fileExists(atPath: transfer.destination.path)
+                    && !FileManager.default.fileExists(atPath: transfer.source.path) {
+                    do {
+                        try FileManager.default.moveItem(
+                            at: transfer.destination,
+                            to: transfer.source
+                        )
+                    } catch {
+                        restoredAllSources = false
+                    }
+                }
+            }
+            if restoredAllSources {
+                try? FileManager.default.removeItem(at: stagingBatch)
+            }
+            throw normalizeStorageError(error)
         }
+    }
+
+    nonisolated static func normalizeStorageError(_ error: Error) -> Error {
+        let nsError = error as NSError
+        if (nsError.domain == NSCocoaErrorDomain
+                && nsError.code == CocoaError.fileWriteOutOfSpace.rawValue)
+            || (nsError.domain == NSPOSIXErrorDomain
+                && nsError.code == Int(POSIXErrorCode.ENOSPC.rawValue)) {
+            return IncomingShareError.insufficientStorage
+        }
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+            let normalized = normalizeStorageError(underlying)
+            if normalized is IncomingShareError { return normalized }
+        }
+        return error
     }
 
     private nonisolated static func oldestPendingShareSynchronously(
@@ -394,12 +481,13 @@ enum IncomingShareStore {
     }
 }
 
-enum IncomingShareError: LocalizedError {
+enum IncomingShareError: LocalizedError, Equatable {
     case containerUnavailable
     case noPhotos
     case tooManyPhotos
     case photoTooLarge
     case shareTooLarge
+    case insufficientStorage
     case stagingFailed
     case noLongerPending
 
@@ -414,7 +502,9 @@ enum IncomingShareError: LocalizedError {
         case .photoTooLarge:
             "Each shared photo must be smaller than 50 MB."
         case .shareTooLarge:
-            "These photos are too large to share to WingDex at once."
+            "The selected photos total more than 512 MB. Share a smaller batch."
+        case .insufficientStorage:
+            "There is not enough free storage to prepare these photos."
         case .stagingFailed:
             "WingDex could not prepare the shared photos. Please try again."
         case .noLongerPending:
