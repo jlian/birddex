@@ -71,10 +71,16 @@ final class DataStore {
     private var initialLoadGeneration: Int?
     private var operationInProgress = false
     private var operationWaiters: [OperationWaiter] = []
+    private var outingDeletions: [String: OutingDeletion] = [:]
 
     private struct OperationWaiter {
         let id: UUID
         let continuation: CheckedContinuation<Void, Error>
+    }
+
+    private struct OutingDeletion {
+        let id: UUID
+        let task: Task<Void, Error>
     }
 
     init(service: any DataStoreService, cache: (any AccountDataCaching)? = nil) {
@@ -204,6 +210,8 @@ final class DataStore {
     /// Clear all account-owned state and invalidate in-flight bulk loads.
     func reset() {
         generation += 1
+        outingDeletions.values.forEach { $0.task.cancel() }
+        outingDeletions.removeAll()
         initialLoadTask?.cancel()
         initialLoadTask = nil
         initialLoadID = nil
@@ -320,22 +328,41 @@ final class DataStore {
 
     // MARK: - Mutations
 
-    /// Delete an outing and remove its observations locally, then sync with server.
+    /// Delete an outing on the server, then remove its local data in one update.
     func deleteOuting(id: String) async throws {
+        if let deletion = outingDeletions[id] {
+            return try await deletion.task.value
+        }
+
+        let deletionID = UUID()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { throw CancellationError() }
+            try await self.performDeleteOuting(id: id)
+        }
+        outingDeletions[id] = OutingDeletion(id: deletionID, task: task)
+        defer {
+            if outingDeletions[id]?.id == deletionID {
+                outingDeletions[id] = nil
+            }
+        }
+        try await task.value
+    }
+
+    private func performDeleteOuting(id: String) async throws {
         let mutationContext = try await acquireOperationContext(requireLoadedSnapshot: true)
         defer { releaseOperation(mutationContext) }
         guard let service else { throw AuthError.notAuthenticated }
-        outings.removeAll { $0.id == id }
-        observations.removeAll { $0.outingId == id }
-        photos.removeAll { $0.outingId == id }
+        guard outings.contains(where: { $0.id == id }) else { return }
         do {
             let response = try await service.deleteOuting(id: id)
-            guard isCurrentMutation(mutationContext) else { return }
+            guard isCurrentMutation(mutationContext) else { throw CancellationError() }
+            outings.removeAll { $0.id == id }
+            observations.removeAll { $0.outingId == id }
+            photos.removeAll { $0.outingId == id }
             dex = response.dexUpdates
             confirmAndPersistCurrentSnapshot()
         } catch {
-            guard isCurrentMutation(mutationContext) else { return }
-            restoreConfirmedSnapshot()
+            guard isCurrentMutation(mutationContext) else { throw CancellationError() }
             log.warning("Outing deletion failed; reconciling account data")
             reconcileAfterMutationFailure(mutationContext)
             throw error
@@ -521,6 +548,7 @@ final class DataStore {
     private func acquireOperationContext(
         requireLoadedSnapshot: Bool
     ) async throws -> (accountID: String, generation: Int) {
+        try Task.checkCancellation()
         guard let accountID = activeAccountID else { throw AuthError.notAuthenticated }
         let operationGeneration = generation
         if !operationInProgress {
