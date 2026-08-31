@@ -19,7 +19,7 @@
 # the IPA is compressed for delivery anyway.
 #
 # Both figures are the SHIPPED v4 blob, measured on
-# public/priors/occurrence.4f5c1a15.bin.gz: 22,623,826 bytes on disk,
+# public/priors/occurrence.7c39b341.bin.gz: 22,623,826 bytes on disk,
 # 34,576,516 decompressed. The RAW number was left at v3's 23.0 MiB when the
 # gzipped one was updated to v4, which understated the bundled iOS asset by
 # about 10 MiB. v3 for reference: 24,123,497 raw / 16,478,112 gzipped.

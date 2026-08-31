@@ -1,0 +1,18 @@
+{
+  "magic": "WDRR",
+  "version": 1,
+  "coarse": 4,
+  "grid_cols": 1276,
+  "coarse_cols": 319,
+  "taxonomy_sha256_8": "61cd7f2a1e3093e9",
+  "n_cells": 3932,
+  "n_entries": 664279,
+  "n_ordinary_bits": 2342622,
+  "min_cell_records": 400,
+  "min_month_records": 60,
+  "min_species_records": 3.0,
+  "coverage": 0.94,
+  "raw_bytes": 2098697,
+  "gzip_bytes": 1449178,
+  "content_hash": "2ddeedbe"
+}

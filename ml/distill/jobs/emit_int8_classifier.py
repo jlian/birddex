@@ -29,6 +29,7 @@ The probe is NOT L2-normalised with the species rows. It is a logistic
 coefficient vector whose magnitude is part of the decision boundary, and the
 per-row scale format carries arbitrary magnitude, so it survives.
 """
+import argparse
 import json
 import os
 
@@ -38,7 +39,34 @@ SRC = "ml/distill/onnx_tiny39/text_classifier.npy"
 PROBE = "ml/distill/jobs/bird_probe.json"
 OUT = "public/models/text_classifier_int8.bin"
 
+ap = argparse.ArgumentParser()
+ap.add_argument("--src", default=SRC)
+ap.add_argument("--probe", default=PROBE)
+ap.add_argument("--out", default=OUT)
+ap.add_argument("--keep-map", default="",
+                help="scripts/taxonomy-keep-map.json. When given, keep ONLY "
+                     "kept_old_indexes, in order. Species are keyed by ROW "
+                     "INDEX, so a taxonomy row drop must select the same rows "
+                     "here or every later species is mis-keyed.")
+args = ap.parse_args()
+SRC, PROBE, OUT = args.src, args.probe, args.out
+
 tf = np.load(SRC).astype(np.float32)
+
+if args.keep_map:
+    with open(args.keep_map) as f:
+        km = json.load(f)
+    keep = np.asarray(km["kept_old_indexes"], dtype=np.int64)
+    if tf.shape[0] < int(keep.max()) + 1:
+        raise SystemExit(
+            "keep-map indexes up to %d but the matrix has %d rows; the .npy "
+            "predates the taxonomy it is being filtered against"
+            % (int(keep.max()), tf.shape[0]))
+    before = tf.shape[0]
+    tf = tf[keep]
+    print("keep-map: %d -> %d rows (dropped %d)"
+          % (before, tf.shape[0], before - tf.shape[0]))
+
 tf = tf / np.linalg.norm(tf, axis=1, keepdims=True)
 
 scale = np.abs(tf).max(axis=1, keepdims=True) / 127.0
