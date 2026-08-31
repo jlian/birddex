@@ -99,10 +99,10 @@ export const MODEL_VERSION = "650a8d93"
  * It IS bumped for the probe row. text_classifier_int8.bin gained a 772-byte
  * trailing probe row, so the model bytes genuinely changed and a stale
  * immutable cache entry would hand an existing user a probe-less file. That
- * file still decodes and still matches the taxonomy count, so the mismatch
- * would NOT throw: the engine would simply read a species row as the probe and
- * gate on noise. This is exactly the silent-staleness case the version query
- * exists for.
+ * file does NOT gate on noise: bird-id-local.ts always reserves the last row
+ * as the probe, so nRows == taxonomy.length gives nSpecies one short and the
+ * count check throws. Like the drop below, the stale entry is a persistent
+ * initialization failure rather than a silent mis-read.
  *
  * It IS bumped again for the extinct-species drop, but for a different
  * reason than the probe row above. The classifier lost 152 rows, so a stale

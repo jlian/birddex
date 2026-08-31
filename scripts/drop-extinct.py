@@ -93,14 +93,22 @@ def main():
     old_bytes = TAX.read_bytes()
     old_hash = hashlib.sha256(old_bytes).hexdigest()[:16]
     new_tax = [tax[i] for i in keep]
-    # Match the existing file's formatting: "[", then ONE ROW PER LINE, then
-    # "]". Serialising the whole array on a single line collapses the file to
-    # one line, so a 152-row removal renders as 11,169 deletions and 1
-    # insertion and no reviewer can see WHICH species went. Verified this
-    # round-trips the pre-drop file byte for byte.
-    body = ",\n".join(json.dumps(r, ensure_ascii=False, separators=(",", ":"))
-                      for r in new_tax)
-    new_bytes = ("[\n" + body + "\n]\n").encode()
+    # Serialise EXACTLY as the committed taxonomy.json is stored: the whole
+    # array on one line. This is what makes the drop reproducible, since the
+    # keep-map new_sha16, the client constants and both blob headers all key
+    # off these bytes.
+    #
+    # KNOWN COST, deliberately not changed here: one line means a 152-row drop
+    # renders as 11,169 deletions and 1 insertion, so a reviewer cannot see
+    # WHICH species went. Writing one row per line fixes the diff and
+    # round-trips the pre-drop file byte for byte, but it moves the taxonomy
+    # hash (61cd7f2a1e3093e9 -> bcfc23ea0c5f9bdd) and therefore requires
+    # rebuilding the occurrence blob, the rarity blob, both meta files, the iOS
+    # golden fixture and four source constants together. Changing the
+    # serializer WITHOUT that rebuild is worse than either option: the script
+    # then cannot reproduce the artifacts this PR ships.
+    new_bytes = (json.dumps(new_tax, ensure_ascii=False,
+                            separators=(",", ":")) + "\n").encode()
     new_hash = hashlib.sha256(new_bytes).hexdigest()[:16]
 
     print(f"  taxonomy rows : {len(tax):,} -> {len(new_tax):,}  "
