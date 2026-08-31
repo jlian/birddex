@@ -1,7 +1,7 @@
 /**
  * Model download gate.
  *
- * The model download is 56.39 MiB. Three rules follow from that:
+ * The model download is 56.25 MiB. Three rules follow from that:
  *
  *  1. NEVER at page load. Most visits never identify a bird, and pulling 56 MiB
  *     to look at a life list would be indefensible.

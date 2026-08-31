@@ -35,7 +35,7 @@ export const RARITY_MAGIC = 'WDRR'
  * the filename lives: ios/scripts/sync-birdid-assets.sh greps it out of this
  * module to stage the same bytes into the app bundle.
  *
- * Deliberately NOT in MODEL_ASSET_URLS. Those four assets total 56.39 MiB and
+ * Deliberately NOT in MODEL_ASSET_URLS. Those four assets total 56.25 MiB and
  * sit behind ModelDownloadGate because most visits never identify a bird. This
  * one is 1.38 MiB and is fetched eagerly wherever a list of birds renders, so
  * folding it into that gate would both delay the mark and inflate the gated

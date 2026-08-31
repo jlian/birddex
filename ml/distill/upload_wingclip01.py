@@ -11,6 +11,7 @@ the whole alpha sweep without uploading it.
 Run from ml/distill with .venv/bin/python. Pass --dry-run to stage only.
 """
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -28,6 +29,7 @@ NPARAMS = 86586624
 WISE_ALPHA = 0.9
 TEXT_CLS = "onnx_tiny39/text_classifier.npy"
 TAXONOMY = "../../src/lib/taxonomy.json"
+KEEP_MAP = "../../scripts/taxonomy-keep-map.json"
 STAGE = "hf_stage_01"
 
 
@@ -48,6 +50,12 @@ def strip(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--card", required=True)
+    ap.add_argument("--keep-map", default=KEEP_MAP,
+                    help="scripts/taxonomy-keep-map.json. The source .npy is "
+                         "the PRE-DROP matrix, so the same row filter the "
+                         "shipped classifier gets must be applied here or the "
+                         "published labels are mis-keyed. Pass \"\" only when "
+                         "the .npy already matches taxonomy.json.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -86,7 +94,30 @@ def main():
     log("wrote checkpoints and safetensors")
 
     tf = np.load(TEXT_CLS)
-    assert tf.shape == (11167, 768) and tf.dtype == np.float32, tf.shape
+    assert tf.dtype == np.float32, tf.dtype
+    assert tf.ndim == 2 and tf.shape[1] == 768, tf.shape
+
+    # Same filter as upload_wingclip.py. The .npy is the PRE-DROP matrix and
+    # taxonomy.json is post-drop, so publishing it unfiltered beside the new
+    # labels ships a release keyed to the old row numbers. WingCLIP-0.1 is a
+    # different model but it is published against the SAME taxonomy, so it
+    # needs the same treatment.
+    if args.keep_map:
+        with open(args.keep_map) as fh:
+            km = json.load(fh)
+        if tf.shape[0] != int(km["old_rows"]):
+            sys.exit("keep-map was built from a %d-row taxonomy but the "
+                     "matrix has %d rows" % (int(km["old_rows"]), tf.shape[0]))
+        tx_hash = hashlib.sha256(open(TAXONOMY, "rb").read()).hexdigest()[:16]
+        if tx_hash != km["new_sha16"]:
+            sys.exit("taxonomy sha256[:16] %s does not match the keep-map's "
+                     "new_sha16 %s; that map was built for a different "
+                     "taxonomy and its indexes would mis-key the release"
+                     % (tx_hash, km["new_sha16"]))
+        tf = tf[np.asarray(km["kept_old_indexes"], dtype=np.int64)]
+        log("keep-map: %d -> %d rows (taxonomy %s)"
+            % (km["old_rows"], tf.shape[0], tx_hash))
+
     np.save(os.path.join(STAGE, "text_classifier_fp32.npy"), tf)
 
     taxo = json.load(open(TAXONOMY))
