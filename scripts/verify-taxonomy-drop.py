@@ -28,10 +28,16 @@ Usage:
       --classifier public/models/text_classifier_int8.bin \
       --occurrence public/priors/occurrence.<hash>.bin.gz \
       --rarity public/priors/rarity.<hash>.bin.gz \
+      --old-taxonomy <pre-drop taxonomy.json> \
       --old-classifier <pre-drop text_classifier_int8.bin>
 
-The pre-drop classifier for --old-classifier comes out of git, e.g.
+All five inputs are required to reach "all checks passed". Omitting any one of
+them reports PARTIAL VERIFICATION and exits 2, on purpose: the taxonomy and
+keep-map checks alone say nothing about whether the artifacts are aligned.
+
+The pre-drop files come out of git, e.g.
   git show <pre-drop-sha>:public/models/text_classifier_int8.bin > /tmp/old.bin
+  git show <pre-drop-sha>:src/lib/taxonomy.json > /tmp/old-taxonomy.json
 """
 import argparse
 import gzip

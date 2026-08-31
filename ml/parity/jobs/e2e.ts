@@ -38,29 +38,21 @@ function decodeInt8Rows(buf: Uint8Array, dim: number): Float32Array {
   return out
 }
 
-function f16ToF32(h: Uint16Array): Float32Array {
-  const out = new Float32Array(h.length)
-  for (let i = 0; i < h.length; i++) {
-    const v = h[i]
-    const s = (v & 0x8000) ? -1 : 1
-    const e = (v >> 10) & 0x1f
-    const f = v & 0x3ff
-    if (e === 0) out[i] = s * Math.pow(2, -14) * (f / 1024)
-    else if (e === 31) out[i] = f ? NaN : s * Infinity
-    else out[i] = s * Math.pow(2, e - 15) * (1 + f / 1024)
-  }
-  return out
-}
-
 const taxonomy = JSON.parse(readFileSync(join(ROOT, "src/lib/taxonomy.json"), "utf8"))
 const taxHash = createHash("sha256")
   .update(readFileSync(join(ROOT, "src/lib/taxonomy.json"))).digest("hex").slice(0, 16)
 const cal = JSON.parse(readFileSync(join(ROOT, "ml/distill/calibration_month_tiny39.json"), "utf8"))
 
 const tb = readFileSync(join(ROOT, "public/models/text_classifier_int8.bin"))
-const text = f16ToF32(new Uint16Array(tb.buffer, tb.byteOffset, tb.length / 2))
-const nSpecies = text.length / EMBED
-console.log("text classifier: " + nSpecies + " x " + EMBED)
+// The shipped file is int8 rows plus fp32 per-row scales, NOT fp16. Decoding it
+// as fp16 gives length/2/768 = 5536.6875 species, a fractional count that
+// tripped the mismatch check below and killed this harness before it opened a
+// single asset. Use the same decode the client does, then drop the trailing
+// bird/not-bird probe row so what remains is species only.
+const allRows = decodeInt8Rows(new Uint8Array(tb), EMBED)
+const nSpecies = allRows.length / EMBED - 1
+const text = allRows.subarray(0, nSpecies * EMBED)
+console.log("text classifier: " + nSpecies + " x " + EMBED + " + probe row")
 if (nSpecies !== taxonomy.length) throw new Error("species/taxonomy mismatch")
 
 // Same content-hash trap as rank_parity.ts: pinning the prior by name means
