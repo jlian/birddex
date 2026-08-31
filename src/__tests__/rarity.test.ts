@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs'
 import { parseRarity, rarityAt, ordinaryMonths, type RarityState } from '@/lib/rarity'
 import { lonLatToEqualEarth, xyToCell, GRID_COLS } from '@/lib/equal-earth'
 
-const TAX_HASH = '04951673b96b11bf'
-const SHIPPED = 'public/priors/rarity.2c02a406.bin.gz'
+const TAX_HASH = '61cd7f2a1e3093e9'
+const SHIPPED = 'public/priors/rarity.2ddeedbe.bin.gz'
 
 /** Encode one WDRR asset in memory. Mirrors ml/distill/build_rarity_blob.py. */
 function buildAsset(opts: {

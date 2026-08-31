@@ -108,7 +108,7 @@ export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
   `/models/wingclip_visual_int8.data?v=${MODEL_VERSION}`,
   `/models/text_classifier_int8.bin?v=${MODEL_VERSION}`,
-  "/priors/occurrence.4f5c1a15.bin.gz",
+  "/priors/occurrence.7c39b341.bin.gz",
 ]
 
 /**

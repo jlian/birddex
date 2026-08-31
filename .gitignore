@@ -178,3 +178,4 @@ ml/fixtures*/
 
 # Python bytecode from scripts/
 scripts/__pycache__/
+scripts/osm-places/__pycache__/

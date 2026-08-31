@@ -72,7 +72,7 @@ actor BirdIdEngine {
             threshold: 0.3736373465
         )
     )
-    static let taxonomySha16 = "04951673b96b11bf"
+    static let taxonomySha16 = "61cd7f2a1e3093e9"
 
     /// Abstention threshold on the CALIBRATED P(bird) scale.
     ///

@@ -41,7 +41,7 @@ export const RARITY_MAGIC = 'WDRR'
  * folding it into that gate would both delay the mark and inflate the gated
  * download for no reason.
  */
-export const RARITY_ASSET_URL = '/priors/rarity.2c02a406.bin.gz'
+export const RARITY_ASSET_URL = '/priors/rarity.2ddeedbe.bin.gz'
 
 /**
  * Why a bird is notable, or that it is not.

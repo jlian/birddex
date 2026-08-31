@@ -7,7 +7,7 @@ import XCTest
 /// deliberately the same cases in the same order. A verdict that differs
 /// between platforms is the failure this file exists to catch.
 final class RarityTests: XCTestCase {
-    private let taxHash = "04951673b96b11bf"
+    private let taxHash = "61cd7f2a1e3093e9"
     private let allMonths: UInt16 = 0xfff
 
     // Seattle. Any land point works; the key is derived rather than hardcoded so

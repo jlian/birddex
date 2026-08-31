@@ -24,11 +24,19 @@ import { MODEL_ASSETS } from '@/lib/bird-id-local-adapter'
 
 const PRIORS = resolve(__dirname, '../../public/priors')
 const V3 = resolve(PRIORS, 'occurrence.1fb61779.bin.gz')
-const V4 = resolve(PRIORS, 'occurrence.4f5c1a15.bin.gz')
+const V4 = resolve(PRIORS, 'occurrence.7c39b341.bin.gz')
 
-const load = (p: string) =>
-  parseOccurrence(new Uint8Array(gunzipSync(readFileSync(p))),
-                  MODEL_ASSETS.taxonomySha16)
+/**
+ * The v3 asset was built against the PRE-extinct-drop taxonomy and is frozen:
+ * it is the artifact a client may still hold in cache, so it cannot be
+ * rebuilt. Pass its own taxonomy hash rather than the current one, otherwise
+ * this test only proves the hash guard fires, which taxonomy-hash.test.ts
+ * already covers.
+ */
+const V3_TAX_SHA16 = '04951673b96b11bf'
+
+const load = (p: string, sha: string = MODEL_ASSETS.taxonomySha16) =>
+  parseOccurrence(new Uint8Array(gunzipSync(readFileSync(p))), sha)
 
 /** Central Park, a densely populated cell in both blobs. */
 const CELL = (() => {
@@ -37,7 +45,7 @@ const CELL = (() => {
 })()
 
 describe('v4 reader against a v3 blob', () => {
-  const v3 = load(V3)
+  const v3 = load(V3, V3_TAX_SHA16)
   const v4 = load(V4)
 
   it('reports the version each blob actually is', () => {
@@ -45,9 +53,14 @@ describe('v4 reader against a v3 blob', () => {
     expect(v4.version).toBe(4)
   })
 
-  it('reads the same taxonomy hash from both', () => {
-    expect(v3.taxHash).toBe(v4.taxHash)
-    expect(v3.taxHash).toBe(MODEL_ASSETS.taxonomySha16)
+  it('reads each blob\'s own taxonomy hash', () => {
+    // These used to be equal. The v3 asset is frozen at the pre-extinct-drop
+    // taxonomy, so after dropping 152 EX/EW species they legitimately differ.
+    // What still must hold: each blob reports ITS OWN hash faithfully, and
+    // the shipped v4 matches the current taxonomy.
+    expect(v3.taxHash).toBe(V3_TAX_SHA16)
+    expect(v4.taxHash).toBe(MODEL_ASSETS.taxonomySha16)
+    expect(v3.taxHash).not.toBe(v4.taxHash)
   })
 
   it('returns monthly priors from a v3 blob', () => {
