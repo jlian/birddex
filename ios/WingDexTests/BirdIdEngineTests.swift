@@ -13,7 +13,11 @@ import XCTest
 final class BirdIdEngineTests: XCTestCase {
     /// Species rows in src/lib/taxonomy.json. The shipped classifier holds
     /// this many rows PLUS one trailing bird/not-bird probe row.
-    static let speciesRows = 11167
+    ///
+    /// 11,167 until the 152 extinct species were dropped. This constant is the
+    /// only place the count is written down, so a taxonomy rebuild that forgets
+    /// to rebuild the classifier fails here rather than mis-keying species.
+    static let speciesRows = 11015
 
     private func makeJPEG(width: Int, height: Int) throws -> Data {
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -58,9 +62,10 @@ final class BirdIdEngineTests: XCTestCase {
                                                 withExtension: "bin"))
         let (rows, n) = try BirdIdEngine.decodeInt8Rows(try Data(contentsOf: url), dim: 768)
 
-        // The shipped file is 11,167 SPECIES rows followed by ONE bird/not-bird
-        // probe row, so it decodes to 11,168. This used to assert 11,167 and
-        // failed by construction the moment the probe was appended.
+        // The shipped file is 11,015 SPECIES rows followed by ONE bird/not-bird
+        // probe row, so it decodes to 11,016. This used to assert the species
+        // count alone and failed by construction the moment the probe was
+        // appended.
         XCTAssertEqual(n, BirdIdEngineTests.speciesRows + 1)
         XCTAssertEqual(rows.count, (BirdIdEngineTests.speciesRows + 1) * 768)
 
@@ -76,7 +81,7 @@ final class BirdIdEngineTests: XCTestCase {
         // The LAST row is NOT a species. It is a logistic coefficient vector,
         // whose magnitude is part of the decision boundary, so it must NOT come
         // back unit-norm. Checking it separately is what distinguishes "the
-        // probe is present" from "a 11,168th species row got appended".
+        // probe is present" from "a 11,016th species row got appended".
         let probe = rows[(BirdIdEngineTests.speciesRows * 768)...]
         let probeNorm = probe.reduce(0) { $0 + Double($1 * $1) }.squareRoot()
         XCTAssertGreaterThan(probeNorm, 2.0, "probe row must not be unit-norm")
