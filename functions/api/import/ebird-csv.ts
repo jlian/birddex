@@ -1,5 +1,6 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { groupPreviewsIntoOutings, parseEBirdCSV } from '../../lib/ebird'
+import { resolveSpeciesCode } from '../../lib/taxonomy'
 import { getOutingColumnNames, hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { rateLimitKey } from '../../lib/rate-limit'
@@ -141,6 +142,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       columnNames.has('effortAreaAcres')
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
     const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
+    const supportsSpeciesCode = await hasObservationColumn(context.env.DB, 'speciesCode')
+    const unresolvedNames = new Set<string>()
 
     // Checklist-level idempotency, applied to the rows BEFORE they are grouped.
     // An outing can merge several checklists, so it cannot identify them; an
@@ -244,21 +247,36 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       const observationColumns = ['id', 'outingId', 'userId', 'speciesName', 'count', 'certainty', 'notes']
       if (supportsSpeciesCommentsColumn) observationColumns.push('speciesComments')
       if (supportsSubmissionId) observationColumns.push('submissionId')
+      // Resolve the eBird code at write time so an import never leaves rows for
+      // a later backfill to find. Unresolvable taxa store NULL and keep
+      // grouping by name; see resolveSpeciesCode for why the code cannot be
+      // total.
+      if (supportsSpeciesCode) observationColumns.push('speciesCode')
+      // Tracked at function scope: there is no client-side import preview any
+      // more, so an unresolved name has no natural place to surface. It has to
+      // land in the route log next to the parsed/persisted counts or nobody
+      // will ever see it.
+      unresolvedNames.clear()
       const observationInsert = jsonBulkInsert(
         context.env.DB,
         'observation',
         observationColumns,
-        observations.map(observation => ({
-          id: observation.id,
-          outingId: observation.outingId,
-          userId,
-          speciesName: observation.speciesName,
-          count: observation.count,
-          certainty: observation.certainty,
-          notes: supportsSpeciesCommentsColumn ? '' : observation.notes,
-          speciesComments: observation.notes || null,
-          submissionId: observation.submissionId ?? null,
-        })),
+        observations.map(observation => {
+          const speciesCode = resolveSpeciesCode(observation.speciesName)
+          if (!speciesCode) unresolvedNames.add(observation.speciesName)
+          return {
+            id: observation.id,
+            outingId: observation.outingId,
+            userId,
+            speciesName: observation.speciesName,
+            count: observation.count,
+            certainty: observation.certainty,
+            notes: supportsSpeciesCommentsColumn ? '' : observation.notes,
+            speciesComments: observation.notes || null,
+            submissionId: observation.submissionId ?? null,
+            speciesCode: speciesCode || null,
+          }
+        }),
       )
       if (observationInsert) insertStatements.push(observationInsert)
 
@@ -296,7 +314,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       throw new Error('Import identity retry limit exceeded')
     }
     if (importBatchCommitted) {
-      route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}`)
+      route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}${unresolvedNames.size > 0 ? `; ${countLabel(unresolvedNames.size, 'species name')} did not resolve to an eBird code and will group by name: ${[...unresolvedNames].slice(0, 10).join(', ')}` : ''}`)
     }
 
     stage = 'recompute dex after the committed import batch'
