@@ -10,7 +10,7 @@
  *   models/wingclip_visual_int8.data    24.00 MiB weights, external data
  *   models/text_classifier_int8.bin     11168 x 768 int8 + per-row fp32 scales
  *                                       (11167 species, then the bird probe)
- *   priors/occurrence.<hash>.bin.gz     21.58 MiB v4 geographic prior
+ *   priors/occurrence.<hash>.bin.gz     21.54 MiB v4 geographic prior
  *
  * The .data file is referenced by the `location` string inside the graph, and
  * onnxruntime-web cannot read the file system, so it must be handed over
@@ -97,7 +97,7 @@ export class BirdIdEngine {
     if (this.session) return
     const a = this.assets
 
-    // Cache-first and SEQUENTIAL. 56.39 MiB in four parallel streams competes
+    // Cache-first and SEQUENTIAL. 56.25 MiB in four parallel streams competes
     // for bandwidth on a phone and makes progress reporting meaningless.
     const urls = [a.modelUrl, a.modelDataUrl, a.textClassifierUrl, a.occurrenceUrl]
     const bufs = await preloadAssets(urls, this.onProgress, this.totalBytes)

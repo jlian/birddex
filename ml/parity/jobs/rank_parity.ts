@@ -23,11 +23,29 @@ const taxHash = createHash("sha256")
   .update(readFileSync(join(ROOT, "src/lib/taxonomy.json")))
   .digest("hex").slice(0, 16)
 
+// The prior is named by CONTENT HASH, so hardcoding it here silently rots the
+// moment the blob is rebuilt: the file still exists, parseOccurrence validates
+// it against the CURRENT taxonomy hash, and the harness dies before ranking a
+// single fixture. That is what happened with occurrence.1fb61779.bin.gz.
+//
+// The name is read out of bird-id-local-adapter.ts rather than imported,
+// because importing that module pulls in the browser engine and model-cache,
+// which do not resolve under bare node. A regex over the source keeps the
+// single source of truth without the dependency.
+const ADAPTER = readFileSync(
+  join(ROOT, "src/lib/bird-id-local-adapter.ts"), "utf8")
+const PRIOR = ADAPTER.match(/["'`](\/priors\/[^"'`]+)["'`]/)?.[1]
+if (!PRIOR) {
+  throw new Error("no /priors/ asset found in bird-id-local-adapter.ts; " +
+                  "the parity harness cannot tell which blob production loads")
+}
+
 const blob = parseOccurrence(
-  new Uint8Array(gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence.1fb61779.bin.gz")))),
+  new Uint8Array(gunzipSync(readFileSync(join(ROOT, "public", PRIOR.slice(1))))),
   taxHash,
 )
-console.log("occurrence blob OK, cells=" + blob.nCells + " taxHash=" + blob.taxHash)
+console.log("occurrence blob OK (" + PRIOR + "), cells=" + blob.nCells +
+            " taxHash=" + blob.taxHash)
 
 // commonName -> taxonomy row index
 const byName = new Map<string, number>()
