@@ -100,13 +100,23 @@ def main():
             if sci_col is None or status_col is None:
                 sys.exit("could not find scientific-name and IUCN columns; "
                          f"headers were: {header}")
+            # taxon_rank is not optional for correctness. Subspecies rows carry
+            # their PARENT's status, so without the rank filter an EX parent
+            # contributes one hit per subspecies and the exclusion list is both
+            # inflated and full of names that are not in our taxonomy. Silently
+            # degrading to "process every row" is the wrong failure: it produces
+            # a plausible-looking list. Fail instead.
+            if rank_col is None:
+                sys.exit("could not find the taxon_rank column, which is "
+                         "required to skip subspecies rows; "
+                         f"headers were: {header}")
             print(f"columns: scientific={sci_col} iucn={status_col} "
                   f"code={code_col} rank={rank_col}")
             continue
 
         # Subspecies rows carry their parent's status; only species rows map
         # onto our taxonomy, and counting both would inflate the total.
-        if rank_col is not None and norm(row[rank_col]) != "species":
+        if norm(row[rank_col]) != "species":
             continue
 
         sci = norm(row[sci_col])
