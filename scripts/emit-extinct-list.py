@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Emit the EX/EW species list from the AviList workbook.
 
-WHY THIS EXISTS RATHER THAN A HARDCODED LIST OF 143 ROW INDEXES
+WHY THIS EXISTS RATHER THAN A HARDCODED LIST OF 152 ROW INDEXES
 ---------------------------------------------------------------
 Row indexes are meaningless across taxonomy versions: dropping rows renumbers
 everything after them, so a list of indexes is only valid for one exact file.
 Deriving the exclusion from the IUCN status column means the next taxonomy
-refresh re-derives it automatically instead of someone remembering to redo 143
+refresh re-derives it automatically instead of someone remembering to redo 152
 deletions by hand.
 
 The workbook is the same one scripts/build-birdlife-crosswalk.py already opens,
