@@ -63,9 +63,24 @@ const nSpecies = text.length / EMBED
 console.log("text classifier: " + nSpecies + " x " + EMBED)
 if (nSpecies !== taxonomy.length) throw new Error("species/taxonomy mismatch")
 
-const occRaw = gunzipSync(readFileSync(join(ROOT, "public/priors/occurrence.1fb61779.bin.gz")))
+// Same content-hash trap as rank_parity.ts: pinning the prior by name means
+// the file still exists after a rebuild, parseOccurrence checks it against the
+// CURRENT taxonomy hash, and this harness dies before ranking anything. The
+// name is read out of bird-id-local-adapter.ts rather than imported, because
+// that module pulls in the browser engine and model-cache, which do not
+// resolve under bare node.
+const ADAPTER = readFileSync(
+  join(ROOT, "src/lib/bird-id-local-adapter.ts"), "utf8")
+const PRIOR = ADAPTER.match(/["'`](\/priors\/[^"'`]+)["'`]/)?.[1]
+if (!PRIOR) {
+  throw new Error("no /priors/ asset found in bird-id-local-adapter.ts; " +
+                  "the e2e harness cannot tell which blob production loads")
+}
+
+const occRaw = gunzipSync(readFileSync(join(ROOT, "public", PRIOR.slice(1))))
 const occ = parseOccurrence(new Uint8Array(occRaw), taxHash)
-console.log("occurrence: " + occ.nCells + " cells, taxHash " + occ.taxHash)
+console.log("occurrence: " + PRIOR + ", " + occ.nCells + " cells, taxHash " +
+            occ.taxHash)
 
 const modelPath = join(ROOT, "public/models/wingclip_visual_int8.onnx")
 const session = await ort.InferenceSession.create(modelPath)
