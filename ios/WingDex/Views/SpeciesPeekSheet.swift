@@ -359,7 +359,7 @@ struct SpeciesPeekSheet: View {
         // BirdLife factsheet, and a dead control invites a tap that does nothing.
         HStack(spacing: 8) {
             if let url = getWikipediaURL(forSpecies: candidate.species) {
-                chip("Wikipedia", icon: "book", url: url, preferReader: true)
+                chip("Wikipedia", icon: "book", url: url)
             }
             if let url = getEbirdURL(for: candidate.species) {
                 chip("eBird", icon: "globe", url: url)
@@ -370,9 +370,9 @@ struct SpeciesPeekSheet: View {
         }
     }
 
-    private func chip(_ title: String, icon: String, url: URL, preferReader: Bool = false) -> some View {
+    private func chip(_ title: String, icon: String, url: URL) -> some View {
         Button {
-            safariLink = SafariLink(url: url, preferReader: preferReader)
+            safariLink = SafariLink(url: url)
         } label: {
             Label(title, systemImage: icon)
         }
