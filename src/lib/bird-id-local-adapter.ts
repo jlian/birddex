@@ -104,10 +104,14 @@ export const MODEL_VERSION = "650a8d93"
  * gate on noise. This is exactly the silent-staleness case the version query
  * exists for.
  *
- * It IS bumped again for the extinct-species drop. The classifier lost 152
- * rows, so every species index past the first dropped row shifted. A stale
- * cache entry here is the worst case the query string exists to prevent: the
- * old file decodes cleanly against the NEW taxonomy and mis-keys the names.
+ * It IS bumped again for the extinct-species drop, but for a different
+ * reason than the probe row above. The classifier lost 152 rows, so a stale
+ * cache entry decodes to 11,167 species rows against an 11,015-row taxonomy
+ * and ensureLoaded throws (see bird-id-local.ts, which compares nSpecies with
+ * taxonomy.length). The failure is a PERSISTENT init failure for anyone
+ * holding the old bytes, not silent mis-keying: the immutable cache would
+ * serve the same stale file on every reload, so the bump is what lets those
+ * users recover at all.
  */
 export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
@@ -166,7 +170,7 @@ export const MODEL_DECODED_BYTES = 14_386_564 + 25_165_824 + 8_504_352 + 22_590_
  * this path return zero candidates.
  *
  * The 768-d weight vector is NOT here. It is the LAST row of
- * text_classifier_int8.bin (row 11167, after the 11,167 species rows), which
+ * text_classifier_int8.bin (row 11015, after the 11,015 species rows), which
  * already stores int8 rows plus fp32 per-row scales, so it fits with no format
  * change for 772 bytes. These four scalars are inlined for the same reason
  * temperature and beta are: they MUST match those bytes, and a fifth request is
@@ -254,7 +258,7 @@ export const MODEL_ASSETS: EngineAssets = {
  * photos, against 95% / 70% at 0.7.
  *
  * A dog is the hard case and no threshold fixes it, because this is zero-shot
- * cosine over 11,167 BIRD names with no "not a bird" class, so a furry
+ * cosine over 11,015 BIRD names with no "not a bird" class, so a furry
  * four-legged animal lands somewhere plausible. Dogs come back as African
  * Penguin and Sooty Owl. A pre-rerank vision gate was measured as an
  * alternative and is WORSE on dogs (32.5% pass at 0.3 against 30% here) while
@@ -302,7 +306,7 @@ export function preloadModel(
 }
 
 /**
- * Load the engine once per session. The assets are 56.39 MiB, so this is
+ * Load the engine once per session. The assets are 56.25 MiB, so this is
  * called on first identify rather than at page load, and the browser cache
  * makes every later session free.
  */
