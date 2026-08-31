@@ -59,13 +59,28 @@ describe('Guatemala vulture', () => {
     expect(xyToCell(x, y)).toEqual({ row: 239, col: 319 })
   })
 
+  // Both clients take a FIXED top-25 out of the current classifier: K = 25 in
+  // bird-id-local.ts, candidateCount in BirdIdEngine.swift. A shortlist of any
+  // other length is a state production cannot reach, so ranking it proves
+  // nothing about shipped behaviour.
+  //
+  // This is a real regression, not a hypothetical. During the extinct drop the
+  // fixture was trimmed to 24 because one member was extinct, which looked
+  // internally consistent and passed every other assertion here while testing
+  // an unreachable shortlist and a softmax over the wrong denominator. Assert
+  // the invariant so a future regeneration cannot repeat it quietly.
+  it('carries the production top-25 shortlist', () => {
+    expect(fix.cand_idx).toHaveLength(25)
+    expect(fix.cand_sim).toHaveLength(25)
+  })
+
   it('ranks Black Vulture first', () => {
     expect(names[scored[0].idx][0]).toBe('Black Vulture')
   })
 
   it('displays a confidence near 61 percent, not a saturated one', () => {
     // This asserts the DISPLAYED value, which is what the user reads:
-    //   pBird * P(species | bird) = 0.9878 * 0.6163 = 0.6088
+    //   pBird * P(species | bird) = 0.9878 * 0.6216 = 0.6141
     // scoresToProbs returns only the species term, so asserting it alone
     // would leave the shipped probe multiplier untested on this photo.
     //

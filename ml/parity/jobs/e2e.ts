@@ -1,12 +1,18 @@
 /**
  * End-to-end: real photo bytes through the SHIPPING pipeline.
  *
- * preprocess -> int8 ONNX -> fp16 text classifier -> Strategy I ranker.
+ * preprocess -> int8 ONNX -> int8 text classifier -> Strategy I ranker.
  *
  * Every earlier check tested one layer against a reference. This runs the
  * whole chain on the exact artifacts that will be served from public/, so it
  * catches wiring faults that per-layer parity cannot: a wrong external-data
- * key, a transposed classifier, an fp16 decode bug, or a taxonomy offset.
+ * key, a transposed classifier, a classifier decode bug, or a taxonomy offset.
+ *
+ * The classifier is int8 rows plus fp32 per-row scales, with one trailing
+ * bird/not-bird probe row. This header said fp16 while the code decoded fp16,
+ * and the mismatch with the shipped layout is exactly the decode bug the file
+ * claims to catch: it produced a fractional species count and killed the run
+ * before any asset opened.
  *
  * Uses onnxruntime-node rather than -web because the browser check needs a
  * real browser. The graph and weights are byte-identical, so this proves the
