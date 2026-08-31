@@ -3,15 +3,21 @@
 
 WHY THIS IS A SEPARATE STEP
 ---------------------------
-build_prior_blob.py and build_rarity_blob.py key species by app_idx read
-STRAIGHT OUT of the target taxa CSV, not by looking anything up in
-taxonomy.json. They hash the taxonomy and embed that hash, so a blob built
-from a stale CSV still carries the NEW hash and passes every client check
-while being keyed to the OLD row numbers. Nothing downstream can catch it:
-the mis-keying is silent and shifts by one more row for every dropped
-species that sorts before it.
+build_prior_blob.py keys species by app_idx read STRAIGHT OUT of the target
+taxa CSV, not by looking anything up in taxonomy.json. It hashes the taxonomy
+and embeds that hash, so an occurrence blob built from a stale CSV still
+carries the NEW hash and passes every client check while being keyed to the
+OLD row numbers. Nothing downstream can catch it: the mis-keying is silent and
+shifts by one more row for every dropped species that sorts before it.
 
-So the CSV has to be remapped BEFORE the blobs are rebuilt.
+build_rarity_blob.py does NOT read the CSV. It takes --occurrence and derives
+its taxonomy-indexed data from the rebuilt WDOP blob, refusing to run if that
+blob's taxonomy hash does not match. So it inherits the occurrence blob's
+keying rather than deriving its own, which means a mis-keyed occurrence blob
+produces a mis-keyed rarity blob without the CSV ever being involved.
+
+So the CSV has to be remapped BEFORE the occurrence blob is rebuilt, and the
+rarity blob has to be rebuilt after it.
 
 Rows whose app_idx was dropped are removed entirely: the species no longer
 exists in the taxonomy, so there is no index to point at. Their occurrence
