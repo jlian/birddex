@@ -21,6 +21,38 @@
  * printed, with every distinct unresolved name, and --strict fails the run if
  * it exceeds a threshold.
  *
+ * RUNNING THIS AGAINST A REMOTE D1
+ * --------------------------------
+ * Nothing here targets remote by default and there is no --remote flag, on
+ * purpose. Set D1_REMOTE=1 deliberately, and only after the local run looks
+ * right. The order that matters:
+ *
+ *   1. apply migration 0014 to the remote database
+ *        wrangler d1 migrations apply wingdex-db --remote
+ *   2. dump the distinct names FROM THAT DATABASE, not from local
+ *        D1_REMOTE=1 node scripts/backfill-species-code.mjs --dump-names
+ *   3. build the plan against those names
+ *        npx vitest run src/__tests__/species-code-plan.test.ts
+ *   4. DRY RUN first and read the unresolved tail
+ *        D1_REMOTE=1 node scripts/backfill-species-code.mjs
+ *   5. only then write
+ *        D1_REMOTE=1 node scripts/backfill-species-code.mjs --apply --strict 5
+ *
+ * Step 2 matters: production holds names local data does not, so a plan built
+ * from a local dump would silently leave those rows NULL. Step 4 matters
+ * because the unresolved tail is the signal that the resolver regressed, and
+ * --strict turns that into a failure rather than a line of output nobody reads.
+ *
+ * The write is a single json_each UPDATE per table, so it is one round trip
+ * rather than one per species. It is still not a transaction across both
+ * tables: if observation succeeds and dex_meta fails, re-running is safe
+ * because every UPDATE is guarded by `speciesCode IS NULL`, so it only fills
+ * gaps and never overwrites.
+ *
+ * Backfilling is not required for correctness. Rows with a NULL code group by
+ * speciesName, which is exactly what they do today, so an un-backfilled
+ * database behaves as it did before the change.
+ *
  * Usage:
  *   npx vitest run src/__tests__/species-code-plan.test.ts   # writes the plan
  *   node scripts/backfill-species-code.mjs
@@ -140,24 +172,31 @@ for (const table of ['observation', 'dex_meta']) {
 
   if (!apply) continue
 
-  // One UPDATE per distinct code, not per row: a few hundred statements rather
-  // than one per observation.
-  const byCode = new Map()
-  for (const [name, code] of resolved) {
-    if (!byCode.has(code)) byCode.set(code, [])
-    byCode.get(code).push(name)
-  }
+  // ONE statement, not one per species.
+  //
+  // The first version issued a separate UPDATE per distinct code, which meant
+  // 71 sequential `npx wrangler` invocations and about 30 minutes locally. That
+  // is merely slow against a local file, but against a remote D1 it is 71
+  // round trips that are NOT in a transaction, so an interruption halfway
+  // leaves the table half-coded with no record of where it stopped.
+  //
+  // json_each is the same mechanism the import path already uses for bulk
+  // inserts, so this is one prepared statement carrying the whole mapping.
+  const pairs = [...resolved].map(([speciesName, code]) => ({ speciesName, code }))
+  const sql =
+    `UPDATE ${table} SET speciesCode = (` +
+    `  SELECT json_extract(value, '$.code') FROM json_each(${sqlQuote(JSON.stringify(pairs))})` +
+    `  WHERE json_extract(value, '$.speciesName') = ${table}.speciesName` +
+    `) WHERE speciesCode IS NULL AND speciesName IN (` +
+    `  SELECT json_extract(value, '$.speciesName') ` +
+    `  FROM json_each(${sqlQuote(JSON.stringify(pairs))})` +
+    `)`
+  d1(sql)
+  console.log(`  wrote      : ${resolved.size} mappings in 1 statement`)
 
-  let written = 0
-  for (const [code, group] of byCode) {
-    const list = group.map(sqlQuote).join(', ')
-    const res = d1(
-      `UPDATE ${table} SET speciesCode = ${sqlQuote(code)} ` +
-      `WHERE speciesName IN (${list}) AND speciesCode IS NULL`)
-    written += 1
-    void res
-  }
-  console.log(`  wrote      : ${byCode.size} code groups (${written} statements)`)
+  const after = d1(
+    `SELECT COUNT(*) AS total, COUNT(speciesCode) AS coded FROM ${table}`)[0]
+  console.log(`  verified   : ${after.coded}/${after.total} rows carry a code`)
 }
 
 if (!apply) {
