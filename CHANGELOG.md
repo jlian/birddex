@@ -1,3 +1,35 @@
+# [1.27.0](https://github.com/jlian/wingdex/compare/v1.26.1...v1.27.0) (2026-08-31)
+
+
+### Bug Fixes
+
+* **birdid:** retarget row count, cache key and blob sizes at the rebuild ([55079d7](https://github.com/jlian/wingdex/commit/55079d73d383ee8c3e002ed64d7768baa46e0ae6))
+* **birdid:** retarget the byte totals and fail loudly on partial verification ([d1a4a7a](https://github.com/jlian/wingdex/commit/d1a4a7a1724c3b24526341b407a55689930ac418))
+* **ml:** bind the staging keep-map to the taxonomy hash, and correct the card ([5c5e58c](https://github.com/jlian/wingdex/commit/5c5e58cbbd12301b364e85d3403a7c2e97185baa))
+* **ml:** point the rebuild at the v4 builder and decode the classifier as int8 ([a9f35ea](https://github.com/jlian/wingdex/commit/a9f35ea5ec48eb151618729383cd08c1c72e549e))
+* **ml:** unbreak the parity harness and the 0.1 publisher after the drop ([e8375fd](https://github.com/jlian/wingdex/commit/e8375fd880ed83b329a34b2475d98445cfe08eb7))
+* **ml:** unpin the prior in e2e.ts and retarget the last stale row counts ([f98d2c2](https://github.com/jlian/wingdex/commit/f98d2c21041d1b4e608d3764543d8b73371036b0))
+* **taxonomy:** bind the target taxa CSV to the pre-drop taxonomy by name ([4297a2e](https://github.com/jlian/wingdex/commit/4297a2e13da89e3ab51bfd64646b3860b2611033))
+* **taxonomy:** bounds-check the occurrence species indexes, not just the header ([214b355](https://github.com/jlian/wingdex/commit/214b3553c7b5d05bc86b40e46ba14950b6051d44))
+* **taxonomy:** compare whole rows, stop on an invalid map, reject duplicates ([e0079b5](https://github.com/jlian/wingdex/commit/e0079b53f143ee9058d982aa7b6b53613ec30cac))
+* **taxonomy:** filter the HF staging path and require a complete list match ([56a490e](https://github.com/jlian/wingdex/commit/56a490ecd4574e39b900e9f82b5ad4bd88ca51de))
+* **taxonomy:** make a missing taxon_rank column fatal ([e457ed8](https://github.com/jlian/wingdex/commit/e457ed80d748418f236061687143ba57a17f148c))
+* **taxonomy:** partition-check the keep-map, correct the renumber count and docs ([1d6aa02](https://github.com/jlian/wingdex/commit/1d6aa02c2dc21b7e5d2f0bb3367193284ea959d5))
+* **taxonomy:** pass --keep-map in the printed classifier re-emit command ([788f5a5](https://github.com/jlian/wingdex/commit/788f5a5261161b3b3d57724f82870721f0cd8f0f))
+* **taxonomy:** regenerate the vulture fixture and make two guards exhaustive ([759ec02](https://github.com/jlian/wingdex/commit/759ec02f81b6b02fa1b12bf67fb8dbbfc11a0365))
+* **taxonomy:** reject negative app_idx, swapped blobs, and a misleading heading ([42506ef](https://github.com/jlian/wingdex/commit/42506efa8ff6680a3a71caf8237e88a462fe6358))
+* **taxonomy:** require exact row spans in both keep-map guards ([7a886bf](https://github.com/jlian/wingdex/commit/7a886bf0d2c13bd944948f0f13bf4f3d06c1143d))
+* **taxonomy:** restore the one-line serializer so the drop stays reproducible ([38d4561](https://github.com/jlian/wingdex/commit/38d4561a617729098a5d1911841dadca8f9a45e1))
+* **taxonomy:** stop a stale list on --apply and remap app_idx before the blobs ([cdfec5e](https://github.com/jlian/wingdex/commit/cdfec5e1c281598240874a46fa0b19cd47e28c94))
+* **taxonomy:** verify WHICH classifier rows were dropped, not just how many ([c4f3e18](https://github.com/jlian/wingdex/commit/c4f3e18fad6eefb6585c8ab640960f395573de9e))
+
+
+### Features
+
+* **taxonomy:** derive the extinct list from AviList v2025b ([cb33b5d](https://github.com/jlian/wingdex/commit/cb33b5df943f8789d3379be39e936bf711499fe1))
+* **taxonomy:** drop 152 extinct species and rebuild all four artifacts ([418f077](https://github.com/jlian/wingdex/commit/418f07741990524dd05febc5dd6193baff08b5bc))
+* **taxonomy:** tooling to drop extinct species and verify the rebuild ([ea383e8](https://github.com/jlian/wingdex/commit/ea383e816f53491a35d999a692662c4177cdafb2))
+
 ## [1.26.1](https://github.com/jlian/wingdex/compare/v1.26.0...v1.26.1) (2026-08-30)
 
 
