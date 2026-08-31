@@ -85,6 +85,17 @@ def main():
     # index, or carrying a duplicate row, still ends at 11166 and would pass,
     # then hand the blob builders a taxon that never appears or appears twice,
     # while this script printed a contiguous range and looked correct.
+    #
+    # Both endpoints have to be checked. A row with app_idx -1 keeps the right
+    # maximum, adds no duplicate and leaves nothing missing, so every other
+    # check here passes. It is then absent from old_to_new and gets counted as
+    # one more dropped species, silently inflating the drop.
+    if min(seen) != 0:
+        out_of_range = sorted(i for i in seen if i < 0)
+        sys.exit(f"ERROR: {src} holds app_idx {out_of_range[:10]}; indexes must "
+                 f"start at 0. A negative index is not a taxonomy row and "
+                 f"would be silently treated as a dropped species.")
+
     if max(seen) != expected - 1:
         already = ""
         if max(seen) == keep["new_rows"] - 1:

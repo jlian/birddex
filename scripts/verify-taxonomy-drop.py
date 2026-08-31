@@ -214,13 +214,24 @@ def main():
         print("        note: pass --old-classifier to check WHICH rows were "
               "dropped, not just how many")
 
-    # 6. blob hashes
-    for label, path in (("occurrence", args.occurrence), ("rarity", args.rarity)):
+    # 6. blob magic + hashes
+    #
+    # The magic must be checked, not merely printed. Both blobs carry the SAME
+    # taxonomy hash, so swapping --occurrence and --rarity passes the hash
+    # comparison for both and reports a clean run: a mistyped full-verification
+    # command then produces a false green, which is worse than no check.
+    for label, path, want in (("occurrence", args.occurrence, "WDOP"),
+                              ("rarity", args.rarity, "WDRR")):
         if not path:
             continue
         raw = gzip.open(path, "rb").read() if path.endswith(".gz") else Path(path).read_bytes()
         magic = raw[0:4].decode(errors="replace")
         blob_hash = raw[8:16].hex()
+        if magic != want:
+            errs += fail(f"--{label} is a {magic} blob, expected {want}  -> "
+                         f"the arguments are swapped or the wrong file was "
+                         f"passed")
+            continue
         if blob_hash != new_hash:
             errs += fail(f"{label} blob ({magic}) carries {blob_hash}, "
                          f"taxonomy is {new_hash}  -> parser WILL throw")
@@ -243,7 +254,7 @@ def main():
                                        ("--old-classifier", args.old_classifier))
                if not path]
     if skipped:
-        print("PARTIAL VERIFICATION -- taxonomy and keep-map only.")
+        print("PARTIAL VERIFICATION -- some inputs were not inspected.")
         print(f"  not inspected: {', '.join(skipped)}")
         print("  this does NOT establish that the artifacts are aligned.")
         return 2
