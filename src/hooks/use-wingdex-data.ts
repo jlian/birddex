@@ -45,24 +45,38 @@ function rebuildDexFromState(
   const existingBySpecies = new Map(existingDex.map(entry => [entry.speciesName, entry]))
   const grouped = new Map<string, Observation[]>()
 
+  // Same grouping key as DEX_QUERY on the server: the eBird code when the
+  // observation has one, the display name when it does not, in separate
+  // namespaces. Local mode has to agree with the server or a species would
+  // merge in one and split in the other.
   for (const observation of allObservations) {
     if (observation.certainty !== 'confirmed') continue
-    const list = grouped.get(observation.speciesName)
+    const key = observation.speciesCode
+      ? `code:${observation.speciesCode}`
+      : `name:${observation.speciesName}`
+    const list = grouped.get(key)
     if (list) {
       list.push(observation)
     } else {
-      grouped.set(observation.speciesName, [observation])
+      grouped.set(key, [observation])
     }
   }
 
   const rebuilt: DexEntry[] = []
 
-  for (const [speciesName, speciesObservations] of grouped.entries()) {
+  for (const speciesObservations of grouped.values()) {
     const speciesOutings = speciesObservations
       .map(observation => outingsById.get(observation.outingId))
       .filter((outing): outing is Outing => !!outing)
 
     if (speciesOutings.length === 0) continue
+
+    // Mirrors MIN(speciesName) in DEX_QUERY. Rows sharing a code are the same
+    // bird spelled differently, so any is correct; the smallest is stable.
+    const speciesName = speciesObservations
+      .map(observation => observation.speciesName)
+      .sort()[0]
+    const speciesCode = speciesObservations.find(o => o.speciesCode)?.speciesCode
 
     const firstSeen = speciesOutings.reduce((min, currentOuting) =>
       new Date(currentOuting.startTime) < new Date(min.startTime)
@@ -82,6 +96,7 @@ function rebuildDexFromState(
 
     rebuilt.push({
       speciesName,
+      ...(speciesCode ? { speciesCode } : {}),
       firstSeenDate: firstSeen.startTime,
       lastSeenDate: lastSeen.startTime,
       addedDate: existing?.addedDate || new Date().toISOString(),
@@ -516,10 +531,15 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     )
     if (incomingConfirmed.length === 0) return { newSpeciesCount: 0 }
 
-    const existingSpecies = new Set(payloadRef.current.dex.map(entry => entry.speciesName))
-    const incomingSpecies = new Set(incomingConfirmed.map(obs => obs.speciesName))
+    // Compare on the grouping key, matching DEX_QUERY and rebuildDexFromState.
+    // Comparing display names would count a bird as new when it arrives under a
+    // different spelling of a species already in the dex.
+    const dexKey = (row: { speciesName: string; speciesCode?: string }) =>
+      row.speciesCode ? `code:${row.speciesCode}` : `name:${row.speciesName}`
+    const existingSpecies = new Set(payloadRef.current.dex.map(dexKey))
+    const incomingSpecies = new Set(incomingConfirmed.map(dexKey))
     const newSpeciesCount = Array.from(incomingSpecies).filter(
-      speciesName => !existingSpecies.has(speciesName)
+      key => !existingSpecies.has(key)
     ).length
 
     if (storageMode === 'local') {

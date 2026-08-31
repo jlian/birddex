@@ -28,3 +28,8 @@ export async function hasObservationColumn(db: D1Database, column: string): Prom
   const names = await getTableColumnNames(db, 'observation')
   return names.has(column)
 }
+
+export async function hasDexMetaColumn(db: D1Database, column: string): Promise<boolean> {
+  const names = await getTableColumnNames(db, 'dex_meta')
+  return names.has(column)
+}

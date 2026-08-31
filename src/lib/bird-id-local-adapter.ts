@@ -106,7 +106,7 @@ export const MODEL_VERSION = "32052999"
  *
  * It IS bumped again for the extinct-species drop, but for a different
  * reason than the probe row above. The classifier lost 173 rows, so a stale
- * cache entry decodes to 11,167 species rows against an 10,994-row taxonomy
+ * cache entry decodes to 11,167 species rows against a 10,994-row taxonomy
  * and ensureLoaded throws (see bird-id-local.ts, which compares nSpecies with
  * taxonomy.length). The failure is a PERSISTENT init failure for anyone
  * holding the old bytes, not silent mis-keying: the immutable cache would

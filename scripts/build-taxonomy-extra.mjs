@@ -26,7 +26,7 @@
  *   issf        subspecies groups             3952
  *   form/intergrade                            198
  *   domestic    "Domestic Chicken"              25
- *   species     the extinct species dropped     152
+ *   species     the extinct species dropped     173
  *
  * All of these can appear in a real eBird export, so all of them can land in
  * observation.speciesName and need a details page.
@@ -46,7 +46,7 @@
  *   node scripts/build-taxonomy-extra.mjs [--csv .tmp/ebird-taxonomy-full.csv]
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import Papa from 'papaparse'
@@ -71,6 +71,9 @@ async function loadEbirdCsv(explicit) {
   const res = await fetch(EBIRD_CSV_URL)
   if (!res.ok) throw new Error(`eBird taxonomy fetch failed: ${res.status}`)
   const text = await res.text()
+  // .tmp does not exist on a fresh checkout, so the cache write would ENOENT
+  // before the sidecar could be built.
+  mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, text)
   console.log(`  cached to ${path}`)
   return text

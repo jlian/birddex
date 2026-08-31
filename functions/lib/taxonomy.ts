@@ -196,17 +196,29 @@ export function resolveSpeciesCode(speciesName: string): string {
   if (!speciesName) return ''
   const raw = speciesName.trim()
 
+  // 1. The WHOLE stored string, exactly, before interpreting anything.
+  //
+  //    This has to come first. Several canonical eBird names contain their own
+  //    parentheses: "Mallard (Domestic type)" is a real taxon with code
+  //    mallar2. Stripping at the first "(" turns it into "Mallard", which
+  //    resolves to the WILD Mallard mallar3, so a domestic bird would be filed
+  //    under a species it is not. The classifier is checked before the sidecar
+  //    so a real species always wins.
+  const whole = raw.toLowerCase()
+  const exact = byCommonLower.get(whole) ?? extraByCommon.get(whole)
+  if (exact?.ebirdCode) return exact.ebirdCode
+
   // "Common (Scientific)" is the canonical stored shape.
   const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
   const commonPart = (paren ? paren[1] : raw).trim().toLowerCase()
   const scientificPart = paren ? paren[2].trim().toLowerCase() : ''
 
-  // 1. scientific name, exact
+  // 2. scientific name, exact
   if (scientificPart) {
     const hit = byScientificLower.get(scientificPart) ?? extraByScientific.get(scientificPart)
     if (hit?.ebirdCode) return hit.ebirdCode
 
-    // 2. trinomial -> binomial. "anas platyrhynchos domesticus" is not an
+    // 3. trinomial -> binomial. "anas platyrhynchos domesticus" is not an
     //    eBird scientific name, but "anas platyrhynchos" is.
     const words = scientificPart.split(/\s+/)
     if (words.length > 2) {
@@ -217,15 +229,9 @@ export function resolveSpeciesCode(speciesName: string): string {
     }
   }
 
-  // 3. common name, classifier first so it wins any collision
+  // 4. common name with any parenthetical stripped, classifier first
   const byCommon = byCommonLower.get(commonPart) ?? extraByCommon.get(commonPart)
   if (byCommon?.ebirdCode) return byCommon.ebirdCode
-
-  // 4. the full stored string as a common name, for taxa whose own name
-  //    contains parentheses, e.g. "Mallard (Domestic type)".
-  const whole = raw.toLowerCase()
-  const asWhole = byCommonLower.get(whole) ?? extraByCommon.get(whole)
-  if (asWhole?.ebirdCode) return asWhole.ebirdCode
 
   return ''
 }

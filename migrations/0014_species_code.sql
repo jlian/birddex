@@ -31,8 +31,18 @@
 -- stale. The backfill runs as a script against the same resolveSpeciesCode the
 -- import path uses, so there is one implementation of the rule.
 --
--- Nothing reads speciesCode yet. This migration is additive and reversible in
--- effect: dropping the column returns the schema to its previous behaviour.
+-- DEPLOYMENT ORDER
+-- ----------------
+-- Schema must land BEFORE the code that reads it. DEX_QUERY selects both
+-- speciesCode columns, so a database without them fails the dex query outright.
+--
+-- Rolling back is therefore not just `DROP COLUMN`: the name-based query has to
+-- be restored first, then the columns dropped. Dropping the columns under the
+-- deployed code breaks the dex rather than reverting it.
+--
+-- Backfilling is NOT required for correctness. A NULL speciesCode groups by
+-- speciesName, which is exactly the previous behaviour, so an un-backfilled
+-- database behaves as it did before.
 
 ALTER TABLE observation ADD COLUMN speciesCode TEXT;
 

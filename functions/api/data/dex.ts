@@ -1,5 +1,7 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { createRouteResponder } from '../../lib/log'
+import { hasDexMetaColumn } from '../../lib/schema'
+import { resolveSpeciesCode } from '../../lib/taxonomy'
 
 type DexMetaPatch = {
   speciesName: string
@@ -22,6 +24,12 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
 }
 
 async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMetaPatch) {
+  // Resolve the grouping key alongside the name. dex_meta is still
+  // PRIMARY KEY (userId, speciesName), so the row identity does not change, but
+  // storing the code lets DEX_QUERY match this metadata to a coded observation
+  // directly instead of going through the name-resolution fallback.
+  const speciesCode = resolveSpeciesCode(patch.speciesName) || null
+
   const existingResult = await db
     .prepare('SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND speciesName = ? LIMIT 1')
     .bind(userId, patch.speciesName)
@@ -32,6 +40,25 @@ async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMeta
   const nextAddedDate = 'addedDate' in patch ? patch.addedDate ?? null : (existing?.addedDate ?? null)
   const nextBestPhotoId = 'bestPhotoId' in patch ? patch.bestPhotoId ?? null : (existing?.bestPhotoId ?? null)
   const nextNotes = typeof patch.notes === 'string' ? patch.notes : (existing?.notes ?? '')
+
+  const supportsSpeciesCode = await hasDexMetaColumn(db, 'speciesCode')
+
+  if (supportsSpeciesCode) {
+    await db
+      .prepare(
+        `INSERT INTO dex_meta (userId, speciesName, speciesCode, addedDate, bestPhotoId, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(userId, speciesName)
+         DO UPDATE SET
+           speciesCode = excluded.speciesCode,
+           addedDate = excluded.addedDate,
+           bestPhotoId = excluded.bestPhotoId,
+           notes = excluded.notes`
+      )
+      .bind(userId, patch.speciesName, speciesCode, nextAddedDate, nextBestPhotoId, nextNotes)
+      .run()
+    return
+  }
 
   await db
     .prepare(

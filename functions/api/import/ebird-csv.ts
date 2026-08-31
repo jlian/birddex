@@ -114,7 +114,12 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
     stage = 'read the pre-import dex snapshot'
     const priorDex = await computeDex(context.env.DB, userId)
-    const priorSpecies = new Set(priorDex.map(row => row.speciesName))
+    // Compare the same key DEX_QUERY groups on, not the display string.
+    // MIN(speciesName) can change when another spelling of an existing coded
+    // species arrives, which would report a species already in the dex as new.
+    const dexKey = (row: { speciesName: string; speciesCode?: string | null }) =>
+      row.speciesCode ? `code:${row.speciesCode}` : `name:${row.speciesName}`
+    const priorSpecies = new Set(priorDex.map(dexKey))
 
     stage = 'check exact import receipt'
     const existingFileIdentity = await existingImportKeys(
@@ -319,7 +324,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
     stage = 'recompute dex after the committed import batch'
     const dexUpdates = await computeDex(context.env.DB, userId)
-    const newSpecies = dexUpdates.filter(row => !priorSpecies.has(row.speciesName)).length
+    const newSpecies = dexUpdates.filter(row => !priorSpecies.has(dexKey(row))).length
 
     return route.complete(Response.json({
       imported: {

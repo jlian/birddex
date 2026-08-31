@@ -32,7 +32,7 @@
  *   2. dump the distinct names FROM THAT DATABASE, not from local
  *        D1_REMOTE=1 node scripts/backfill-species-code.mjs --dump-names
  *   3. build the plan against those names
- *        npx vitest run src/__tests__/species-code-plan.test.ts
+ *        npx vitest run --config vitest.plan.config.ts
  *   4. DRY RUN first and read the unresolved tail
  *        D1_REMOTE=1 node scripts/backfill-species-code.mjs
  *   5. only then write
@@ -54,7 +54,7 @@
  * database behaves as it did before the change.
  *
  * Usage:
- *   npx vitest run src/__tests__/species-code-plan.test.ts   # writes the plan
+ *   npx vitest run --config vitest.plan.config.ts   # writes the plan
  *   node scripts/backfill-species-code.mjs
  *   node scripts/backfill-species-code.mjs --apply
  *   node scripts/backfill-species-code.mjs --apply --strict 5
@@ -85,7 +85,20 @@ const apply = process.argv.includes('--apply')
 const dumpNames = process.argv.includes('--dump-names')
 const remote = process.env.D1_REMOTE === '1'
 const strictIdx = process.argv.indexOf('--strict')
-const strictMax = strictIdx >= 0 ? Number(process.argv[strictIdx + 1]) : null
+let strictMax = null
+if (strictIdx >= 0) {
+  // Validate before touching the database. `--strict foo` or a bare `--strict`
+  // yields NaN, and every comparison against NaN is false, so the operator
+  // would believe the safety check was active while the apply proceeded.
+  const raw = process.argv[strictIdx + 1]
+  strictMax = Number(raw)
+  if (raw === undefined || raw.startsWith('--') || !Number.isInteger(strictMax) ||
+      strictMax < 0) {
+    console.error(
+      `--strict needs a non-negative integer, got ${raw === undefined ? '(nothing)' : JSON.stringify(raw)}`)
+    process.exit(1)
+  }
+}
 
 function d1(sql) {
   const args = [
@@ -121,7 +134,7 @@ if (dumpNames) {
   mkdirSync(resolve(ROOT, '.tmp'), { recursive: true })
   writeFileSync(NAMES, JSON.stringify([...seen], null, 2) + '\n')
   console.log(`wrote ${NAMES}: ${seen.size} distinct names`)
-  console.log('next: npx vitest run src/__tests__/species-code-plan.test.ts')
+  console.log('next: npx vitest run --config vitest.plan.config.ts')
   process.exit(0)
 }
 
@@ -132,7 +145,7 @@ try {
   console.error(
     `No plan at ${PLAN}.\n` +
     `Run: node scripts/backfill-species-code.mjs --dump-names\n` +
-    `then: npx vitest run src/__tests__/species-code-plan.test.ts`)
+    `then: npx vitest run --config vitest.plan.config.ts`)
   process.exit(1)
 }
 const resolveSpeciesCode = name => plan.map[name] ?? ''

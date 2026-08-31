@@ -35,6 +35,11 @@ export interface Observation {
   id: string
   outingId: string
   speciesName: string
+  /**
+   * eBird species code, absent when the name resolves to no known taxon.
+   * The dex grouping key when present; speciesName is the fallback.
+   */
+  speciesCode?: string
   count: number
   certainty: ObservationStatus
   representativePhotoId?: string
@@ -47,6 +52,8 @@ export interface Observation {
 
 export interface DexEntry {
   speciesName: string
+  /** eBird species code for this dex entry, absent for unresolvable taxa. */
+  speciesCode?: string
   firstSeenDate: string
   lastSeenDate: string
   /** When this species was first added to WingDex (wall-clock time) */

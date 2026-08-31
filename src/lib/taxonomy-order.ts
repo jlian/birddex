@@ -12,6 +12,9 @@ let wikiTitleMap: Map<string, string> | null = null
 // Row index into taxonomy.json, for callers that key data by classifier
 // position. Sidecar taxa are deliberately absent: they have no row.
 let indexMap: Map<string, number> | null = null
+// Lowercased names that exist ONLY in the sidecar. Used to stop an exact
+// sidecar hit from falling through to a stripped-name classifier lookup.
+const extraNames = new Set<string>()
 
 async function loadOrderMap(): Promise<Map<string, number>> {
   if (orderMap) return orderMap
@@ -53,6 +56,7 @@ async function loadOrderMap(): Promise<Map<string, number>> {
     const key = common.toLowerCase()
     if (map.has(key)) continue          // classifier wins on any collision
     map.set(key, raw.length + taxonOrder)
+    extraNames.add(key)
     if (code) eb.set(key, code)
   }
 
@@ -71,8 +75,7 @@ async function loadOrderMap(): Promise<Map<string, number>> {
  */
 export async function getSpeciesOrder(speciesName: string): Promise<number> {
   const map = await loadOrderMap()
-  const display = speciesName.split('(')[0].trim().toLowerCase()
-  return map.get(display) ?? Number.MAX_SAFE_INTEGER
+  return lookupByName(map, speciesName) ?? Number.MAX_SAFE_INTEGER
 }
 
 /**
@@ -85,8 +88,7 @@ export async function buildSyncOrderLookup(
   const map = await loadOrderMap()
   const cache = new Map<string, number>()
   for (const name of speciesNames) {
-    const display = name.split('(')[0].trim().toLowerCase()
-    cache.set(name, map.get(display) ?? Number.MAX_SAFE_INTEGER)
+    cache.set(name, lookupByName(map, name) ?? Number.MAX_SAFE_INTEGER)
   }
   return (name: string) => cache.get(name) ?? Number.MAX_SAFE_INTEGER
 }
@@ -100,10 +102,37 @@ export async function buildSyncOrderLookup(
  * unknowns to sort them last, and using a sentinel that large as an index would
  * read far off the end of any table.
  */
+/**
+ * Look a species name up in a name-keyed map, trying the WHOLE string before
+ * stripping a trailing parenthetical.
+ *
+ * The order matters. Several canonical eBird names contain their own
+ * parentheses: "Mallard (Domestic type)" is a real taxon. Stripping first turns
+ * it into "Mallard" and returns the WILD Mallard's data, so a domestic bird
+ * would show another species' order, URL and rarity. Only fall back to the
+ * stripped form for the "Common (Scientific)" shape we store ourselves.
+ */
+function lookupByName<T>(map: Map<string, T> | null, name: string): T | undefined {
+  if (!map) return undefined
+  const whole = name.trim().toLowerCase()
+  const exact = map.get(whole)
+  if (exact !== undefined) return exact
+  return map.get(name.split('(')[0].trim().toLowerCase())
+}
+
 export async function getSpeciesIndexLookup(): Promise<(name: string) => number> {
   await loadOrderMap()
-  return (name: string) =>
-    indexMap?.get(name.split('(')[0].trim().toLowerCase()) ?? -1
+  return (name: string) => {
+    // An exact sidecar hit must return -1, not fall through to the stripped
+    // name: sidecar taxa have no classifier row, and resolving
+    // "Mallard (Domestic type)" to the wild Mallard's index would apply another
+    // taxon's occurrence and rarity data.
+    const whole = name.trim().toLowerCase()
+    const exactIndex = indexMap?.get(whole)
+    if (exactIndex !== undefined) return exactIndex
+    if (extraNames.has(whole)) return -1
+    return indexMap?.get(name.split('(')[0].trim().toLowerCase()) ?? -1
+  }
 }
 
 /**
@@ -113,8 +142,7 @@ export async function getSpeciesIndexLookup(): Promise<(name: string) => number>
   speciesName: string
 ): Promise<string | undefined> {
   await loadOrderMap()
-  const display = speciesName.split('(')[0].trim().toLowerCase()
-  const id = birdlifeMap?.get(display)
+  const id = lookupByName(birdlifeMap, speciesName)
   return id ? `https://datazone.birdlife.org/species/factsheet/${id}` : undefined
 }
 
@@ -130,8 +158,7 @@ export async function getEbirdSpeciesUrl(
   speciesName: string
 ): Promise<string | undefined> {
   await loadOrderMap()
-  const display = speciesName.split('(')[0].trim().toLowerCase()
-  const code = ebirdMap?.get(display)
+  const code = lookupByName(ebirdMap, speciesName)
   return code ? `https://ebird.org/species/${code.toLowerCase()}` : undefined
 }
 
@@ -143,5 +170,5 @@ export async function getWikiTitleForSpecies(
   speciesName: string
 ): Promise<string | undefined> {
   await loadOrderMap()
-  return wikiTitleMap?.get(speciesName.split('(')[0].trim().toLowerCase())
+  return lookupByName(wikiTitleMap, speciesName)
 }

@@ -53,7 +53,7 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count} ${count === 1 ? singular : plural}`
 }
 
-function getPatchBindings(patch: ObservationPatch): {
+function getPatchBindings(patch: ObservationPatch, supportsSpeciesCode: boolean): {
   updateFields: string[]
   bindings: Array<string | number | null>
 } {
@@ -67,6 +67,14 @@ function getPatchBindings(patch: ObservationPatch): {
   if (typeof patch.speciesName === 'string') {
     updateFields.push('speciesName = ?')
     bindings.push(patch.speciesName)
+    // Recompute the code from the NEW name. Leaving the old one would file the
+    // observation under the species it used to be, which is a worse failure
+    // than having no code at all: the row would silently join another bird's
+    // dex entry. Resolving to nothing clears it back to the name fallback.
+    if (supportsSpeciesCode) {
+      updateFields.push('speciesCode = ?')
+      bindings.push(resolveSpeciesCode(patch.speciesName) || null)
+    }
   }
   if (typeof patch.count === 'number') {
     updateFields.push('count = ?')
@@ -255,8 +263,43 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     }
 
     const supportsSpeciesComments = await hasObservationColumn(context.env.DB, 'speciesComments')
+    // Resolve the code on this path too, not just in the CSV importer. These
+    // are the photo, manual and iOS sync writes, so leaving them NULL would
+    // mean the dex still splits renamed species for everything except imports.
+    const supportsSpeciesCode = await hasObservationColumn(context.env.DB, 'speciesCode')
 
     const statements = body.map(observation => {
+      const speciesCode = resolveSpeciesCode(observation.speciesName) || null
+
+      if (supportsSpeciesComments && supportsSpeciesCode) {
+        return context.env.DB.prepare(
+          `INSERT INTO observation (id, outingId, userId, speciesName, speciesCode, count, certainty, representativePhotoId, aiConfidence, speciesComments, notes)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+           ON CONFLICT(id) DO UPDATE SET
+             speciesName = excluded.speciesName,
+             speciesCode = excluded.speciesCode,
+             count = excluded.count,
+             certainty = excluded.certainty,
+             representativePhotoId = excluded.representativePhotoId,
+             aiConfidence = excluded.aiConfidence,
+             speciesComments = excluded.speciesComments,
+             notes = excluded.notes
+           WHERE observation.userId = excluded.userId AND observation.outingId = excluded.outingId`
+        ).bind(
+          observation.id,
+          observation.outingId,
+          userId,
+          observation.speciesName,
+          speciesCode,
+          observation.count,
+          observation.certainty,
+          observation.representativePhotoId ?? null,
+          observation.aiConfidence ?? null,
+          observation.speciesComments ?? null,
+          observation.notes ?? ''
+        )
+      }
+
       if (supportsSpeciesComments) {
         return context.env.DB.prepare(
           `INSERT INTO observation (id, outingId, userId, speciesName, count, certainty, representativePhotoId, aiConfidence, speciesComments, notes)
@@ -366,11 +409,12 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
   try {
     const db = context.env.DB
     const supportsSpeciesComments = await hasObservationColumn(db, 'speciesComments')
+    const supportsSpeciesCode = await hasObservationColumn(db, 'speciesCode')
 
     if (typeof body.id === 'string') {
     const { id, ...rawPatch } = body
     const patch = rawPatch as ObservationPatch
-    const { updateFields, bindings } = getPatchBindings(patch)
+    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode)
 
     if (!supportsSpeciesComments) {
       const speciesIndex = updateFields.findIndex(field => field === 'speciesComments = ?')
@@ -426,7 +470,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     if (Array.isArray(body.ids) && body.ids.every(id => typeof id === 'string') && isObject(body.patch)) {
     const ids = body.ids as string[]
     const patch = body.patch as ObservationPatch
-    const { updateFields, bindings } = getPatchBindings(patch)
+    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode)
 
     if (!supportsSpeciesComments) {
       const speciesIndex = updateFields.findIndex(field => field === 'speciesComments = ?')

@@ -1,23 +1,28 @@
 /**
  * Build the name -> eBird code plan the backfill script consumes.
  *
- * Not a test. It runs under vitest because resolveSpeciesCode lives in a
- * TypeScript module that imports taxonomy.json and taxonomy-extra.json, which
- * bare node cannot load. Running it here means the backfill uses the SAME
- * resolver as the import path rather than a second copy of the matching rules.
+ * NOT A TEST. This lived in src/__tests__ briefly, which was wrong: vitest.config.ts
+ * includes src/**\/*.test.ts, so CI ran it on a clean checkout where the input file
+ * does not exist and it failed the suite. It is an operational step, so it lives in
+ * scripts/ and is run explicitly.
  *
- * Reads the distinct species names dumped from D1 and writes the resolved
- * mapping plus the unresolved tail.
+ * It is .mts and run through vitest only because resolveSpeciesCode lives in a
+ * TypeScript module that imports taxonomy.json and taxonomy-extra.json, which bare
+ * node cannot load. Running it through the project's own bundler means the backfill
+ * uses the SAME resolver as the import path rather than a second copy of the
+ * matching rules that would drift.
  *
- *   npx vitest run src/__tests__/species-code-plan.test.ts
+ *   node scripts/backfill-species-code.mjs --dump-names
+ *   npx vitest run --config vitest.plan.config.ts
+ *   node scripts/backfill-species-code.mjs
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, it } from 'vitest'
 
-import { resolveSpeciesCode } from '../../functions/lib/taxonomy'
+import { resolveSpeciesCode } from '../functions/lib/taxonomy'
 
-const ROOT = resolve(__dirname, '../..')
+const ROOT = resolve(__dirname, '..')
 const NAMES = resolve(ROOT, '.tmp/species-names.json')
 const OUT = resolve(ROOT, '.tmp/species-code-plan.json')
 

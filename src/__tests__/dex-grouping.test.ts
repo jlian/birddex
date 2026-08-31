@@ -37,7 +37,10 @@ function seed(rows: Array<{
 }
 
 function run(): Array<Record<string, unknown>> {
-  return db.prepare(DEX_QUERY.replace('?1', "'u1'")).all() as Array<Record<string, unknown>>
+  // The query binds ?1 in several CTEs, and better-sqlite3 does not accept a
+  // numbered placeholder reused this way from .all('u1'), so substitute every
+  // occurrence rather than only the first.
+  return db.prepare(DEX_QUERY.split('?1').join("'u1'")).all() as Array<Record<string, unknown>>
 }
 
 beforeEach(() => {
@@ -128,5 +131,48 @@ describe('dex grouping by species code', () => {
        VALUES ('u1', 'Gull sp.', NULL, 'could not tell which')`).run()
     const rows = run()
     expect(rows[0].notes).toBe('could not tell which')
+  })
+
+  it('does not lose metadata that was saved by name before the code existed', () => {
+    // functions/api/data/dex.ts still upserts by (userId, speciesName) and
+    // leaves speciesCode NULL. Without the name-resolution CTE the note written
+    // by that path is invisible to a coded observation, so every note, added
+    // date and best photo silently disappears on the next dex recomputation.
+    seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal', NULL, 'seen at the feeder')`).run()
+    const rows = run()
+    expect(rows[0].notes).toBe('seen at the feeder')
+  })
+
+  it('does not multiply totalCount when one code has several metadata rows', () => {
+    // dex_meta is still PRIMARY KEY (userId, speciesName), so the duplicate
+    // spellings this change consolidates can each carry their own metadata row.
+    // Joining before aggregating multiplied SUM(obs.count) by the number of
+    // matches: measured 10 for a single observation of count 5.
+    seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1', count: 5 }])
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal', 'norcar', 'a')`).run()
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal (Cardinalis cardinalis)', 'norcar', 'b')`).run()
+    const rows = run()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].totalCount).toBe(5)
+    expect(rows[0].totalOutings).toBe(1)
+  })
+
+  it('prefers metadata stored against the code over a name-keyed leftover', () => {
+    seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal', NULL, 'old note')`).run()
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal', 'norcar', 'new note')`).run()
+    const rows = run()
+    expect(rows[0].notes).toBe('new note')
   })
 })

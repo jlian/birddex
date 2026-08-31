@@ -348,34 +348,32 @@ function OutingDetail({
   const confirmed = observations.filter(obs => obs.certainty === 'confirmed')
   const possible = observations.filter(obs => obs.certainty === 'possible')
 
-  // Group observations by species to deduplicate
-  const groupedConfirmed = useMemo(() => {
+  // Group observations by species to deduplicate.
+  //
+  // Keyed the same way as DEX_QUERY and rebuildDexFromState: the eBird code
+  // when present, the display name otherwise, in separate namespaces. Without
+  // this an outing showing two spellings of one bird would list it twice while
+  // the dex counted it once.
+  const groupBySpecies = (list: Observation[]) => {
     const map = new Map<string, { speciesName: string; totalCount: number; obsIds: string[] }>()
-    for (const obs of confirmed) {
-      const existing = map.get(obs.speciesName)
+    for (const obs of list) {
+      const key = obs.speciesCode ? `code:${obs.speciesCode}` : `name:${obs.speciesName}`
+      const existing = map.get(key)
       if (existing) {
         existing.totalCount += obs.count
         existing.obsIds.push(obs.id)
+        // Mirrors MIN(speciesName) server-side so the label is deterministic.
+        if (obs.speciesName < existing.speciesName) existing.speciesName = obs.speciesName
       } else {
-        map.set(obs.speciesName, { speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
+        map.set(key, { speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
       }
     }
     return Array.from(map.values())
-  }, [confirmed])
+  }
 
-  const groupedPossible = useMemo(() => {
-    const map = new Map<string, { speciesName: string; totalCount: number; obsIds: string[] }>()
-    for (const obs of possible) {
-      const existing = map.get(obs.speciesName)
-      if (existing) {
-        existing.totalCount += obs.count
-        existing.obsIds.push(obs.id)
-      } else {
-        map.set(obs.speciesName, { speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
-      }
-    }
-    return Array.from(map.values())
-  }, [possible])
+  const groupedConfirmed = useMemo(() => groupBySpecies(confirmed), [confirmed])
+
+  const groupedPossible = useMemo(() => groupBySpecies(possible), [possible])
 
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(outing.notes || '')
