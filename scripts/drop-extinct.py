@@ -122,9 +122,14 @@ def main():
     2. remap app_idx in the target taxa CSV, THEN re-emit the classifier.
        build_prior_blob.py and build_rarity_blob.py read app_idx straight
        out of that CSV, so a blob built against the old column is keyed to
-       the OLD row numbers and mis-names every species after the first drop:
+       the OLD row numbers and mis-names every species after the first drop.
+       Pass --old-taxonomy: without it the CSV is bound to the taxonomy by
+       index arithmetic alone, and a CSV from a different {len(tax)}-row
+       taxonomy would remap cleanly into a mis-keyed blob:
+         git show <pre-drop-sha>:src/lib/taxonomy.json > /tmp/old-taxonomy.json
          python3 scripts/remap-target-taxa.py \\
-           --map {args.map_out} --csv <target_taxa.csv>
+           --map {args.map_out} --csv <target_taxa.csv> \\
+           --old-taxonomy /tmp/old-taxonomy.json
 
     3. re-emit the int8 classifier, keeping ONLY the rows in
        taxonomy-keep-map.json kept_old_indexes, in order, then the probe row.
