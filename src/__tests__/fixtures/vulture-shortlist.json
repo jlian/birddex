@@ -1,5 +1,5 @@
 {
-  "note": "Real 25-candidate shortlist for the Guatemala vulture, emitted by ml/distill/vemb_fixture_onnx.py through the SHIPPED path on BOTH sides of the dot product: the int8 ONNX visual encoder (public/models/wingclip_visual_int8.onnx) and the dequantised int8 text rows the browser decodes out of public/models/text_classifier_int8.bin. Earlier revisions used the fp32 PyTorch student, and then the ONNX encoder against fp32 build_text() rows, both of which pinned similarities the browser never produces. lat/lon/month are the photo EXIF.",
+  "note": "Real 24-candidate shortlist for the Guatemala vulture (the model returns a top-25; one member, old index 3985, was an extinct species dropped in this PR), emitted by ml/distill/vemb_fixture_onnx.py through the SHIPPED path on BOTH sides of the dot product: the int8 ONNX visual encoder (public/models/wingclip_visual_int8.onnx) and the dequantised int8 text rows the browser decodes out of public/models/text_classifier_int8.bin. Earlier revisions used the fp32 PyTorch student, and then the ONNX encoder against fp32 build_text() rows, both of which pinned similarities the browser never produces. lat/lon/month are the photo EXIF.",
   "lat": 14.752512,
   "lon": -91.165575,
   "month": 8,

@@ -22,6 +22,7 @@ CKPT = "runs/ft_tiny39_fresh/wise_a0.60.pt"
 CKPT_SHA_PARAMS = 38719232
 TEXT_CLS = "onnx_tiny39/text_classifier.npy"
 TAXONOMY = "../../src/lib/taxonomy.json"
+KEEP_MAP = "../../scripts/taxonomy-keep-map.json"
 ONNX_DIR = "onnx_tiny39"
 STAGE = "hf_stage"
 
@@ -33,6 +34,12 @@ def log(m):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--card", required=True)
+    ap.add_argument("--keep-map", default=KEEP_MAP,
+                    help="scripts/taxonomy-keep-map.json. The source .npy is "
+                         "the PRE-DROP matrix, so the same row filter the "
+                         "shipped classifier gets must be applied here or the "
+                         "published labels are mis-keyed. Pass \"\" only when "
+                         "the .npy already matches taxonomy.json.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -62,7 +69,23 @@ def main():
     log("wrote safetensors")
 
     tf = np.load(TEXT_CLS)
-    assert tf.shape == (11167, 768) and tf.dtype == np.float32, tf.shape
+    assert tf.dtype == np.float32, tf.dtype
+    assert tf.ndim == 2 and tf.shape[1] == 768, tf.shape
+
+    # The .npy is the PRE-DROP matrix and taxonomy.json is post-drop, so the
+    # extinct rows have to be filtered out here too. Publishing the unfiltered
+    # matrix beside the new labels would ship a HuggingFace release whose
+    # embeddings are keyed to the old row numbers: every species past the first
+    # drop carries the wrong name, and nothing in the artifact reveals it.
+    if args.keep_map:
+        with open(args.keep_map) as fh:
+            km = json.load(fh)
+        if tf.shape[0] != int(km["old_rows"]):
+            sys.exit("keep-map was built from a %d-row taxonomy but the "
+                     "matrix has %d rows" % (int(km["old_rows"]), tf.shape[0]))
+        tf = tf[np.asarray(km["kept_old_indexes"], dtype=np.int64)]
+        log("keep-map: %d -> %d rows" % (km["old_rows"], tf.shape[0]))
+
     np.save(os.path.join(STAGE, "text_classifier_fp32.npy"), tf)
     log("copied text classifier " + str(tf.shape))
 

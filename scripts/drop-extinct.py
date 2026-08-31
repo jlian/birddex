@@ -64,11 +64,31 @@ def main():
         print(f"WARNING: {msg}", file=sys.stderr)
 
     keep, dropped = [], []
+    matched_sci = set()
     for i, row in enumerate(tax):
-        if norm(row[1] if len(row) > 1 else "") in drop_sci:
+        sci = norm(row[1] if len(row) > 1 else "")
+        if sci in drop_sci:
             dropped.append(i)
+            matched_sci.add(sci)
         else:
             keep.append(i)
+
+    # The row-count check above is necessary but not sufficient: a list built
+    # against a DIFFERENT taxonomy with the same number of rows passes it, then
+    # matches only some of its species here. The drop would still look
+    # successful, the artifacts would still agree with each other, and the
+    # unmatched extinct species would simply survive. Every name in the list
+    # must land on a row.
+    missing = sorted(drop_sci - matched_sci)
+    if missing:
+        print(f"\nERROR: {len(missing)} of {len(drop_sci)} species in the "
+              f"exclusion list did not match a taxonomy row:", file=sys.stderr)
+        for sci in missing[:20]:
+            print(f"    {sci}", file=sys.stderr)
+        if len(missing) > 20:
+            print(f"    ... and {len(missing) - 20} more", file=sys.stderr)
+        sys.exit("the list does not describe this taxonomy; refusing to "
+                 "continue")
 
     old_bytes = TAX.read_bytes()
     old_hash = hashlib.sha256(old_bytes).hexdigest()[:16]
