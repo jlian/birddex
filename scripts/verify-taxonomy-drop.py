@@ -13,12 +13,16 @@ That is the failure the hash guards cannot catch, because they check the
 taxonomy against itself, not the classifier against the taxonomy.
 
 Checks:
-  1. classifier row count == taxonomy rows + 1 probe row
-  2. no dropped species survives in the taxonomy
-  3. a set of anchor species land on the rows the keep-map says they should
-  4. both blobs carry the new taxonomy hash
-  5. the kept order is monotonic in the OLD indexes (no reordering)
-  6. with --old-classifier, every kept row is byte-identical to the row the
+  1. the keep-map is an exact partition of the old row space: kept and dropped
+     are disjoint, in range, and cover every old row exactly once
+  2. the kept order is monotonic in the OLD indexes (no reordering)
+  3. classifier row count == taxonomy rows + 1 probe row
+  4. with --old-taxonomy, EVERY kept row matches its source row field for
+     field, not a sampled subset and not the scientific name alone, since
+     common name and eBird code are row-indexed by consumers too
+  5. no dropped species survives in the taxonomy
+  6. each blob carries its own magic (WDOP, WDRR) and the new taxonomy hash
+  7. with --old-classifier, every kept row is byte-identical to the row the
      keep-map says it came from, which is the only check that distinguishes
      "152 rows were dropped" from "the RIGHT 152 rows were dropped"
 
