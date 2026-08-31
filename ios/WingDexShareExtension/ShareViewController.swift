@@ -8,6 +8,8 @@ final class ShareViewController: UIViewController {
     private let doneButton = UIButton(type: .system)
     private let cancelButton = UIButton(type: .system)
     private var stagingTask: Task<Void, Never>?
+    private var isStaging = true
+    private var cancelRequested = false
     /// Set once the batch reaches `pending`, which is the point of no return:
     /// the app will import it. Cancelling after that cannot unpublish it, so
     /// Cancel must stop reporting cancellation and close instead.
@@ -65,6 +67,7 @@ final class ShareViewController: UIViewController {
 
     @MainActor
     private func stageSharedPhotos() async {
+        defer { isStaging = false }
         do {
             let providers = inputProviders().filter {
                 $0.hasItemConformingToTypeIdentifier(UTType.image.identifier)
@@ -100,8 +103,12 @@ final class ShareViewController: UIViewController {
             // batch. Checking for cancellation after that point would report a
             // cancelled share while the batch stays queued, so the next check
             // is deliberately absent.
-            try await IncomingShareStore.stage(fileURLs: temporaryFiles)
+            try await IncomingShareStore.stageConsuming(fileURLs: temporaryFiles)
             hasPublishedBatch = true
+            if cancelRequested {
+                extensionContext?.completeRequest(returningItems: nil)
+                return
+            }
             cancelButton.configuration?.title = "Close"
             if await openHostApp() {
                 extensionContext?.completeRequest(returningItems: nil)
@@ -114,8 +121,13 @@ final class ShareViewController: UIViewController {
             doneButton.isHidden = false
             cancelButton.isHidden = true
         } catch is CancellationError {
+            extensionContext?.cancelRequest(withError: CocoaError(.userCancelled))
             return
         } catch {
+            if cancelRequested {
+                extensionContext?.cancelRequest(withError: CocoaError(.userCancelled))
+                return
+            }
             progressView.isHidden = true
             statusLabel.textColor = .systemRed
             statusLabel.text = (error as? IncomingShareError)?.localizedDescription
@@ -193,7 +205,7 @@ final class ShareViewController: UIViewController {
                             throw error
                         }
                     } catch {
-                        loadState.complete(.failure(error))
+                        loadState.complete(.failure(IncomingShareStore.normalizeStorageError(error)))
                     }
                 }
                 loadState.setProgress(progress as Progress?)
@@ -208,7 +220,6 @@ final class ShareViewController: UIViewController {
     }
 
     @objc private func cancel() {
-        cancelInFlightWork()
         // The batch is already published and cannot be recalled, so reporting
         // cancellation here would tell the person the share was cancelled while
         // the app imports it anyway. Complete instead.
@@ -216,7 +227,14 @@ final class ShareViewController: UIViewController {
             extensionContext?.completeRequest(returningItems: nil)
             return
         }
-        extensionContext?.cancelRequest(withError: CocoaError(.userCancelled))
+        guard isStaging else {
+            extensionContext?.cancelRequest(withError: CocoaError(.userCancelled))
+            return
+        }
+        cancelRequested = true
+        cancelButton.isEnabled = false
+        statusLabel.text = "Cancelling..."
+        cancelInFlightWork()
     }
 
     private func cancelInFlightWork() {
