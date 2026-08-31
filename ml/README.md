@@ -296,16 +296,16 @@ from the first quantisation and ranking passes, superseded by `ml/distill/jobs/`
 and `ml/parity/jobs/`, and nothing imported it.
 ## Next: getting to a PR preview deploy
 
-Steps 1 to 5 are done. The four files total 67.52 MiB after transport decoding;
-the measured download is 56.39 MiB. Every file is inside the 25 MiB Workers
+Steps 1 to 5 are done. The four files total 67.37 MiB after transport decoding;
+the measured download is 56.25 MiB. Every file is inside the 25 MiB Workers
 per-file cap:
 
 | asset | size |
 |---|---|
 | `wingclip_visual_int8.onnx` | 13.72 MiB |
 | `wingclip_visual_int8.data` | 24.00 MiB |
-| `text_classifier_int8.bin` | 8.22 MiB |
-| `occurrence.4f5c1a15.bin.gz` | 21.58 MiB |
+| `text_classifier_int8.bin` | 8.11 MiB |
+| `occurrence.7c39b341.bin.gz` | 21.54 MiB |
 
 The prior is named by CONTENT HASH, not schema version, because `_headers`
 serves these immutable for a year, and a fixed name hands a stale blob to

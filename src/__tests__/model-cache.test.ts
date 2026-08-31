@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 /**
- * Asset caching for the 56.39 MiB model bundle (MODEL_BYTES).
+ * Asset caching for the 56.25 MiB model bundle (MODEL_BYTES).
  *
  * This bug class is invisible in production: if the cache never hits, the app
  * still works perfectly and simply re-downloads 56 MiB every session. Nothing

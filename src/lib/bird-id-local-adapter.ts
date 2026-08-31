@@ -290,7 +290,7 @@ export function modelReady(): Promise<boolean> {
 /**
  * Download the model without identifying anything.
  *
- * Exists so the UI can pull 56.39 MiB behind a progress bar at a moment the
+ * Exists so the UI can pull 56.25 MiB behind a progress bar at a moment the
  * user chose, instead of discovering it mid-identification. Calling it twice
  * is safe: the second call resolves off the cache.
  */
