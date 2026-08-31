@@ -18,13 +18,20 @@ Checks:
   3. a set of anchor species land on the rows the keep-map says they should
   4. both blobs carry the new taxonomy hash
   5. the kept order is monotonic in the OLD indexes (no reordering)
+  6. with --old-classifier, every kept row is byte-identical to the row the
+     keep-map says it came from, which is the only check that distinguishes
+     "152 rows were dropped" from "the RIGHT 152 rows were dropped"
 
 Usage:
   python3 scripts/verify-taxonomy-drop.py \
       --map scripts/taxonomy-keep-map.json \
-      --classifier public/models/classifier-int8.bin \
+      --classifier public/models/text_classifier_int8.bin \
       --occurrence public/priors/occurrence.<hash>.bin.gz \
-      --rarity public/priors/rarity.<hash>.bin.gz
+      --rarity public/priors/rarity.<hash>.bin.gz \
+      --old-classifier <pre-drop text_classifier_int8.bin>
+
+The pre-drop classifier for --old-classifier comes out of git, e.g.
+  git show <pre-drop-sha>:public/models/text_classifier_int8.bin > /tmp/old.bin
 """
 import argparse
 import gzip
@@ -62,6 +69,9 @@ def main():
     ap.add_argument("--rarity")
     ap.add_argument("--old-taxonomy",
                     help="the pre-drop taxonomy.json, for anchor checks")
+    ap.add_argument("--old-classifier",
+                    help="the pre-drop text_classifier_int8.bin, to check WHICH "
+                         "rows were dropped rather than just how many")
     args = ap.parse_args()
 
     errs = 0
@@ -119,6 +129,57 @@ def main():
                          f"taxonomy has {len(tax):,}  -> app WILL throw at launch")
         else:
             errs += ok(f"classifier has {n-1:,} species rows + 1 probe row")
+
+    # 5b. classifier ROW IDENTITY against the pre-drop file.
+    #
+    # The row count above passes for ANY 152 dropped rows, which is exactly the
+    # silent mis-keying this script exists to catch: a classifier that dropped a
+    # different 152 has the right size, the right hash, and the wrong names.
+    #
+    # Rows are L2-normalised then quantised per row, so a kept row must be
+    # BYTE-IDENTICAL to its old-index row: same int8 payload, same fp32 scale.
+    # Comparing bytes rather than decoded floats means no tolerance to argue
+    # about, and it pins the probe row too.
+    if args.classifier and args.old_classifier:
+        new_raw = Path(args.classifier).read_bytes()
+        old_raw = Path(args.old_classifier).read_bytes()
+        n_new = len(new_raw) // (DIM + 4)
+        n_old = len(old_raw) // (DIM + 4)
+
+        if n_old - 1 != m["old_rows"]:
+            errs += fail(f"old classifier has {n_old-1:,} species rows, keep-map "
+                         f"describes {m['old_rows']:,}")
+        elif n_new - 1 != len(kept):
+            errs += fail(f"new classifier has {n_new-1:,} species rows, keep-map "
+                         f"keeps {len(kept):,}")
+        else:
+            def row(raw, n_rows, i):
+                q = raw[i * DIM:(i + 1) * DIM]
+                base = n_rows * DIM
+                return q, raw[base + i * 4:base + (i + 1) * 4]
+
+            bad = 0
+            for new_i, old_i in enumerate(kept):
+                if row(new_raw, n_new, new_i) != row(old_raw, n_old, old_i):
+                    bad += 1
+                    if bad <= 5:
+                        print(f"        row {new_i} is not old row {old_i} "
+                              f"({tax[new_i][1]!r})")
+            if bad:
+                errs += fail(f"{bad:,} of {len(kept):,} kept rows do not match "
+                             f"their old-index row  -> species ARE mis-keyed")
+            else:
+                errs += ok(f"all {len(kept):,} kept classifier rows are "
+                           f"byte-identical to their old-index row")
+
+            # The probe is the last row of both files and must survive intact.
+            if row(new_raw, n_new, n_new - 1) != row(old_raw, n_old, n_old - 1):
+                errs += fail("the probe row changed  -> bird/not-bird gate moved")
+            else:
+                errs += ok("the probe row is unchanged")
+    elif args.classifier:
+        print("        note: pass --old-classifier to check WHICH rows were "
+              "dropped, not just how many")
 
     # 6. blob hashes
     for label, path in (("occurrence", args.occurrence), ("rarity", args.rarity)):
