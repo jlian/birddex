@@ -2,6 +2,7 @@ import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { queryInChunks } from '../../lib/d1-chunk'
+import { resolveSpeciesCode } from '../../lib/taxonomy'
 
 type ObservationCertainty = 'confirmed' | 'possible' | 'pending' | 'rejected'
 

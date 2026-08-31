@@ -8,6 +8,7 @@ const dependencies = vi.hoisted(() => ({
   groupPreviewsIntoOutings: vi.fn(),
   getOutingColumnNames: vi.fn(),
   hasObservationColumn: vi.fn(),
+  hasDexMetaColumn: vi.fn(),
 }))
 
 vi.mock('./dex-query', () => ({
@@ -23,6 +24,7 @@ vi.mock('./ebird', () => ({
 vi.mock('./schema', () => ({
   getOutingColumnNames: dependencies.getOutingColumnNames,
   hasObservationColumn: dependencies.hasObservationColumn,
+  hasDexMetaColumn: dependencies.hasDexMetaColumn,
 }))
 
 import { onRequestDelete as clearData } from '../api/data/clear'
@@ -218,7 +220,10 @@ describe('non-auth durable observability', () => {
     expect(order).toEqual(['prior-dex', 'batch', 'event', 'post-commit-dex'])
     expect(events[0].fields?.resultType).toBe('Succeeded')
     expect(events[0].fields?.resultDescription).toBe(
-      'Committed eBird import batch from 2 parsed rows, persisting 1 outing and 1 observation',
+      'Committed eBird import batch from 2 parsed rows, persisting 1 outing and 1 observation'
+        // The unresolved COUNT is logged so a resolver regression is visible;
+        // the names are deliberately omitted, as asserted below.
+        + '; 1 species name did not resolve to an eBird code and will group by name',
     )
     expect(response.headers.get(RESULT_DESCRIPTION_HEADER)).toContain('Committed eBird import batch')
     const serializedOutcome = JSON.stringify({

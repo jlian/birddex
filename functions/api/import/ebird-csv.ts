@@ -319,7 +319,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       throw new Error('Import identity retry limit exceeded')
     }
     if (importBatchCommitted) {
-      route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}${unresolvedNames.size > 0 ? `; ${countLabel(unresolvedNames.size, 'species name')} did not resolve to an eBird code and will group by name: ${[...unresolvedNames].slice(0, 10).join(', ')}` : ''}`)
+      route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}${unresolvedNames.size > 0 ? `; ${countLabel(unresolvedNames.size, 'species name')} did not resolve to an eBird code and will group by name` : ''}`)
     }
 
     stage = 'recompute dex after the committed import batch'

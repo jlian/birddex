@@ -14,8 +14,16 @@ const cache = new Map<string, Set<string>>()
 export async function getTableColumnNames(db: D1Database, table: string): Promise<Set<string>> {
   const cached = cache.get(table)
   if (cached) return cached
-  const info = await db.prepare(`PRAGMA table_info('${table}')`).all<{ name: string }>()
-  const names = new Set(info.results.map(column => column.name))
+  // A stub or partial D1 that cannot answer PRAGMA must not take the request
+  // down. Treat an unanswerable probe as "no optional columns", which is the
+  // same conservative answer as a database that has not run the migration.
+  let names: Set<string>
+  try {
+    const info = await db.prepare(`PRAGMA table_info('${table}')`).all<{ name: string }>()
+    names = new Set((info?.results ?? []).map(column => column.name))
+  } catch {
+    names = new Set<string>()
+  }
   cache.set(table, names)
   return names
 }
