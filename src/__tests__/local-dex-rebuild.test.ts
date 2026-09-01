@@ -215,6 +215,22 @@ describe('enrichLocalDex', () => {
     })
     expect(payload.dex.map(entry => entry.id)).toEqual(['code:norcar'])
   })
+
+  it('preserves stable persisted codes when an obsolete label no longer resolves', async () => {
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z')],
+      photos: [],
+      observations: [obs('legacy', 'o1', 'Retired Cardinal Label', 'norcar', 'norcar')],
+      dex: [],
+    })
+
+    expect(payload.observations[0]).toMatchObject({
+      speciesName: 'Retired Cardinal Label',
+      speciesCode: 'norcar',
+      taxonCode: 'norcar',
+    })
+    expect(payload.dex.map(entry => entry.id)).toEqual(['code:norcar'])
+  })
 })
 
 describe('applyLocalObservationUpdates', () => {

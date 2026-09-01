@@ -66,7 +66,7 @@ struct SpeciesDetailView: View {
 
             if let borrowedFrom = entry?.borrowedFrom {
                 Section {
-                    Text("Shown for \(borrowedFrom), one of \(entry?.compound?.parents.count ?? 2) parents.")
+                    Text("Shown for \(borrowedFrom), one of \(entry?.compound?.parents.count ?? 2) \(entry?.compound?.kind == "slash" ? "possible species" : "parents").")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.mutedText)

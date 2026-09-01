@@ -460,7 +460,7 @@ export function groupPreviewsIntoOutings(
       createdAt: new Date().toISOString(),
     })
 
-    const speciesMap = new Map<string, { speciesName: string; submissionId?: string; count: number; notes: string }>()
+    const speciesMap = new Map<string, { speciesName: string; submissionId?: string; count: number; notes: Set<string> }>()
     for (const preview of group) {
       // Keyed by checklist as well as species. Merging across checklists would
       // keep only one submission id, which is the lossiness that made a
@@ -469,15 +469,13 @@ export function groupPreviewsIntoOutings(
       const existing = speciesMap.get(key)
       if (existing) {
         existing.count += preview.count
-        if (preview.observationNotes && !existing.notes.split('; ').includes(preview.observationNotes)) {
-          existing.notes = existing.notes ? `${existing.notes}; ${preview.observationNotes}` : preview.observationNotes
-        }
+        if (preview.observationNotes) existing.notes.add(preview.observationNotes)
       } else {
         speciesMap.set(key, {
           speciesName: preview.speciesName,
           submissionId: preview.submissionId,
           count: preview.count,
-          notes: preview.observationNotes || '',
+          notes: new Set(preview.observationNotes ? [preview.observationNotes] : []),
         })
       }
     }
@@ -489,7 +487,7 @@ export function groupPreviewsIntoOutings(
         speciesName: info.speciesName,
         count: info.count,
         certainty: 'confirmed',
-        notes: info.notes,
+        notes: [...info.notes].join('; '),
         submissionId: info.submissionId,
       })
     }

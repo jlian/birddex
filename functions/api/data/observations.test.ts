@@ -103,6 +103,27 @@ describe('observation taxon identity persistence', () => {
     })
   })
 
+  it('does not echo client codes that a pre-migration schema cannot persist', async () => {
+    sqlite.exec(`
+      ALTER TABLE observation DROP COLUMN taxonCode;
+      ALTER TABLE observation DROP COLUMN speciesCode;
+    `)
+    const response = await onRequestPost(context(d1, 'POST', [{
+      id: 'observation-1',
+      outingId: 'outing-1',
+      speciesName: 'Southern Brown Kiwi (South I.)',
+      speciesCode: 'sobkiw1',
+      taxonCode: 'sobkiw2',
+      count: 1,
+      certainty: 'confirmed',
+    }])) as Response
+
+    expect(response.status).toBe(200)
+    const body = await response.json() as { observations: Array<Record<string, unknown>> }
+    expect(body.observations[0]).not.toHaveProperty('speciesCode')
+    expect(body.observations[0]).not.toHaveProperty('taxonCode')
+  })
+
   it('recomputes both codes when PATCH changes speciesName', async () => {
     sqlite.prepare(`
       INSERT INTO observation

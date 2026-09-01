@@ -540,6 +540,28 @@ describe('eBird CSV utilities', () => {
       const { observations } = groupPreviewsIntoOutings(previews, 'u1')
       expect(observations[0].notes).toBe('adult male; adult')
     })
+
+    it('keeps distinct notes when one contains the rendered separator', () => {
+      const previews = [
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'adult; male',
+        },
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'male',
+        },
+      ]
+
+      const { observations } = groupPreviewsIntoOutings(previews, 'u1')
+      expect(observations[0].notes).toBe('adult; male; male')
+    })
   })
 
   /* ---------- export tests ---------- */

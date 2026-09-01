@@ -131,12 +131,12 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
         continue
       }
       const matches = patch.groupKey
-        ? [entriesByKey.get(patch.groupKey)].filter(entry => entry?.speciesName === patch.speciesName)
+        ? [entriesByKey.get(patch.groupKey)].filter(Boolean)
         : currentDex.filter(entry => entry.speciesName === patch.speciesName)
       if (matches.length !== 1 || !matches[0]) {
         return route.fail(400, 'Invalid dex grouping key', 'groupKey and speciesName must identify an existing dex entry')
       }
-      resolvedPatches.push({ ...patch, groupKey: matches[0].id })
+      resolvedPatches.push({ ...patch, groupKey: matches[0].id, speciesName: matches[0].speciesName })
     }
     for (const patch of resolvedPatches) {
       await upsertDexMetaPatch(context.env.DB, userId, patch)

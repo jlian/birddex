@@ -477,7 +477,7 @@ function SpeciesDetail({
 
         {entry.borrowedFrom && (
           <p className="text-xs font-medium text-muted-foreground">
-            Shown for {entry.borrowedFrom}, one of {entry.compound?.parents.length ?? 2} parents.
+            Shown for {entry.borrowedFrom}, one of {entry.compound?.parents.length ?? 2} {entry.compound?.kind === 'slash' ? 'possible species' : 'parents'}.
           </p>
         )}
 

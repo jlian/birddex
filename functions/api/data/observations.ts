@@ -350,12 +350,12 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       // next full reload, which is exactly the split this change exists to fix.
       // When the column is absent the field stays undefined rather than null,
       // so the response shape matches a pre-migration database.
-      ...(supportsSpeciesCode
-        ? { speciesCode: identities.get(observation.id)?.speciesCode || undefined }
-        : {}),
-      ...(supportsTaxonCode
-        ? { taxonCode: identities.get(observation.id)?.taxonCode || undefined }
-        : {}),
+      speciesCode: supportsSpeciesCode
+        ? identities.get(observation.id)?.speciesCode || undefined
+        : undefined,
+      taxonCode: supportsTaxonCode
+        ? identities.get(observation.id)?.taxonCode || undefined
+        : undefined,
       representativePhotoId: observation.representativePhotoId || undefined,
       aiConfidence: observation.aiConfidence ?? undefined,
       speciesComments: supportsSpeciesComments ? (observation.speciesComments || undefined) : undefined,

@@ -150,6 +150,13 @@ async function resolveObservationIdentity(observation: Observation): Promise<Obs
   return { ...rest, ...(identity ?? {}) }
 }
 
+async function migratePersistedObservationIdentity(observation: Observation): Promise<Observation> {
+  const identity = await resolveSpeciesIdentity(observation.speciesName)
+  if (!identity) return observation
+  const { speciesCode: _speciesCode, taxonCode: _taxonCode, ...rest } = observation
+  return { ...rest, ...identity }
+}
+
 export async function applyLocalObservationUpdates(
   observation: Observation,
   updates: Partial<Observation>,
@@ -197,7 +204,7 @@ function readLocalData(userId: string): WingDexPayload {
 }
 
 export async function enrichLocalDex(payload: WingDexPayload): Promise<WingDexPayload> {
-  const observations = await Promise.all(payload.observations.map(resolveObservationIdentity))
+  const observations = await Promise.all(payload.observations.map(migratePersistedObservationIdentity))
   const rebuiltFromObservations = rebuildDexFromState(payload.outings, observations, payload.dex)
   const rebuiltIds = new Set(rebuiltFromObservations.map(entry => entry.id))
   const sourceIds = new Set(payload.observations.flatMap(observation => [
