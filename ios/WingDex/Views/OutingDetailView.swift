@@ -406,7 +406,7 @@ struct OutingDetailView: View {
             let grouped = groupByDexKey(possible)
 
             Section {
-                speciesSectionTitle(title: "Possible (\(possible.count))")
+                speciesSectionTitle(title: "Possible (\(grouped.count))")
                     .listRowSeparator(.hidden)
 
                 ForEach(grouped, id: \.key) { group in

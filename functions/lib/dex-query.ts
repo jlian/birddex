@@ -1,6 +1,7 @@
 import { getWikiMetadata } from './taxonomy'
 
 export type DexRow = {
+  id: string
   speciesName: string
   /**
    * eBird species code, or null for a taxon the resolver could not place.
@@ -73,7 +74,7 @@ export const DEX_QUERY = `
       'code:' || dm.speciesCode AS groupKey,
       MIN(dm.addedDate) AS addedDate,
       MIN(dm.bestPhotoId) AS bestPhotoId,
-      COALESCE(MIN(dm.notes), '') AS notes
+      COALESCE(MIN(NULLIF(dm.notes, '')), '') AS notes
     FROM dex_meta dm
     WHERE dm.userId = ?1 AND dm.speciesCode IS NOT NULL
     GROUP BY groupKey
@@ -112,7 +113,7 @@ export const DEX_QUERY = `
       COALESCE(n.groupKey, 'name:' || dm.speciesName) AS groupKey,
       MIN(dm.addedDate) AS addedDate,
       MIN(dm.bestPhotoId) AS bestPhotoId,
-      COALESCE(MIN(dm.notes), '') AS notes
+      COALESCE(MIN(NULLIF(dm.notes, '')), '') AS notes
     FROM dex_meta dm
     LEFT JOIN nameToGroup n ON n.speciesName = dm.speciesName
     WHERE dm.userId = ?1 AND dm.speciesCode IS NULL

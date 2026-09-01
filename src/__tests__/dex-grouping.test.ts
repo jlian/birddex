@@ -196,6 +196,18 @@ describe('dex grouping by species code', () => {
     expect(rows[0].totalOutings).toBe(1)
   })
 
+  it('does not let an empty metadata row hide a note for the same code', () => {
+    seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal', 'norcar', '')`).run()
+    db.prepare(
+      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
+       VALUES ('u1', 'Northern Cardinal (Cardinalis cardinalis)', 'norcar', 'feeder')`).run()
+    const rows = run()
+    expect(rows[0].notes).toBe('feeder')
+  })
+
   it('prefers metadata stored against the code over a name-keyed leftover', () => {
     seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
     db.prepare(
