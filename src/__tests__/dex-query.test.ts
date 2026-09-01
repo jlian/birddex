@@ -236,4 +236,22 @@ describe('enrichDexEntries', () => {
     })
     expect(unknownEntry.speciesCode).toBeUndefined()
   })
+
+  it('resolves compound parents from the canonical exact-code name', () => {
+    const [entry] = enrichDexEntries([{
+      id: 'code:x00051',
+      speciesName: 'Legacy gull hybrid label',
+      speciesCode: 'x00051',
+      taxonCode: 'x00051',
+      firstSeenDate: '2026-01-01',
+      lastSeenDate: '2026-01-01',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    }])
+
+    expect(entry.commonName).toBe('Western x Glaucous-winged Gull (hybrid)')
+    expect(entry.compound?.parents.map(parent => parent.commonName))
+      .toEqual(['Western Gull', 'Glaucous-winged Gull'])
+  })
 })
