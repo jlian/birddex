@@ -98,7 +98,9 @@ export function rebuildDexFromState(
     )
     const speciesName = selectedObservation.speciesName
     const speciesCode = speciesObservations.find(o => o.speciesCode)?.speciesCode
-    const taxonCode = selectedObservation.taxonCode
+    const taxonCodes = new Set(speciesObservations.map(observation => observation.taxonCode ?? ''))
+    const unanimousTaxonCode = taxonCodes.size === 1 ? selectedObservation.taxonCode : undefined
+    const taxonCode = unanimousTaxonCode ?? speciesCode
     const metadata = taxonCode ? getLoadedTaxonMetadataByCode(taxonCode) : undefined
 
     const firstSeen = speciesOutings.reduce((min, currentOuting) =>

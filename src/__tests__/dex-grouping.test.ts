@@ -32,7 +32,7 @@ function seed(rows: Array<{
     db.prepare(
       `INSERT INTO observation (id, outingId, userId, speciesName, speciesCode, taxonCode, count, certainty)
        VALUES (?, ?, 'u1', ?, ?, ?, ?, ?)`)
-      .run(`obs${i++}`, r.outing, r.name, r.code, r.taxonCode ?? r.code, r.count ?? 1,
+      .run(`obs${i++}`, r.outing, r.name, r.code, r.taxonCode === undefined ? r.code : r.taxonCode, r.count ?? 1,
            r.certainty ?? 'confirmed')
   }
 }
@@ -71,18 +71,36 @@ describe('dex grouping by species code', () => {
     const rows = run()
     expect(rows).toHaveLength(1)
     expect(rows[0].speciesCode).toBe('norcar')
+    expect(rows[0].taxonCode).toBe('norcar')
     expect(rows[0].totalOutings).toBe(2)
     expect(rows[0].totalCount).toBe(2)
   })
 
-  it('keeps the exact taxon code aligned with the selected display name', () => {
+  it('omits an arbitrary exact taxon code when a group contains multiple exact taxa', () => {
     seed([
       { name: 'Southern Brown Kiwi (South I.)', code: 'sobkiw1', taxonCode: 'sobkiw2', outing: 'o1' },
       { name: 'Southern Brown Kiwi (Stewart I.)', code: 'sobkiw1', taxonCode: 'sobkiw3', outing: 'o2' },
     ])
     const [row] = run()
     expect(row.speciesName).toBe('Southern Brown Kiwi (South I.)')
-    expect(row.taxonCode).toBe('sobkiw2')
+    expect(row.speciesCode).toBe('sobkiw1')
+    expect(row.taxonCode).toBeNull()
+  })
+
+  it('omits exact identity when a coded group mixes known and missing exact codes', () => {
+    seed([
+      { name: 'Southern Brown Kiwi', code: 'sobkiw1', taxonCode: null, outing: 'o1' },
+      { name: 'Southern Brown Kiwi (South I.)', code: 'sobkiw1', taxonCode: 'sobkiw2', outing: 'o2' },
+    ])
+    expect(run()[0].taxonCode).toBeNull()
+  })
+
+  it('omits exact identity when every exact code is missing', () => {
+    seed([
+      { name: 'Southern Brown Kiwi', code: 'sobkiw1', taxonCode: null, outing: 'o1' },
+      { name: 'Old Southern Brown Kiwi label', code: 'sobkiw1', taxonCode: null, outing: 'o2' },
+    ])
+    expect(run()[0].taxonCode).toBeNull()
   })
 
   it('keeps genuinely different species apart', () => {

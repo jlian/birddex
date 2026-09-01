@@ -54,6 +54,46 @@ interface OutingsPageProps {
 export type OutingSortField = 'date' | 'species' | 'name'
 export type SortDir = 'asc' | 'desc'
 
+export function groupOutingObservations(list: Observation[]) {
+  const groups = new Map<string, {
+    key: string
+    speciesName: string
+    speciesCode?: string
+    taxonCodes: Set<string>
+    totalCount: number
+    obsIds: string[]
+  }>()
+  for (const observation of list) {
+    const key = observation.speciesCode
+      ? `code:${observation.speciesCode}`
+      : `name:${observation.speciesName}`
+    const existing = groups.get(key)
+    if (existing) {
+      existing.totalCount += observation.count
+      existing.obsIds.push(observation.id)
+      if (observation.speciesName < existing.speciesName) {
+        existing.speciesName = observation.speciesName
+      }
+      existing.taxonCodes.add(observation.taxonCode ?? '')
+    } else {
+      groups.set(key, {
+        key,
+        speciesName: observation.speciesName,
+        speciesCode: observation.speciesCode,
+        taxonCodes: new Set([observation.taxonCode ?? '']),
+        totalCount: observation.count,
+        obsIds: [observation.id],
+      })
+    }
+  }
+  return Array.from(groups.values()).map(group => ({
+    ...group,
+    taxonCode: group.taxonCodes.size === 1
+      ? [...group.taxonCodes][0] || group.speciesCode
+      : group.speciesCode,
+  }))
+}
+
 const INITIAL_VISIBLE_ITEMS = 40
 const LOAD_MORE_STEP = 40
 
@@ -354,35 +394,9 @@ function OutingDetail({
   // when present, the display name otherwise, in separate namespaces. Without
   // this an outing showing two spellings of one bird would list it twice while
   // the dex counted it once.
-  const groupBySpecies = (list: Observation[]) => {
-    const map = new Map<string, { key: string; speciesName: string; taxonCode?: string; totalCount: number; obsIds: string[] }>()
-    for (const obs of list) {
-      const key = obs.speciesCode ? `code:${obs.speciesCode}` : `name:${obs.speciesName}`
-      const existing = map.get(key)
-      if (existing) {
-        existing.totalCount += obs.count
-        existing.obsIds.push(obs.id)
-        // Mirrors MIN(speciesName) server-side so the label is deterministic.
-        if (obs.speciesName < existing.speciesName) {
-          existing.speciesName = obs.speciesName
-          existing.taxonCode = obs.taxonCode
-        }
-      } else {
-        map.set(key, {
-          key,
-          speciesName: obs.speciesName,
-          taxonCode: obs.taxonCode,
-          totalCount: obs.count,
-          obsIds: [obs.id],
-        })
-      }
-    }
-    return Array.from(map.values())
-  }
+  const groupedConfirmed = useMemo(() => groupOutingObservations(confirmed), [confirmed])
 
-  const groupedConfirmed = useMemo(() => groupBySpecies(confirmed), [confirmed])
-
-  const groupedPossible = useMemo(() => groupBySpecies(possible), [possible])
+  const groupedPossible = useMemo(() => groupOutingObservations(possible), [possible])
 
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(outing.notes || '')

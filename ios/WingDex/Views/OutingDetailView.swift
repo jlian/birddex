@@ -366,7 +366,7 @@ struct OutingDetailView: View {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }
                         }
-                        if let url = getEbirdURL(forCode: entry?.taxonCode) ?? getEbirdURL(for: speciesName) {
+                        if let url = getEbirdURL(forCode: group.taxonCode) ?? getEbirdURL(for: speciesName) {
                             Link(destination: url) {
                                 Label("Open in eBird", systemImage: "globe")
                             }
@@ -442,7 +442,7 @@ struct OutingDetailView: View {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }
                         }
-                        if let url = getEbirdURL(forCode: entry?.taxonCode) ?? getEbirdURL(for: speciesName) {
+                        if let url = getEbirdURL(forCode: group.taxonCode) ?? getEbirdURL(for: speciesName) {
                             Link(destination: url) {
                                 Label("Open in eBird", systemImage: "globe")
                             }

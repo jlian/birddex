@@ -116,6 +116,49 @@ final class Phase9FoundationTests: XCTestCase {
             .contains("1x Southern Brown Kiwi (South I.)"))
     }
 
+    func testMixedExactTaxaUseGroupingCodeForRarityAndLinks() {
+        var south = makeObservation(
+            id: "south",
+            species: "Southern Brown Kiwi (South I.)",
+            count: 1,
+            certainty: .confirmed
+        )
+        south.speciesCode = "sobkiw1"
+        south.taxonCode = "sobkiw2"
+        var stewart = makeObservation(
+            id: "stewart",
+            species: "Southern Brown Kiwi (Stewart I.)",
+            count: 1,
+            certainty: .confirmed
+        )
+        stewart.speciesCode = "sobkiw1"
+        stewart.taxonCode = "sobkiw3"
+
+        let group = try? XCTUnwrap(groupByDexKey([south, stewart]).first)
+        XCTAssertEqual(group?.taxonCode, "sobkiw1")
+    }
+
+    func testExactTaxonConsensusFallsBackToGroupingCode() {
+        func groupedCode(_ exactCodes: [String?]) -> String? {
+            let observations = exactCodes.enumerated().map { index, exactCode in
+                var observation = makeObservation(
+                    id: "kiwi-\(index)",
+                    species: "Kiwi label \(index)",
+                    count: 1,
+                    certainty: .confirmed
+                )
+                observation.speciesCode = "sobkiw1"
+                observation.taxonCode = exactCode
+                return observation
+            }
+            return groupByDexKey(observations).first?.taxonCode
+        }
+
+        XCTAssertEqual(groupedCode(["sobkiw2", "sobkiw2"]), "sobkiw2")
+        XCTAssertEqual(groupedCode(["sobkiw2", nil]), "sobkiw1")
+        XCTAssertEqual(groupedCode([nil, nil]), "sobkiw1")
+    }
+
     func testExportFactoryWritesDeterministicSightingsFile() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

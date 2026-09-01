@@ -50,7 +50,10 @@ export const DEX_QUERY = `
       END AS groupKey,
       MIN(obs.speciesName) AS speciesName,
       obs.speciesCode AS speciesCode,
-      json_extract(MIN(json_array(obs.speciesName, obs.taxonCode)), '$[1]') AS taxonCode,
+      CASE
+        WHEN COUNT(DISTINCT COALESCE(obs.taxonCode, '')) = 1 THEN MAX(obs.taxonCode)
+        ELSE NULL
+      END AS taxonCode,
       MIN(o.startTime) AS firstSeenDate,
       MAX(o.startTime) AS lastSeenDate,
       COUNT(DISTINCT obs.outingId) AS totalOutings,

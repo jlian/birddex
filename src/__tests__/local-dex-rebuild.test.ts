@@ -92,7 +92,7 @@ describe('rebuildDexFromState', () => {
     expect(rebuilt[0].id).toBe('code:norcar')
   })
 
-  it('keeps the exact code and canonical names for the selected group label', async () => {
+  it('uses grouping metadata when a group contains multiple exact taxa', async () => {
     await getTaxonMetadataByCode('sobkiw2')
     const outings = [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')]
     const observations = [
@@ -104,10 +104,23 @@ describe('rebuildDexFromState', () => {
     expect(rebuilt[0]).toMatchObject({
       speciesName: 'Southern Brown Kiwi',
       speciesCode: 'sobkiw1',
-      taxonCode: 'sobkiw1',
       commonName: 'Southern Brown Kiwi',
       scientificName: 'Apteryx australis',
     })
+    expect(rebuilt[0].taxonCode).toBe('sobkiw1')
+  })
+
+  it.each([
+    ['unanimous exact codes', ['sobkiw2', 'sobkiw2'], 'sobkiw2'],
+    ['known and missing exact codes', ['sobkiw2', undefined], 'sobkiw1'],
+    ['all missing exact codes', [undefined, undefined], 'sobkiw1'],
+  ] as const)('uses consensus identity for %s', (_label, taxonCodes, expected) => {
+    const outings = [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')]
+    const observations = taxonCodes.map((taxonCode, index) =>
+      obs(`ob${index}`, `o${index + 1}`, `Kiwi label ${index}`, 'sobkiw1', taxonCode)
+    )
+
+    expect(rebuildDexFromState(outings, observations, [])[0].taxonCode).toBe(expected)
   })
 })
 

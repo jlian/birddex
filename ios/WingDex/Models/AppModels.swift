@@ -93,10 +93,13 @@ func groupByDexKey(_ observations: [BirdObservation]) -> [SpeciesGroup] {
     }
     .map { key, group in
         let selected = group.min { $0.speciesName < $1.speciesName }
+        let exactCodes = Set(group.map { $0.taxonCode ?? "" })
+        let unanimousExactCode = exactCodes.count == 1 ? selected?.taxonCode : nil
+        let taxonCode = unanimousExactCode ?? group.compactMap(\.speciesCode).first
         return SpeciesGroup(
             key: key,
             label: selected?.speciesName ?? "",
-            taxonCode: selected?.taxonCode,
+            taxonCode: taxonCode,
             observations: group
         )
     }
