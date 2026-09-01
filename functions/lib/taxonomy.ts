@@ -8,6 +8,7 @@ type TaxonEntry = {
   common: string
   scientific: string
   ebirdCode?: string
+  reportAsCode?: string
   wikiTitle?: string
   /** Path relative to COMMONS_PREFIX (e.g. "thumb/a/ab/Foo.jpg/330px-Foo.jpg"). */
   thumbnailPath?: string
@@ -46,6 +47,7 @@ for (const taxon of taxonomy) {
 // entries have no row in either.
 const extraByCommon = new Map<string, TaxonEntry>()
 const extraByScientific = new Map<string, TaxonEntry>()
+const extraByCode = new Map<string, TaxonEntry>()
 
 for (const entry of (rawExtra as { entries: unknown[][] }).entries) {
   const [code, common, scientific, , , reportAsCode] = entry as [string, string, string, string, number, string]
@@ -62,8 +64,12 @@ for (const entry of (rawExtra as { entries: unknown[][] }).entries) {
   // following it makes both spellings agree. 23 of the 25 domestic taxa carry
   // one; the two that do not (`Domestic goose sp.`, `Domestic duck sp.`) have
   // no species to roll up to and keep their own code.
-  const effectiveCode = reportAsCode || code
-  const taxon: TaxonEntry = { common, scientific, ebirdCode: effectiveCode }
+  const taxon: TaxonEntry = {
+    common,
+    scientific,
+    ebirdCode: code,
+    ...(reportAsCode ? { reportAsCode } : {}),
+  }
   const commonKey = common.toLowerCase()
   const scientificKey = scientific.toLowerCase()
   // The classifier always wins, so an eBird revision that reuses a name cannot
@@ -72,6 +78,7 @@ for (const entry of (rawExtra as { entries: unknown[][] }).entries) {
   if (!byScientificLower.has(scientificKey)) {
     extraByScientific.set(scientificKey, taxon)
   }
+  if (!byCodeLower.has(code.toLowerCase())) extraByCode.set(code.toLowerCase(), taxon)
 }
 
 export function getWikiTitle(commonName: string): string | undefined {
@@ -114,6 +121,85 @@ export function searchSpecies(query: string, limit = 8): TaxonEntry[] {
   return [...prefixCommon, ...prefixScientific, ...substringCommon, ...substringScientific].slice(0, limit)
 }
 
+export type CompoundTaxon = {
+  kind: 'hybrid' | 'slash'
+  parents: TaxonEntry[]
+}
+
+export function findCompoundTaxon(name: string): CompoundTaxon | null {
+  if (!name) return null
+
+  const raw = name.trim()
+  const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const common = paren ? paren[1].trim() : raw
+  if (/\bsp\.\s*$/i.test(common)) return null
+  const candidates = paren ? [paren[2].trim(), paren[1].trim(), raw] : [raw]
+
+  for (const candidate of candidates) {
+    const lower = candidate.toLowerCase()
+    const isHybrid = lower.includes(' x ')
+    const separator = isHybrid ? ' x ' : lower.includes('/') ? '/' : ''
+    if (!separator) continue
+
+    const sides = lower.split(separator).map(side => side.trim()).filter(Boolean)
+    if (sides.length < 2) continue
+
+    const chosen = resolveScientificSides(sides) ?? resolveCommonSides(sides)
+    if (!chosen) continue
+
+    const parents: TaxonEntry[] = []
+    for (const hit of chosen) {
+      if (!parents.some(parent => parent.scientific === hit.scientific)) {
+        parents.push(hit)
+      }
+    }
+    if (parents.length < 2) continue
+
+    return { kind: isHybrid ? 'hybrid' : 'slash', parents }
+  }
+
+  return null
+}
+
+function resolveScientificSides(sides: string[]): TaxonEntry[] | null {
+  let genus = sides[0].split(/\s+/)[0]
+  const hits: TaxonEntry[] = []
+  for (const side of sides) {
+    if (side.includes(' ')) genus = side.split(/\s+/)[0]
+    const full = side.includes(' ') ? side : `${genus} ${side}`
+    const hit = byScientificLower.get(full)
+    if (!hit) return null
+    hits.push(hit)
+  }
+  return hits
+}
+
+function resolveCommonSides(sides: string[]): TaxonEntry[] | null {
+  const hits: TaxonEntry[] = []
+  for (const side of sides) {
+    const hit = matchCompoundCommonSide(side, sides)
+    if (!hit) return null
+    hits.push(hit)
+  }
+  return hits
+}
+
+function matchCompoundCommonSide(side: string, sides: string[]): TaxonEntry | undefined {
+  const direct = byCommonLower.get(side)
+  if (direct) return direct
+
+  const last = sides[sides.length - 1]
+  if (side === last) return undefined
+
+  const lastWords = last.split(/\s+/)
+  for (let take = lastWords.length - 1; take >= 1; take--) {
+    const candidate = `${side} ${lastWords.slice(-take).join(' ')}`
+    const hit = byCommonLower.get(candidate)
+    if (hit) return hit
+  }
+  return undefined
+}
+
 export function findBestMatch(name: string): TaxonEntry | null {
   if (!name) return null
 
@@ -123,13 +209,22 @@ export function findBestMatch(name: string): TaxonEntry | null {
   const exactCommon = byCommonLower.get(rawLower)
   if (exactCommon) return exactCommon
 
-  const parenMatch = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const parenMatch = raw.match(/^(.+?)\s*\((.+)\)\s*$/)
   if (parenMatch) {
     const commonPart = parenMatch[1].trim().toLowerCase()
-    const scientificPart = parenMatch[2].trim().toLowerCase()
+    const scientificPart = parenMatch[2]
+      .replace(/\s*\([^)]*\)\s*$/, '')
+      .trim()
+      .toLowerCase()
 
     const byScientific = byScientificLower.get(scientificPart)
     if (byScientific) return byScientific
+
+    const words = scientificPart.split(/\s+/)
+    if (words.length > 2 && !isCompoundScientific(scientificPart)) {
+      const binomial = byScientificLower.get(words.slice(0, 2).join(' '))
+      if (binomial) return binomial
+    }
 
     const byCommon = byCommonLower.get(commonPart)
     if (byCommon) return byCommon
@@ -138,25 +233,13 @@ export function findBestMatch(name: string): TaxonEntry | null {
   const exactScientific = byScientificLower.get(rawLower)
   if (exactScientific) return exactScientific
 
-  const words = raw.toLowerCase().split(/[\s\-()]+/).filter(Boolean)
-  let bestScore = 0
-  let bestEntry: TaxonEntry | null = null
-
-  for (let index = 0; index < lowerIndex.length; index++) {
-    const combined = `${lowerIndex[index].common} ${lowerIndex[index].scientific}`
-    let score = 0
-
-    for (const word of words) {
-      if (combined.includes(word)) score++
-    }
-
-    if (score > bestScore && score >= Math.max(2, Math.ceil(words.length / 2))) {
-      bestScore = score
-      bestEntry = taxonomy[index]
-    }
+  const bareWords = rawLower.split(/\s+/)
+  if (bareWords.length > 2 && !isCompoundScientific(rawLower)) {
+    const binomial = byScientificLower.get(bareWords.slice(0, 2).join(' '))
+    if (binomial) return binomial
   }
 
-  return bestEntry
+  return null
 }
 
 export function normalizeSpeciesName(name: string): string {
@@ -164,17 +247,13 @@ export function normalizeSpeciesName(name: string): string {
   return match ? match.common : name
 }
 
-export function getEbirdCode(commonName: string): string {
-  // Strip parenthesized scientific name if present, e.g. "Saffron Finch (Sicalis flaveola)" → "Saffron Finch"
-  const name = commonName.split('(')[0].trim()
-
-  const match = byCommonLower.get(name.toLowerCase())
-  if (match?.ebirdCode) return match.ebirdCode
-  return ''
+export function getEbirdCode(speciesName: string): string {
+  return resolveSpeciesIdentity(speciesName)?.taxonCode ?? ''
 }
 
 export function getSpeciesByCode(code: string): TaxonEntry | undefined {
-  return byCodeLower.get(code.toLowerCase())
+  const key = code.toLowerCase()
+  return byCodeLower.get(key) ?? extraByCode.get(key)
 }
 
 /**
@@ -217,8 +296,8 @@ function isCompoundScientific(scientific: string): boolean {
   return scientific.includes(' x ') || scientific.includes('/')
 }
 
-export function resolveSpeciesCode(speciesName: string): string {
-  if (!speciesName) return ''
+function resolveTaxonEntry(speciesName: string): TaxonEntry | undefined {
+  if (!speciesName) return undefined
   const raw = speciesName.trim()
 
   // 1. The WHOLE stored string, exactly, before interpreting anything.
@@ -234,7 +313,7 @@ export function resolveSpeciesCode(speciesName: string): string {
     ?? extraByCommon.get(whole)
     ?? byScientificLower.get(whole)
     ?? extraByScientific.get(whole)
-  if (exact?.ebirdCode) return exact.ebirdCode
+  if (exact?.ebirdCode) return exact
 
   // "Common (Scientific)" is the canonical stored shape.
   const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
@@ -244,7 +323,7 @@ export function resolveSpeciesCode(speciesName: string): string {
   // 2. scientific name, exact
   if (scientificPart) {
     const hit = byScientificLower.get(scientificPart) ?? extraByScientific.get(scientificPart)
-    if (hit?.ebirdCode) return hit.ebirdCode
+    if (hit?.ebirdCode) return hit
 
     // 3. trinomial -> binomial. "anas platyrhynchos domesticus" is not an
     //    eBird scientific name, but "anas platyrhynchos" is.
@@ -262,13 +341,13 @@ export function resolveSpeciesCode(speciesName: string): string {
       const binomial = words.slice(0, 2).join(' ')
       const viaBinomial =
         byScientificLower.get(binomial) ?? extraByScientific.get(binomial)
-      if (viaBinomial?.ebirdCode) return viaBinomial.ebirdCode
+      if (viaBinomial?.ebirdCode) return viaBinomial
     }
   }
 
   // 4. common name with any parenthetical stripped, classifier first
   const byCommon = byCommonLower.get(commonPart) ?? extraByCommon.get(commonPart)
-  if (byCommon?.ebirdCode) return byCommon.ebirdCode
+  if (byCommon?.ebirdCode) return byCommon
 
   // 5. hybrid and intergrade names without eBird's category suffix.
   //
@@ -286,11 +365,54 @@ export function resolveSpeciesCode(speciesName: string): string {
   if (!/\((hybrid|intergrade)\)$/i.test(whole)) {
     for (const suffix of [' (hybrid)', ' (intergrade)']) {
       const hit = extraByCommon.get(whole + suffix)
-      if (hit?.ebirdCode) return hit.ebirdCode
+      if (hit?.ebirdCode) return hit
     }
   }
 
-  return ''
+  return undefined
+}
+
+export type SpeciesIdentity = {
+  /** The exact eBird taxon observed, such as the Southern Brown Kiwi ISSF. */
+  taxonCode: string
+  /** The eBird REPORT_AS rollup used to group dex entries. */
+  speciesCode: string
+}
+
+export function resolveSpeciesIdentity(speciesName: string): SpeciesIdentity | undefined {
+  const taxon = resolveTaxonEntry(speciesName)
+  if (!taxon?.ebirdCode) return undefined
+  return {
+    taxonCode: taxon.ebirdCode,
+    speciesCode: taxon.reportAsCode || taxon.ebirdCode,
+  }
+}
+
+export function resolveSpeciesCode(speciesName: string): string {
+  return resolveSpeciesIdentity(speciesName)?.speciesCode ?? ''
+}
+
+export function getTaxonMetadata(speciesName: string, taxonCode?: string | null): {
+  common?: string
+  scientific?: string
+  ebirdCode?: string
+  wikiTitle?: string
+  thumbnailUrl?: string
+  birdlifeId?: string
+} {
+  const match = (taxonCode ? getSpeciesByCode(taxonCode) : undefined)
+    ?? resolveTaxonEntry(speciesName)
+  if (!match) return {}
+  return {
+    common: match.common,
+    scientific: match.scientific,
+    ebirdCode: match.ebirdCode,
+    wikiTitle: match.wikiTitle,
+    thumbnailUrl: match.thumbnailPath
+      ? `${COMMONS_PREFIX}${match.thumbnailPath}`
+      : undefined,
+    birdlifeId: match.birdlifeId,
+  }
 }
 
 /** Return the BirdLife DataZone factsheet URL for a species, or undefined if unknown. */

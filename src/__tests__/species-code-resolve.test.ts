@@ -4,7 +4,7 @@
  * production, one from our own e2e fixture.
  */
 import { describe, it, expect } from 'vitest'
-import { resolveSpeciesCode } from '../../functions/lib/taxonomy'
+import { getEbirdCode, getTaxonMetadata, resolveSpeciesCode, resolveSpeciesIdentity } from '../../functions/lib/taxonomy'
 
 describe('resolveSpeciesCode', () => {
   it('resolves an ordinary classifier species', () => {
@@ -39,6 +39,19 @@ describe('resolveSpeciesCode', () => {
     expect(resolveSpeciesCode('Mallard (Anas platyrhynchos domesticus)')).toBe('mallar3')
     expect(resolveSpeciesCode('Graylag Goose (Domestic type)')).toBe('gragoo')
     expect(resolveSpeciesCode('Graylag Goose (Anser anser domesticus)')).toBe('gragoo')
+  })
+
+  it('keeps exact taxon identity separate from REPORT_AS grouping', () => {
+    expect(resolveSpeciesIdentity('Southern Brown Kiwi (South I.)')).toEqual({
+      taxonCode: 'sobkiw2',
+      speciesCode: 'sobkiw1',
+    })
+    expect(getEbirdCode('Southern Brown Kiwi (South I.)')).toBe('sobkiw2')
+    expect(getTaxonMetadata('ignored', 'sobkiw2')).toMatchObject({
+      common: 'Southern Brown Kiwi (South I.)',
+      scientific: 'Apteryx australis australis',
+      ebirdCode: 'sobkiw2',
+    })
   })
 
   it('rolls a subspecies up to its species, matching eBird REPORT_AS', () => {
