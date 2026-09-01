@@ -113,8 +113,8 @@ final class BirdIDParityTests: XCTestCase {
     /// input path of the Sync Bird ID Assets build phase.
     static let shippedPriorName = "occurrence.d0abc168.bin.gz"
 
-    /// The decompressed prior, inflated once. The shipped v4 blob is 32.94 MiB
-    /// decompressed (34,541,674 bytes) from 21.54 MiB gzipped, and five tests
+    /// The decompressed prior, inflated once. The shipped v4 blob is 32.93 MiB
+    /// decompressed (34,534,667 bytes) from 21.54 MiB gzipped, and five tests
     /// read it. 23 MiB was v3.
     private static let cachedPriorBytes: Result<[UInt8], Error> = {
         do {
