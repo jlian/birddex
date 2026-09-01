@@ -662,10 +662,10 @@ private struct MiniMapSnapshot: View {
                 longitudinalMeters: 4_000
             )
             options.size = CGSize(width: size, height: size)
-            options.traitCollection = UITraitCollection(traitsFrom: [
-                UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light),
-                UITraitCollection(displayScale: displayScale),
-            ])
+            options.traitCollection = UITraitCollection(mutations: { traits in
+                traits.userInterfaceStyle = colorScheme == .dark ? .dark : .light
+                traits.displayScale = displayScale
+            })
             options.pointOfInterestFilter = .excludingAll
 
             let snapshotter = MKMapSnapshotter(options: options)
