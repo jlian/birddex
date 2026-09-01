@@ -86,10 +86,12 @@ import {
   getOffsetForLocalWallTime,
   getTimezoneFromCoords,
 } from '../../src/lib/timezone'
+import { getTaxonMetadata } from './taxonomy'
 import Papa from 'papaparse'
 
 type ObservationForExport = {
   speciesName: string
+  taxonCode?: string | null
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   notes?: string | null
@@ -538,10 +540,11 @@ export function exportOutingToEBirdCSV(
   const rows = observations
     .filter(observation => observation.certainty === 'confirmed')
     .map(observation => {
-      const commonName = sanitizeForEBird(getDisplayName(observation.speciesName))
-      // splitScientificName performs the sanitization. Leave unknown taxonomy
-      // empty rather than copying a common name into the scientific columns.
-      const scientificName = getScientificName(observation.speciesName) || ''
+      const metadata = getTaxonMetadata(observation.speciesName, observation.taxonCode)
+      const commonName = sanitizeForEBird(metadata.common ?? observation.speciesName)
+      // Parenthesized free text can be a qualifier rather than a scientific
+      // name. Only resolved taxonomy is authoritative enough to split here.
+      const scientificName = metadata.scientific ?? ''
       const { genus, species } = splitScientificName(scientificName)
 
       return [

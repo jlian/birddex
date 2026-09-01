@@ -615,6 +615,41 @@ describe('eBird CSV utilities', () => {
   })
 
   describe('outing CSV export', () => {
+    it('uses exact taxon metadata for an ISSF export', () => {
+      const csv = exportOutingToEBirdCSV({
+        id: 'o1',
+        startTime: '2025-06-01T08:00:00.000Z',
+        locationName: 'Park',
+      }, [{
+        speciesName: 'Southern Brown Kiwi (South I.)',
+        taxonCode: 'sobkiw2',
+        count: 1,
+        certainty: 'confirmed',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[1]).toBe('Southern Brown Kiwi (South I.)')
+      expect(cells[2]).toBe('Apteryx')
+      expect(cells[3]).toBe('australis australis')
+    })
+
+    it('does not fabricate taxonomy for unknown qualified free text', () => {
+      const csv = exportOutingToEBirdCSV({
+        id: 'o1',
+        startTime: '2025-06-01T08:00:00.000Z',
+        locationName: 'Park',
+      }, [{
+        speciesName: 'Mystery Bird (South I.)',
+        count: 1,
+        certainty: 'confirmed',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[1]).toBe('Mystery Bird (South I.)')
+      expect(cells[2]).toBe('')
+      expect(cells[3]).toBe('')
+    })
+
     it('uses "X" for zero-count observations', () => {
       const outing: Outing = {
         id: 'o1',

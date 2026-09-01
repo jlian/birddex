@@ -37,6 +37,7 @@ type ObservationRow = {
   outingId: string
   speciesName: string
   speciesCode?: string | null
+  taxonCode?: string | null
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   representativePhotoId?: string | null
@@ -71,6 +72,10 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     const observationSpeciesCodeSelect = supportsSpeciesCode
       ? 'speciesCode'
       : 'NULL as speciesCode'
+    const supportsTaxonCode = await hasObservationColumn(db, 'taxonCode')
+    const observationTaxonCodeSelect = supportsTaxonCode
+      ? 'taxonCode'
+      : 'NULL as taxonCode'
     const supportsSubmissionId = await hasObservationColumn(db, 'submissionId')
     const observationSubmissionIdSelect = supportsSubmissionId
       ? 'submissionId'
@@ -82,7 +87,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       db.prepare('SELECT id, outingId, exifTime, gpsLat, gpsLon, fileHash, fileName FROM photo WHERE userId = ?')
         .bind(userId)
         .all<PhotoRow>(),
-      db.prepare(`SELECT id, outingId, speciesName, ${observationSpeciesCodeSelect}, count, certainty, representativePhotoId, aiConfidence, ${observationSpeciesCommentsSelect}, ${observationSubmissionIdSelect}, notes FROM observation WHERE userId = ?`)
+      db.prepare(`SELECT id, outingId, speciesName, ${observationSpeciesCodeSelect}, ${observationTaxonCodeSelect}, count, certainty, representativePhotoId, aiConfidence, ${observationSpeciesCommentsSelect}, ${observationSubmissionIdSelect}, notes FROM observation WHERE userId = ?`)
         .bind(userId)
         .all<ObservationRow>(),
       computeDex(db, userId),
@@ -117,6 +122,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     const observations = observationsResult.results.map(observation => ({
       ...observation,
       speciesCode: observation.speciesCode || undefined,
+      taxonCode: observation.taxonCode || undefined,
       representativePhotoId: observation.representativePhotoId || undefined,
       aiConfidence: observation.aiConfidence ?? undefined,
       speciesComments: observation.speciesComments || undefined,

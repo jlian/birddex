@@ -66,6 +66,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     stage = 'observation schema inspection'
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
     const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
+    const supportsTaxonCode = await hasObservationColumn(context.env.DB, 'taxonCode')
     const observationNotesSelect = supportsSpeciesCommentsColumn
       ? 'COALESCE(speciesComments, notes) as notes'
       : 'notes'
@@ -73,7 +74,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     stage = 'outing observation database query'
     const observationsResult = await context.env.DB
       .prepare(
-        `SELECT speciesName, count, certainty,
+        `SELECT speciesName, ${supportsTaxonCode ? 'taxonCode' : 'NULL as taxonCode'}, count, certainty,
           ${supportsSubmissionId ? 'submissionId' : 'NULL'} as submissionId,
           ${observationNotesSelect}
        FROM observation
@@ -82,6 +83,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       .bind(outingId, userId)
       .all<{
         speciesName: string
+        taxonCode?: string | null
         count: number
         certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
         notes?: string | null

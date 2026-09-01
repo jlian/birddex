@@ -36,10 +36,11 @@ export interface Observation {
   outingId: string
   speciesName: string
   /**
-   * eBird species code, absent when the name resolves to no known taxon.
-   * The dex grouping key when present; speciesName is the fallback.
+    * eBird REPORT_AS code used for dex grouping, absent when unresolved.
    */
   speciesCode?: string
+    /** Exact eBird taxon code, including ISSF and other below-species taxa. */
+    taxonCode?: string
   count: number
   certainty: ObservationStatus
   representativePhotoId?: string

@@ -1,16 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeDex, enrichDexEntries, type DexQueryDB } from '../../functions/lib/dex-query'
-
-type DexRow = {
-  speciesName: string
-  firstSeenDate: string
-  lastSeenDate: string
-  addedDate?: string | null
-  totalOutings: number
-  totalCount: number
-  bestPhotoId?: string | null
-  notes: string
-}
+import { computeDex, enrichDexEntries, type DexQueryDB, type DexRow } from '../../functions/lib/dex-query'
 
 /**
  * Minimal mock satisfying DexQueryDB, only needs prepare().bind().all().
@@ -35,6 +24,7 @@ describe('computeDex', () => {
   it('returns dex rows from the database', async () => {
     const mockRows: DexRow[] = [
       {
+        id: 'code:norcar',
         speciesName: 'Northern Cardinal',
         firstSeenDate: '2025-09-15T10:00:00-07:00',
         lastSeenDate: '2025-10-01T08:30:00-07:00',
@@ -45,6 +35,7 @@ describe('computeDex', () => {
         notes: 'Seen at feeder',
       },
       {
+        id: 'code:blujay',
         speciesName: 'Blue Jay',
         firstSeenDate: '2025-08-20T07:00:00-07:00',
         lastSeenDate: '2025-08-20T07:00:00-07:00',
@@ -77,6 +68,7 @@ describe('computeDex', () => {
 
   it('preserves all fields including nullable ones', async () => {
     const row: DexRow = {
+      id: 'code:baleag',
       speciesName: 'Bald Eagle',
       firstSeenDate: '2026-01-01T12:00:00Z',
       lastSeenDate: '2026-01-01T12:00:00Z',
@@ -114,6 +106,7 @@ describe('computeDex', () => {
 describe('enrichDexEntries', () => {
   it('adds wiki metadata while preserving dex statistics and notes', () => {
     const row: DexRow = {
+      id: 'code:norcar',
       speciesName: 'Northern Cardinal',
       firstSeenDate: '2026-01-01T12:00:00Z',
       lastSeenDate: '2026-01-02T12:00:00Z',

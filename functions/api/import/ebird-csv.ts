@@ -1,6 +1,6 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { groupPreviewsIntoOutings, parseEBirdCSV } from '../../lib/ebird'
-import { resolveSpeciesCode } from '../../lib/taxonomy'
+import { resolveSpeciesIdentity } from '../../lib/taxonomy'
 import { getOutingColumnNames, hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { rateLimitKey } from '../../lib/rate-limit'
@@ -148,6 +148,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
     const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
     const supportsSpeciesCode = await hasObservationColumn(context.env.DB, 'speciesCode')
+    const supportsTaxonCode = await hasObservationColumn(context.env.DB, 'taxonCode')
     const unresolvedNames = new Set<string>()
 
     // Checklist-level idempotency, applied to the rows BEFORE they are grouped.
@@ -257,6 +258,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       // grouping by name; see resolveSpeciesCode for why the code cannot be
       // total.
       if (supportsSpeciesCode) observationColumns.push('speciesCode')
+      if (supportsTaxonCode) observationColumns.push('taxonCode')
       // Tracked at function scope: there is no client-side import preview any
       // more, so an unresolved name has no natural place to surface. It has to
       // land in the route log next to the parsed/persisted counts or nobody
@@ -267,8 +269,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
         'observation',
         observationColumns,
         observations.map(observation => {
-          const speciesCode = resolveSpeciesCode(observation.speciesName)
-          if (!speciesCode) unresolvedNames.add(observation.speciesName)
+          const identity = resolveSpeciesIdentity(observation.speciesName)
+          if (!identity) unresolvedNames.add(observation.speciesName)
           return {
             id: observation.id,
             outingId: observation.outingId,
@@ -279,7 +281,8 @@ export const onRequestPost: PagesFunction<Env> = async context => {
             notes: supportsSpeciesCommentsColumn ? '' : observation.notes,
             speciesComments: observation.notes || null,
             submissionId: observation.submissionId ?? null,
-            speciesCode: speciesCode || null,
+            speciesCode: identity?.speciesCode ?? null,
+            taxonCode: identity?.taxonCode ?? null,
           }
         }),
       )

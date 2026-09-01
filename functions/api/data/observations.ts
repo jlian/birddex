@@ -2,7 +2,7 @@ import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { queryInChunks } from '../../lib/d1-chunk'
-import { resolveSpeciesCode } from '../../lib/taxonomy'
+import { resolveSpeciesIdentity } from '../../lib/taxonomy'
 
 type ObservationCertainty = 'confirmed' | 'possible' | 'pending' | 'rejected'
 
@@ -54,7 +54,11 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count} ${count === 1 ? singular : plural}`
 }
 
-function getPatchBindings(patch: ObservationPatch, supportsSpeciesCode: boolean): {
+function getPatchBindings(
+  patch: ObservationPatch,
+  supportsSpeciesCode: boolean,
+  supportsTaxonCode: boolean,
+): {
   updateFields: string[]
   bindings: Array<string | number | null>
 } {
@@ -68,13 +72,18 @@ function getPatchBindings(patch: ObservationPatch, supportsSpeciesCode: boolean)
   if (typeof patch.speciesName === 'string') {
     updateFields.push('speciesName = ?')
     bindings.push(patch.speciesName)
+    const identity = resolveSpeciesIdentity(patch.speciesName)
     // Recompute the code from the NEW name. Leaving the old one would file the
     // observation under the species it used to be, which is a worse failure
     // than having no code at all: the row would silently join another bird's
     // dex entry. Resolving to nothing clears it back to the name fallback.
     if (supportsSpeciesCode) {
       updateFields.push('speciesCode = ?')
-      bindings.push(resolveSpeciesCode(patch.speciesName) || null)
+      bindings.push(identity?.speciesCode ?? null)
+    }
+    if (supportsTaxonCode) {
+      updateFields.push('taxonCode = ?')
+      bindings.push(identity?.taxonCode ?? null)
     }
   }
   if (typeof patch.count === 'number') {
@@ -115,11 +124,13 @@ async function listObservationsByIds(db: D1Database, userId: string, ids: string
   // grouping by name until the next full reload.
   const supportsSpeciesCode = await hasObservationColumn(db, 'speciesCode')
   const speciesCodeSelect = supportsSpeciesCode ? 'speciesCode' : 'NULL as speciesCode'
+  const supportsTaxonCode = await hasObservationColumn(db, 'taxonCode')
+  const taxonCodeSelect = supportsTaxonCode ? 'taxonCode' : 'NULL as taxonCode'
 
   const rows = await queryInChunks(ids, (chunk, placeholders) =>
     db
       .prepare(
-        `SELECT id, outingId, speciesName, ${speciesCodeSelect}, count, certainty, representativePhotoId, aiConfidence, ${speciesCommentsSelect}, notes
+        `SELECT id, outingId, speciesName, ${speciesCodeSelect}, ${taxonCodeSelect}, count, certainty, representativePhotoId, aiConfidence, ${speciesCommentsSelect}, notes
        FROM observation
        WHERE userId = ? AND id IN (${placeholders})`
       )
@@ -129,6 +140,7 @@ async function listObservationsByIds(db: D1Database, userId: string, ids: string
         outingId: string
         speciesName: string
         speciesCode?: string | null
+        taxonCode?: string | null
         count: number
         certainty: ObservationCertainty
         representativePhotoId?: string | null
@@ -142,6 +154,7 @@ async function listObservationsByIds(db: D1Database, userId: string, ids: string
   return rows.map(observation => ({
     ...observation,
     speciesCode: observation.speciesCode || undefined,
+    taxonCode: observation.taxonCode || undefined,
     representativePhotoId: observation.representativePhotoId || undefined,
     aiConfidence: observation.aiConfidence ?? undefined,
     speciesComments: observation.speciesComments || undefined,
@@ -275,88 +288,40 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     // are the photo, manual and iOS sync writes, so leaving them NULL would
     // mean the dex still splits renamed species for everything except imports.
     const supportsSpeciesCode = await hasObservationColumn(context.env.DB, 'speciesCode')
+    const supportsTaxonCode = await hasObservationColumn(context.env.DB, 'taxonCode')
 
     const statements = body.map(observation => {
-      const speciesCode = resolveSpeciesCode(observation.speciesName) || null
-
-      if (supportsSpeciesComments && supportsSpeciesCode) {
-        return context.env.DB.prepare(
-          `INSERT INTO observation (id, outingId, userId, speciesName, speciesCode, count, certainty, representativePhotoId, aiConfidence, speciesComments, notes)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-           ON CONFLICT(id) DO UPDATE SET
-             speciesName = excluded.speciesName,
-             speciesCode = excluded.speciesCode,
-             count = excluded.count,
-             certainty = excluded.certainty,
-             representativePhotoId = excluded.representativePhotoId,
-             aiConfidence = excluded.aiConfidence,
-             speciesComments = excluded.speciesComments,
-             notes = excluded.notes
-           WHERE observation.userId = excluded.userId AND observation.outingId = excluded.outingId`
-        ).bind(
-          observation.id,
-          observation.outingId,
-          userId,
-          observation.speciesName,
-          speciesCode,
-          observation.count,
-          observation.certainty,
-          observation.representativePhotoId ?? null,
-          observation.aiConfidence ?? null,
-          observation.speciesComments ?? null,
-          observation.notes ?? ''
-        )
+      const identity = resolveSpeciesIdentity(observation.speciesName)
+      const columns = ['id', 'outingId', 'userId', 'speciesName']
+      const values: Array<string | number | null> = [observation.id, observation.outingId, userId, observation.speciesName]
+      if (supportsSpeciesCode) {
+        columns.push('speciesCode')
+        values.push(identity?.speciesCode ?? null)
       }
-
+      if (supportsTaxonCode) {
+        columns.push('taxonCode')
+        values.push(identity?.taxonCode ?? null)
+      }
+      columns.push('count', 'certainty', 'representativePhotoId', 'aiConfidence')
+      values.push(observation.count, observation.certainty, observation.representativePhotoId ?? null, observation.aiConfidence ?? null)
       if (supportsSpeciesComments) {
-        return context.env.DB.prepare(
-          `INSERT INTO observation (id, outingId, userId, speciesName, count, certainty, representativePhotoId, aiConfidence, speciesComments, notes)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-           ON CONFLICT(id) DO UPDATE SET
-             speciesName = excluded.speciesName,
-             count = excluded.count,
-             certainty = excluded.certainty,
-             representativePhotoId = excluded.representativePhotoId,
-             aiConfidence = excluded.aiConfidence,
-             speciesComments = excluded.speciesComments,
-             notes = excluded.notes
-           WHERE observation.userId = excluded.userId AND observation.outingId = excluded.outingId`
-        ).bind(
-          observation.id,
-          observation.outingId,
-          userId,
-          observation.speciesName,
-          observation.count,
-          observation.certainty,
-          observation.representativePhotoId ?? null,
-          observation.aiConfidence ?? null,
-          observation.speciesComments ?? null,
-          observation.notes ?? ''
-        )
+        columns.push('speciesComments')
+        values.push(observation.speciesComments ?? null)
       }
+      columns.push('notes')
+      values.push(observation.notes ?? '')
+      const placeholders = columns.map((_, index) => `?${index + 1}`).join(', ')
+      const updateFields = columns
+        .filter(column => !['id', 'outingId', 'userId'].includes(column))
+        .map(column => `${column} = excluded.${column}`)
 
       return context.env.DB.prepare(
-        `INSERT INTO observation (id, outingId, userId, speciesName, count, certainty, representativePhotoId, aiConfidence, notes)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+        `INSERT INTO observation (${columns.join(', ')})
+         VALUES (${placeholders})
          ON CONFLICT(id) DO UPDATE SET
-           speciesName = excluded.speciesName,
-           count = excluded.count,
-           certainty = excluded.certainty,
-           representativePhotoId = excluded.representativePhotoId,
-           aiConfidence = excluded.aiConfidence,
-           notes = excluded.notes
+           ${updateFields.join(',\n           ')}
          WHERE observation.userId = excluded.userId AND observation.outingId = excluded.outingId`
-      ).bind(
-        observation.id,
-        observation.outingId,
-        userId,
-        observation.speciesName,
-        observation.count,
-        observation.certainty,
-        observation.representativePhotoId ?? null,
-        observation.aiConfidence ?? null,
-        observation.notes ?? ''
-      )
+      ).bind(...values)
     })
 
     await context.env.DB.batch(statements)
@@ -381,7 +346,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       // When the column is absent the field stays undefined rather than null,
       // so the response shape matches a pre-migration database.
       ...(supportsSpeciesCode
-        ? { speciesCode: resolveSpeciesCode(observation.speciesName) || undefined }
+        ? { speciesCode: resolveSpeciesIdentity(observation.speciesName)?.speciesCode || undefined }
+        : {}),
+      ...(supportsTaxonCode
+        ? { taxonCode: resolveSpeciesIdentity(observation.speciesName)?.taxonCode || undefined }
         : {}),
       representativePhotoId: observation.representativePhotoId || undefined,
       aiConfidence: observation.aiConfidence ?? undefined,
@@ -427,11 +395,12 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     const db = context.env.DB
     const supportsSpeciesComments = await hasObservationColumn(db, 'speciesComments')
     const supportsSpeciesCode = await hasObservationColumn(db, 'speciesCode')
+    const supportsTaxonCode = await hasObservationColumn(db, 'taxonCode')
 
     if (typeof body.id === 'string') {
     const { id, ...rawPatch } = body
     const patch = rawPatch as ObservationPatch
-    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode)
+    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode, supportsTaxonCode)
 
     if (!supportsSpeciesComments) {
       const speciesIndex = updateFields.findIndex(field => field === 'speciesComments = ?')
@@ -487,7 +456,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     if (Array.isArray(body.ids) && body.ids.every(id => typeof id === 'string') && isObject(body.patch)) {
     const ids = body.ids as string[]
     const patch = body.patch as ObservationPatch
-    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode)
+    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode, supportsTaxonCode)
 
     if (!supportsSpeciesComments) {
       const speciesIndex = updateFields.findIndex(field => field === 'speciesComments = ?')

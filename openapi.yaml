@@ -717,11 +717,20 @@ components:
           type: string
         speciesCode:
           type: string
+          readOnly: true
           description: >-
-            eBird species code, resolved server-side from speciesName. Absent
-            when the name matches no eBird taxon, in which case the dex groups
-            by name instead. Clients must not send this; it is recomputed on
-            every write, including a rename.
+            eBird REPORT_AS grouping code, resolved server-side from
+            speciesName. Absent when the name matches no eBird taxon, in which
+            case the dex groups by name instead. Recomputed on every write,
+            including a rename.
+        taxonCode:
+          type: string
+          readOnly: true
+          description: >-
+            Exact eBird taxon code, including ISSF and other below-species
+            taxa. Resolved server-side from speciesName and absent when the
+            name matches no eBird taxon. Recomputed on every write, including
+            a rename.
         count:
           type: integer
         certainty:
