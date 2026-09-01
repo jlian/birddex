@@ -9,6 +9,8 @@ let orderMap: Map<string, number> | null = null
 let birdlifeMap: Map<string, string> | null = null
 let ebirdMap: Map<string, string> | null = null
 let wikiTitleMap: Map<string, string> | null = null
+let sciToCommon: Map<string, string> | null = null
+let commonByIndex: string[] | null = null
 
 async function loadOrderMap(): Promise<Map<string, number>> {
   if (orderMap) return orderMap
@@ -17,9 +19,13 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   const bl = new Map<string, string>()
   const eb = new Map<string, string>()
   const wiki = new Map<string, string>()
+  const sci = new Map<string, string>()
+  const commons: string[] = []
   for (let i = 0; i < raw.length; i++) {
     const common = raw[i][0] as string
     map.set(common.toLowerCase(), i)
+    commons.push(common)
+    sci.set(String(raw[i][1]).toLowerCase(), common)
     const birdlifeId = raw[i][5] as string | undefined
     if (birdlifeId) bl.set(common.toLowerCase(), birdlifeId)
     const ebirdCode = raw[i][2] as string | undefined
@@ -31,7 +37,84 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   birdlifeMap = bl
   ebirdMap = eb
   wikiTitleMap = wiki
+  sciToCommon = sci
+  commonByIndex = commons
   return map
+}
+
+/** A hybrid's two parents, or the candidates a slash could not separate. */
+export type CompoundSpecies = {
+  kind: 'hybrid' | 'slash'
+  /** Parent common names, in the order eBird spells them. */
+  parents: string[]
+}
+
+/**
+ * Resolve the parents of a hybrid or slash taxon.
+ *
+ * eBird generates these names mechanically, so they can be parsed rather than
+ * guessed: "Western x Glaucous-winged Gull" and "Common/Somali Ostrich". Only
+ * the LAST side spells out the shared group noun, so an earlier side completes
+ * itself by borrowing the trailing words from it.
+ *
+ * This mirrors findCompoundTaxon in functions/lib/taxonomy.ts. The two exist
+ * separately because this side loads a trimmed client taxonomy, and the shapes
+ * are checked against each other in the tests.
+ */
+export async function getCompoundSpecies(
+  speciesName: string
+): Promise<CompoundSpecies | undefined> {
+  if (!speciesName) return undefined
+  const map = await loadOrderMap()
+  const raw = speciesName.trim()
+  const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const candidates = paren ? [paren[2].trim(), paren[1].trim(), raw] : [raw]
+
+  for (const candidate of candidates) {
+    const lower = candidate.toLowerCase()
+    // " x " is tested first because a parent's own name may contain a slash.
+    const isHybrid = lower.includes(' x ')
+    const separator = isHybrid ? ' x ' : lower.includes('/') ? '/' : ''
+    if (!separator) continue
+
+    const sides = lower.split(separator).map(side => side.trim()).filter(Boolean)
+    if (sides.length < 2) continue
+
+    const genus = sides[0].split(/\s+/)[0]
+    const last = sides[sides.length - 1]
+    const lastWords = last.split(/\s+/)
+    const parents: string[] = []
+
+    for (const side of sides) {
+      // Scientific first: a bare epithet inherits the genus from the left.
+      const full = side.includes(' ') ? side : `${genus} ${side}`
+      let hit = sciToCommon?.get(full)
+      if (!hit && map.has(side)) hit = side
+      if (!hit && side !== last) {
+        // Borrow the longest trailing phrase that resolves, so
+        // "Whistling-Duck" wins over "Duck".
+        for (let take = lastWords.length - 1; take >= 1 && !hit; take--) {
+          const guess = `${side} ${lastWords.slice(-take).join(' ')}`
+          if (map.has(guess)) hit = guess
+        }
+      }
+      if (!hit) continue
+      // Store the taxonomy's own capitalisation for display.
+      const index = map.get(hit.toLowerCase())
+      const display = index === undefined ? hit : displayNameAt(index)
+      if (display && !parents.includes(display)) parents.push(display)
+    }
+
+    if (parents.length === 0) continue
+    return { kind: isHybrid ? 'hybrid' : 'slash', parents }
+  }
+
+  return undefined
+}
+
+/** Common name at a taxonomy row, used to recover canonical capitalisation. */
+function displayNameAt(index: number): string | undefined {
+  return commonByIndex?.[index]
 }
 
 /**

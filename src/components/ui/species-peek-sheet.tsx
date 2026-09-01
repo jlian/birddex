@@ -12,7 +12,8 @@ import {
   type GalleryImage,
   type ImageCredit,
 } from '@/lib/wikimedia'
-import { getEbirdSpeciesUrl, getBirdlifeFactsheetUrl, getWikiTitleForSpecies } from '@/lib/taxonomy-order'
+import { getEbirdSpeciesUrl, getBirdlifeFactsheetUrl, getWikiTitleForSpecies, getCompoundSpecies } from '@/lib/taxonomy-order'
+import type { CompoundSpecies } from '@/lib/taxonomy-order'
 import { formatConfidence } from '@/lib/bird-id-local-adapter'
 import type { RarityState } from '@/lib/rarity'
 
@@ -36,9 +37,24 @@ interface SpeciesDetails {
       at render, because two photos of the same species can carry different plumage. */
   images: GalleryImage[]
   links: SpeciesLinks
+  /**
+   * Set when the taxon is not a single species. A hybrid is a real bird with
+   * two parents; a slash is an unresolved identification. They carry the same
+   * shape and mean opposite things, so the sentence differs.
+   */
+  compound?: CompoundSpecies
 }
 
 const EMPTY: SpeciesDetails = { images: [], links: {} }
+
+/**
+ * "A and B", "A, B and C". Used for hybrid parents and slash candidates, where
+ * the list is 2 or 3 names.
+ */
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? ''
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
 
 /**
  * Whether an entry is worth keeping rather than refetching. The extract is the
@@ -122,17 +138,19 @@ export function SpeciesPeekSheet({
         // left one behind with no extract, and skipping on mere presence made
         // that first failure permanent for the life of the flow.
         if (isComplete(detailsRef.current[name])) continue
-        const [images, wikiTitle, ebird, birdlife] = await Promise.all([
+        const [images, wikiTitle, ebird, birdlife, compound] = await Promise.all([
           getWikimediaGallery(name),
           getWikiTitleForSpecies(name),
           getEbirdSpeciesUrl(name),
           getBirdlifeFactsheetUrl(name),
+          getCompoundSpecies(name),
         ])
         const summary = await getWikimediaSummary(name, { wikiTitle })
         if (cancelled) return
         const next: SpeciesDetails = {
           extract: summary?.extract,
           images,
+          compound,
           links: {
             wikipedia: summary?.pageUrl
               ?? (wikiTitle ? `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiTitle)}` : undefined),
@@ -305,6 +323,14 @@ export function SpeciesPeekSheet({
                   here and would otherwise be read out a second time. */}
               <RarityMark state={current.rarity} decorative />
               {RARITY_SENTENCES[current.rarity]}
+            </p>
+          )}
+
+          {detail.compound && (
+            <p className="text-sm text-muted-foreground">
+              {detail.compound.kind === 'hybrid'
+                ? `Hybrid of ${listNames(detail.compound.parents)}.`
+                : `Recorded when ${listNames(detail.compound.parents)} could not be told apart.`}
             </p>
           )}
 
