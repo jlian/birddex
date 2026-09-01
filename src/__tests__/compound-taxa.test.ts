@@ -70,6 +70,38 @@ describe('findCompoundTaxon', () => {
     expect(findCompoundTaxon('gull sp.')).toBeNull()
     expect(findCompoundTaxon('Passerine sp.')).toBeNull()
   })
+
+  it('does not read one side as a scientific name and the other as a common name', () => {
+    // "Calliope" is both an abbreviated common name and the genus of the
+    // Siberian Rubythroat (Calliope calliope). Reading side by side reported a
+    // hummingbird hybrid as half rubythroat. A reading is only accepted when it
+    // explains EVERY side.
+    expect(findCompoundTaxon('Calliope x Rufous Hummingbird (hybrid)')?.parents.map(p => p.common))
+      .toEqual(['Calliope Hummingbird', 'Rufous Hummingbird'])
+    expect(findCompoundTaxon('Calliope x Broad-tailed Hummingbird (hybrid)')?.parents.map(p => p.common))
+      .toEqual(['Calliope Hummingbird', 'Broad-tailed Hummingbird'])
+    // "Guira" is the genus of the Guira Cuckoo and also the abbreviated first
+    // side of a tanager slash.
+    expect(findCompoundTaxon('Guira/Rufous-headed Tanager')?.parents.map(p => p.common))
+      .toEqual(['Guira Tanager', 'Rufous-headed Tanager'])
+  })
+
+  it('inherits the genus most recently spelled out, not the first one', () => {
+    // "pusilla" follows "Zapornia parva", so it is Zapornia pusilla
+    // (Baillon's Crake), not Porzana pusilla.
+    expect(findCompoundTaxon('Porzana porzana/Zapornia parva/pusilla')?.parents.map(p => p.common))
+      .toEqual(['Spotted Crake', 'Little Crake', "Baillon's Crake"])
+  })
+
+  it('returns null rather than a single parent', () => {
+    // A one-parent answer renders as "Hybrid of Greater White-fronted Goose",
+    // a sentence that cannot be true. These carry a nested separator or a spuh
+    // side that is not a species, so no honest pair exists.
+    expect(findCompoundTaxon('Greater White-fronted x Cackling/Canada Goose (hybrid)')).toBeNull()
+    expect(findCompoundTaxon('Canvasback x scaup sp. (hybrid)')).toBeNull()
+    expect(findCompoundTaxon('Mallard x Mexican/Mottled Duck (hybrid)')).toBeNull()
+    expect(findCompoundTaxon("Brewster's x Chestnut-sided Warbler (hybrid)")).toBeNull()
+  })
 })
 
 describe('findBestMatch resolves subspecies without guessing', () => {
@@ -89,5 +121,13 @@ describe('findBestMatch resolves subspecies without guessing', () => {
     // hybrid look like an ordinary sighting of one parent.
     expect(findBestMatch('Western x Glaucous-winged Gull (hybrid)')).toBeNull()
     expect(findBestMatch('Common/Somali Ostrich')).toBeNull()
+  })
+
+  it('does not truncate a compound scientific name into a binomial', () => {
+    // Trinomial truncation is for subspecies. Applied to a hybrid it kept the
+    // first two words and reported one parent as though it were the bird.
+    expect(findBestMatch('Anser indicus x caerulescens')).toBeNull()
+    expect(findBestMatch('Hybrid label (Anser indicus x caerulescens)')).toBeNull()
+    expect(findBestMatch('Struthio camelus/molybdophanes')).toBeNull()
   })
 })

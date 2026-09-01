@@ -366,12 +366,19 @@ function SpeciesDetail({
   // A hybrid or a slash has no article of its own. Naming its parents is the
   // only honest thing to show, and the two mean opposite things: a hybrid IS
   // both birds, a slash means the observer could not tell which one it was.
-  const [compound, setCompound] = useState<CompoundSpecies | undefined>(undefined)
+  // The resolved value carries the name it was resolved FOR, so navigating to
+  // another species never renders the previous bird's parents.
+  const [compound, setCompound] = useState<
+    { name: string; value: CompoundSpecies | undefined } | undefined
+  >(undefined)
+  const compoundForEntry =
+    compound?.name === entry.speciesName ? compound.value : undefined
 
   useEffect(() => {
     let active = true
-    void getCompoundSpecies(entry.speciesName).then(result => {
-      if (active) setCompound(result)
+    const name = entry.speciesName
+    void getCompoundSpecies(name).then(result => {
+      if (active) setCompound({ name, value: result })
     })
     return () => { active = false }
   }, [entry.speciesName])
@@ -526,11 +533,11 @@ function SpeciesDetail({
           </div>
         </div>
 
-        {compound && (
+        {compoundForEntry && (
           <p className="text-sm text-muted-foreground leading-relaxed">
-            {compound.kind === 'hybrid'
-              ? `Hybrid of ${joinNames(compound.parents)}.`
-              : `Recorded when ${joinNames(compound.parents)} could not be told apart.`}
+            {compoundForEntry.kind === 'hybrid'
+              ? `Hybrid of ${joinNames(compoundForEntry.parents)}.`
+              : `Recorded when ${joinNames(compoundForEntry.parents)} could not be told apart.`}
           </p>
         )}
 

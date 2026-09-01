@@ -96,8 +96,9 @@ export type CompoundTaxon = {
  *   slash   "Struthio camelus/molybdophanes"     -> both Struthio
  *
  * The right-hand side may omit the genus, in which case it is inherited from
- * the left. Measured against the full eBird taxonomy: 772 of 792 hybrids and
- * 1,028 of 1,035 slashes resolve BOTH parents exactly.
+ * the left. Measured against the full eBird taxonomy: 773 of 792 hybrids and
+ * 1,030 of 1,035 slashes resolve BOTH parents exactly, and the remaining 24
+ * resolve nothing rather than a single parent.
  *
  * Common names cannot be parsed this way. "Baikal x Blue-winged Teal" shares
  * the word "teal" with unrelated species, which is how the old word-overlap
@@ -132,23 +133,62 @@ export function findCompoundTaxon(name: string): CompoundTaxon | null {
     const trimmed = sides.map(side => side.trim()).filter(Boolean)
     if (trimmed.length < 2) continue
 
-    const genus = trimmed[0].split(/\s+/)[0]
+    // A compound is written ENTIRELY in scientific names or ENTIRELY in common
+    // names. Mixing the two readings side by side lets one side resolve as a
+    // real but unrelated species: "Calliope x Rufous Hummingbird" read the
+    // first side as the scientific name Calliope calliope, the Siberian
+    // Rubythroat. So each reading is applied to every side, and a reading is
+    // only accepted when it explains ALL of them.
+    const chosen =
+      resolveScientificSides(trimmed) ?? resolveCommonSides(trimmed)
+    if (!chosen) continue
+
     const parents: TaxonEntry[] = []
-    for (const side of trimmed) {
-      // A bare epithet inherits the genus from the first side. A side that
-      // names its own genus ("Zapornia parva") is used as written.
-      const full = side.includes(' ') ? side : `${genus} ${side}`
-      const hit = byScientificLower.get(full) ?? matchCompoundCommonSide(side, trimmed)
-      if (hit && !parents.some(parent => parent.scientific === hit.scientific)) {
+    for (const hit of chosen) {
+      if (!parents.some(parent => parent.scientific === hit.scientific)) {
         parents.push(hit)
       }
     }
-    if (parents.length === 0) continue
+    // One parent is not a hybrid and not a choice between candidates, and the
+    // UI renders it as a sentence that cannot be true ("Hybrid of Greater
+    // White-fronted Goose"). Report nothing rather than half an answer.
+    if (parents.length < 2) continue
 
     return { kind: isHybrid ? 'hybrid' : 'slash', parents }
   }
 
   return null
+}
+
+/**
+ * Read every side as a scientific name, or return null.
+ *
+ * A bare epithet inherits the genus most recently spelled out to its LEFT, not
+ * the genus of the first side: "Porzana porzana/Zapornia parva/pusilla" ends in
+ * Zapornia pusilla, not Porzana pusilla.
+ */
+function resolveScientificSides(sides: string[]): TaxonEntry[] | null {
+  let genus = sides[0].split(/\s+/)[0]
+  const hits: TaxonEntry[] = []
+  for (const side of sides) {
+    if (side.includes(' ')) genus = side.split(/\s+/)[0]
+    const full = side.includes(' ') ? side : `${genus} ${side}`
+    const hit = byScientificLower.get(full)
+    if (!hit) return null
+    hits.push(hit)
+  }
+  return hits
+}
+
+/** Read every side as a common name, or return null. */
+function resolveCommonSides(sides: string[]): TaxonEntry[] | null {
+  const hits: TaxonEntry[] = []
+  for (const side of sides) {
+    const hit = matchCompoundCommonSide(side, sides)
+    if (!hit) return null
+    hits.push(hit)
+  }
+  return hits
 }
 
 /**
@@ -228,7 +268,7 @@ export function findBestMatch(name: string): TaxonEntry | null {
     // guess, and it agrees with eBird's own rollup for 3,950 of 3,952 ISSF
     // taxa (the other two have no rollup to compare against).
     const words = scientificPart.split(/\s+/)
-    if (words.length > 2) {
+    if (words.length > 2 && !isCompoundScientific(scientificPart)) {
       const binomial = byScientificLower.get(words.slice(0, 2).join(' '))
       if (binomial) return binomial
     }
@@ -241,12 +281,25 @@ export function findBestMatch(name: string): TaxonEntry | null {
   if (exactScientific) return exactScientific
 
   const bareWords = rawLower.split(/\s+/)
-  if (bareWords.length > 2) {
+  if (bareWords.length > 2 && !isCompoundScientific(rawLower)) {
     const binomial = byScientificLower.get(bareWords.slice(0, 2).join(' '))
     if (binomial) return binomial
   }
 
   return null
+}
+
+/**
+ * True when a scientific string names more than one taxon.
+ *
+ * The trinomial truncation below it exists for subspecies ("Apteryx australis
+ * australis" -> the species). Applied to "Anser indicus x caerulescens" it
+ * would keep the first two words and report one arbitrary parent of a hybrid
+ * as though it were the bird itself, which is the confident-wrong-answer
+ * failure this function was rewritten to remove.
+ */
+function isCompoundScientific(scientific: string): boolean {
+  return scientific.includes(' x ') || scientific.includes('/')
 }
 
 export function normalizeSpeciesName(name: string): string {

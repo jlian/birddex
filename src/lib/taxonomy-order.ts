@@ -89,36 +89,77 @@ export async function getCompoundSpecies(
     const sides = lower.split(separator).map(side => side.trim()).filter(Boolean)
     if (sides.length < 2) continue
 
-    const genus = sides[0].split(/\s+/)[0]
-    const last = sides[sides.length - 1]
-    const lastWords = last.split(/\s+/)
-    const parents: string[] = []
+    // A compound is written ENTIRELY in scientific names or ENTIRELY in common
+    // names. Reading side by side lets one side resolve as a real but unrelated
+    // species, so a reading is only accepted when it explains ALL of them.
+    const names = resolveSciSides(sides, sciToCommon) ?? resolveCommonSides(sides, map)
+    if (!names) continue
 
-    for (const side of sides) {
-      // Scientific first: a bare epithet inherits the genus from the left.
-      const full = side.includes(' ') ? side : `${genus} ${side}`
-      let hit = sciToCommon?.get(full)
-      if (!hit && map.has(side)) hit = side
-      if (!hit && side !== last) {
-        // Borrow the longest trailing phrase that resolves, so
-        // "Whistling-Duck" wins over "Duck".
-        for (let take = lastWords.length - 1; take >= 1 && !hit; take--) {
-          const guess = `${side} ${lastWords.slice(-take).join(' ')}`
-          if (map.has(guess)) hit = guess
-        }
-      }
-      if (!hit) continue
+    const parents: string[] = []
+    for (const hit of names) {
       // Store the taxonomy's own capitalisation for display.
       const index = map.get(hit.toLowerCase())
       const display = index === undefined ? hit : displayNameAt(index)
       if (display && !parents.includes(display)) parents.push(display)
     }
 
-    if (parents.length === 0) continue
+    // One parent is neither a hybrid nor a choice between candidates, and it
+    // renders as a sentence that cannot be true. Report nothing instead.
+    if (parents.length < 2) continue
     return { kind: isHybrid ? 'hybrid' : 'slash', parents }
   }
 
   return undefined
+}
+
+/**
+ * Read every side as a scientific name, or return null. A bare epithet inherits
+ * the genus most recently spelled out to its LEFT, so
+ * "Porzana porzana/Zapornia parva/pusilla" ends in Zapornia pusilla.
+ */
+function resolveSciSides(
+  sides: string[],
+  sci: Map<string, string> | null
+): string[] | null {
+  if (!sci) return null
+  let genus = sides[0].split(/\s+/)[0]
+  const hits: string[] = []
+  for (const side of sides) {
+    if (side.includes(' ')) genus = side.split(/\s+/)[0]
+    const full = side.includes(' ') ? side : `${genus} ${side}`
+    const hit = sci.get(full)
+    if (!hit) return null
+    hits.push(hit)
+  }
+  return hits
+}
+
+/**
+ * Read every side as a common name, or return null. Only the LAST side spells
+ * out the shared group noun, so an earlier side borrows its trailing words.
+ */
+function resolveCommonSides(
+  sides: string[],
+  map: Map<string, number>
+): string[] | null {
+  const last = sides[sides.length - 1]
+  const lastWords = last.split(/\s+/)
+  const hits: string[] = []
+  for (const side of sides) {
+    let hit: string | undefined
+    if (map.has(side)) hit = side
+    if (!hit && side !== last) {
+      // Borrow the longest trailing phrase that resolves, so
+      // "Whistling-Duck" wins over "Duck".
+      for (let take = lastWords.length - 1; take >= 1 && !hit; take--) {
+        const guess = `${side} ${lastWords.slice(-take).join(' ')}`
+        if (map.has(guess)) hit = guess
+      }
+    }
+    if (!hit) return null
+    hits.push(hit)
+  }
+  return hits
 }
 
 /** Common name at a taxonomy row, used to recover canonical capitalisation. */
