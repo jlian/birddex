@@ -196,6 +196,25 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Backfill species identities
+        if: steps.changes.outputs.should_deploy == 'true'
+        run: |
+          export D1_REMOTE=1
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            export D1_DATABASE=wingdex-db
+          else
+            export D1_DATABASE=wingdex-db-dev
+            export D1_ENV=preview
+          fi
+
+          node scripts/backfill-species-code.mjs --dump-names
+          npx vitest run --config vitest.plan.config.ts
+          node scripts/backfill-species-code.mjs --strict 5
+          node scripts/backfill-species-code.mjs --apply --strict 5
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Deploy to Cloudflare Workers
         if: steps.changes.outputs.should_deploy == 'true'
         uses: cloudflare/wrangler-action@v4

@@ -52,9 +52,10 @@
  * because every UPDATE is guarded by `speciesCode IS NULL`, so it only fills
  * gaps and never overwrites.
  *
- * Backfilling is not required for correctness. Rows with a NULL code group by
- * speciesName, which is exactly what they do today, so an un-backfilled
- * database behaves as it did before the change.
+ * The release workflow runs this after migrations and before deployment. That
+ * ordering is required once new writes carry codes: otherwise an old NULL-code
+ * row and a new coded row for the same taxon form separate dex groups, and the
+ * old group's metadata remains attached to its name key.
  *
  * Usage:
  *   npx vitest run --config vitest.plan.config.ts   # writes the plan
