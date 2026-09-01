@@ -10,6 +10,7 @@ describe('resolveSpeciesCode', () => {
   it('resolves an ordinary classifier species', () => {
     expect(resolveSpeciesCode('Northern Cardinal')).toBe('norcar')
     expect(resolveSpeciesCode('Northern Cardinal (Cardinalis cardinalis)')).toBe('norcar')
+    expect(resolveSpeciesCode('Cardinalis cardinalis')).toBe('norcar')
   })
 
   it('resolves a spuh from the e2e fixture', () => {

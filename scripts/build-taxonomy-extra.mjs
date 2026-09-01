@@ -81,7 +81,21 @@ async function loadEbirdCsv(explicit) {
 
 function main(csvText) {
   const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: 'greedy' })
+  if (parsed.errors.length > 0) {
+    throw new Error(`eBird taxonomy CSV has ${parsed.errors.length} parse error(s): ${parsed.errors[0].message}`)
+  }
+
+  const requiredFields = ['SPECIES_CODE', 'COMMON_NAME', 'SCIENTIFIC_NAME', 'CATEGORY', 'TAXON_ORDER', 'REPORT_AS']
+  const fields = new Set(parsed.meta.fields ?? [])
+  const missingFields = requiredFields.filter(field => !fields.has(field))
+  if (missingFields.length > 0) {
+    throw new Error(`eBird taxonomy CSV is missing required columns: ${missingFields.join(', ')}`)
+  }
+
   const rows = parsed.data.filter(r => r.SPECIES_CODE)
+  if (rows.length === 0) {
+    throw new Error('eBird taxonomy CSV contains no coded rows')
+  }
 
   const taxonomy = JSON.parse(readFileSync(TAXONOMY_PATH, 'utf8'))
   const classifierCodes = new Set(taxonomy.map(r => r[2]))

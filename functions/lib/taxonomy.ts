@@ -230,7 +230,10 @@ export function resolveSpeciesCode(speciesName: string): string {
   //    under a species it is not. The classifier is checked before the sidecar
   //    so a real species always wins.
   const whole = raw.toLowerCase()
-  const exact = byCommonLower.get(whole) ?? extraByCommon.get(whole)
+  const exact = byCommonLower.get(whole)
+    ?? extraByCommon.get(whole)
+    ?? byScientificLower.get(whole)
+    ?? extraByScientific.get(whole)
   if (exact?.ebirdCode) return exact.ebirdCode
 
   // "Common (Scientific)" is the canonical stored shape.
