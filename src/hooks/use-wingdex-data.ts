@@ -36,12 +36,22 @@ export function rollbackItemsById<T extends { id: string }>(
   return result
 }
 
-function rebuildDexFromState(
+/**
+ * Local-mode equivalent of DEX_QUERY. Exported for tests: it has to agree with
+ * the server grouping or a species merges one way offline and splits the other.
+ */
+export function rebuildDexFromState(
   allOutings: Outing[],
   allObservations: Observation[],
   existingDex: DexEntry[]
 ): DexEntry[] {
   const outingsById = new Map(allOutings.map(outing => [outing.id, outing]))
+  // Keyed by the grouping key, not the display label. MIN(speciesName) can
+  // change while the group's identity does not: adding a spelling that sorts
+  // earlier relabels the group, and a name lookup would then miss, resetting
+  // addedDate to now and dropping notes, bestPhotoId and the cached wiki data.
+  // Older local payloads predate `id`, so fall back to the name for those.
+  const existingByKey = new Map(existingDex.map(entry => [entry.id ?? `name:${entry.speciesName}`, entry]))
   const existingBySpecies = new Map(existingDex.map(entry => [entry.speciesName, entry]))
   const grouped = new Map<string, Observation[]>()
 
@@ -91,7 +101,7 @@ function rebuildDexFromState(
 
     const totalCount = speciesObservations.reduce((sum, observation) => sum + observation.count, 0)
     const totalOutings = new Set(speciesObservations.map(observation => observation.outingId)).size
-    const existing = existingBySpecies.get(speciesName)
+    const existing = existingByKey.get(groupKey) ?? existingBySpecies.get(speciesName)
     const latestWithPhoto = [...speciesObservations].reverse().find(observation => observation.representativePhotoId)
 
     rebuilt.push({
