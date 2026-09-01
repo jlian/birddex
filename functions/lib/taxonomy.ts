@@ -316,9 +316,11 @@ function resolveTaxonEntry(speciesName: string): TaxonEntry | undefined {
   if (exact?.ebirdCode) return exact
 
   // "Common (Scientific)" is the canonical stored shape.
-  const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const paren = raw.match(/^(.+?)\s*\((.+)\)\s*$/)
   const commonPart = (paren ? paren[1] : raw).trim().toLowerCase()
-  const scientificPart = paren ? paren[2].trim().toLowerCase() : ''
+  const scientificPart = paren
+    ? paren[2].replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase()
+    : ''
 
   // 2. scientific name, exact
   if (scientificPart) {

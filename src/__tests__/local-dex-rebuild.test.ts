@@ -81,4 +81,12 @@ describe('rebuildDexFromState', () => {
     const rebuilt = rebuildDexFromState(outings, observations, [])
     expect(rebuilt[0].id).toBe('name:Mystery Bird')
   })
+
+  it('includes possible observations like the server dex query', () => {
+    const outings = [outing('o1', '2025-01-01T00:00:00Z')]
+    const possible = { ...obs('ob1', 'o1', 'Northern Cardinal', 'norcar'), certainty: 'possible' as const }
+    const rebuilt = rebuildDexFromState(outings, [possible], [])
+    expect(rebuilt).toHaveLength(1)
+    expect(rebuilt[0].id).toBe('code:norcar')
+  })
 })

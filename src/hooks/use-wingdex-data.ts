@@ -61,7 +61,7 @@ export function rebuildDexFromState(
   // namespaces. Local mode has to agree with the server or a species would
   // merge in one and split in the other.
   for (const observation of allObservations) {
-    if (observation.certainty !== 'confirmed') continue
+    if (observation.certainty !== 'confirmed' && observation.certainty !== 'possible') continue
     const key = observation.speciesCode
       ? `code:${observation.speciesCode}`
       : `name:${observation.speciesName}`
@@ -552,10 +552,10 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     const outing = payloadRef.current.outings.find(currentOuting => currentOuting.id === outingId)
     if (!outing) return { newSpeciesCount: 0 }
 
-    const incomingConfirmed = confirmedObservations.filter(
-      obs => obs.certainty === 'confirmed'
+    const incomingAccepted = confirmedObservations.filter(
+      obs => obs.certainty === 'confirmed' || obs.certainty === 'possible'
     )
-    if (incomingConfirmed.length === 0) return { newSpeciesCount: 0 }
+    if (incomingAccepted.length === 0) return { newSpeciesCount: 0 }
 
     // Compare on the grouping key, matching DEX_QUERY and rebuildDexFromState.
     // Comparing display names would count a bird as new when it arrives under a
@@ -563,7 +563,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     const dexKey = (row: { speciesName: string; speciesCode?: string }) =>
       row.speciesCode ? `code:${row.speciesCode}` : `name:${row.speciesName}`
     const existingSpecies = new Set(payloadRef.current.dex.map(dexKey))
-    const incomingSpecies = new Set(incomingConfirmed.map(dexKey))
+    const incomingSpecies = new Set(incomingAccepted.map(dexKey))
     const newSpeciesCount = Array.from(incomingSpecies).filter(
       key => !existingSpecies.has(key)
     ).length
@@ -573,12 +573,12 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
       for (const observation of payloadRef.current.observations) {
         uniqueCombined.set(observation.id, observation)
       }
-      for (const observation of incomingConfirmed) {
+      for (const observation of incomingAccepted) {
         uniqueCombined.set(observation.id, observation)
       }
 
       const combinedConfirmed = Array.from(uniqueCombined.values()).filter(
-        observation => observation.certainty === 'confirmed'
+        observation => observation.certainty === 'confirmed' || observation.certainty === 'possible'
       )
       const recomputedDex = rebuildDexFromState(payloadRef.current.outings, combinedConfirmed, payloadRef.current.dex)
       applyPayload({

@@ -116,6 +116,10 @@ describe('resolveSpeciesIdentity', () => {
       taxonCode: 'norcar',
       speciesCode: 'norcar',
     })
+    expect(await resolveSpeciesIdentity('Brant (Branta bernicla (Gray-bellied))')).toEqual({
+      taxonCode: 'brant',
+      speciesCode: 'brant',
+    })
   })
 
   it('returns undefined rather than inventing a key', async () => {

@@ -105,7 +105,9 @@ export async function resolveSpeciesIdentity(speciesName: string): Promise<Speci
 
   const paren = raw.match(/^(.+?)\s*\((.+)\)\s*$/)
   const commonPart = (paren ? paren[1] : raw).trim().toLowerCase()
-  const scientificPart = paren ? paren[2].trim().toLowerCase() : ''
+  const scientificPart = paren
+    ? paren[2].replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase()
+    : ''
   if (scientificPart) {
     const scientific = identityByScientific?.get(scientificPart)
     if (scientific) return scientific

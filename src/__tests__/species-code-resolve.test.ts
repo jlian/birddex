@@ -111,5 +111,6 @@ describe('resolveSpeciesCode', () => {
   it('prefers the scientific name when common names collide', () => {
     // The scientific name is the more stable key across eBird revisions.
     expect(resolveSpeciesCode('Anything At All (Cardinalis cardinalis)')).toBe('norcar')
+    expect(resolveSpeciesCode('Brant (Branta bernicla (Gray-bellied))')).toBe('brant')
   })
 })
