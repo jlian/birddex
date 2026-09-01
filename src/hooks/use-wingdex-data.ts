@@ -50,19 +50,106 @@ export function publishPayload<T>(ref: { current: T }, next: T, publish: (value:
  * Local-mode equivalent of DEX_QUERY. Exported for tests: it has to agree with
  * the server grouping or a species merges one way offline and splits the other.
  */
+function mergeLegacyDexMetadata(
+  observations: Observation[],
+  existingDex: DexEntry[],
+): { entries: DexEntry[]; retainedIds: Set<string> } {
+  const observationKeysBySpecies = new Map<string, Set<string>>()
+  for (const observation of observations) {
+    if (!observation.speciesCode) continue
+    const keys = observationKeysBySpecies.get(observation.speciesName) ?? new Set<string>()
+    keys.add(`code:${observation.speciesCode}`)
+    observationKeysBySpecies.set(observation.speciesName, keys)
+  }
+  const codedKeysBySpecies = new Map(
+    [...observationKeysBySpecies].map(([speciesName, keys]) => [speciesName, new Set(keys)] as const)
+  )
+  for (const entry of existingDex) {
+    if (observationKeysBySpecies.has(entry.speciesName)) continue
+    const currentKey = entry.id ?? ''
+    const speciesCode = entry.speciesCode
+      ?? (currentKey.startsWith('code:') ? currentKey.slice('code:'.length) : undefined)
+    if (!speciesCode) continue
+    const keys = codedKeysBySpecies.get(entry.speciesName) ?? new Set<string>()
+    keys.add(`code:${speciesCode}`)
+    codedKeysBySpecies.set(entry.speciesName, keys)
+  }
+  const uniqueCodedKeyBySpecies = new Map(
+    [...codedKeysBySpecies].flatMap(([speciesName, keys]) =>
+      keys.size === 1 ? [[speciesName, [...keys][0]] as const] : []
+    )
+  )
+  const merged = new Map<string, DexEntry>()
+  const retainedIds = new Set<string>()
+  const sortKey = (entry: DexEntry) => {
+    const id = entry.id ?? ''
+    const codedRank = entry.speciesCode || id.startsWith('code:') ? '0' : '1'
+    return [
+      entry.speciesName,
+      codedRank,
+      id,
+      entry.speciesCode,
+      entry.taxonCode,
+      entry.addedDate,
+      entry.bestPhotoId,
+      entry.notes,
+      entry.commonName,
+      entry.scientificName,
+      entry.wikiTitle,
+      entry.thumbnailUrl,
+    ].map(value => value ?? '').join('\0')
+  }
+  for (const entry of [...existingDex].sort((a, b) => sortKey(a).localeCompare(sortKey(b)))) {
+    const currentKey = entry.id ?? `name:${entry.speciesName}`
+    const groupKey = entry.speciesCode
+      ? `code:${entry.speciesCode}`
+      : currentKey.startsWith('code:')
+        ? currentKey
+        : uniqueCodedKeyBySpecies.get(entry.speciesName) ?? currentKey
+    if (entry.totalOutings === 0 || (currentKey.startsWith('name:')
+      && (codedKeysBySpecies.get(entry.speciesName)?.size ?? 0) > 1)) {
+      retainedIds.add(groupKey)
+    }
+    const existing = merged.get(groupKey)
+    if (!existing) {
+      merged.set(groupKey, { ...entry, id: groupKey })
+      continue
+    }
+    const notes = [...new Set([existing.notes, entry.notes].filter(Boolean))].join('\n\n')
+    const exactCodes = new Set([existing.taxonCode ?? '', entry.taxonCode ?? ''])
+    const taxonCode = exactCodes.size === 1 && existing.taxonCode
+      ? existing.taxonCode
+      : groupKey.startsWith('code:')
+        ? groupKey.slice('code:'.length)
+        : undefined
+    merged.set(groupKey, {
+      ...existing,
+      taxonCode,
+      addedDate: [existing.addedDate, entry.addedDate].filter((date): date is string => !!date).sort()[0],
+      bestPhotoId: [existing.bestPhotoId, entry.bestPhotoId].filter((id): id is string => !!id).sort()[0],
+      notes,
+      commonName: existing.commonName ?? entry.commonName,
+      scientificName: existing.scientificName ?? entry.scientificName,
+      wikiTitle: existing.wikiTitle ?? entry.wikiTitle,
+      thumbnailUrl: existing.thumbnailUrl ?? entry.thumbnailUrl,
+    })
+  }
+  return { entries: [...merged.values()], retainedIds }
+}
+
 export function rebuildDexFromState(
   allOutings: Outing[],
   allObservations: Observation[],
   existingDex: DexEntry[]
 ): DexEntry[] {
   const outingsById = new Map(allOutings.map(outing => [outing.id, outing]))
+  const { entries: normalizedExistingDex, retainedIds } = mergeLegacyDexMetadata(allObservations, existingDex)
   // Keyed by the grouping key, not the display label. MIN(speciesName) can
   // change while the group's identity does not: adding a spelling that sorts
   // earlier relabels the group, and a name lookup would then miss, resetting
   // addedDate to now and dropping notes, bestPhotoId and the cached wiki data.
   // Older local payloads predate `id`, so fall back to the name for those.
-  const existingByKey = new Map(existingDex.map(entry => [entry.id ?? `name:${entry.speciesName}`, entry]))
-  const existingBySpecies = new Map(existingDex.map(entry => [entry.speciesName, entry]))
+  const existingByKey = new Map(normalizedExistingDex.map(entry => [entry.id, entry]))
   const grouped = new Map<string, Observation[]>()
 
   // Same grouping key as DEX_QUERY on the server: the eBird code when the
@@ -116,7 +203,7 @@ export function rebuildDexFromState(
 
     const totalCount = speciesObservations.reduce((sum, observation) => sum + observation.count, 0)
     const totalOutings = new Set(speciesObservations.map(observation => observation.outingId)).size
-    const existing = existingByKey.get(groupKey) ?? existingBySpecies.get(speciesName)
+    const existing = existingByKey.get(groupKey)
     const latestWithPhoto = [...speciesObservations].reverse().find(observation => observation.representativePhotoId)
 
     rebuilt.push({
@@ -141,7 +228,11 @@ export function rebuildDexFromState(
     })
   }
 
-  return rebuilt.sort((a, b) => a.speciesName.localeCompare(b.speciesName))
+  const rebuiltIds = new Set(rebuilt.map(entry => entry.id))
+  return [
+    ...rebuilt,
+    ...normalizedExistingDex.filter(entry => !rebuiltIds.has(entry.id) && retainedIds.has(entry.id)),
+  ].sort((a, b) => a.speciesName.localeCompare(b.speciesName))
 }
 
 export const buildDexFromState = rebuildDexFromState
@@ -167,16 +258,6 @@ export async function applyLocalObservationUpdates(
   return typeof updates.speciesName === 'string'
     ? resolveObservationIdentity(updated)
     : updated
-}
-
-async function resolveLocalUpdates(updates: Partial<Observation>): Promise<Partial<Observation>> {
-  if (typeof updates.speciesName !== 'string') return updates
-  const identity = await resolveSpeciesIdentity(updates.speciesName)
-  return {
-    ...updates,
-    speciesCode: identity?.speciesCode,
-    taxonCode: identity?.taxonCode,
-  }
 }
 
 function readLocalData(userId: string): WingDexPayload {
@@ -207,19 +288,7 @@ function readLocalData(userId: string): WingDexPayload {
 
 export async function enrichLocalDex(payload: WingDexPayload): Promise<WingDexPayload> {
   const observations = await Promise.all(payload.observations.map(migratePersistedObservationIdentity))
-  const rebuiltFromObservations = rebuildDexFromState(payload.outings, observations, payload.dex)
-  const rebuiltIds = new Set(rebuiltFromObservations.map(entry => entry.id))
-  const sourceIds = new Set(payload.observations.flatMap(observation => [
-    `name:${observation.speciesName}`,
-    ...(observation.speciesCode ? [`code:${observation.speciesCode}`] : []),
-  ]))
-  const rebuiltDex = [
-    ...rebuiltFromObservations,
-    ...payload.dex.filter(entry => {
-      const id = entry.id ?? (entry.speciesCode ? `code:${entry.speciesCode}` : `name:${entry.speciesName}`)
-      return !rebuiltIds.has(id) && !sourceIds.has(id)
-    }),
-  ]
+  const rebuiltDex = rebuildDexFromState(payload.outings, observations, payload.dex)
   const dex = await Promise.all(rebuiltDex.map(async entry => {
     const id = entry.id ?? (entry.speciesCode ? `code:${entry.speciesCode}` : `name:${entry.speciesName}`)
     const code = entry.taxonCode ?? entry.speciesCode
@@ -530,11 +599,16 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
   }
 
   const updateObservation = async (observationId: string, updates: Partial<Observation>) => {
-    const localUpdates = storageMode === 'local' ? await resolveLocalUpdates(updates) : undefined
+    const existingObservation = payloadRef.current.observations.find(
+      observation => observation.id === observationId
+    )
+    const localObservation = storageMode === 'local' && existingObservation
+      ? await applyLocalObservationUpdates(existingObservation, updates)
+      : undefined
     const optimistic: WingDexPayload = {
       ...payloadRef.current,
       observations: payloadRef.current.observations.map(observation =>
-        observation.id === observationId ? { ...observation, ...(localUpdates ?? updates) } : observation
+        observation.id === observationId ? (localObservation ?? { ...observation, ...updates }) : observation
       ),
     }
 
@@ -578,13 +652,15 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     if (ids.length === 0) return
 
     const idSet = new Set(ids)
-    const localUpdates = storageMode === 'local' ? await resolveLocalUpdates(updates) : undefined
+    const localObservations = storageMode === 'local'
+      ? await Promise.all(payloadRef.current.observations.map(observation =>
+          idSet.has(observation.id) ? applyLocalObservationUpdates(observation, updates) : observation
+        ))
+      : undefined
     const optimistic: WingDexPayload = {
       ...payloadRef.current,
-      observations: payloadRef.current.observations.map(observation =>
-        idSet.has(observation.id)
-          ? { ...observation, ...(localUpdates ?? updates) }
-          : observation
+      observations: localObservations ?? payloadRef.current.observations.map(observation =>
+        idSet.has(observation.id) ? { ...observation, ...updates } : observation
       ),
     }
 

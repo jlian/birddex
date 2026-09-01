@@ -77,6 +77,70 @@ describe('rebuildDexFromState', () => {
     expect(rebuilt[0].totalCount).toBe(2)
   })
 
+  it('merges metadata from legacy aliases that collapse into one coded group', () => {
+    const outings = [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')]
+    const observations = [
+      obs('ob1', 'o1', 'Mallard', 'mallar3'),
+      obs('ob2', 'o2', 'Mallard (Anas platyrhynchos)', 'mallar3'),
+    ]
+    const legacy = [
+      {
+        id: 'name:Mallard',
+        speciesName: 'Mallard',
+        addedDate: '2024-02-01T00:00:00Z',
+        bestPhotoId: 'photo-b',
+        notes: 'pond',
+      },
+      {
+        id: 'name:Mallard (Anas platyrhynchos)',
+        speciesName: 'Mallard (Anas platyrhynchos)',
+        addedDate: '2024-01-01T00:00:00Z',
+        bestPhotoId: 'photo-a',
+        notes: 'lifer',
+      },
+    ].map(entry => ({
+      firstSeenDate: '2025-01-01T00:00:00Z',
+      lastSeenDate: '2025-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      ...entry,
+    } as DexEntry))
+
+    const [rebuilt] = rebuildDexFromState(outings, observations, legacy)
+    expect(rebuilt).toMatchObject({
+      id: 'code:mallar3',
+      addedDate: '2024-01-01T00:00:00Z',
+      bestPhotoId: 'photo-a',
+      notes: 'lifer\n\npond',
+    })
+  })
+
+  it.each([
+    ['coded first', true],
+    ['uncoded first', false],
+  ])('maps legacy metadata to the unique coded group with %s', (_label, codedFirst) => {
+    const outings = [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')]
+    const coded = obs('coded', 'o1', 'Mallard', 'mallar3')
+    const uncoded = obs('uncoded', 'o2', 'Mallard')
+    const legacy = [{
+      id: 'name:Mallard',
+      speciesName: 'Mallard',
+      firstSeenDate: '2025-01-01T00:00:00Z',
+      lastSeenDate: '2025-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: 'coded metadata',
+    } as DexEntry]
+
+    const rebuilt = rebuildDexFromState(
+      outings,
+      codedFirst ? [coded, uncoded] : [uncoded, coded],
+      legacy,
+    )
+    expect(rebuilt.find(entry => entry.id === 'code:mallar3')?.notes).toBe('coded metadata')
+    expect(rebuilt.find(entry => entry.id === 'name:Mallard')?.notes).toBe('')
+  })
+
   it('keeps uncoded species in their own name-keyed group', () => {
     const outings = [outing('o1', '2025-01-01T00:00:00Z')]
     const observations = [obs('ob1', 'o1', 'Mystery Bird')]
@@ -132,7 +196,7 @@ describe('enrichLocalDex', () => {
       firstSeenDate: '2025-01-01T00:00:00Z',
       lastSeenDate: '2025-01-01T00:00:00Z',
       addedDate: '2025-01-01T00:00:00Z',
-      totalOutings: 1,
+      totalOutings: 0,
       totalCount: 1,
       notes: '',
     } as unknown as DexEntry)
@@ -243,6 +307,166 @@ describe('enrichLocalDex', () => {
       taxonCode: 'norcar',
     })
     expect(payload.dex.map(entry => entry.id)).toEqual(['code:norcar'])
+  })
+
+  it('uses a legacy entry own species code without retaining its stale name alias', async () => {
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z')],
+      photos: [],
+      observations: [obs('current', 'o1', 'Mallard', 'mallar3', 'mallar3')],
+      dex: [{
+        id: 'name:Retired Mallard Label',
+        speciesName: 'Retired Mallard Label',
+        speciesCode: 'mallar3',
+        firstSeenDate: '2024-01-01T00:00:00Z',
+        lastSeenDate: '2024-01-01T00:00:00Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: 'keep this',
+      } as DexEntry],
+    })
+
+    expect(payload.dex).toHaveLength(1)
+    expect(payload.dex[0]).toMatchObject({ id: 'code:mallar3', notes: 'keep this' })
+  })
+
+  it('uses a coded legacy entry to merge an uncoded alias for an obsolete label', async () => {
+    const dex = [
+      {
+        id: 'code:mallar3',
+        speciesName: 'Retired Mallard Label',
+        speciesCode: 'mallar3',
+        notes: 'coded note',
+      },
+      {
+        id: 'name:Retired Mallard Label',
+        speciesName: 'Retired Mallard Label',
+        notes: 'alias note',
+      },
+    ].map(entry => ({
+        firstSeenDate: '2024-01-01T00:00:00Z',
+        lastSeenDate: '2024-01-01T00:00:00Z',
+        totalOutings: 1,
+        totalCount: 1,
+        ...entry,
+      } as DexEntry))
+    const migrate = (entries: DexEntry[]) => enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z')],
+      photos: [],
+      observations: [obs('current', 'o1', 'Mallard', 'mallar3', 'mallar3')],
+      dex: entries,
+    })
+    const payload = await migrate(dex)
+    const reversed = await migrate([...dex].reverse())
+
+    expect(payload.dex).toHaveLength(1)
+    expect(payload.dex[0]).toMatchObject({
+      id: 'code:mallar3',
+      notes: 'coded note\n\nalias note',
+    })
+    expect(reversed.dex).toEqual(payload.dex)
+  })
+
+  it('reconciles conflicting legacy exact codes to the grouping code in either order', () => {
+    const outings = [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')]
+    const observations = [
+      obs('south', 'o1', 'Southern Brown Kiwi (South I.)', 'sobkiw1', 'sobkiw2'),
+      obs('stewart', 'o2', 'Southern Brown Kiwi (Stewart I.)', 'sobkiw1', 'sobkiw3'),
+    ]
+    const existing = ['sobkiw2', 'sobkiw3'].map(taxonCode => ({
+      id: 'code:sobkiw1',
+      speciesName: 'Southern Brown Kiwi',
+      speciesCode: 'sobkiw1',
+      taxonCode,
+      firstSeenDate: '2024-01-01T00:00:00Z',
+      lastSeenDate: '2024-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    } as DexEntry))
+
+    const forward = rebuildDexFromState(outings, observations, existing)
+    const reversed = rebuildDexFromState(outings, observations, [...existing].reverse())
+    expect(forward[0].taxonCode).toBe('sobkiw1')
+    expect(reversed).toEqual(forward)
+  })
+
+  it('preserves a name-keyed alias when its coded observations are ambiguous', async () => {
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')],
+      photos: [],
+      observations: [
+        obs('first', 'o1', 'Retired Shared Label', 'norcar', 'norcar'),
+        obs('second', 'o2', 'Retired Shared Label', 'mallar3', 'mallar3'),
+      ],
+      dex: [{
+        id: 'name:Retired Shared Label',
+        speciesName: 'Retired Shared Label',
+        firstSeenDate: '2024-01-01T00:00:00Z',
+        lastSeenDate: '2024-01-01T00:00:00Z',
+        totalOutings: 0,
+        totalCount: 0,
+        notes: 'unassigned metadata',
+      } as DexEntry],
+    })
+
+    expect(payload.dex.map(entry => entry.id).sort()).toEqual([
+      'code:mallar3',
+      'code:norcar',
+      'name:Retired Shared Label',
+    ])
+    expect(payload.dex.find(entry => entry.id === 'name:Retired Shared Label')?.notes)
+      .toBe('unassigned metadata')
+
+    const afterUpdate = rebuildDexFromState(payload.outings, payload.observations, payload.dex)
+    expect(afterUpdate.find(entry => entry.id === 'name:Retired Shared Label')?.notes)
+      .toBe('unassigned metadata')
+  })
+
+  it('drops an unmatched derived row after its final observation is removed', () => {
+    const stale = {
+      id: 'code:mallar3',
+      speciesName: 'Mallard',
+      speciesCode: 'mallar3',
+      firstSeenDate: '2024-01-01T00:00:00Z',
+      lastSeenDate: '2024-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    } as DexEntry
+
+    expect(rebuildDexFromState([], [], [stale])).toEqual([])
+  })
+
+  it('uses the current observation mapping over stale coded dex candidates in one pass', () => {
+    const outings = [outing('o1', '2025-01-01T00:00:00Z')]
+    const observations = [obs('current', 'o1', 'Retired Shared Label', 'norcar', 'norcar')]
+    const existing = [
+      {
+        id: 'code:mallar3',
+        speciesName: 'Retired Shared Label',
+        speciesCode: 'mallar3',
+        totalOutings: 1,
+        notes: '',
+      },
+      {
+        id: 'name:Retired Shared Label',
+        speciesName: 'Retired Shared Label',
+        totalOutings: 1,
+        notes: 'current metadata',
+      },
+    ].map(entry => ({
+      firstSeenDate: '2024-01-01T00:00:00Z',
+      lastSeenDate: '2024-01-01T00:00:00Z',
+      totalCount: 1,
+      ...entry,
+    } as DexEntry))
+
+    const first = rebuildDexFromState(outings, observations, existing)
+    const second = rebuildDexFromState(outings, observations, first)
+    expect(first).toHaveLength(1)
+    expect(first[0]).toMatchObject({ id: 'code:norcar', notes: 'current metadata' })
+    expect(second).toEqual(first)
   })
 })
 
