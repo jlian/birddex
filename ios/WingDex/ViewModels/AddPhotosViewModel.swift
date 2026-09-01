@@ -42,10 +42,8 @@ final class AddPhotosViewModel {
 
         var reasonText: String {
             switch self {
-            case .manualRecrop:
-                return "Crop around one bird, then try again."
-            case .lowConfidence:
-                return "The identification is uncertain. Crop around one bird and try again."
+            case .manualRecrop, .lowConfidence:
+                return "Crop to one bird."
             }
         }
     }
