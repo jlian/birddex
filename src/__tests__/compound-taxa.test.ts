@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findBestMatch, findCompoundTaxon } from '../../functions/lib/taxonomy'
+import { findBestMatch, findCompoundTaxon, getEbirdCode } from '../../functions/lib/taxonomy'
 
 /**
  * eBird taxa that are not a single species.
@@ -117,6 +117,25 @@ describe('findCompoundTaxon', () => {
     expect(findCompoundTaxon('Canvasback x scaup sp. (hybrid)')).toBeNull()
     expect(findCompoundTaxon('Mallard x Mexican/Mottled Duck (hybrid)')).toBeNull()
     expect(findCompoundTaxon("Brewster's x Chestnut-sided Warbler (hybrid)")).toBeNull()
+  })
+})
+
+describe('getEbirdCode uses the same exact matching as findBestMatch', () => {
+  it('resolves from the scientific name when the common name is not exact', () => {
+    // It used to strip at "(" and look up the common name alone, so this
+    // returned nothing even though the binomial identifies the bird.
+    expect(getEbirdCode('Kingfisher (Alcedo atthis)')).toBe('comkin1')
+  })
+
+  it('resolves a subspecies trinomial to its species code', () => {
+    expect(getEbirdCode('Dark-eyed Junco (Junco hyemalis oreganus)')).toBe('daejun')
+  })
+
+  it('still returns empty for a name that is not a species we hold', () => {
+    // Routing through findBestMatch must not make this start guessing.
+    expect(getEbirdCode('Sparrow')).toBe('')
+    expect(getEbirdCode('Pink-headed Duck')).toBe('')
+    expect(getEbirdCode('Western x Glaucous-winged Gull (hybrid)')).toBe('')
   })
 })
 

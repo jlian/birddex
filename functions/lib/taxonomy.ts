@@ -311,13 +311,18 @@ export function normalizeSpeciesName(name: string): string {
   return match ? match.common : name
 }
 
-export function getEbirdCode(commonName: string): string {
-  // Strip parenthesized scientific name if present, e.g. "Saffron Finch (Sicalis flaveola)" → "Saffron Finch"
-  const name = commonName.split('(')[0].trim()
-
-  const match = byCommonLower.get(name.toLowerCase())
-  if (match?.ebirdCode) return match.ebirdCode
-  return ''
+export function getEbirdCode(speciesName: string): string {
+  // Route through findBestMatch rather than repeating a weaker copy of it.
+  //
+  // This used to strip at the first "(" and look up the common name alone, so
+  // it missed every case the scientific name is what identifies the bird:
+  // "Kingfisher (Alcedo atthis)" resolved to nothing, because "Kingfisher" is
+  // not an exact common name, while findBestMatch reads the binomial and
+  // answers Common Kingfisher. It also missed subspecies trinomials.
+  //
+  // findBestMatch is exact-only, so this cannot start guessing; it can only
+  // stop failing on names it should already have resolved.
+  return findBestMatch(speciesName)?.ebirdCode ?? ''
 }
 
 export function getSpeciesByCode(code: string): TaxonEntry | undefined {
