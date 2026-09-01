@@ -1,5 +1,8 @@
 import rawTaxonomy from '../../src/lib/taxonomy.json'
 import rawExtra from '../../src/lib/taxonomy-extra.json'
+import { resolveSpeciesIdentity, resolveSpeciesCode } from './species-code-resolve'
+export { resolveSpeciesIdentity, resolveSpeciesCode } from './species-code-resolve'
+export type { SpeciesIdentity } from './species-code-resolve'
 
 /** Shared prefix stripped from thumbnail paths in taxonomy.json to save ~490 KB. */
 const COMMONS_PREFIX = 'https://upload.wikimedia.org/wikipedia/commons/'
@@ -372,26 +375,6 @@ function resolveTaxonEntry(speciesName: string): TaxonEntry | undefined {
   }
 
   return undefined
-}
-
-export type SpeciesIdentity = {
-  /** The exact eBird taxon observed, such as the Southern Brown Kiwi ISSF. */
-  taxonCode: string
-  /** The eBird REPORT_AS rollup used to group dex entries. */
-  speciesCode: string
-}
-
-export function resolveSpeciesIdentity(speciesName: string): SpeciesIdentity | undefined {
-  const taxon = resolveTaxonEntry(speciesName)
-  if (!taxon?.ebirdCode) return undefined
-  return {
-    taxonCode: taxon.ebirdCode,
-    speciesCode: taxon.reportAsCode || taxon.ebirdCode,
-  }
-}
-
-export function resolveSpeciesCode(speciesName: string): string {
-  return resolveSpeciesIdentity(speciesName)?.speciesCode ?? ''
 }
 
 export function getTaxonMetadata(speciesName: string, taxonCode?: string | null): {

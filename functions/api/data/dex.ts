@@ -1,7 +1,6 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { createRouteResponder } from '../../lib/log'
 import { hasDexMetaColumn } from '../../lib/schema'
-import { resolveSpeciesCode } from '../../lib/taxonomy'
 
 type DexMetaPatch = {
   groupKey?: string
@@ -29,7 +28,9 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
 }
 
 async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMetaPatch) {
-  const resolvedCode = resolveSpeciesCode(patch.speciesName) || null
+  const resolvedCode = patch.groupKey
+    ? null
+    : (await import('../../lib/species-code-resolve')).resolveSpeciesCode(patch.speciesName) || null
   const groupKey = patch.groupKey ?? (resolvedCode ? `code:${resolvedCode}` : `name:${patch.speciesName}`)
   const speciesCode = groupKey.startsWith('code:') ? groupKey.slice(5) : null
 

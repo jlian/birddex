@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, it } from 'vitest'
 
-import { resolveSpeciesIdentity } from '../functions/lib/taxonomy'
+import { resolveSpeciesIdentity } from '../functions/lib/species-code-resolve'
 
 const ROOT = resolve(__dirname, '..')
 const NAMES = resolve(ROOT, '.tmp/species-names.json')

@@ -2,7 +2,6 @@ import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { queryInChunks } from '../../lib/d1-chunk'
-import { resolveSpeciesIdentity } from '../../lib/taxonomy'
 
 type ObservationCertainty = 'confirmed' | 'possible' | 'pending' | 'rejected'
 
@@ -54,7 +53,7 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count} ${count === 1 ? singular : plural}`
 }
 
-function getPatchBindings(
+async function getPatchBindings(
   patch: ObservationPatch,
   supportsSpeciesCode: boolean,
   supportsTaxonCode: boolean,
@@ -72,7 +71,8 @@ function getPatchBindings(
   if (typeof patch.speciesName === 'string') {
     updateFields.push('speciesName = ?')
     bindings.push(patch.speciesName)
-    const identity = resolveSpeciesIdentity(patch.speciesName)
+    const { resolveSpeciesIdentity: resolveIdentity } = await import('../../lib/species-code-resolve')
+    const identity = resolveIdentity(patch.speciesName)
     // Recompute the code from the NEW name. Leaving the old one would file the
     // observation under the species it used to be, which is a worse failure
     // than having no code at all: the row would silently join another bird's
@@ -289,9 +289,14 @@ export const onRequestPost: PagesFunction<Env> = async context => {
     // mean the dex still splits renamed species for everything except imports.
     const supportsSpeciesCode = await hasObservationColumn(context.env.DB, 'speciesCode')
     const supportsTaxonCode = await hasObservationColumn(context.env.DB, 'taxonCode')
+    const { resolveSpeciesIdentity } = await import('../../lib/species-code-resolve')
+    const identities = new Map(body.map(observation => [
+      observation.id,
+      resolveSpeciesIdentity(observation.speciesName),
+    ]))
 
     const statements = body.map(observation => {
-      const identity = resolveSpeciesIdentity(observation.speciesName)
+      const identity = identities.get(observation.id)
       const columns = ['id', 'outingId', 'userId', 'speciesName']
       const values: Array<string | number | null> = [observation.id, observation.outingId, userId, observation.speciesName]
       if (supportsSpeciesCode) {
@@ -346,10 +351,10 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       // When the column is absent the field stays undefined rather than null,
       // so the response shape matches a pre-migration database.
       ...(supportsSpeciesCode
-        ? { speciesCode: resolveSpeciesIdentity(observation.speciesName)?.speciesCode || undefined }
+        ? { speciesCode: identities.get(observation.id)?.speciesCode || undefined }
         : {}),
       ...(supportsTaxonCode
-        ? { taxonCode: resolveSpeciesIdentity(observation.speciesName)?.taxonCode || undefined }
+        ? { taxonCode: identities.get(observation.id)?.taxonCode || undefined }
         : {}),
       representativePhotoId: observation.representativePhotoId || undefined,
       aiConfidence: observation.aiConfidence ?? undefined,
@@ -400,7 +405,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     if (typeof body.id === 'string') {
     const { id, ...rawPatch } = body
     const patch = rawPatch as ObservationPatch
-    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode, supportsTaxonCode)
+    const { updateFields, bindings } = await getPatchBindings(patch, supportsSpeciesCode, supportsTaxonCode)
 
     if (!supportsSpeciesComments) {
       const speciesIndex = updateFields.findIndex(field => field === 'speciesComments = ?')
@@ -456,7 +461,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
     if (Array.isArray(body.ids) && body.ids.every(id => typeof id === 'string') && isObject(body.patch)) {
     const ids = body.ids as string[]
     const patch = body.patch as ObservationPatch
-    const { updateFields, bindings } = getPatchBindings(patch, supportsSpeciesCode, supportsTaxonCode)
+    const { updateFields, bindings } = await getPatchBindings(patch, supportsSpeciesCode, supportsTaxonCode)
 
     if (!supportsSpeciesComments) {
       const speciesIndex = updateFields.findIndex(field => field === 'speciesComments = ?')

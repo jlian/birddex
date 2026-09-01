@@ -23,6 +23,7 @@
         "dev": "bash scripts/dev.sh",
         "start": "bash scripts/dev-full.sh",
         "stop": "bash scripts/kill-dev.sh",
+        "prebuild": "npm run taxonomy:codes",
         "build": "tsc -b && vite build && wrangler pages functions build --outdir=./dist/worker/ && node scripts/check-asset-cap.mjs",
         "deploy": "npm run build && wrangler deploy",
         "lint": "eslint .",
@@ -36,6 +37,7 @@
         "check:all": "npm run check && npm run build && npx playwright install --with-deps chromium && npm run db:migrate && npm run test:e2e",
         "db:migrate": "printf 'y\n' | wrangler d1 migrations apply wingdex-db --local --persist-to \"$HOME/.cache/wingdex/wrangler-state\"",
         "fixtures": "node scripts/capture-llm-fixtures.mjs",
+        "taxonomy:codes": "node scripts/build-species-code-map.mjs",
         "taxonomy": "bash scripts/taxonomy.sh"
     },
     "dependencies": {

@@ -1,6 +1,6 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { groupPreviewsIntoOutings, parseEBirdCSV } from '../../lib/ebird'
-import { resolveSpeciesIdentity } from '../../lib/taxonomy'
+import { resolveSpeciesIdentity } from '../../lib/species-code-resolve'
 import { getOutingColumnNames, hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { rateLimitKey } from '../../lib/rate-limit'
