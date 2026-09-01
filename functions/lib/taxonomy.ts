@@ -48,8 +48,22 @@ const extraByCommon = new Map<string, TaxonEntry>()
 const extraByScientific = new Map<string, TaxonEntry>()
 
 for (const entry of (rawExtra as { entries: unknown[][] }).entries) {
-  const [code, common, scientific] = entry as [string, string, string]
-  const taxon: TaxonEntry = { common, scientific, ebirdCode: code }
+  const [code, common, scientific, , , reportAsCode] = entry as [string, string, string, string, number, string]
+  // Roll a domestic or subspecific form up to the species eBird reports it as.
+  //
+  // Without this the SAME bird resolves two ways depending on which spelling
+  // was stored: "Mallard (Domestic type)" hits this map and gets the domestic
+  // code mallar2, while "Mallard (Anas platyrhynchos domesticus)" misses it,
+  // falls through to the binomial rollup, and gets the wild code mallar3. Two
+  // codes means two dex entries for one bird, which is the split this whole
+  // change exists to prevent.
+  //
+  // REPORT_AS is eBird's own answer to "which species does this count as", so
+  // following it makes both spellings agree. 23 of the 25 domestic taxa carry
+  // one; the two that do not (`Domestic goose sp.`, `Domestic duck sp.`) have
+  // no species to roll up to and keep their own code.
+  const effectiveCode = reportAsCode || code
+  const taxon: TaxonEntry = { common, scientific, ebirdCode: effectiveCode }
   const commonKey = common.toLowerCase()
   const scientificKey = scientific.toLowerCase()
   // The classifier always wins, so an eBird revision that reuses a name cannot

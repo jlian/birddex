@@ -28,6 +28,23 @@ describe('resolveSpeciesCode', () => {
     expect(resolveSpeciesCode('Domestic Chicken (Gallus gallus domesticus)')).toBe('redjun')
   })
 
+  it('gives a domestic form the same code from either spelling', () => {
+    // The canonical eBird name and the trinomial describe ONE bird, so they
+    // must produce one code or the dex splits it in two. The canonical name
+    // hits the sidecar directly while the trinomial falls through to the
+    // binomial rollup, and before REPORT_AS was applied to sidecar entries the
+    // two disagreed: mallar2 (domestic) versus mallar3 (wild).
+    expect(resolveSpeciesCode('Mallard (Domestic type)')).toBe('mallar3')
+    expect(resolveSpeciesCode('Mallard (Anas platyrhynchos domesticus)')).toBe('mallar3')
+    expect(resolveSpeciesCode('Graylag Goose (Domestic type)')).toBe('gragoo')
+    expect(resolveSpeciesCode('Graylag Goose (Anser anser domesticus)')).toBe('gragoo')
+  })
+
+  it('rolls a subspecies up to its species, matching eBird REPORT_AS', () => {
+    // Same rule, wider application: an ISSF taxon counts as its species.
+    expect(resolveSpeciesCode('Dark-eyed Junco (Oregon)')).toBe('daejun')
+  })
+
   it('resolves a domestic form that has no wild species in the classifier', () => {
     // Not every domestic form rolls up. This one only exists in eBird as a
     // domestic taxon, so it comes from the sidecar rather than a wild species.
