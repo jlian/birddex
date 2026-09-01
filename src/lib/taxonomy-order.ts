@@ -13,6 +13,7 @@ let wikiTitleMap: Map<string, string> | null = null
 let identityByCommon: Map<string, SpeciesIdentity> | null = null
 let identityByScientific: Map<string, SpeciesIdentity> | null = null
 let metadataByCode: Map<string, TaxonMetadata> | null = null
+let indexByCode: Map<string, number> | null = null
 // Row index into taxonomy.json, for callers that key data by classifier
 // position. Sidecar taxa are deliberately absent: they have no row.
 let indexMap: Map<string, number> | null = null
@@ -38,6 +39,7 @@ async function loadOrderMap(): Promise<Map<string, number>> {
     const raw = (await import('./taxonomy.json')).default as unknown[][]
     const map = new Map<string, number>()
     const idx = new Map<string, number>()
+    const codeIdx = new Map<string, number>()
     const bl = new Map<string, string>()
     const eb = new Map<string, string>()
     const wiki = new Map<string, string>()
@@ -58,6 +60,7 @@ async function loadOrderMap(): Promise<Map<string, number>> {
         commonIdentities.set(common.toLowerCase(), identity)
         scientificIdentities.set(scientific.toLowerCase(), identity)
         codeMetadata.set(ebirdCode, { commonName: common, scientificName: scientific })
+        codeIdx.set(ebirdCode, i)
       }
       const wikiTitle = raw[i][3] as string | undefined
       if (wikiTitle) wiki.set(common.toLowerCase(), wikiTitle)
@@ -105,6 +108,7 @@ async function loadOrderMap(): Promise<Map<string, number>> {
     identityByCommon = commonIdentities
     identityByScientific = scientificIdentities
     metadataByCode = codeMetadata
+    indexByCode = codeIdx
     return map
   })()
 
@@ -210,9 +214,10 @@ function lookupByName<T>(map: Map<string, T> | null, name: string): T | undefine
   return map.get(name.split('(')[0].trim().toLowerCase())
 }
 
-export async function getSpeciesIndexLookup(): Promise<(name: string) => number> {
+export async function getSpeciesIndexLookup(): Promise<(name: string, taxonCode?: string) => number> {
   await loadOrderMap()
-  return (name: string) => {
+  return (name: string, taxonCode?: string) => {
+    if (taxonCode) return indexByCode?.get(taxonCode) ?? -1
     // An exact sidecar hit must return -1, not fall through to the stripped
     // name: sidecar taxa have no classifier row, and resolving
     // "Mallard (Domestic type)" to the wild Mallard's index would apply another

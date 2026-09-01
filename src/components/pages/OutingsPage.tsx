@@ -355,7 +355,7 @@ function OutingDetail({
   // this an outing showing two spellings of one bird would list it twice while
   // the dex counted it once.
   const groupBySpecies = (list: Observation[]) => {
-    const map = new Map<string, { key: string; speciesName: string; totalCount: number; obsIds: string[] }>()
+    const map = new Map<string, { key: string; speciesName: string; taxonCode?: string; totalCount: number; obsIds: string[] }>()
     for (const obs of list) {
       const key = obs.speciesCode ? `code:${obs.speciesCode}` : `name:${obs.speciesName}`
       const existing = map.get(key)
@@ -363,9 +363,18 @@ function OutingDetail({
         existing.totalCount += obs.count
         existing.obsIds.push(obs.id)
         // Mirrors MIN(speciesName) server-side so the label is deterministic.
-        if (obs.speciesName < existing.speciesName) existing.speciesName = obs.speciesName
+        if (obs.speciesName < existing.speciesName) {
+          existing.speciesName = obs.speciesName
+          existing.taxonCode = obs.taxonCode
+        }
       } else {
-        map.set(key, { key, speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
+        map.set(key, {
+          key,
+          speciesName: obs.speciesName,
+          taxonCode: obs.taxonCode,
+          totalCount: obs.count,
+          obsIds: [obs.id],
+        })
       }
     }
     return Array.from(map.values())
@@ -634,6 +643,7 @@ function OutingDetail({
                 speciesName={group.speciesName}
                 commonName={entry?.commonName}
                 scientificName={entry?.scientificName}
+                taxonCode={group.taxonCode}
                 subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                 onClick={() => onSelectSpecies(group.key)}
                 outing={outing}
@@ -668,6 +678,7 @@ function OutingDetail({
                   speciesName={group.speciesName}
                   commonName={entry?.commonName}
                   scientificName={entry?.scientificName}
+                  taxonCode={group.taxonCode}
                   subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                   onClick={() => onSelectSpecies(group.key)}
                   outing={outing}

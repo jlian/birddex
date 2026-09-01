@@ -239,6 +239,7 @@ struct WingDexView: View {
                     speciesName: entry.speciesName,
                     displayName: entry.commonName,
                     scientificName: entry.scientificName,
+                    taxonCode: entry.taxonCode,
                     thumbnailUrl: entry.thumbnailUrl,
                     subtitle: "\(entry.totalOutings) outing\(entry.totalOutings == 1 ? "" : "s") \u{00B7} \(entry.totalCount) seen \u{00B7} \(DateFormatting.formatDate(entry.firstSeenDate, style: .medium))"
                 )

@@ -139,6 +139,25 @@ describe('computeDex', () => {
       totalCount: 2,
     }])
   })
+
+  it('propagates schema probe failures instead of selecting the legacy query', async () => {
+    const db: DexQueryDB = {
+      prepare(sql: string) {
+        return {
+          bind() {
+            return {
+              async all<T>() {
+                if (sql.startsWith('PRAGMA table_info')) throw new Error('D1 unavailable')
+                return { results: [] as T[] }
+              },
+            }
+          },
+        }
+      },
+    }
+
+    await expect(computeDex(db, 'u1')).rejects.toThrow('D1 unavailable')
+  })
 })
 
 describe('enrichDexEntries', () => {

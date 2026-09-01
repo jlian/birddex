@@ -286,6 +286,7 @@ export default function WingDexPage({
               speciesName={entry.speciesName}
               commonName={entry.commonName}
               scientificName={entry.scientificName}
+              taxonCode={entry.taxonCode}
               imageUrl={entry.thumbnailUrl}
               subtitle={`${entry.totalOutings} ${entry.totalOutings === 1 ? 'outing' : 'outings'} · ${entry.totalCount} seen · ${formatStoredDate(entry.firstSeenDate)}`}
               onClick={() => onSelectSpecies(entry.id)}
@@ -588,7 +589,13 @@ function SpeciesDetail({
                     {(() => {
                       // Species detail is the one screen with room for the word,
                       // which is where the issue asks for a fuller label.
-                      const state = resolveRarity(entry.speciesName, outing.lat, outing.lon, localMonth(outing.startTime))
+                      const state = resolveRarity(
+                        observation.speciesName,
+                        outing.lat,
+                        outing.lon,
+                        localMonth(outing.startTime),
+                        observation.taxonCode,
+                      )
                       if (state === 'none') return null
                       return (
                         <span className="text-amber-700 dark:text-amber-400">

@@ -23,23 +23,8 @@ export async function getTableColumnNames(db: SchemaDB, table: string): Promise<
   const databaseCache = cache.get(db as object)
   const cached = databaseCache?.get(table)
   if (cached) return cached
-  // A stub or partial D1 that cannot answer PRAGMA must not take the request
-  // down. Treat an unanswerable probe as "no optional columns", which is the
-  // same conservative answer as a database that has not run the migration.
-  let names: Set<string>
-  try {
-    const info = await db.prepare(`PRAGMA table_info('${table}')`).bind().all<{ name: string }>()
-    names = new Set((info?.results ?? []).map(column => column.name))
-  } catch {
-    // Do NOT cache a failed probe. A stub database that cannot answer PRAGMA at
-    // all is answered conservatively on every call, which costs one cheap query
-    // per request. Caching it instead would let one transient D1 error pin the
-    // isolate to "no optional columns" for its whole lifetime, so every later
-    // write would silently drop speciesCode long after the database recovered.
-    // That failure is invisible and produces wrong data, which is far worse
-    // than repeating a probe.
-    return new Set<string>()
-  }
+  const info = await db.prepare(`PRAGMA table_info('${table}')`).bind().all<{ name: string }>()
+  const names = new Set((info?.results ?? []).map(column => column.name))
   if (databaseCache) {
     databaseCache.set(table, names)
   } else {

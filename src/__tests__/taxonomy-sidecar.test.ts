@@ -43,6 +43,8 @@ describe('taxonomy display sidecar', () => {
     // -1 is the documented "no answer" sentinel; rarity-client returns 'none'.
     expect(idx('Gull sp.')).toBe(-1)
     expect(idx('Dodo')).toBe(-1)
+    expect(idx('Mallard', 'mallar2')).toBe(-1)
+    expect(idx('Southern Brown Kiwi (Apteryx australis australis)', 'sobkiw2')).toBe(-1)
   })
 
   it('still indexes classifier species inside the matrix', async () => {
