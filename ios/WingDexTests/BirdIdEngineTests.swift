@@ -81,7 +81,7 @@ final class BirdIdEngineTests: XCTestCase {
         // The LAST row is NOT a species. It is a logistic coefficient vector,
         // whose magnitude is part of the decision boundary, so it must NOT come
         // back unit-norm. Checking it separately is what distinguishes "the
-        // probe is present" from "an 10,995th species row got appended".
+        // probe is present" from "a 10,995th species row got appended".
         let probe = rows[(BirdIdEngineTests.speciesRows * 768)...]
         let probeNorm = probe.reduce(0) { $0 + Double($1 * $1) }.squareRoot()
         XCTAssertGreaterThan(probeNorm, 2.0, "probe row must not be unit-norm")
