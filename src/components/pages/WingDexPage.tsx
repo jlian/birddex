@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
 import { useBirdSummary } from '@/hooks/use-bird-image'
-import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
+import { getFilePageUrl, getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
 import { RarityMark, RARITY_LABELS } from '@/components/ui/rarity-mark'
 import { useRarityResolver, localMonth } from '@/lib/rarity-client'
@@ -74,7 +74,7 @@ export default function WingDexPage({
   // Load taxonomic order data lazily when family sort is selected
   useEffect(() => {
     if (effectiveSortField !== 'family') return
-    const names = dex.map(e => e.speciesName)
+    const names = dex.map(entry => entry.commonName ?? entry.speciesName)
     void buildSyncOrderLookup(names).then(lookup => {
       setFamilyOrderLookup(() => lookup)
     })
@@ -106,13 +106,15 @@ export default function WingDexPage({
   const sortedList = useMemo(() => {
     return [...dex].sort((a, b) => {
       const dir = effectiveSortDir === 'asc' ? 1 : -1
-      if (effectiveSortField === 'name') return dir * a.speciesName.localeCompare(b.speciesName)
+      const aName = a.commonName ?? a.speciesName
+      const bName = b.commonName ?? b.speciesName
+      if (effectiveSortField === 'name') return dir * aName.localeCompare(bName)
       if (effectiveSortField === 'count') return dir * (a.totalCount - b.totalCount)
       if (effectiveSortField === 'family') {
-        if (!familyOrderLookup) return a.speciesName.localeCompare(b.speciesName)
-        const orderDiff = familyOrderLookup(a.speciesName) - familyOrderLookup(b.speciesName)
+        if (!familyOrderLookup) return aName.localeCompare(bName)
+        const orderDiff = familyOrderLookup(aName) - familyOrderLookup(bName)
         if (orderDiff !== 0) return dir * orderDiff
-        return a.speciesName.localeCompare(b.speciesName)
+        return aName.localeCompare(bName)
       }
       return dir * (new Date(a.firstSeenDate).getTime() - new Date(b.firstSeenDate).getTime())
     })
@@ -120,7 +122,8 @@ export default function WingDexPage({
 
   const filteredList = useMemo(() => {
     const query = effectiveSearchQuery.toLowerCase()
-    return sortedList.filter(entry => entry.speciesName.toLowerCase().includes(query))
+    return sortedList.filter(entry => [entry.commonName, entry.scientificName, entry.speciesName]
+      .some(name => name?.toLowerCase().includes(query)))
   }, [sortedList, effectiveSearchQuery])
 
   useEffect(() => {
@@ -281,6 +284,8 @@ export default function WingDexPage({
             <BirdRow
               key={entry.id}
               speciesName={entry.speciesName}
+              commonName={entry.commonName}
+              scientificName={entry.scientificName}
               imageUrl={entry.thumbnailUrl}
               subtitle={`${entry.totalOutings} ${entry.totalOutings === 1 ? 'outing' : 'outings'} · ${entry.totalCount} seen · ${formatStoredDate(entry.firstSeenDate)}`}
               onClick={() => onSelectSpecies(entry.id)}
@@ -469,6 +474,20 @@ function SpeciesDetail({
           </div>
         </div>
 
+        {entry.borrowedFrom && (
+          <p className="text-xs font-medium text-muted-foreground">
+            Shown for {entry.borrowedFrom}, one of {entry.compound?.parents.length ?? 2} parents.
+          </p>
+        )}
+
+        {(imageCredit?.pageUrl ?? getFilePageUrl(baseImageUrl)) && (
+          <p className="text-xs text-muted-foreground/60">
+            Photo <a href={imageCredit?.pageUrl ?? getFilePageUrl(baseImageUrl)} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">
+              {[imageCredit?.artist, imageCredit?.license].filter(Boolean).join(' / ') || 'on Wikimedia Commons'}
+            </a>.
+          </p>
+        )}
+
         {entry.compound && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
@@ -508,25 +527,11 @@ function SpeciesDetail({
         {/* About -- fade in when loaded */}
         {summary?.extract && (
           <div className="space-y-1">
-            {entry.borrowedFrom && (
-              <p className="text-xs font-medium text-muted-foreground">
-                Shown for {entry.borrowedFrom}, one of {entry.compound?.parents.length ?? 2} parents.
-              </p>
-            )}
             <p className="text-sm text-muted-foreground leading-relaxed">
               {summary.extract}
             </p>
             <p className="text-xs text-muted-foreground/60">
               Text from <a href={summary.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Wikipedia</a> under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">CC BY-SA 4.0</a>.
-              {imageCredit && (
-                <>
-                  {' Photo '}
-                  <a href={imageCredit.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">
-                    {[imageCredit.artist, imageCredit.license].filter(Boolean).join(' / ') || 'on Wikimedia Commons'}
-                  </a>
-                  .
-                </>
-              )}
             </p>
           </div>
         )}

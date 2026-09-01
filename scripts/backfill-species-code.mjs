@@ -230,11 +230,13 @@ for (const { table, resolved } of plans) {
   // inserts, so this is one prepared statement carrying the whole mapping.
   const pairs = [...resolved].map(([speciesName, identity]) => ({ speciesName, ...identity }))
   const json = sqlQuote(JSON.stringify(pairs))
+  const hasGroupKey = table === 'dex_meta' && d1('PRAGMA table_info(dex_meta)')
+    .some(column => column.name === 'groupKey')
   const taxonAssignment = table === 'observation'
-    ? `, taxonCode = (` +
+    ? `, taxonCode = COALESCE(taxonCode, (` +
       `  SELECT json_extract(value, '$.taxonCode') FROM json_each(${json})` +
       `  WHERE json_extract(value, '$.speciesName') = ${table}.speciesName` +
-      `)`
+      `))`
     : ''
   const sql =
     `UPDATE ${table} SET speciesCode = COALESCE(speciesCode, (` +
@@ -246,6 +248,90 @@ for (const { table, resolved } of plans) {
     `)`
   d1(sql)
   console.log(`  wrote      : ${resolved.size} mappings in 1 statement`)
+
+  if (hasGroupKey) {
+    // Migration 0016 may run before this backfill, leaving resolved metadata
+    // under name:<label>. Copy and merge those rows into their code-keyed
+    // destination before deleting the old keys. If the process stops between
+    // statements, the visible destination already exists and a rerun is safe.
+    const rekeySql = `
+      WITH mapped AS (
+        SELECT
+          dm.userId,
+          dm.groupKey,
+          dm.speciesName,
+          json_extract(mapping.value, '$.speciesCode') AS speciesCode,
+          dm.addedDate,
+          dm.bestPhotoId,
+          dm.notes
+        FROM dex_meta dm
+        JOIN json_each(${json}) mapping
+          ON json_extract(mapping.value, '$.speciesName') = dm.speciesName
+        WHERE dm.groupKey <> 'code:' || json_extract(mapping.value, '$.speciesCode')
+      ), deduped_notes AS (
+        SELECT DISTINCT userId, speciesCode, notes
+        FROM mapped
+        WHERE notes <> ''
+      ), grouped_notes AS (
+        SELECT
+          userId,
+          speciesCode,
+          GROUP_CONCAT(notes, char(10) || char(10)) AS notes
+        FROM deduped_notes
+        GROUP BY userId, speciesCode
+      ), grouped AS (
+        SELECT
+          userId,
+          'code:' || speciesCode AS groupKey,
+          MIN(speciesName) AS speciesName,
+          speciesCode,
+          MIN(addedDate) AS addedDate,
+          MIN(bestPhotoId) AS bestPhotoId,
+          COALESCE((
+            SELECT notes FROM grouped_notes
+            WHERE grouped_notes.userId = mapped.userId
+              AND grouped_notes.speciesCode = mapped.speciesCode
+          ), '') AS notes
+        FROM mapped
+        GROUP BY userId, speciesCode
+      )
+      INSERT INTO dex_meta (
+        userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
+      )
+      SELECT userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
+      FROM grouped
+      WHERE 1
+      ON CONFLICT(userId, groupKey) DO UPDATE SET
+        speciesName = MIN(dex_meta.speciesName, excluded.speciesName),
+        speciesCode = excluded.speciesCode,
+        addedDate = CASE
+          WHEN dex_meta.addedDate IS NULL THEN excluded.addedDate
+          WHEN excluded.addedDate IS NULL THEN dex_meta.addedDate
+          ELSE MIN(dex_meta.addedDate, excluded.addedDate)
+        END,
+        bestPhotoId = COALESCE(dex_meta.bestPhotoId, excluded.bestPhotoId),
+        notes = CASE
+          WHEN excluded.notes = '' THEN dex_meta.notes
+          WHEN dex_meta.notes = '' THEN excluded.notes
+          WHEN dex_meta.notes = excluded.notes OR instr(
+            char(10) || char(10) || dex_meta.notes || char(10) || char(10),
+            char(10) || char(10) || excluded.notes || char(10) || char(10)
+          ) > 0
+            THEN dex_meta.notes
+          ELSE dex_meta.notes || char(10) || char(10) || excluded.notes
+        END
+    `
+    d1(rekeySql)
+    d1(`
+      DELETE FROM dex_meta
+      WHERE EXISTS (
+        SELECT 1 FROM json_each(${json}) mapping
+        WHERE json_extract(mapping.value, '$.speciesName') = dex_meta.speciesName
+          AND dex_meta.groupKey <> 'code:' || json_extract(mapping.value, '$.speciesCode')
+      )
+    `)
+    console.log('  re-keyed    : grouped metadata under code identities')
+  }
 
   const after = d1(
     `SELECT COUNT(*) AS total, COUNT(speciesCode) AS coded` +

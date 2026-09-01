@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { rebuildDexFromState } from '@/hooks/use-wingdex-data'
+import { getTaxonMetadataByCode } from '@/lib/taxonomy-order'
 import type { DexEntry, Observation, Outing } from '@/lib/types'
 
 /**
@@ -10,9 +11,10 @@ const outing = (id: string, startTime: string): Outing => ({
   id, userId: 'u1', startTime, endTime: startTime, locationName: 'Somewhere', notes: '',
 } as Outing)
 
-const obs = (id: string, outingId: string, speciesName: string, speciesCode?: string): Observation => ({
+const obs = (id: string, outingId: string, speciesName: string, speciesCode?: string, taxonCode?: string): Observation => ({
   id, outingId, speciesName, count: 1, certainty: 'confirmed', notes: '',
   ...(speciesCode ? { speciesCode } : {}),
+  ...(taxonCode ? { taxonCode } : {}),
 } as Observation)
 
 describe('rebuildDexFromState', () => {
@@ -88,5 +90,23 @@ describe('rebuildDexFromState', () => {
     const rebuilt = rebuildDexFromState(outings, [possible], [])
     expect(rebuilt).toHaveLength(1)
     expect(rebuilt[0].id).toBe('code:norcar')
+  })
+
+  it('keeps the exact code and canonical names for the selected group label', async () => {
+    await getTaxonMetadataByCode('sobkiw2')
+    const outings = [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')]
+    const observations = [
+      obs('ob1', 'o1', 'Southern Brown Kiwi', 'sobkiw1', 'sobkiw1'),
+      obs('ob2', 'o2', 'Southern Brown Kiwi (South I.)', 'sobkiw1', 'sobkiw2'),
+    ]
+
+    const rebuilt = rebuildDexFromState(outings, observations, [])
+    expect(rebuilt[0]).toMatchObject({
+      speciesName: 'Southern Brown Kiwi',
+      speciesCode: 'sobkiw1',
+      taxonCode: 'sobkiw1',
+      commonName: 'Southern Brown Kiwi',
+      scientificName: 'Apteryx australis',
+    })
   })
 })

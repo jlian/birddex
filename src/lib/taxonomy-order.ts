@@ -6,11 +6,13 @@
  */
 
 let orderMap: Map<string, number> | null = null
+let orderMapPromise: Promise<Map<string, number>> | null = null
 let birdlifeMap: Map<string, string> | null = null
 let ebirdMap: Map<string, string> | null = null
 let wikiTitleMap: Map<string, string> | null = null
 let identityByCommon: Map<string, SpeciesIdentity> | null = null
 let identityByScientific: Map<string, SpeciesIdentity> | null = null
+let metadataByCode: Map<string, TaxonMetadata> | null = null
 // Row index into taxonomy.json, for callers that key data by classifier
 // position. Sidecar taxa are deliberately absent: they have no row.
 let indexMap: Map<string, number> | null = null
@@ -23,33 +25,43 @@ export type SpeciesIdentity = {
   speciesCode: string
 }
 
+export type TaxonMetadata = {
+  commonName: string
+  scientificName: string
+}
+
 async function loadOrderMap(): Promise<Map<string, number>> {
   if (orderMap) return orderMap
-  const raw = (await import('./taxonomy.json')).default as unknown[][]
-  const map = new Map<string, number>()
-  const idx = new Map<string, number>()
-  const bl = new Map<string, string>()
-  const eb = new Map<string, string>()
-  const wiki = new Map<string, string>()
-  const commonIdentities = new Map<string, SpeciesIdentity>()
-  const scientificIdentities = new Map<string, SpeciesIdentity>()
-  for (let i = 0; i < raw.length; i++) {
-    const common = raw[i][0] as string
-    const scientific = raw[i][1] as string
-    map.set(common.toLowerCase(), i)
-    idx.set(common.toLowerCase(), i)
-    const birdlifeId = raw[i][5] as string | undefined
-    if (birdlifeId) bl.set(common.toLowerCase(), birdlifeId)
-    const ebirdCode = raw[i][2] as string | undefined
-    if (ebirdCode) {
-      const identity = { taxonCode: ebirdCode, speciesCode: ebirdCode }
-      eb.set(common.toLowerCase(), ebirdCode)
-      commonIdentities.set(common.toLowerCase(), identity)
-      scientificIdentities.set(scientific.toLowerCase(), identity)
+  if (orderMapPromise) return orderMapPromise
+
+  orderMapPromise = (async () => {
+    const raw = (await import('./taxonomy.json')).default as unknown[][]
+    const map = new Map<string, number>()
+    const idx = new Map<string, number>()
+    const bl = new Map<string, string>()
+    const eb = new Map<string, string>()
+    const wiki = new Map<string, string>()
+    const commonIdentities = new Map<string, SpeciesIdentity>()
+    const scientificIdentities = new Map<string, SpeciesIdentity>()
+    const codeMetadata = new Map<string, TaxonMetadata>()
+    for (let i = 0; i < raw.length; i++) {
+      const common = raw[i][0] as string
+      const scientific = raw[i][1] as string
+      map.set(common.toLowerCase(), i)
+      idx.set(common.toLowerCase(), i)
+      const birdlifeId = raw[i][5] as string | undefined
+      if (birdlifeId) bl.set(common.toLowerCase(), birdlifeId)
+      const ebirdCode = raw[i][2] as string | undefined
+      if (ebirdCode) {
+        const identity = { taxonCode: ebirdCode, speciesCode: ebirdCode }
+        eb.set(common.toLowerCase(), ebirdCode)
+        commonIdentities.set(common.toLowerCase(), identity)
+        scientificIdentities.set(scientific.toLowerCase(), identity)
+        codeMetadata.set(ebirdCode, { commonName: common, scientificName: scientific })
+      }
+      const wikiTitle = raw[i][3] as string | undefined
+      if (wikiTitle) wiki.set(common.toLowerCase(), wikiTitle)
     }
-    const wikiTitle = raw[i][3] as string | undefined
-    if (wikiTitle) wiki.set(common.toLowerCase(), wikiTitle)
-  }
 
   // Merge the display sidecar: eBird taxa that are NOT in the classifier
   // (spuh, slash, hybrid, issf, domestic, and the extinct species dropped in
@@ -66,32 +78,51 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   // species rather than colliding with a row index. They are deliberately NOT
   // interleaved with the classifier: that would need classifier order keyed off
   // TAXON_ORDER as well.
-  const extra = (await import('./taxonomy-extra.json')).default as unknown as {
-    entries: [string, string, string, string, number, string][]
-  }
-  for (const [code, common, scientific, , taxonOrder, reportAsCode] of extra.entries) {
-    const key = common.toLowerCase()
-    const identity = { taxonCode: code, speciesCode: reportAsCode || code }
-    if (!map.has(key)) {
-      map.set(key, raw.length + taxonOrder)
-      extraNames.add(key)
-      if (code) eb.set(key, code)
-      commonIdentities.set(key, identity)
+    const extra = (await import('./taxonomy-extra.json')).default as unknown as {
+      entries: [string, string, string, string, number, string][]
     }
-    const scientificKey = scientific.toLowerCase()
-    if (!scientificIdentities.has(scientificKey)) {
-      scientificIdentities.set(scientificKey, identity)
+    for (const [code, common, scientific, , taxonOrder, reportAsCode] of extra.entries) {
+      const key = common.toLowerCase()
+      const identity = { taxonCode: code, speciesCode: reportAsCode || code }
+      if (!map.has(key)) {
+        map.set(key, raw.length + taxonOrder)
+        extraNames.add(key)
+        if (code) eb.set(key, code)
+        commonIdentities.set(key, identity)
+      }
+      const scientificKey = scientific.toLowerCase()
+      if (!scientificIdentities.has(scientificKey)) {
+        scientificIdentities.set(scientificKey, identity)
+      }
+      codeMetadata.set(code, { commonName: common, scientificName: scientific })
     }
-  }
 
-  orderMap = map
-  indexMap = idx
-  birdlifeMap = bl
-  ebirdMap = eb
-  wikiTitleMap = wiki
-  identityByCommon = commonIdentities
-  identityByScientific = scientificIdentities
-  return map
+    orderMap = map
+    indexMap = idx
+    birdlifeMap = bl
+    ebirdMap = eb
+    wikiTitleMap = wiki
+    identityByCommon = commonIdentities
+    identityByScientific = scientificIdentities
+    metadataByCode = codeMetadata
+    return map
+  })()
+
+  try {
+    return await orderMapPromise
+  } catch (error) {
+    orderMapPromise = null
+    throw error
+  }
+}
+
+export async function getTaxonMetadataByCode(code: string): Promise<TaxonMetadata | undefined> {
+  await loadOrderMap()
+  return metadataByCode?.get(code)
+}
+
+export function getLoadedTaxonMetadataByCode(code: string): TaxonMetadata | undefined {
+  return metadataByCode?.get(code)
 }
 
 export async function resolveSpeciesIdentity(speciesName: string): Promise<SpeciesIdentity | undefined> {

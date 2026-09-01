@@ -4,7 +4,11 @@ import { getUserStorageKey } from '@/lib/storage-keys'
 import { fetchWithLocalAuthRetry, isLocalRuntime } from '@/lib/local-auth-fetch'
 import { assertWingDexApiResponse } from '@/lib/api-error'
 import { logClientFailure } from '@/lib/client-log'
-import { resolveSpeciesIdentity } from '@/lib/taxonomy-order'
+import {
+  getLoadedTaxonMetadataByCode,
+  getTaxonMetadataByCode,
+  resolveSpeciesIdentity,
+} from '@/lib/taxonomy-order'
 
 export type WingDexDataStore = ReturnType<typeof useWingDexData>
 
@@ -84,10 +88,13 @@ export function rebuildDexFromState(
 
     // Mirrors MIN(speciesName) in DEX_QUERY. Rows sharing a code are the same
     // bird spelled differently, so any is correct; the smallest is stable.
-    const speciesName = speciesObservations
-      .map(observation => observation.speciesName)
-      .sort()[0]
+    const selectedObservation = speciesObservations.reduce((minimum, observation) =>
+      observation.speciesName < minimum.speciesName ? observation : minimum
+    )
+    const speciesName = selectedObservation.speciesName
     const speciesCode = speciesObservations.find(o => o.speciesCode)?.speciesCode
+    const taxonCode = selectedObservation.taxonCode
+    const metadata = taxonCode ? getLoadedTaxonMetadataByCode(taxonCode) : undefined
 
     const firstSeen = speciesOutings.reduce((min, currentOuting) =>
       new Date(currentOuting.startTime) < new Date(min.startTime)
@@ -112,6 +119,9 @@ export function rebuildDexFromState(
       id: groupKey,
       speciesName,
       ...(speciesCode ? { speciesCode } : {}),
+      ...(taxonCode ? { taxonCode } : {}),
+      commonName: metadata?.commonName ?? existing?.commonName,
+      scientificName: metadata?.scientificName ?? existing?.scientificName,
       firstSeenDate: firstSeen.startTime,
       lastSeenDate: lastSeen.startTime,
       addedDate: existing?.addedDate || new Date().toISOString(),
@@ -153,6 +163,16 @@ function readLocalData(userId: string): WingDexPayload {
     observations: read<Observation>('observations'),
     dex: read<DexEntry>('dex'),
   }
+}
+
+async function enrichLocalDex(payload: WingDexPayload): Promise<WingDexPayload> {
+  const dex = await Promise.all(payload.dex.map(async entry => {
+    const code = entry.taxonCode ?? entry.speciesCode
+    if (!code) return entry
+    const metadata = await getTaxonMetadataByCode(code)
+    return metadata ? { ...entry, ...metadata } : entry
+  }))
+  return { ...payload, dex }
 }
 
 function writeLocalData(userId: string, payload: WingDexPayload) {
@@ -235,7 +255,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
       if (refreshGeneration.current !== generation) return
       if (isLocalRuntime()) {
         setStorageMode('local')
-        setPayload(readLocalData(userId))
+        setPayload(await enrichLocalDex(readLocalData(userId)))
       }
     }
   }, [userId, hasSession])

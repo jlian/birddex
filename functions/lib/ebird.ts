@@ -100,6 +100,7 @@ type ObservationForExport = {
 
 type DexEntryForExport = {
   speciesName: string
+  taxonCode?: string | null
   firstSeenDate: string
   lastSeenDate: string
   totalOutings: number
@@ -467,7 +468,7 @@ export function groupPreviewsIntoOutings(
       const existing = speciesMap.get(key)
       if (existing) {
         existing.count += preview.count
-        if (preview.observationNotes && !existing.notes.includes(preview.observationNotes)) {
+        if (preview.observationNotes && !existing.notes.split('; ').includes(preview.observationNotes)) {
           existing.notes = existing.notes ? `${existing.notes}; ${preview.observationNotes}` : preview.observationNotes
         }
       } else {
@@ -591,8 +592,9 @@ export function exportDexToCSV(dex: DexEntryForExport[]): string {
   ]
 
   const rows = dex.map(entry => {
-    const commonName = getDisplayName(entry.speciesName)
-    const scientificName = getScientificName(entry.speciesName) || ''
+    const metadata = getTaxonMetadata(entry.speciesName, entry.taxonCode)
+    const commonName = metadata.common ?? getDisplayName(entry.speciesName)
+    const scientificName = metadata.scientific ?? getScientificName(entry.speciesName) ?? ''
 
     return [
       commonName,

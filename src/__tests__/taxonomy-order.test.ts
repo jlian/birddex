@@ -3,6 +3,7 @@ import {
   getSpeciesOrder,
   buildSyncOrderLookup,
   getEbirdSpeciesUrl,
+  getTaxonMetadataByCode,
   getWikiTitleForSpecies,
   resolveSpeciesIdentity,
 } from '../lib/taxonomy-order'
@@ -124,6 +125,15 @@ describe('resolveSpeciesIdentity', () => {
 
   it('returns undefined rather than inventing a key', async () => {
     expect(await resolveSpeciesIdentity('Unknown bird')).toBeUndefined()
+  })
+})
+
+describe('getTaxonMetadataByCode', () => {
+  it('returns canonical names for an exact ISSF code', async () => {
+    await expect(getTaxonMetadataByCode('sobkiw2')).resolves.toEqual({
+      commonName: 'Southern Brown Kiwi (South I.)',
+      scientificName: 'Apteryx australis australis',
+    })
   })
 })
 

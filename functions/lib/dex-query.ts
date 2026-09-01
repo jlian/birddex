@@ -131,7 +131,7 @@ export async function computeDex(db: DexQueryDB, userId: string): Promise<DexRow
 
 export function enrichDexEntries(rows: DexRow[]) {
   return rows.map(row => {
-    const metadata = getTaxonMetadata(row.speciesName, row.taxonCode)
+    const metadata = getTaxonMetadata(row.speciesName, row.taxonCode || row.speciesCode)
     const compound = findCompoundTaxon(row.speciesName)
     const parents = compound?.parents.map(parent => ({
       commonName: parent.common,
@@ -148,6 +148,7 @@ export function enrichDexEntries(rows: DexRow[]) {
       ...row,
       addedDate: row.addedDate || undefined,
       bestPhotoId: row.bestPhotoId || undefined,
+      speciesCode: row.speciesCode || undefined,
       taxonCode: row.taxonCode || metadata.ebirdCode || undefined,
       commonName: metadata.common,
       scientificName: metadata.scientific,

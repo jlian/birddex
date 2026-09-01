@@ -395,6 +395,8 @@ private final class MapSnapshotCache {
 /// Matches web app's BirdRow/ListRow pattern: thumbnail, serif name, italic scientific name, metadata.
 struct BirdRow: View {
     let speciesName: String
+    var displayName: String?
+    var scientificName: String?
     var thumbnailUrl: String?
     var subtitle: String?
     var count: Int?
@@ -415,7 +417,7 @@ struct BirdRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(getDisplayName(speciesName))
+                    Text(displayName ?? getDisplayName(speciesName))
                         .font(.system(.body, design: .serif, weight: .semibold))
                         .foregroundStyle(Color.foregroundText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -424,7 +426,7 @@ struct BirdRow: View {
                     }
                 }
 
-                if let sci = getScientificName(speciesName) {
+                if let sci = scientificName ?? getScientificName(speciesName) {
                     Text(sci)
                         .font(.caption)
                         .italic()

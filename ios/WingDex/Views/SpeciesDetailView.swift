@@ -64,6 +64,28 @@ struct SpeciesDetailView: View {
             }
             .listRowSeparator(.hidden)
 
+            if let borrowedFrom = entry?.borrowedFrom {
+                Section {
+                    Text("Shown for \(borrowedFrom), one of \(entry?.compound?.parents.count ?? 2) parents.")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.mutedText)
+                }
+                .listRowSeparator(.hidden)
+            }
+
+            if let pageUrl = imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl),
+               let url = URL(string: pageUrl) {
+                Section {
+                    Link(destination: url) {
+                        Text(imageCredit?.label ?? "Photo on Wikimedia Commons")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .listRowSeparator(.hidden)
+            }
+
             // Wikipedia + links section
             if displayedExtract != nil || entry != nil {
                 Section {
@@ -288,13 +310,6 @@ struct SpeciesDetailView: View {
     private var wikiSection: some View {
         if let extract = displayedExtract {
             VStack(alignment: .leading, spacing: 8) {
-                if let borrowedFrom = entry?.borrowedFrom {
-                    Text("Shown for \(borrowedFrom), one of \(entry?.compound?.parents.count ?? 2) parents.")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.mutedText)
-                }
-
                 Text(extract)
                     .font(.system(size: 14))
                     .foregroundStyle(Color.foregroundText.opacity(0.8))
@@ -306,14 +321,6 @@ struct SpeciesDetailView: View {
                         .foregroundStyle(Color.mutedText)
                 }
 
-                // The hero is an individually licensed Commons photo, so it needs its own credit.
-                if let credit = imageCredit, let url = URL(string: credit.pageUrl) {
-                    Link(destination: url) {
-                        Text(credit.label)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
             }
         }
     }

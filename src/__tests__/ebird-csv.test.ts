@@ -518,6 +518,28 @@ describe('eBird CSV utilities', () => {
       const { observations } = groupPreviewsIntoOutings(previews, 'u1')
       expect(observations[0].notes).toBe('Flying overhead')
     })
+
+    it('keeps distinct observation notes when one is a substring of another', () => {
+      const previews = [
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'adult male',
+        },
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'adult',
+        },
+      ]
+
+      const { observations } = groupPreviewsIntoOutings(previews, 'u1')
+      expect(observations[0].notes).toBe('adult male; adult')
+    })
   })
 
   /* ---------- export tests ---------- */
@@ -611,6 +633,22 @@ describe('eBird CSV utilities', () => {
       const cells = parseCSVLineForTest(row)
       expect(cells[2]).toBe('2025-01-15')
       expect(cells[3]).toBe('2025-01-16')
+    })
+
+    it('uses exact taxon metadata for an ISSF export', () => {
+      const csv = exportDexToCSV([{
+        speciesName: 'Southern Brown Kiwi (South I.)',
+        taxonCode: 'sobkiw2',
+        firstSeenDate: '2025-06-01T00:00:00.000Z',
+        lastSeenDate: '2025-06-01T00:00:00.000Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: '',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[0]).toBe('Southern Brown Kiwi (South I.)')
+      expect(cells[1]).toBe('Apteryx australis australis')
     })
   })
 

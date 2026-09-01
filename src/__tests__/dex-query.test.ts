@@ -186,4 +186,35 @@ describe('enrichDexEntries', () => {
       taxonCode: 'sobkiw2',
     })
   })
+
+  it('uses a grouping code to enrich legacy names without returning null codes', () => {
+    const [entry, unknownEntry] = enrichDexEntries([{
+      id: 'code:norcar',
+      speciesName: 'Legacy cardinal label',
+      speciesCode: 'norcar',
+      taxonCode: null,
+      firstSeenDate: '2026-01-01',
+      lastSeenDate: '2026-01-01',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    }, {
+      id: 'name:Unknown bird',
+      speciesName: 'Unknown bird',
+      speciesCode: null,
+      firstSeenDate: '2026-01-01',
+      lastSeenDate: '2026-01-01',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    }])
+
+    expect(entry).toMatchObject({
+      commonName: 'Northern Cardinal',
+      scientificName: 'Cardinalis cardinalis',
+      speciesCode: 'norcar',
+      taxonCode: 'norcar',
+    })
+    expect(unknownEntry.speciesCode).toBeUndefined()
+  })
 })

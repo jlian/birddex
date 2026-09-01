@@ -30,6 +30,17 @@ WITH keyed AS (
       )
     END AS resolvedGroupKey
   FROM dex_meta dm
+), deduped_notes AS (
+  SELECT DISTINCT userId, resolvedGroupKey, notes
+  FROM keyed
+  WHERE notes <> ''
+), grouped_notes AS (
+  SELECT
+    userId,
+    resolvedGroupKey,
+    GROUP_CONCAT(notes, char(10) || char(10)) AS notes
+  FROM deduped_notes
+  GROUP BY userId, resolvedGroupKey
 )
 INSERT INTO dex_meta_grouped (
   userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
@@ -41,7 +52,11 @@ SELECT
   CASE WHEN resolvedGroupKey LIKE 'code:%' THEN substr(resolvedGroupKey, 6) END,
   MIN(addedDate),
   MIN(bestPhotoId),
-  COALESCE(GROUP_CONCAT(NULLIF(notes, ''), char(10) || char(10)), '')
+  COALESCE((
+    SELECT notes FROM grouped_notes
+    WHERE grouped_notes.userId = keyed.userId
+      AND grouped_notes.resolvedGroupKey = keyed.resolvedGroupKey
+  ), '')
 FROM keyed
 GROUP BY userId, resolvedGroupKey;
 
