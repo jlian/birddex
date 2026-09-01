@@ -1,4 +1,4 @@
-import { getWikiMetadata } from './taxonomy'
+import { findCompoundTaxon, getTaxonMetadata } from './taxonomy'
 
 export type DexRow = {
   id: string
@@ -8,6 +8,7 @@ export type DexRow = {
    * The grouping key when present; speciesName is the fallback.
    */
   speciesCode?: string | null
+  taxonCode?: string | null
   firstSeenDate: string
   lastSeenDate: string
   addedDate?: string | null
@@ -48,6 +49,7 @@ export const DEX_QUERY = `
       END AS groupKey,
       MIN(obs.speciesName) AS speciesName,
       obs.speciesCode AS speciesCode,
+      obs.taxonCode AS taxonCode,
       MIN(o.startTime) AS firstSeenDate,
       MAX(o.startTime) AS lastSeenDate,
       COUNT(DISTINCT obs.outingId) AS totalOutings,
@@ -70,6 +72,7 @@ export const DEX_QUERY = `
     g.groupKey AS id,
     g.speciesName AS speciesName,
     g.speciesCode AS speciesCode,
+    g.taxonCode AS taxonCode,
     g.firstSeenDate AS firstSeenDate,
     g.lastSeenDate AS lastSeenDate,
     m.addedDate AS addedDate,
@@ -98,13 +101,32 @@ export async function computeDex(db: DexQueryDB, userId: string): Promise<DexRow
 
 export function enrichDexEntries(rows: DexRow[]) {
   return rows.map(row => {
-    const { wikiTitle, thumbnailUrl } = getWikiMetadata(row.speciesName)
+    const metadata = getTaxonMetadata(row.speciesName, row.taxonCode)
+    const compound = findCompoundTaxon(row.speciesName)
+    const parents = compound?.parents.map(parent => ({
+      commonName: parent.common,
+      scientificName: parent.scientific,
+      speciesCode: parent.ebirdCode,
+      wikiTitle: parent.wikiTitle,
+      thumbnailUrl: parent.thumbnailPath
+        ? `https://upload.wikimedia.org/wikipedia/commons/${parent.thumbnailPath}`
+        : undefined,
+      birdlifeId: parent.birdlifeId,
+    }))
+    const borrowedParent = parents?.[0]
     return {
       ...row,
       addedDate: row.addedDate || undefined,
       bestPhotoId: row.bestPhotoId || undefined,
-      wikiTitle,
-      thumbnailUrl,
+      taxonCode: row.taxonCode || undefined,
+      commonName: metadata.common,
+      scientificName: metadata.scientific,
+      wikiTitle: metadata.wikiTitle ?? borrowedParent?.wikiTitle,
+      thumbnailUrl: metadata.thumbnailUrl ?? borrowedParent?.thumbnailUrl,
+      ...(compound && parents ? {
+        compound: { kind: compound.kind, parents },
+        borrowedFrom: borrowedParent?.commonName,
+      } : {}),
     }
   })
 }

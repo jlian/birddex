@@ -129,4 +129,23 @@ describe('enrichDexEntries', () => {
     expect(entry.addedDate).toBeUndefined()
     expect(entry.bestPhotoId).toBeUndefined()
   })
+
+  it('uses exact taxon identity for canonical display names', () => {
+    const [entry] = enrichDexEntries([{
+      id: 'code:sobkiw1',
+      speciesName: 'Southern Brown Kiwi (South I.)',
+      speciesCode: 'sobkiw1',
+      taxonCode: 'sobkiw2',
+      firstSeenDate: '2026-01-01',
+      lastSeenDate: '2026-01-01',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    }])
+    expect(entry).toMatchObject({
+      commonName: 'Southern Brown Kiwi (South I.)',
+      scientificName: 'Apteryx australis australis',
+      taxonCode: 'sobkiw2',
+    })
+  })
 })

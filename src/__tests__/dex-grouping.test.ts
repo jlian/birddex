@@ -17,6 +17,7 @@ let db: Database.Database
 function seed(rows: Array<{
   name: string
   code: string | null
+  taxonCode?: string | null
   outing: string
   count?: number
   certainty?: string
@@ -29,9 +30,9 @@ function seed(rows: Array<{
   let i = 0
   for (const r of rows) {
     db.prepare(
-      `INSERT INTO observation (id, outingId, userId, speciesName, speciesCode, count, certainty)
-       VALUES (?, ?, 'u1', ?, ?, ?, ?)`)
-      .run(`obs${i++}`, r.outing, r.name, r.code, r.count ?? 1,
+      `INSERT INTO observation (id, outingId, userId, speciesName, speciesCode, taxonCode, count, certainty)
+       VALUES (?, ?, 'u1', ?, ?, ?, ?, ?)`)
+      .run(`obs${i++}`, r.outing, r.name, r.code, r.taxonCode ?? r.code, r.count ?? 1,
            r.certainty ?? 'confirmed')
   }
 }
@@ -50,6 +51,7 @@ beforeEach(() => {
     CREATE TABLE observation (
       id TEXT PRIMARY KEY, outingId TEXT, userId TEXT,
       speciesName TEXT NOT NULL, speciesCode TEXT,
+      taxonCode TEXT,
       count INTEGER DEFAULT 1, certainty TEXT DEFAULT 'confirmed');
     CREATE TABLE dex_meta (
       userId TEXT, groupKey TEXT, speciesName TEXT, speciesCode TEXT,

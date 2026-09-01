@@ -62,6 +62,11 @@ export interface DexEntry {
   speciesName: string
   /** eBird species code for this dex entry, absent for unresolvable taxa. */
   speciesCode?: string
+  /** Exact eBird taxon code represented by speciesName. */
+  taxonCode?: string
+  /** Canonical taxonomy names, resolved by taxonCode rather than parsed. */
+  commonName?: string
+  scientificName?: string
   firstSeenDate: string
   lastSeenDate: string
   /** When this species was first added to WingDex (wall-clock time) */
@@ -72,5 +77,17 @@ export interface DexEntry {
   notes: string
   wikiTitle?: string
   thumbnailUrl?: string
+  borrowedFrom?: string
+  compound?: {
+    kind: 'hybrid' | 'slash'
+    parents: Array<{
+      commonName: string
+      scientificName: string
+      speciesCode?: string
+      wikiTitle?: string
+      thumbnailUrl?: string
+      birdlifeId?: string
+    }>
+  }
 }
 

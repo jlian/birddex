@@ -764,6 +764,13 @@ components:
         speciesCode:
           type: string
           description: eBird species code for this group, absent for unresolvable taxa.
+        taxonCode:
+          type: string
+          description: Exact eBird taxon code represented by speciesName.
+        commonName:
+          type: string
+        scientificName:
+          type: string
         firstSeenDate:
           type: string
         lastSeenDate:
@@ -783,6 +790,40 @@ components:
         thumbnailUrl:
           type: string
           format: uri
+        borrowedFrom:
+          type: string
+        compound:
+          $ref: "#/components/schemas/CompoundTaxon"
+
+    CompoundTaxon:
+      type: object
+      required: [kind, parents]
+      properties:
+        kind:
+          type: string
+          enum: [hybrid, slash]
+        parents:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompoundTaxonParent"
+
+    CompoundTaxonParent:
+      type: object
+      required: [commonName, scientificName]
+      properties:
+        commonName:
+          type: string
+        scientificName:
+          type: string
+        speciesCode:
+          type: string
+        wikiTitle:
+          type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+        birdlifeId:
+          type: string
 
     # -------------------------------------------------------------------------
     # Request Bodies
