@@ -355,7 +355,7 @@ function OutingDetail({
   // this an outing showing two spellings of one bird would list it twice while
   // the dex counted it once.
   const groupBySpecies = (list: Observation[]) => {
-    const map = new Map<string, { speciesName: string; totalCount: number; obsIds: string[] }>()
+    const map = new Map<string, { key: string; speciesName: string; totalCount: number; obsIds: string[] }>()
     for (const obs of list) {
       const key = obs.speciesCode ? `code:${obs.speciesCode}` : `name:${obs.speciesName}`
       const existing = map.get(key)
@@ -365,7 +365,7 @@ function OutingDetail({
         // Mirrors MIN(speciesName) server-side so the label is deterministic.
         if (obs.speciesName < existing.speciesName) existing.speciesName = obs.speciesName
       } else {
-        map.set(key, { speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
+        map.set(key, { key, speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
       }
     }
     return Array.from(map.values())
@@ -628,7 +628,7 @@ function OutingDetail({
           <div>
             {groupedConfirmed.map(group => (
               <BirdRow
-                key={group.speciesName}
+                key={group.key}
                 speciesName={group.speciesName}
                 subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                 onClick={() => onSelectSpecies(group.speciesName)}
@@ -657,7 +657,7 @@ function OutingDetail({
             <div>
               {groupedPossible.map(group => (
                 <BirdRow
-                  key={group.speciesName}
+                  key={group.key}
                   speciesName={group.speciesName}
                   subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                   onClick={() => onSelectSpecies(group.speciesName)}

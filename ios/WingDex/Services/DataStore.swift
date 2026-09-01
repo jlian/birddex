@@ -43,7 +43,7 @@ final class DataStore {
     private var dexEntryBySpeciesName: [String: DexEntry] = [:]
     /// Keyed by DexEntry.id, the code-or-name grouping key.
     private var dexEntryBySpeciesKey: [String: DexEntry] = [:]
-    private var dexDateBySpeciesName: [String: Date] = [:]
+    private var dexDateBySpeciesKey: [String: Date] = [:]
     private var recentOutingsByDate: [Outing] = []
     private var recentSpeciesByDate: [DexEntry] = []
 
@@ -283,7 +283,7 @@ final class DataStore {
     }
 
     func sortDate(for entry: DexEntry) -> Date {
-        dexDateBySpeciesName[entry.speciesName] ?? .distantPast
+        dexDateBySpeciesKey[entry.id] ?? .distantPast
     }
 
     /// Recent outings sorted by date descending, limited to `count`.
@@ -544,7 +544,12 @@ final class DataStore {
         let datedEntries = dex.map { (entry: $0, date: DateFormatting.sortDate($0.firstSeenDate)) }
         dexEntryBySpeciesName = Dictionary(dex.map { ($0.speciesName, $0) }, uniquingKeysWith: { _, latest in latest })
         dexEntryBySpeciesKey = Dictionary(dex.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
-        dexDateBySpeciesName = Dictionary(uniqueKeysWithValues: datedEntries.map { ($0.entry.speciesName, $0.date) })
+        // Keyed by DexEntry.id, not speciesName. DEX_QUERY can legitimately
+        // return a coded and an uncoded group carrying the same MIN(speciesName),
+        // and Dictionary(uniqueKeysWithValues:) TRAPS on a duplicate key, so
+        // keying by name crashed the app on a valid rollout state.
+        dexDateBySpeciesKey = Dictionary(datedEntries.map { ($0.entry.id, $0.date) },
+                                         uniquingKeysWith: { _, latest in latest })
         recentSpeciesByDate = datedEntries
             .sorted { $0.date > $1.date }
             .map(\.entry)
