@@ -16,12 +16,12 @@ import { TAXONOMY_NAMES_SHA16 } from '@/lib/taxonomy-names-hash'
  * src/lib/taxonomy-names-hash.ts before updating the constant.
  */
 describe('taxonomy name gate', () => {
-  it('matches the current code to common-name mapping', () => {
+  it('matches the current code to common and scientific name mapping', () => {
     const rows = JSON.parse(readFileSync('src/lib/taxonomy.json', 'utf8')) as unknown[][]
     const pairs: string[] = []
     for (const row of rows) {
       const code = row[2] as string | undefined
-      if (code) pairs.push(`${code}\t${row[0] as string}`)
+      if (code) pairs.push(`${code}\t${row[0] as string}\t${row[1] as string}`)
     }
     pairs.sort()
     const actual = createHash('sha256').update(pairs.join('\n')).digest('hex').slice(0, 16)
@@ -36,12 +36,12 @@ describe('taxonomy name gate', () => {
 
   it('has one name per code, so the mapping is a function', () => {
     const rows = JSON.parse(readFileSync('src/lib/taxonomy.json', 'utf8')) as unknown[][]
-    const seen = new Map<string, string>()
+    const seen = new Set<string>()
     for (const row of rows) {
       const code = row[2] as string | undefined
       if (!code) continue
       expect(seen.has(code), `duplicate code ${code}`).toBe(false)
-      seen.set(code, row[0] as string)
+      seen.add(code)
     }
     expect(seen.size).toBeGreaterThan(10_000)
   })

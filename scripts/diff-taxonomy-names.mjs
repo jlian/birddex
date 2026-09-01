@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Report how the eBird code to common-name mapping changed, so a taxonomy
+ * Report how the eBird code to common and scientific names changed, so a taxonomy
  * update can be classified before it ships.
  *
  * Adds and removals are safe. A RENAME is not: dex groups are keyed by the
@@ -43,27 +43,39 @@ if (!baseRef) {
     'itself and always reports no renames.')
   process.exit(2)
 }
-if (baseRef === 'HEAD') {
+let resolvedBase
+try {
+  resolvedBase = execFileSync('git', ['rev-parse', '--verify', '--end-of-options', `${baseRef}^{commit}`], {
+    encoding: 'utf8',
+  }).trim()
+} catch {
+  console.error(`Could not resolve base ref ${baseRef}.`)
+  process.exit(2)
+}
+const resolvedHead = execFileSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
+  encoding: 'utf8',
+}).trim()
+if (resolvedBase === resolvedHead) {
   console.error(
-    'Refusing base ref HEAD: once the taxonomy change is committed this\n' +
-    'compares the file against itself and can never report a rename.\n' +
+    `Refusing base ref ${baseRef}: it resolves to HEAD, so it compares the\n` +
+    'taxonomy file against itself and can never report a rename.\n' +
     'Pass the branch you are merging into, e.g. origin/main.')
   process.exit(2)
 }
 
-/** code -> common name, for every row that carries a code. */
+/** code -> { common, scientific }, for every row that carries a code. */
 function mapping(rows) {
   const out = new Map()
   for (const row of rows) {
     const code = row[2]
-    if (code) out.set(code, row[0])
+    if (code) out.set(code, { common: row[0], scientific: row[1] })
   }
   return out
 }
 
 function readBase() {
   try {
-    const raw = execFileSync('git', ['show', `${baseRef}:${TAXONOMY}`], {
+    const raw = execFileSync('git', ['show', `${resolvedBase}:${TAXONOMY}`], {
       encoding: 'utf8',
       maxBuffer: 256 * 1024 * 1024,
     })
@@ -79,14 +91,24 @@ const after = mapping(JSON.parse(readFileSync(TAXONOMY, 'utf8')))
 
 const added = []
 const removed = []
-const renamed = []
+const commonRenamed = []
+const scientificRenamed = []
 
-for (const [code, name] of after) {
-  if (!before.has(code)) added.push(`${code}  ${name}`)
-  else if (before.get(code) !== name) renamed.push(`${code}  ${before.get(code)}  ->  ${name}`)
+for (const [code, names] of after) {
+  const oldNames = before.get(code)
+  if (!oldNames) {
+    added.push(`${code}  ${names.common} (${names.scientific})`)
+    continue
+  }
+  if (oldNames.common !== names.common) {
+    commonRenamed.push(`${code}  ${oldNames.common}  ->  ${names.common}`)
+  }
+  if (oldNames.scientific !== names.scientific) {
+    scientificRenamed.push(`${code}  ${oldNames.scientific}  ->  ${names.scientific}`)
+  }
 }
-for (const [code, name] of before) {
-  if (!after.has(code)) removed.push(`${code}  ${name}`)
+for (const [code, names] of before) {
+  if (!after.has(code)) removed.push(`${code}  ${names.common} (${names.scientific})`)
 }
 
 const show = (label, list) => {
@@ -100,15 +122,16 @@ console.log(`  before: ${before.size} coded species`)
 console.log(`  after : ${after.size} coded species`)
 show('Added', added)
 show('Removed', removed)
-show('RENAMED', renamed)
+show('COMMON NAME RENAMED', commonRenamed)
+show('SCIENTIFIC NAME RENAMED', scientificRenamed)
 
-if (renamed.length === 0) {
+if (commonRenamed.length === 0 && scientificRenamed.length === 0) {
   console.log('\nNo renames. Safe to ship on the current name-keyed dex.')
   process.exit(0)
 }
 
 console.error(
-  '\nRENAMES PRESENT. Dex groups are keyed by display name today (issue #306),\n' +
+  '\nNAME RENAMES PRESENT. Dex groups are keyed by display name today (issue #306),\n' +
   'so a shipped client still writing an old spelling will fork the life list\n' +
   'into duplicate entries. Land the code-keying migration first, or in the\n' +
   'same release, before shipping any client against this taxonomy.')

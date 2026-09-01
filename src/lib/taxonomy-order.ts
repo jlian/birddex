@@ -83,6 +83,10 @@ export async function getCompoundSpecies(
   const map = await loadOrderMap()
   const raw = speciesName.trim()
   const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const common = paren ? paren[1].trim() : raw
+  // A spuh names an unidentified member of a group, not a closed choice
+  // between the taxa listed in its slash-separated scientific field.
+  if (/\bsp\.\s*$/i.test(common)) return undefined
   const candidates = paren ? [paren[2].trim(), paren[1].trim(), raw] : [raw]
 
   for (const candidate of candidates) {

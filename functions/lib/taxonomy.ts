@@ -116,6 +116,10 @@ export function findCompoundTaxon(name: string): CompoundTaxon | null {
   // parseable too, using the classifier's own common-name index.
   const raw = name.trim()
   const paren = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const common = paren ? paren[1].trim() : raw
+  // A spuh names an unidentified member of a group, not a closed choice
+  // between the taxa listed in its slash-separated scientific field.
+  if (/\bsp\.\s*$/i.test(common)) return null
   const candidates = paren ? [paren[2].trim(), paren[1].trim(), raw] : [raw]
 
   for (const candidate of candidates) {
@@ -249,7 +253,7 @@ export function findBestMatch(name: string): TaxonEntry | null {
   const exactCommon = byCommonLower.get(rawLower)
   if (exactCommon) return exactCommon
 
-  const parenMatch = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  const parenMatch = raw.match(/^(.+?)\s*\((.+)\)\s*$/)
   if (parenMatch) {
     const commonPart = parenMatch[1].trim().toLowerCase()
     // eBird nests a qualifier inside the scientific name for some forms:

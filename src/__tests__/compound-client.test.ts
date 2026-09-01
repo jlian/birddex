@@ -33,8 +33,24 @@ describe('getCompoundSpecies', () => {
     expect(await getCompoundSpecies('Mallard')).toBeUndefined()
   })
 
-  it('returns undefined for a spuh, which has no parents to show', async () => {
+  it('returns undefined for a spuh, including its real stored form', async () => {
     expect(await getCompoundSpecies('gull sp.')).toBeUndefined()
+    for (const stored of [
+      'crested guineafowl sp. (Guttera pucherani/verreauxi/edouardi)',
+      'fork-tailed swift sp. (Apus pacificus/salimalii/leuconyx/cooki)',
+      'golden-plover sp. (Pluvialis dominica/apricaria/fulva)',
+      'sand-plover sp. (Anarhynchus mongolus/atrifrons/leschenaultii)',
+      'bar-winged cinclodes sp. (Cinclodes albidiventris/albiventris/fuscus)',
+      'tropical pewee sp. (Contopus punensis/cinereus/bogotensis)',
+      'mouse-warbler sp. (Origma robusta/murina/Aethomyias nigrorufus)',
+      'solitary vireo sp. (Vireo cassinii/solitarius/plumbeus)',
+      'limestone babbler sp. (Gypsophila annamensis/calcicola/crispifrons)',
+      'pied starling sp. (Gracupica contra/floweri/jalla)',
+      'troupial sp. (Icterus icterus/croconotus/jamacaii)',
+      'masked yellowthroat sp. (Geothlypis aequinoctialis/auricularis/velata)',
+    ]) {
+      expect(await getCompoundSpecies(stored), stored).toBeUndefined()
+    }
   })
 
   it('does not read one side as a scientific name and the other as a common name', async () => {

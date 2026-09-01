@@ -29,39 +29,18 @@ export type SortDir = 'asc' | 'desc'
 const INITIAL_VISIBLE_ITEMS = 40
 const LOAD_MORE_STEP = 40
 
-function getEbirdUrl(commonName: string): string {
-  const words = commonName.replace(/'/g, '').split(/[\s-]+/).filter(Boolean)
-  if (words.length === 0) return 'https://ebird.org/species'
-
-  let code = ''
-  if (words.length === 1) {
-    code = words[0].slice(0, 6)
-  } else if (words.length === 2) {
-    code = words[0].slice(0, 3) + words[1].slice(0, 3)
-  } else if (words.length === 3) {
-    code = words[0].slice(0, 2) + words[1].slice(0, 1) + words[2].slice(0, 3)
-  } else {
-    const charsFromLast = Math.max(1, 7 - words.length)
-    const prefixChars = 6 - charsFromLast
-    code = words.slice(0, words.length - 1).map(word => word[0]).join('').slice(0, prefixChars)
-      + words[words.length - 1].slice(0, charsFromLast)
-  }
-
-  return `https://ebird.org/species/${code.toLowerCase()}`
-}
-
-async function fetchEbirdUrl(speciesName: string): Promise<string> {
+async function fetchEbirdUrl(speciesName: string): Promise<string | undefined> {
   const response = await fetchWithLocalAuthRetry(`/api/species/ebird-code?name=${encodeURIComponent(speciesName)}`, {
     credentials: 'include',
   })
   if (!response.ok) {
-    return getEbirdUrl(getDisplayName(speciesName))
+    return undefined
   }
 
   const payload = await response.json() as { ebirdCode?: string | null }
   const code = payload.ebirdCode?.trim()
   if (!code) {
-    return getEbirdUrl(getDisplayName(speciesName))
+    return undefined
   }
 
   return `https://ebird.org/species/${code.toLowerCase()}`
@@ -361,7 +340,7 @@ function SpeciesDetail({
   // Taken once for the whole sightings list rather than per row.
   const resolveRarity = useRarityResolver()
   const { summary } = useBirdSummary(entry.speciesName, { wikiTitle: entry.wikiTitle })
-  const [ebirdUrl, setEbirdUrl] = useState(() => getEbirdUrl(displayName))
+  const [ebirdUrl, setEbirdUrl] = useState<string | undefined>(undefined)
   const [birdlifeUrl, setBirdlifeUrl] = useState<string | undefined>(undefined)
   // A hybrid or a slash has no article of its own. Naming its parents is the
   // only honest thing to show, and the two mean opposite things: a hybrid IS
@@ -385,6 +364,7 @@ function SpeciesDetail({
 
   useEffect(() => {
     let active = true
+    setEbirdUrl(undefined)
     void fetchEbirdUrl(entry.speciesName)
       .then(url => {
         if (active) {
@@ -393,7 +373,7 @@ function SpeciesDetail({
       })
       .catch(() => {
         if (active) {
-          setEbirdUrl(getEbirdUrl(displayName))
+          setEbirdUrl(undefined)
         }
       })
 
@@ -408,7 +388,7 @@ function SpeciesDetail({
     return () => {
       active = false
     }
-  }, [entry.speciesName, displayName])
+  }, [entry.speciesName])
 
   // Find all sightings of this species across outings
   const sightings: Array<{ observation: Observation; outing: { id: string; locationName: string; startTime: string; lat?: number | null; lon?: number | null } }> = []
@@ -572,12 +552,14 @@ function SpeciesDetail({
               </a>
             </Button>
           )}
-          <Button variant="outline" size="sm" asChild>
-            <a href={ebirdUrl} target="_blank" rel="noopener noreferrer">
-              <ArrowSquareOut size={14} className="mr-1.5" />
-              eBird
-            </a>
-          </Button>
+          {ebirdUrl && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={ebirdUrl} target="_blank" rel="noopener noreferrer">
+                <ArrowSquareOut size={14} className="mr-1.5" />
+                eBird
+              </a>
+            </Button>
+          )}
           {birdlifeUrl && (
             <Button variant="outline" size="sm" asChild>
               <a href={birdlifeUrl} target="_blank" rel="noopener noreferrer">

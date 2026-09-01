@@ -66,9 +66,25 @@ describe('findCompoundTaxon', () => {
     expect(findCompoundTaxon('Mallard')).toBeNull()
   })
 
-  it('returns null for a genus-level spuh, which has no parents to show', () => {
+  it('returns null for a spuh, including its real stored form', () => {
     expect(findCompoundTaxon('gull sp.')).toBeNull()
     expect(findCompoundTaxon('Passerine sp.')).toBeNull()
+    for (const stored of [
+      'crested guineafowl sp. (Guttera pucherani/verreauxi/edouardi)',
+      'fork-tailed swift sp. (Apus pacificus/salimalii/leuconyx/cooki)',
+      'golden-plover sp. (Pluvialis dominica/apricaria/fulva)',
+      'sand-plover sp. (Anarhynchus mongolus/atrifrons/leschenaultii)',
+      'bar-winged cinclodes sp. (Cinclodes albidiventris/albiventris/fuscus)',
+      'tropical pewee sp. (Contopus punensis/cinereus/bogotensis)',
+      'mouse-warbler sp. (Origma robusta/murina/Aethomyias nigrorufus)',
+      'solitary vireo sp. (Vireo cassinii/solitarius/plumbeus)',
+      'limestone babbler sp. (Gypsophila annamensis/calcicola/crispifrons)',
+      'pied starling sp. (Gracupica contra/floweri/jalla)',
+      'troupial sp. (Icterus icterus/croconotus/jamacaii)',
+      'masked yellowthroat sp. (Geothlypis aequinoctialis/auricularis/velata)',
+    ]) {
+      expect(findCompoundTaxon(stored), stored).toBeNull()
+    }
   })
 
   it('does not read one side as a scientific name and the other as a common name', () => {
@@ -110,10 +126,10 @@ describe('findBestMatch resolves subspecies without guessing', () => {
       .toBe('Dark-eyed Junco')
   })
 
-  it('handles a qualifier nested inside the scientific name', () => {
-    // eBird writes "Branta bernicla (Gray-bellied)" for some forms.
+  it('resolves common-name qualifiers and a nested scientific qualifier', () => {
     expect(findBestMatch('Brant (Gray-bellied)')?.common).toBe('Brant')
     expect(findBestMatch('Graylag Goose (Domestic type)')?.common).toBe('Graylag Goose')
+    expect(findBestMatch('Brant (Branta bernicla (Gray-bellied))')?.common).toBe('Brant')
   })
 
   it('does not resolve a compound taxon to one arbitrary parent', () => {
