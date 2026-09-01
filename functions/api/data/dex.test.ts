@@ -89,6 +89,32 @@ describe('dex metadata grouping identity', () => {
     })
   })
 
+  it('resolves an omitted key from the current migrated dex group', async () => {
+    computeDex.mockResolvedValueOnce([{
+      id: 'name:Northern Cardinal',
+      speciesName: 'Northern Cardinal',
+      firstSeenDate: '2026-01-01',
+      lastSeenDate: '2026-01-01',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    }])
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`CREATE TABLE dex_meta (
+      userId TEXT, groupKey TEXT, speciesName TEXT, speciesCode TEXT,
+      addedDate TEXT, bestPhotoId TEXT, notes TEXT,
+      PRIMARY KEY (userId, groupKey));`)
+
+    const response = await onRequestPatch(context(d1(sqlite), {
+      speciesName: 'Northern Cardinal', notes: 'legacy client',
+    }))
+
+    expect(response.status).toBe(200)
+    expect(sqlite.prepare('SELECT groupKey, speciesCode, notes FROM dex_meta').get()).toEqual({
+      groupKey: 'name:Northern Cardinal', speciesCode: null, notes: 'legacy client',
+    })
+  })
+
   it('falls back to the legacy name-keyed schema before migration 0016', async () => {
     const sqlite = new DatabaseSync(':memory:')
     sqlite.exec(`CREATE TABLE dex_meta (

@@ -110,8 +110,8 @@ describe('eBird CSV utilities', () => {
     ]
 
     const csv = exportDexToCSV(dex)
-    expect(csv).toContain('"Test Bird, Example"')
-    expect(csv).toContain('"Testus exempli"')
+    expect(csv).toContain('"Test Bird, Example (Testus exempli)"')
+    expect(csv).not.toContain('"Testus exempli"')
     expect(csv).toContain('"He said ""wow"""')
   })
 
@@ -649,6 +649,37 @@ describe('eBird CSV utilities', () => {
 
       expect(cells[0]).toBe('Southern Brown Kiwi (South I.)')
       expect(cells[1]).toBe('Apteryx australis australis')
+    })
+
+    it('uses the stable grouping code when the exact code is missing', () => {
+      const csv = exportDexToCSV([{
+        speciesName: 'Legacy cardinal label',
+        speciesCode: 'norcar',
+        firstSeenDate: '2025-06-01T00:00:00.000Z',
+        lastSeenDate: '2025-06-01T00:00:00.000Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: '',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[0]).toBe('Northern Cardinal')
+      expect(cells[1]).toBe('Cardinalis cardinalis')
+    })
+
+    it('does not parse unresolved qualified free text as taxonomy', () => {
+      const csv = exportDexToCSV([{
+        speciesName: 'Mystery Bird (South I.)',
+        firstSeenDate: '2025-06-01T00:00:00.000Z',
+        lastSeenDate: '2025-06-01T00:00:00.000Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: '',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[0]).toBe('Mystery Bird (South I.)')
+      expect(cells[1]).toBe('')
     })
   })
 

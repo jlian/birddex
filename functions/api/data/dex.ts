@@ -119,18 +119,26 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
 
   let appliedPatchCount = 0
   try {
-    const currentDex = patches.some(patch => patch.groupKey)
+    const supportsGroupKey = await hasDexMetaColumn(context.env.DB, 'groupKey')
+    const currentDex = supportsGroupKey || patches.some(patch => patch.groupKey)
       ? await computeDex(context.env.DB, userId)
       : []
     const entriesByKey = new Map(currentDex.map(entry => [entry.id, entry]))
+    const resolvedPatches: DexMetaPatch[] = []
     for (const patch of patches) {
-      if (!patch.groupKey) continue
-      const entry = entriesByKey.get(patch.groupKey)
-      if (!entry || entry.speciesName !== patch.speciesName) {
+      if (!supportsGroupKey) {
+        resolvedPatches.push(patch)
+        continue
+      }
+      const matches = patch.groupKey
+        ? [entriesByKey.get(patch.groupKey)].filter(entry => entry?.speciesName === patch.speciesName)
+        : currentDex.filter(entry => entry.speciesName === patch.speciesName)
+      if (matches.length !== 1 || !matches[0]) {
         return route.fail(400, 'Invalid dex grouping key', 'groupKey and speciesName must identify an existing dex entry')
       }
+      resolvedPatches.push({ ...patch, groupKey: matches[0].id })
     }
-    for (const patch of patches) {
+    for (const patch of resolvedPatches) {
       await upsertDexMetaPatch(context.env.DB, userId, patch)
       appliedPatchCount += 1
     }

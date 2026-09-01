@@ -100,6 +100,7 @@ type ObservationForExport = {
 
 type DexEntryForExport = {
   speciesName: string
+  speciesCode?: string | null
   taxonCode?: string | null
   firstSeenDate: string
   lastSeenDate: string
@@ -592,9 +593,9 @@ export function exportDexToCSV(dex: DexEntryForExport[]): string {
   ]
 
   const rows = dex.map(entry => {
-    const metadata = getTaxonMetadata(entry.speciesName, entry.taxonCode)
-    const commonName = metadata.common ?? getDisplayName(entry.speciesName)
-    const scientificName = metadata.scientific ?? getScientificName(entry.speciesName) ?? ''
+    const metadata = getTaxonMetadata(entry.speciesName, entry.taxonCode ?? entry.speciesCode)
+    const commonName = metadata.common ?? entry.speciesName
+    const scientificName = metadata.scientific ?? ''
 
     return [
       commonName,
