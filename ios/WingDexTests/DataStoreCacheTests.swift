@@ -4,6 +4,19 @@ import XCTest
 
 @MainActor
 final class DataStoreCacheTests: XCTestCase {
+    func testDexEntryDecodesCanonicalTaxonAndCompoundParents() throws {
+        let data = Data(#"{"outings":[],"photos":[],"observations":[],"dex":[{"id":"code:x00051","speciesName":"Western x Glaucous-winged Gull (hybrid)","speciesCode":"x00051","taxonCode":"x00051","commonName":"Western x Glaucous-winged Gull (hybrid)","scientificName":"Larus occidentalis x glaucescens","firstSeenDate":"2026-01-01","lastSeenDate":"2026-01-01","totalOutings":1,"totalCount":1,"notes":"","borrowedFrom":"Western Gull","compound":{"kind":"hybrid","parents":[{"commonName":"Western Gull","scientificName":"Larus occidentalis","speciesCode":"wesgul"},{"commonName":"Glaucous-winged Gull","scientificName":"Larus glaucescens","speciesCode":"glwgul"}]}}]}"#.utf8)
+
+        let response = try JSONDecoder().decode(AllDataResponse.self, from: data)
+        let entry = try XCTUnwrap(response.dex.first)
+
+        XCTAssertEqual(entry.taxonCode, "x00051")
+        XCTAssertEqual(entry.scientificName, "Larus occidentalis x glaucescens")
+        XCTAssertEqual(entry.borrowedFrom, "Western Gull")
+        XCTAssertEqual(entry.compound?.kind, "hybrid")
+        XCTAssertEqual(entry.compound?.parents.map(\.commonName), ["Western Gull", "Glaucous-winged Gull"])
+    }
+
     func testSingleRequestImportResponseDecodesSummaryAndSkippedRows() throws {
         let data = Data(#"{"imported":{"outings":2,"observations":3,"newSpecies":1},"skipped":{"rows":4},"dexUpdates":[]}"#.utf8)
 

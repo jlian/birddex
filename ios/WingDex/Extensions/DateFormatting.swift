@@ -311,6 +311,11 @@ func getEbirdURL(for speciesName: String) -> URL? {
     return URL(string: "https://ebird.org/species/\(ebirdCode)")
 }
 
+func getEbirdURL(forCode code: String?) -> URL? {
+    guard let code, !code.isEmpty else { return nil }
+    return URL(string: "https://ebird.org/species/\(code)")
+}
+
 /// Build a Wikipedia URL from the taxonomy-provided article title.
 func getWikipediaURL(for wikiTitle: String?) -> URL? {
     guard let wikiTitle, !wikiTitle.isEmpty else { return nil }

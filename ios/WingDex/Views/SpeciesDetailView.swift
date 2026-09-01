@@ -26,6 +26,8 @@ struct SpeciesDetailView: View {
         if let speciesKey { return store.sightings(byKey: speciesKey) }
         return store.sightings(for: speciesName)
     }
+    private var displayName: String { entry?.commonName ?? getDisplayName(speciesName) }
+    private var scientificName: String? { entry?.scientificName ?? getScientificName(speciesName) }
 
     /// Several photos of the same bird on one outing are stored as separate observations, so
     /// the list shows one row per outing and certainty with the counts added up.
@@ -71,6 +73,26 @@ struct SpeciesDetailView: View {
 
                 Section {
                     linksSection
+                }
+            }
+
+            if let compound = entry?.compound {
+                Section {
+                    Text(compound.kind == "hybrid"
+                         ? "Hybrid of \(joinedParentNames(compound.parents))."
+                         : "Recorded when \(joinedParentNames(compound.parents)) could not be told apart.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.mutedText)
+
+                    ForEach(compound.parents) { parent in
+                        if let url = getEbirdURL(forCode: parent.speciesCode) {
+                            Link(destination: url) {
+                                Label("\(parent.commonName) on eBird", systemImage: "globe")
+                            }
+                        }
+                    }
+                } header: {
+                    Text(compound.kind == "hybrid" ? "Parents" : "Possible Species")
                 }
             }
 
@@ -129,7 +151,7 @@ struct SpeciesDetailView: View {
         // and apply our own pageBg so the warm beige shows through. This two-step
         // pattern is used on every plain List in the app.
         .scrollContentBackground(.hidden)
-        .navigationTitle(getDisplayName(speciesName))
+        .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let entry {
@@ -187,11 +209,11 @@ struct SpeciesDetailView: View {
 
             // Name + stats overlay
             VStack(alignment: .leading, spacing: 4) {
-                Text(getDisplayName(speciesName))
+                Text(displayName)
                     .font(.system(size: 26, weight: .semibold, design: .serif))
                     .foregroundStyle(.white.opacity(0.9))
 
-                if let sci = getScientificName(speciesName) {
+                if let sci = scientificName {
                     Text(sci)
                         .font(.system(size: 14))
                         .italic()
@@ -241,6 +263,13 @@ struct SpeciesDetailView: View {
     private var wikiSection: some View {
         if let extract = displayedExtract {
             VStack(alignment: .leading, spacing: 8) {
+                if let borrowedFrom = entry?.borrowedFrom {
+                    Text("Shown for \(borrowedFrom), one of \(entry?.compound?.parents.count ?? 2) parents.")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.mutedText)
+                }
+
                 Text(extract)
                     .font(.system(size: 14))
                     .foregroundStyle(Color.foregroundText.opacity(0.8))
@@ -274,7 +303,7 @@ struct SpeciesDetailView: View {
                 }
         }
 
-        if let url = getEbirdURL(for: speciesName) {
+        if let url = getEbirdURL(forCode: entry?.taxonCode) ?? getEbirdURL(for: speciesName) {
             Link(destination: url) {
                 Label("eBird", systemImage: "globe")
             }
@@ -285,6 +314,12 @@ struct SpeciesDetailView: View {
                 Label("BirdLife", systemImage: "leaf")
             }
         }
+    }
+
+    private func joinedParentNames(_ parents: [CompoundTaxonParent]) -> String {
+        let names = parents.map(\.commonName)
+        guard names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " and " + (names.last ?? "")
     }
 
     // MARK: - Wikipedia Fetch

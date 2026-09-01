@@ -56,6 +56,8 @@ struct BirdObservation: Codable, Identifiable, Hashable, Sendable {
     /// eBird species code, nil when the name resolves to no known taxon.
     /// The dex grouping key when present; speciesName is the fallback.
     var speciesCode: String?
+    /// Exact eBird taxon code, including ISSF and other below-species taxa.
+    var taxonCode: String?
     var count: Int
     var certainty: ObservationStatus
     var representativePhotoId: String?
@@ -102,6 +104,9 @@ struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     let speciesName: String
     /// eBird species code for this entry, nil for an unresolvable taxon.
     var speciesCode: String?
+    var taxonCode: String?
+    var commonName: String?
+    var scientificName: String?
     let firstSeenDate: String
     let lastSeenDate: String
     var addedDate: String?
@@ -111,11 +116,29 @@ struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     var notes: String
     var wikiTitle: String?
     var thumbnailUrl: String?
+    var borrowedFrom: String?
+    var compound: CompoundTaxon?
 
     /// Identity is the grouping key, not the display name. Two spellings of one
     /// bird are a single entry server-side, so keying on speciesName here would
     /// disagree with the dex the server returns.
     var id: String { dexGroupKey(speciesCode: speciesCode, speciesName: speciesName) }
+}
+
+struct CompoundTaxon: Codable, Hashable, Sendable {
+    let kind: String
+    let parents: [CompoundTaxonParent]
+}
+
+struct CompoundTaxonParent: Codable, Hashable, Sendable, Identifiable {
+    let commonName: String
+    let scientificName: String
+    let speciesCode: String?
+    let wikiTitle: String?
+    let thumbnailUrl: String?
+    let birdlifeId: String?
+
+    var id: String { speciesCode ?? commonName }
 }
 
 // MARK: - API Response Types
