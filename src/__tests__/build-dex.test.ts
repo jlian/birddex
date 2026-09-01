@@ -103,6 +103,7 @@ describe('buildDexFromState', () => {
     const outings = [makeOuting()]
     const observations = [makeObs()]
     const existingDex: DexEntry[] = [{
+      id: 'name:Blue Jay',
       speciesName: 'Blue Jay',
       firstSeenDate: '2025-01-01T00:00:00Z',
       lastSeenDate: '2025-01-01T00:00:00Z',

@@ -64,7 +64,7 @@ function rebuildDexFromState(
 
   const rebuilt: DexEntry[] = []
 
-  for (const speciesObservations of grouped.values()) {
+  for (const [groupKey, speciesObservations] of grouped.entries()) {
     const speciesOutings = speciesObservations
       .map(observation => outingsById.get(observation.outingId))
       .filter((outing): outing is Outing => !!outing)
@@ -95,6 +95,10 @@ function rebuildDexFromState(
     const latestWithPhoto = [...speciesObservations].reverse().find(observation => observation.representativePhotoId)
 
     rebuilt.push({
+      // The same key this group was collected under, which is what DEX_QUERY
+      // now returns as `id`. Local and server dexes must agree on identity or a
+      // row would key one way offline and another way after a sync.
+      id: groupKey,
       speciesName,
       ...(speciesCode ? { speciesCode } : {}),
       firstSeenDate: firstSeen.startTime,

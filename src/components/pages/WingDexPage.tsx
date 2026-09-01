@@ -233,7 +233,11 @@ export default function WingDexPage({
   }
 
   if (selectedSpecies) {
-    const entry = dex.find(e => e.speciesName === selectedSpecies)
+    // Match on the grouping key first. speciesName is NOT unique: a coded and an
+    // uncoded group can share one MIN(speciesName), so a name lookup can land on
+    // the wrong entry. The name fallback keeps older bookmarked URLs working.
+    const entry = dex.find(e => e.id === selectedSpecies)
+      ?? dex.find(e => e.speciesName === selectedSpecies)
     if (!entry) {
       // Don't call onSelectSpecies during render -- return null gracefully
       return null
@@ -314,11 +318,11 @@ export default function WingDexPage({
         {visibleList.map((entry) => {
           return (
             <BirdRow
-              key={entry.speciesName}
+              key={entry.id}
               speciesName={entry.speciesName}
               imageUrl={entry.thumbnailUrl}
               subtitle={`${entry.totalOutings} ${entry.totalOutings === 1 ? 'outing' : 'outings'} · ${entry.totalCount} seen · ${formatStoredDate(entry.firstSeenDate)}`}
-              onClick={() => onSelectSpecies(entry.speciesName)}
+              onClick={() => onSelectSpecies(entry.id)}
             />
           )
         })}

@@ -99,6 +99,7 @@ describe('eBird CSV utilities', () => {
   it('escapes quotes in dex CSV export', () => {
     const dex: DexEntry[] = [
       {
+        id: 'name:Test Bird, Example (Testus exempli)',
         speciesName: 'Test Bird, Example (Testus exempli)',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-02-01T00:00:00.000Z',
@@ -213,6 +214,7 @@ describe('eBird CSV utilities', () => {
   it('marks in-range dates as duplicate import conflicts', () => {
     const existing = new Map<string, DexEntry>([
       ['Mallard', {
+        id: 'name:Mallard',
         speciesName: 'Mallard',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-12-31T00:00:00.000Z',
@@ -237,6 +239,7 @@ describe('eBird CSV utilities', () => {
   it('detects conflicts when import has scientific name but dex has only common name', () => {
     const existing = new Map<string, DexEntry>([
       ['Mallard', {
+        id: 'name:Mallard',
         speciesName: 'Mallard',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-12-31T00:00:00.000Z',
@@ -261,6 +264,7 @@ describe('eBird CSV utilities', () => {
   it('detects conflicts when dex has scientific name but import has only common name', () => {
     const existing = new Map<string, DexEntry>([
       ['Mallard (Anas platyrhynchos)', {
+        id: 'name:Mallard (Anas platyrhynchos)',
         speciesName: 'Mallard (Anas platyrhynchos)',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-12-31T00:00:00.000Z',
@@ -522,6 +526,7 @@ describe('eBird CSV utilities', () => {
     it('uses ISO date format (YYYY-MM-DD) instead of locale-dependent format', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Mallard (Anas platyrhynchos)',
           speciesName: 'Mallard (Anas platyrhynchos)',
           firstSeenDate: '2024-01-15T00:00:00.000Z',
           lastSeenDate: '2024-12-25T00:00:00.000Z',
@@ -541,6 +546,7 @@ describe('eBird CSV utilities', () => {
     it('splits species name into Common Name and Scientific Name columns', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Bald Eagle (Haliaeetus leucocephalus)',
           speciesName: 'Bald Eagle (Haliaeetus leucocephalus)',
           firstSeenDate: '2025-06-01T00:00:00.000Z',
           lastSeenDate: '2025-06-01T00:00:00.000Z',
@@ -561,6 +567,7 @@ describe('eBird CSV utilities', () => {
     it('handles species without scientific name', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Mystery Bird',
           speciesName: 'Mystery Bird',
           firstSeenDate: '2025-06-01T00:00:00.000Z',
           lastSeenDate: '2025-06-01T00:00:00.000Z',
@@ -589,6 +596,7 @@ describe('eBird CSV utilities', () => {
     it('preserves local calendar date from offset-aware timestamps', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Chukar (Alectoris chukar)',
           speciesName: 'Chukar (Alectoris chukar)',
           firstSeenDate: '2025-01-15T23:30:00-10:00',
           lastSeenDate: '2025-01-16T00:30:00-10:00',

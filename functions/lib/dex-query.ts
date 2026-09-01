@@ -119,6 +119,7 @@ export const DEX_QUERY = `
     GROUP BY COALESCE(n.groupKey, 'name:' || dm.speciesName)
   )
   SELECT
+    g.groupKey AS id,
     g.speciesName AS speciesName,
     g.speciesCode AS speciesCode,
     g.firstSeenDate AS firstSeenDate,

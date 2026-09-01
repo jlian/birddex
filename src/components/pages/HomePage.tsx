@@ -162,10 +162,10 @@ export default function HomePage({ data, onAddPhotos, onAddPhotosIntent, onSelec
             <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {recentSpecies.map(entry => (
                 <SpeciesCard
-                  key={entry.speciesName}
+                  key={entry.id}
                   speciesName={entry.speciesName}
                   date={entry.addedDate || entry.firstSeenDate}
-                  onClick={() => onSelectSpecies(entry.speciesName)}
+                  onClick={() => onSelectSpecies(entry.id)}
                 />
               ))}
             </div>

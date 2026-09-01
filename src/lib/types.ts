@@ -51,6 +51,13 @@ export interface Observation {
 }
 
 export interface DexEntry {
+  /**
+   * The grouping key: `code:<ebirdCode>` when the species resolved, `name:<speciesName>`
+   * otherwise. Stable across a rename, and unique where `speciesName` is NOT:
+   * a coded and an uncoded group can share one `MIN(speciesName)` mid-rollout.
+   * Use this for React keys, navigation and cache keys; use `speciesName` for display.
+   */
+  id: string
   speciesName: string
   /** eBird species code for this dex entry, absent for unresolvable taxa. */
   speciesCode?: string

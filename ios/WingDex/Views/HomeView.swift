@@ -65,7 +65,7 @@ struct HomeView: View {
                     Text(store.error?.message ?? "Something went wrong. Try again.")
                 }
                 .navigationDestination(for: DexEntry.self) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .navigationDestination(for: Outing.self) { outing in
                     OutingDetailView(outingId: outing.id)
@@ -77,7 +77,7 @@ struct HomeView: View {
                     )
                 }
                 .navigationDestination(item: $committedSpeciesEntry) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
         }
     }

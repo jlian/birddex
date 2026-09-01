@@ -93,10 +93,10 @@ struct WingDexView: View {
                     prompt: "Search species"
                 )
                 .navigationDestination(for: DexEntry.self) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .navigationDestination(item: $contextMenuSpecies) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .sensoryFeedback(.selection, trigger: sortField)
                 .sensoryFeedback(.selection, trigger: sortAscending)
@@ -258,7 +258,7 @@ struct WingDexView: View {
                 // wrapping in NavigationStack, navigation titles and toolbars are missing.
                 // Child views must receive their observable dependencies again here.
                 NavigationStack {
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .environment(auth)
                 .environment(store)
