@@ -21,13 +21,18 @@
  *
  * If this hash changes, run:
  *
- *     node scripts/diff-taxonomy-names.mjs <base-ref>
+ *     node scripts/diff-taxonomy-names.mjs origin/main
+ *
+ * The base ref is required, and it must be a revision from BEFORE the taxonomy
+ * changed. The script refuses HEAD, any spelling of it, and any other revision
+ * carrying the same taxonomy file, because comparing the taxonomy with itself
+ * can never report a rename.
  *
  * It reports adds, removals, common-name renames, and scientific-name renames
  * separately. Adds and removals are safe to ship. A RENAME is not, until
- * observations are keyed by species code
- * instead of by name. Ship the code-keying migration first, or in the same
- * release, and never ship a client that writes the old spelling afterwards.
+ * observations are keyed by species code instead of by name. Ship the
+ * code-keying migration first, or in the same release, and never ship a client
+ * that writes the old spelling afterwards.
  *
  * Update this constant only after that check, in the same commit as the
  * taxonomy change, so review sees both together.
