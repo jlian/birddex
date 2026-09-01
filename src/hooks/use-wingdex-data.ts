@@ -165,12 +165,13 @@ function readLocalData(userId: string): WingDexPayload {
   }
 }
 
-async function enrichLocalDex(payload: WingDexPayload): Promise<WingDexPayload> {
+export async function enrichLocalDex(payload: WingDexPayload): Promise<WingDexPayload> {
   const dex = await Promise.all(payload.dex.map(async entry => {
+    const id = entry.id ?? (entry.speciesCode ? `code:${entry.speciesCode}` : `name:${entry.speciesName}`)
     const code = entry.taxonCode ?? entry.speciesCode
-    if (!code) return entry
+    if (!code) return { ...entry, id }
     const metadata = await getTaxonMetadataByCode(code)
-    return metadata ? { ...entry, ...metadata } : entry
+    return metadata ? { ...entry, id, ...metadata } : { ...entry, id }
   }))
   return { ...payload, dex }
 }

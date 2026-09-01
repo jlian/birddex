@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rebuildDexFromState } from '@/hooks/use-wingdex-data'
+import { enrichLocalDex, rebuildDexFromState } from '@/hooks/use-wingdex-data'
 import { getTaxonMetadataByCode } from '@/lib/taxonomy-order'
 import type { DexEntry, Observation, Outing } from '@/lib/types'
 
@@ -108,5 +108,29 @@ describe('rebuildDexFromState', () => {
       commonName: 'Southern Brown Kiwi',
       scientificName: 'Apteryx australis',
     })
+  })
+})
+
+describe('enrichLocalDex', () => {
+  it('assigns stable ids to legacy coded and uncoded entries before render', async () => {
+    const makeLegacy = (speciesName: string, speciesCode?: string) => ({
+      speciesName,
+      ...(speciesCode ? { speciesCode } : {}),
+      firstSeenDate: '2025-01-01T00:00:00Z',
+      lastSeenDate: '2025-01-01T00:00:00Z',
+      addedDate: '2025-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    } as unknown as DexEntry)
+
+    const payload = await enrichLocalDex({
+      outings: [],
+      photos: [],
+      observations: [],
+      dex: [makeLegacy('Mallard', 'mallar3'), makeLegacy('Mystery Bird')],
+    })
+
+    expect(payload.dex.map(entry => entry.id)).toEqual(['code:mallar3', 'name:Mystery Bird'])
   })
 })

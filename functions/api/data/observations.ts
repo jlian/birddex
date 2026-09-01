@@ -57,10 +57,10 @@ async function getPatchBindings(
   patch: ObservationPatch,
   supportsSpeciesCode: boolean,
   supportsTaxonCode: boolean,
-): {
+): Promise<{
   updateFields: string[]
   bindings: Array<string | number | null>
-} {
+}> {
   const updateFields: string[] = []
   const bindings: Array<string | number | null> = []
 
