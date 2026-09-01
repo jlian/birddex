@@ -1,3 +1,15 @@
+# [1.28.0](https://github.com/jlian/wingdex/compare/v1.27.0...v1.28.0) (2026-09-01)
+
+
+### Bug Fixes
+
+* **Outings:** stabilize row context actions ([6dfdafb](https://github.com/jlian/wingdex/commit/6dfdafb455b1324a6901e99e929b29689aa8a232))
+
+
+### Features
+
+* **taxonomy:** key observations by eBird species code ([#380](https://github.com/jlian/wingdex/issues/380)) ([a06de80](https://github.com/jlian/wingdex/commit/a06de802bdc6af90b1978da657e03f22265a0acd)), closes [#306](https://github.com/jlian/wingdex/issues/306) [#381](https://github.com/jlian/wingdex/issues/381) [#381](https://github.com/jlian/wingdex/issues/381) [#381](https://github.com/jlian/wingdex/issues/381) [#381](https://github.com/jlian/wingdex/issues/381) [#381](https://github.com/jlian/wingdex/issues/381) [#381](https://github.com/jlian/wingdex/issues/381) [#306](https://github.com/jlian/wingdex/issues/306)
+
 # [1.27.0](https://github.com/jlian/wingdex/compare/v1.26.1...v1.27.0) (2026-08-31)
 
 
