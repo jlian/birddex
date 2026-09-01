@@ -50,6 +50,15 @@ export type CompoundSpecies = {
 }
 
 /**
+ * "A and B", "A, B and C". Compound taxa carry two or three parents, and both
+ * the dex page and the peek sheet render the same sentence from them.
+ */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? ''
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+/**
  * Resolve the parents of a hybrid or slash taxon.
  *
  * eBird generates these names mechanically, so they can be parsed rather than

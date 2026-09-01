@@ -12,7 +12,7 @@ import {
   type GalleryImage,
   type ImageCredit,
 } from '@/lib/wikimedia'
-import { getEbirdSpeciesUrl, getBirdlifeFactsheetUrl, getWikiTitleForSpecies, getCompoundSpecies } from '@/lib/taxonomy-order'
+import { getEbirdSpeciesUrl, getBirdlifeFactsheetUrl, getWikiTitleForSpecies, getCompoundSpecies, joinNames } from '@/lib/taxonomy-order'
 import type { CompoundSpecies } from '@/lib/taxonomy-order'
 import { formatConfidence } from '@/lib/bird-id-local-adapter'
 import type { RarityState } from '@/lib/rarity'
@@ -46,15 +46,6 @@ interface SpeciesDetails {
 }
 
 const EMPTY: SpeciesDetails = { images: [], links: {} }
-
-/**
- * "A and B", "A, B and C". Used for hybrid parents and slash candidates, where
- * the list is 2 or 3 names.
- */
-function listNames(names: string[]): string {
-  if (names.length <= 1) return names[0] ?? ''
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-}
 
 /**
  * Whether an entry is worth keeping rather than refetching. The extract is the
@@ -329,8 +320,8 @@ export function SpeciesPeekSheet({
           {detail.compound && (
             <p className="text-sm text-muted-foreground">
               {detail.compound.kind === 'hybrid'
-                ? `Hybrid of ${listNames(detail.compound.parents)}.`
-                : `Recorded when ${listNames(detail.compound.parents)} could not be told apart.`}
+                ? `Hybrid of ${joinNames(detail.compound.parents)}.`
+                : `Recorded when ${joinNames(detail.compound.parents)} could not be told apart.`}
             </p>
           )}
 

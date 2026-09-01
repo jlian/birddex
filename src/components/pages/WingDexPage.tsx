@@ -18,7 +18,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { getDisplayName, getScientificName } from '@/lib/utils'
 import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
 import { formatStoredDate } from '@/lib/timezone'
-import { buildSyncOrderLookup, getBirdlifeFactsheetUrl } from '@/lib/taxonomy-order'
+import { buildSyncOrderLookup, getBirdlifeFactsheetUrl, getCompoundSpecies, joinNames } from '@/lib/taxonomy-order'
+import type { CompoundSpecies } from '@/lib/taxonomy-order'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 import type { DexEntry, Observation } from '@/lib/types'
 
@@ -362,6 +363,18 @@ function SpeciesDetail({
   const { summary } = useBirdSummary(entry.speciesName, { wikiTitle: entry.wikiTitle })
   const [ebirdUrl, setEbirdUrl] = useState(() => getEbirdUrl(displayName))
   const [birdlifeUrl, setBirdlifeUrl] = useState<string | undefined>(undefined)
+  // A hybrid or a slash has no article of its own. Naming its parents is the
+  // only honest thing to show, and the two mean opposite things: a hybrid IS
+  // both birds, a slash means the observer could not tell which one it was.
+  const [compound, setCompound] = useState<CompoundSpecies | undefined>(undefined)
+
+  useEffect(() => {
+    let active = true
+    void getCompoundSpecies(entry.speciesName).then(result => {
+      if (active) setCompound(result)
+    })
+    return () => { active = false }
+  }, [entry.speciesName])
 
   useEffect(() => {
     let active = true
@@ -512,6 +525,14 @@ function SpeciesDetail({
             </div>
           </div>
         </div>
+
+        {compound && (
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {compound.kind === 'hybrid'
+              ? `Hybrid of ${joinNames(compound.parents)}.`
+              : `Recorded when ${joinNames(compound.parents)} could not be told apart.`}
+          </p>
+        )}
 
         {/* About -- fade in when loaded */}
         {summary?.extract && (
