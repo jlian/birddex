@@ -10,7 +10,7 @@ import Foundation
 /// classifier, 33 MiB occurrence prior.
 ///
 /// The prior is the v4 blob, bundled UNCOMPRESSED by
-/// ios/scripts/sync-birdid-assets.sh: 34,541,674 bytes = 32.94 MiB, from a
+/// ios/scripts/sync-birdid-assets.sh: 34,534,667 bytes = 32.93 MiB, from a
 /// 21.54 MiB .gz. The 23 MiB quoted here before was the v3 blob.
 ///
 /// Classification is a cosine similarity against a frozen 10,994 x 768 matrix

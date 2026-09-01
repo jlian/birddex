@@ -49,11 +49,13 @@ const EMPTY: SpeciesDetails = { images: [], links: {} }
 
 /**
  * Whether an entry is worth keeping rather than refetching. The extract is the
- * part that fails on its own: the gallery and the links come from the bundled
- * taxonomy, so they survive a Wikipedia outage while the extract does not.
+ * only field that can fail transiently, so a compound taxon counts as complete
+ * without one: hybrids and slashes have no Wikipedia article of their own, and
+ * treating them as perpetually incomplete reran the whole five-request loader
+ * every time the candidate was revisited.
  */
 function isComplete(detail: SpeciesDetails | undefined): boolean {
-  return detail?.extract !== undefined
+  return detail?.extract !== undefined || detail?.compound !== undefined
 }
 
 function confidenceClass(confidence: number): string {

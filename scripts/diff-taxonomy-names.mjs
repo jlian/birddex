@@ -8,10 +8,13 @@
  * after the server adopts a new one forks the user's life list into two
  * entries. See src/lib/taxonomy-names-hash.ts for the full rule.
  *
- * Usage, comparing the working tree against a git revision:
+ * Usage, comparing the working tree against the revision you are merging into:
  *
- *   node scripts/diff-taxonomy-names.mjs            # against HEAD
  *   node scripts/diff-taxonomy-names.mjs origin/main
+ *   node scripts/diff-taxonomy-names.mjs $(git merge-base HEAD origin/main)
+ *
+ * The base ref is required and HEAD is refused, because after the taxonomy is
+ * committed HEAD holds the same file and every rename compares clean.
  *
  * Exit status is 0 when nothing was renamed, 1 when something was, so it can
  * gate a release step.
@@ -20,7 +23,33 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const TAXONOMY = 'src/lib/taxonomy.json'
-const baseRef = process.argv[2] ?? 'HEAD'
+
+// A base revision is REQUIRED, and deliberately has no default.
+//
+// Defaulting to HEAD made this a no-op exactly when it mattered: once the
+// taxonomy change is committed, HEAD and the working tree hold the same file,
+// so a rename compares against itself and exits 0. The companion hash test
+// passes in that same commit too, because its constant was updated alongside.
+// A gate that only fires before you commit is not a gate.
+const baseRef = process.argv[2]
+if (!baseRef) {
+  console.error(
+    'Usage: node scripts/diff-taxonomy-names.mjs <base-ref>\n\n' +
+    'Compare the working tree taxonomy against the taxonomy a base revision\n' +
+    'shipped. Use the branch you are merging into, not HEAD:\n\n' +
+    '  node scripts/diff-taxonomy-names.mjs origin/main\n' +
+    '  node scripts/diff-taxonomy-names.mjs $(git merge-base HEAD origin/main)\n\n' +
+    'HEAD is refused: after the taxonomy commit it compares the file with\n' +
+    'itself and always reports no renames.')
+  process.exit(2)
+}
+if (baseRef === 'HEAD') {
+  console.error(
+    'Refusing base ref HEAD: once the taxonomy change is committed this\n' +
+    'compares the file against itself and can never report a rename.\n' +
+    'Pass the branch you are merging into, e.g. origin/main.')
+  process.exit(2)
+}
 
 /** code -> common name, for every row that carries a code. */
 function mapping(rows) {

@@ -305,7 +305,7 @@ per-file cap:
 | `wingclip_visual_int8.onnx` | 13.72 MiB |
 | `wingclip_visual_int8.data` | 24.00 MiB |
 | `text_classifier_int8.bin` | 8.11 MiB |
-| `occurrence.7c39b341.bin.gz` | 21.54 MiB |
+| `occurrence.d0abc168.bin.gz` | 21.54 MiB |
 
 The prior is named by CONTENT HASH, not schema version, because `_headers`
 serves these immutable for a year, and a fixed name hands a stale blob to
