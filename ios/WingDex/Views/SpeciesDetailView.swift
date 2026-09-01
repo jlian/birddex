@@ -3,6 +3,11 @@ import SwiftUI
 struct SpeciesDetailView: View {
     let speciesName: String
     @Environment(AuthService.self) private var auth
+    /// The dex grouping key, when the caller has it (e.g. a grouped outing row).
+    /// Two groups can share a display label, so resolving by key keeps this
+    /// screen bound to the exact group the user tapped. Callers that only hold
+    /// a name (the dex list) leave this nil and resolve by name.
+    var speciesKey: String?
     @Environment(DataStore.self) private var store
     @Environment(ToastCenter.self) private var toasts
     @State private var wikiExtract: String?
@@ -13,10 +18,16 @@ struct SpeciesDetailView: View {
     @State private var imageOperationError: String?
     @State private var savedImageToPhotos = false
 
-    private var entry: DexEntry? { store.dexEntry(for: speciesName) }
-    private var sightings: [(observation: BirdObservation, outing: Outing)] {
-        store.sightings(for: speciesName)
+    private var entry: DexEntry? {
+        if let speciesKey { return store.dexEntry(byKey: speciesKey) }
+        return store.dexEntry(for: speciesName)
     }
+    private var sightings: [(observation: BirdObservation, outing: Outing)] {
+        if let speciesKey { return store.sightings(byKey: speciesKey) }
+        return store.sightings(for: speciesName)
+    }
+    private var displayName: String { entry?.commonName ?? getDisplayName(speciesName) }
+    private var scientificName: String? { entry?.scientificName ?? getScientificName(speciesName) }
 
     /// Several photos of the same bird on one outing are stored as separate observations, so
     /// the list shows one row per outing and certainty with the counts added up.
@@ -53,6 +64,28 @@ struct SpeciesDetailView: View {
             }
             .listRowSeparator(.hidden)
 
+            if let borrowedFrom = entry?.borrowedFrom {
+                Section {
+                    Text("Shown for \(borrowedFrom), one of \(entry?.compound?.parents.count ?? 2) \(entry?.compound?.kind == "slash" ? "possible species" : "parents").")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.mutedText)
+                }
+                .listRowSeparator(.hidden)
+            }
+
+            if let pageUrl = imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl),
+               let url = URL(string: pageUrl) {
+                Section {
+                    Link(destination: url) {
+                        Text(imageCredit?.label ?? "Photo on Wikimedia Commons")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .listRowSeparator(.hidden)
+            }
+
             // Wikipedia + links section
             if displayedExtract != nil || entry != nil {
                 Section {
@@ -62,6 +95,51 @@ struct SpeciesDetailView: View {
 
                 Section {
                     linksSection
+                }
+            }
+
+            if let compound = entry?.compound {
+                Section {
+                    Text(compound.kind == "hybrid"
+                         ? "Hybrid of \(joinedParentNames(compound.parents))."
+                         : "Recorded when \(joinedParentNames(compound.parents)) could not be told apart.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.mutedText)
+
+                    ForEach(compound.parents) { parent in
+                        HStack(alignment: .top, spacing: 12) {
+                            if let thumbnail = parent.thumbnailUrl, let url = URL(string: thumbnail) {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Color.secondary.opacity(0.15)
+                                }
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(parent.commonName).font(.subheadline).fontWeight(.semibold)
+                                Text(parent.scientificName).font(.caption).italic().foregroundStyle(Color.mutedText)
+                                HStack(spacing: 12) {
+                                    if let title = parent.wikiTitle,
+                                       let url = URL(string: "https://en.wikipedia.org/wiki/\(title.replacingOccurrences(of: " ", with: "_"))") {
+                                        Link("Wikipedia", destination: url)
+                                    }
+                                    if let url = getEbirdURL(forCode: parent.speciesCode) {
+                                        Link("eBird", destination: url)
+                                    }
+                                    if let id = parent.birdlifeId,
+                                       let url = URL(string: "https://datazone.birdlife.org/species/factsheet/\(id)") {
+                                        Link("BirdLife", destination: url)
+                                    }
+                                }
+                                .font(.caption)
+                            }
+                        }
+                    }
+                } header: {
+                    Text(compound.kind == "hybrid" ? "Parents" : "Possible Species")
                 }
             }
 
@@ -120,7 +198,7 @@ struct SpeciesDetailView: View {
         // and apply our own pageBg so the warm beige shows through. This two-step
         // pattern is used on every plain List in the app.
         .scrollContentBackground(.hidden)
-        .navigationTitle(getDisplayName(speciesName))
+        .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let entry {
@@ -178,11 +256,11 @@ struct SpeciesDetailView: View {
 
             // Name + stats overlay
             VStack(alignment: .leading, spacing: 4) {
-                Text(getDisplayName(speciesName))
+                Text(displayName)
                     .font(.system(size: 26, weight: .semibold, design: .serif))
                     .foregroundStyle(.white.opacity(0.9))
 
-                if let sci = getScientificName(speciesName) {
+                if let sci = scientificName {
                     Text(sci)
                         .font(.system(size: 14))
                         .italic()
@@ -243,14 +321,6 @@ struct SpeciesDetailView: View {
                         .foregroundStyle(Color.mutedText)
                 }
 
-                // The hero is an individually licensed Commons photo, so it needs its own credit.
-                if let credit = imageCredit, let url = URL(string: credit.pageUrl) {
-                    Link(destination: url) {
-                        Text(credit.label)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
             }
         }
     }
@@ -265,7 +335,7 @@ struct SpeciesDetailView: View {
                 }
         }
 
-        if let url = getEbirdURL(for: speciesName) {
+        if let url = getEbirdURL(forCode: entry?.taxonCode) ?? getEbirdURL(for: speciesName) {
             Link(destination: url) {
                 Label("eBird", systemImage: "globe")
             }
@@ -276,6 +346,12 @@ struct SpeciesDetailView: View {
                 Label("BirdLife", systemImage: "leaf")
             }
         }
+    }
+
+    private func joinedParentNames(_ parents: [CompoundTaxonParent]) -> String {
+        let names = parents.map(\.commonName)
+        guard names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " and " + (names.last ?? "")
     }
 
     // MARK: - Wikipedia Fetch

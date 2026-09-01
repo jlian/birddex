@@ -48,19 +48,27 @@ struct WingDexView: View {
             }
         case .name:
             sorted = store.dex.sorted {
-                let cmp = getDisplayName($0.speciesName)
-                    .localizedCaseInsensitiveCompare(getDisplayName($1.speciesName))
+                let cmp = ($0.commonName ?? getDisplayName($0.speciesName))
+                    .localizedCaseInsensitiveCompare($1.commonName ?? getDisplayName($1.speciesName))
                 return sortAscending ? cmp == .orderedAscending : cmp == .orderedDescending
             }
         case .family:
             sorted = store.dex.sorted {
-                taxonomicSpeciesPrecedes($0.speciesName, $1.speciesName, ascending: sortAscending)
+                taxonomicSpeciesPrecedes(
+                    $0.commonName ?? $0.speciesName,
+                    $1.commonName ?? $1.speciesName,
+                    ascending: sortAscending
+                )
             }
         }
 
         if navigation.wingDexFilter.isEmpty { return sorted }
         let query = navigation.wingDexFilter.lowercased()
-        return sorted.filter { $0.speciesName.lowercased().contains(query) }
+        return sorted.filter {
+            [$0.commonName, $0.scientificName, $0.speciesName]
+                .compactMap { $0 }
+                .contains { $0.lowercased().contains(query) }
+        }
     }
 
     // MARK: - Body
@@ -93,10 +101,10 @@ struct WingDexView: View {
                     prompt: "Search species"
                 )
                 .navigationDestination(for: DexEntry.self) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .navigationDestination(item: $contextMenuSpecies) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .sensoryFeedback(.selection, trigger: sortField)
                 .sensoryFeedback(.selection, trigger: sortAscending)
@@ -229,6 +237,9 @@ struct WingDexView: View {
             NavigationLink(value: entry) {
                 BirdRow(
                     speciesName: entry.speciesName,
+                    displayName: entry.commonName,
+                    scientificName: entry.scientificName,
+                    taxonCode: entry.taxonCode,
                     thumbnailUrl: entry.thumbnailUrl,
                     subtitle: "\(entry.totalOutings) outing\(entry.totalOutings == 1 ? "" : "s") \u{00B7} \(entry.totalCount) seen \u{00B7} \(DateFormatting.formatDate(entry.firstSeenDate, style: .medium))"
                 )
@@ -242,7 +253,7 @@ struct WingDexView: View {
                 ShareLink(item: SharePayload.species(entry)) {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
-                if let url = getEbirdURL(for: entry.speciesName) {
+                if let url = getEbirdURL(forCode: entry.taxonCode) ?? getEbirdURL(for: entry.speciesName) {
                     Link(destination: url) {
                         Label("Open in eBird", systemImage: "globe")
                     }
@@ -258,7 +269,7 @@ struct WingDexView: View {
                 // wrapping in NavigationStack, navigation titles and toolbars are missing.
                 // Child views must receive their observable dependencies again here.
                 NavigationStack {
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .environment(auth)
                 .environment(store)

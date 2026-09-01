@@ -1,6 +1,15 @@
 import SwiftUI
 import MapKit
 
+/// Identifies a species group for navigation from a grouped outing row.
+///
+/// Carries the dex key so the detail screen resolves the exact group, since two
+/// groups can share a display label. The label rides along only for display.
+struct SpeciesRoute: Hashable {
+    let key: String
+    let label: String
+}
+
 struct OutingDetailView: View {
     let outingId: String
     var beginsLocationEditing = false
@@ -10,7 +19,7 @@ struct OutingDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var editingNotes = false
     @State private var notesText = ""
-    @State private var contextMenuSpecies: String?
+    @State private var contextMenuSpecies: SpeciesRoute?
     @State private var editingLocation = false
     @State private var locationText = ""
     @State private var showingAddSpecies = false
@@ -48,7 +57,7 @@ struct OutingDetailView: View {
         .toolbar {
             if let outing {
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: SharePayload.outing(outing, observations: confirmed)) {
+                    ShareLink(item: SharePayload.outing(outing, observations: confirmed, dex: store.dex)) {
                         Label("Share Outing", systemImage: "square.and.arrow.up")
                     }
                 }
@@ -146,11 +155,11 @@ struct OutingDetailView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .navigationDestination(for: String.self) { speciesName in
-            SpeciesDetailView(speciesName: speciesName)
+        .navigationDestination(for: SpeciesRoute.self) { route in
+            SpeciesDetailView(speciesName: route.label, speciesKey: route.key)
         }
-        .navigationDestination(item: $contextMenuSpecies) { speciesName in
-            SpeciesDetailView(speciesName: speciesName)
+        .navigationDestination(item: $contextMenuSpecies) { route in
+            SpeciesDetailView(speciesName: route.label, speciesKey: route.key)
         }
     }
 
@@ -224,7 +233,7 @@ struct OutingDetailView: View {
     private func statsSection(_ outing: Outing) -> some View {
         HStack(spacing: 0) {
             statCard(
-                value: "\(Set(confirmed.map(\.speciesName)).count)",
+                value: "\(groupByDexKey(confirmed).count)",
                 label: "Species",
                 icon: "bird.fill"
             )
@@ -306,12 +315,14 @@ struct OutingDetailView: View {
 
     @ViewBuilder
     private var confirmedListSection: some View {
-        let grouped = Dictionary(grouping: confirmed, by: \.speciesName)
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+        // Group by the dex key, not the display name, so two spellings of one
+        // coded species render as one row and the header count agrees with
+        // DataStore.speciesCount and the server dex.
+        let grouped = groupByDexKey(confirmed)
 
         Section {
             speciesSectionTitle(
-                title: "Species (\(Set(confirmed.map(\.speciesName)).count))",
+                title: "Species (\(grouped.count))",
                 showsAddAction: true
             )
             .listRowSeparator(.hidden)
@@ -325,12 +336,20 @@ struct OutingDetailView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(Color.mutedText)
             } else {
-                ForEach(grouped, id: \.key) { speciesName, obs in
+                ForEach(grouped, id: \.key) { group in
+                    let speciesName = group.label
+                    let obs = group.observations
                     let totalCount = obs.reduce(0) { $0 + $1.count }
-                    let entry = store.dexEntry(for: speciesName)
-                    NavigationLink(value: speciesName) {
+                    // Resolve the entry by the group's key, not its label: two
+                    // groups can share a label, so a label lookup can return the
+                    // wrong entry or nil.
+                    let entry = store.dexEntry(byKey: group.key)
+                    NavigationLink(value: SpeciesRoute(key: group.key, label: speciesName)) {
                         BirdRow(
                             speciesName: speciesName,
+                            displayName: entry?.commonName,
+                            scientificName: entry?.scientificName,
+                            taxonCode: group.taxonCode,
                             thumbnailUrl: entry?.thumbnailUrl,
                             count: totalCount,
                             outing: outing
@@ -338,7 +357,7 @@ struct OutingDetailView: View {
                     }
                     .contextMenu {
                         Button {
-                            contextMenuSpecies = speciesName
+                            contextMenuSpecies = SpeciesRoute(key: group.key, label: speciesName)
                         } label: {
                             Label("View Details", systemImage: "bird")
                         }
@@ -347,7 +366,7 @@ struct OutingDetailView: View {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }
                         }
-                        if let url = getEbirdURL(for: speciesName) {
+                        if let url = getEbirdURL(forCode: group.taxonCode) ?? getEbirdURL(for: speciesName) {
                             Link(destination: url) {
                                 Label("Open in eBird", systemImage: "globe")
                             }
@@ -359,7 +378,7 @@ struct OutingDetailView: View {
                         }
                     } preview: {
                         NavigationStack {
-                            SpeciesDetailView(speciesName: speciesName)
+                            SpeciesDetailView(speciesName: speciesName, speciesKey: group.key)
                         }
                         .environment(auth)
                         .environment(store)
@@ -387,19 +406,26 @@ struct OutingDetailView: View {
     @ViewBuilder
     private var possibleListSection: some View {
         if !possible.isEmpty {
-            let grouped = Dictionary(grouping: possible, by: \.speciesName)
-                .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+            let grouped = groupByDexKey(possible)
 
             Section {
-                speciesSectionTitle(title: "Possible (\(possible.count))")
+                speciesSectionTitle(title: "Possible (\(grouped.count))")
                     .listRowSeparator(.hidden)
 
-                ForEach(grouped, id: \.key) { speciesName, obs in
+                ForEach(grouped, id: \.key) { group in
+                    let speciesName = group.label
+                    let obs = group.observations
                     let totalCount = obs.reduce(0) { $0 + $1.count }
-                    let entry = store.dexEntry(for: speciesName)
-                    NavigationLink(value: speciesName) {
+                    // Resolve the entry by the group's key, not its label: two
+                    // groups can share a label, so a label lookup can return the
+                    // wrong entry or nil.
+                    let entry = store.dexEntry(byKey: group.key)
+                    NavigationLink(value: SpeciesRoute(key: group.key, label: speciesName)) {
                         BirdRow(
                             speciesName: speciesName,
+                            displayName: entry?.commonName,
+                            scientificName: entry?.scientificName,
+                            taxonCode: group.taxonCode,
                             thumbnailUrl: entry?.thumbnailUrl,
                             count: totalCount,
                             outing: outing
@@ -407,7 +433,7 @@ struct OutingDetailView: View {
                     }
                     .contextMenu {
                         Button {
-                            contextMenuSpecies = speciesName
+                            contextMenuSpecies = SpeciesRoute(key: group.key, label: speciesName)
                         } label: {
                             Label("View Details", systemImage: "bird")
                         }
@@ -416,7 +442,7 @@ struct OutingDetailView: View {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }
                         }
-                        if let url = getEbirdURL(for: speciesName) {
+                        if let url = getEbirdURL(forCode: group.taxonCode) ?? getEbirdURL(for: speciesName) {
                             Link(destination: url) {
                                 Label("Open in eBird", systemImage: "globe")
                             }
@@ -428,7 +454,7 @@ struct OutingDetailView: View {
                         }
                     } preview: {
                         NavigationStack {
-                            SpeciesDetailView(speciesName: speciesName)
+                            SpeciesDetailView(speciesName: speciesName, speciesKey: group.key)
                         }
                         .environment(auth)
                         .environment(store)

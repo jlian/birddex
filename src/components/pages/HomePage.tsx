@@ -162,10 +162,11 @@ export default function HomePage({ data, onAddPhotos, onAddPhotosIntent, onSelec
             <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {recentSpecies.map(entry => (
                 <SpeciesCard
-                  key={entry.speciesName}
+                  key={entry.id}
                   speciesName={entry.speciesName}
+                  commonName={entry.commonName}
                   date={entry.addedDate || entry.firstSeenDate}
-                  onClick={() => onSelectSpecies(entry.speciesName)}
+                  onClick={() => onSelectSpecies(entry.id)}
                 />
               ))}
             </div>
@@ -227,8 +228,8 @@ export default function HomePage({ data, onAddPhotos, onAddPhotosIntent, onSelec
   )
 }
 
-function SpeciesCard({ speciesName, date, onClick }: { speciesName: string; date: string; onClick: () => void }) {
-  const displayName = getDisplayName(speciesName)
+function SpeciesCard({ speciesName, commonName, date, onClick }: { speciesName: string; commonName?: string; date: string; onClick: () => void }) {
+  const displayName = commonName ?? getDisplayName(speciesName)
 
   return (
     <button

@@ -30,8 +30,8 @@ describe('taxonomy hash', () => {
 
   it('matches the hash both shipped assets are keyed by', () => {
     for (const meta of [
-      'public/priors/occurrence.7c39b341.bin.gz.meta.json',
-      'public/priors/rarity.2ddeedbe.bin.gz.meta.json',
+      'public/priors/occurrence.d0abc168.bin.gz.meta.json',
+      'public/priors/rarity.410e7b98.bin.gz.meta.json',
     ]) {
       const parsed = JSON.parse(readFileSync(meta, 'utf8'))
       expect(parsed.taxonomy_sha256_8, meta).toBe(actual)

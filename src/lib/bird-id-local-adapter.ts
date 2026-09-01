@@ -79,10 +79,10 @@ export function mapIdentifyResults(results: IdentifyResult[]): BirdIdResult {
  * (`cat wingclip_visual_int8.onnx wingclip_visual_int8.data
  * text_classifier_int8.bin | sha256sum`).
  */
-export const MODEL_VERSION = "650a8d93"
+export const MODEL_VERSION = "32052999"
 
 /**
- * The four served assets, 56.25 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
+ * The four served assets, 56.23 MiB DOWNLOADED (MODEL_BYTES). Versioned so a
  * new model can never
  * be served from a stale immutable cache entry: the prior carries its CONTENT
  * HASH in the file name, and the three model files carry MODEL_VERSION as a
@@ -105,8 +105,8 @@ export const MODEL_VERSION = "650a8d93"
  * initialization failure rather than a silent mis-read.
  *
  * It IS bumped again for the extinct-species drop, but for a different
- * reason than the probe row above. The classifier lost 152 rows, so a stale
- * cache entry decodes to 11,167 species rows against an 11,015-row taxonomy
+ * reason than the probe row above. The classifier lost 173 rows, so a stale
+ * cache entry decodes to 11,167 species rows against a 10,994-row taxonomy
  * and ensureLoaded throws (see bird-id-local.ts, which compares nSpecies with
  * taxonomy.length). The failure is a PERSISTENT init failure for anyone
  * holding the old bytes, not silent mis-keying: the immutable cache would
@@ -117,7 +117,7 @@ export const MODEL_ASSET_URLS = [
   `/models/wingclip_visual_int8.onnx?v=${MODEL_VERSION}`,
   `/models/wingclip_visual_int8.data?v=${MODEL_VERSION}`,
   `/models/text_classifier_int8.bin?v=${MODEL_VERSION}`,
-  "/priors/occurrence.7c39b341.bin.gz",
+  "/priors/occurrence.d0abc168.bin.gz",
 ]
 
 /**
@@ -134,20 +134,20 @@ export const MODEL_ASSET_URLS = [
  * per-cell slice and the n_cm table, which are what let the backoff strength
  * live on the client instead of being frozen into the asset.
  *
- * TWO TOTALS, NEVER INTERCHANGEABLE. This constant is 58,980,425 bytes =
- * 56.25 MiB and is the only one that describes a download. MODEL_DECODED_BYTES
- * below is 70,647,290 = 67.37 MiB and describes bytes seen by the fetch reader
+ * TWO TOTALS, NEVER INTERCHANGEABLE. This constant is 58,957,848 bytes =
+ * 56.23 MiB and is the only one that describes a download. MODEL_DECODED_BYTES
+ * below is 70,624,713 = 67.35 MiB and describes bytes seen by the fetch reader
  * AFTER transport decoding. Quoting the decoded figure as a download size is
  * the specific error that made an earlier gate claim 72 MB for a 53 MB
  * transfer. Neither total is 61.66 MiB; that figure matches nothing here.
  *
  * The classifier and prior terms are the post-extinct-drop artifacts:
- * 8,504,352 (11,016 x 772) and 22,590,550. Both shrank, so leaving the old
+ * 8,488,140 (10,995 x 772) and 22,584,185. Both shrank, so leaving the old
  * figures here would have stalled the progress bar short of 100 percent.
  * The two transport-compressed terms are measured, not derived, so they are
  * only re-measured when those files change; neither did in this PR.
  */
-export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_504_352 + 22_590_550
+export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_488_140 + 22_584_185
 
 /**
  * Bytes exposed to the fetch reader across the four assets.
@@ -157,20 +157,20 @@ export const MODEL_BYTES = 10_560_123 + 17_325_400 + 8_504_352 + 22_590_550
  * This progress total is deliberately not shown to the user: quoting decoded
  * transport sizes is what made the gate claim 72 MB for a 53 MB transfer.
  *
- * 70,647,290 bytes = 67.37 MiB. This is NOT the served or downloaded size.
- * Use MODEL_BYTES (56.25 MiB) for anything user-facing or for release notes.
+ * 70,624,713 bytes = 67.35 MiB. This is NOT the served or downloaded size.
+ * Use MODEL_BYTES (56.23 MiB) for anything user-facing or for release notes.
  *
  * The onnx term is the on-disk size of the shipped file (14,386,564). It read
  * 14,386,199 until this PR, which was the pre-provenance-pin build.
  */
-export const MODEL_DECODED_BYTES = 14_386_564 + 25_165_824 + 8_504_352 + 22_590_550
+export const MODEL_DECODED_BYTES = 14_386_564 + 25_165_824 + 8_488_140 + 22_584_185
 
 /**
  * Bird/not-bird probe: the abstention signal, and the only thing that can make
  * this path return zero candidates.
  *
  * The 768-d weight vector is NOT here. It is the LAST row of
- * text_classifier_int8.bin (row 11015, after the 11,015 species rows), which
+ * text_classifier_int8.bin (row 10994, after the 10,994 species rows), which
  * already stores int8 rows plus fp32 per-row scales, so it fits with no format
  * change for 772 bytes. These four scalars are inlined for the same reason
  * temperature and beta are: they MUST match those bytes, and a fifth request is
@@ -258,7 +258,7 @@ export const MODEL_ASSETS: EngineAssets = {
  * photos, against 95% / 70% at 0.7.
  *
  * A dog is the hard case and no threshold fixes it, because this is zero-shot
- * cosine over 11,015 BIRD names with no "not a bird" class, so a furry
+ * cosine over 10,994 BIRD names with no "not a bird" class, so a furry
  * four-legged animal lands somewhere plausible. Dogs come back as African
  * Penguin and Sooty Owl. A pre-rerank vision gate was measured as an
  * alternative and is WORSE on dogs (32.5% pass at 0.3 against 30% here) while
@@ -294,7 +294,7 @@ export function modelReady(): Promise<boolean> {
 /**
  * Download the model without identifying anything.
  *
- * Exists so the UI can pull 56.25 MiB behind a progress bar at a moment the
+ * Exists so the UI can pull 56.23 MiB behind a progress bar at a moment the
  * user chose, instead of discovering it mid-identification. Calling it twice
  * is safe: the second call resolves off the cache.
  */
@@ -306,7 +306,7 @@ export function preloadModel(
 }
 
 /**
- * Load the engine once per session. The assets are 56.25 MiB, so this is
+ * Load the engine once per session. The assets are 56.23 MiB, so this is
  * called on first identify rather than at page load, and the browser cache
  * makes every later session free.
  */

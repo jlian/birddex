@@ -86,10 +86,12 @@ import {
   getOffsetForLocalWallTime,
   getTimezoneFromCoords,
 } from '../../src/lib/timezone'
+import { getTaxonMetadata } from './taxonomy'
 import Papa from 'papaparse'
 
 type ObservationForExport = {
   speciesName: string
+  taxonCode?: string | null
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   notes?: string | null
@@ -98,6 +100,8 @@ type ObservationForExport = {
 
 type DexEntryForExport = {
   speciesName: string
+  speciesCode?: string | null
+  taxonCode?: string | null
   firstSeenDate: string
   lastSeenDate: string
   totalOutings: number
@@ -456,7 +460,7 @@ export function groupPreviewsIntoOutings(
       createdAt: new Date().toISOString(),
     })
 
-    const speciesMap = new Map<string, { speciesName: string; submissionId?: string; count: number; notes: string }>()
+    const speciesMap = new Map<string, { speciesName: string; submissionId?: string; count: number; notes: Set<string> }>()
     for (const preview of group) {
       // Keyed by checklist as well as species. Merging across checklists would
       // keep only one submission id, which is the lossiness that made a
@@ -465,15 +469,13 @@ export function groupPreviewsIntoOutings(
       const existing = speciesMap.get(key)
       if (existing) {
         existing.count += preview.count
-        if (preview.observationNotes && !existing.notes.includes(preview.observationNotes)) {
-          existing.notes = existing.notes ? `${existing.notes}; ${preview.observationNotes}` : preview.observationNotes
-        }
+        if (preview.observationNotes) existing.notes.add(preview.observationNotes)
       } else {
         speciesMap.set(key, {
           speciesName: preview.speciesName,
           submissionId: preview.submissionId,
           count: preview.count,
-          notes: preview.observationNotes || '',
+          notes: new Set(preview.observationNotes ? [preview.observationNotes] : []),
         })
       }
     }
@@ -485,7 +487,7 @@ export function groupPreviewsIntoOutings(
         speciesName: info.speciesName,
         count: info.count,
         certainty: 'confirmed',
-        notes: info.notes,
+        notes: [...info.notes].join('; '),
         submissionId: info.submissionId,
       })
     }
@@ -538,10 +540,11 @@ export function exportOutingToEBirdCSV(
   const rows = observations
     .filter(observation => observation.certainty === 'confirmed')
     .map(observation => {
-      const commonName = sanitizeForEBird(getDisplayName(observation.speciesName))
-      // splitScientificName performs the sanitization. Leave unknown taxonomy
-      // empty rather than copying a common name into the scientific columns.
-      const scientificName = getScientificName(observation.speciesName) || ''
+      const metadata = getTaxonMetadata(observation.speciesName, observation.taxonCode)
+      const commonName = sanitizeForEBird(metadata.common ?? observation.speciesName)
+      // Parenthesized free text can be a qualifier rather than a scientific
+      // name. Only resolved taxonomy is authoritative enough to split here.
+      const scientificName = metadata.scientific ?? ''
       const { genus, species } = splitScientificName(scientificName)
 
       return [
@@ -588,8 +591,9 @@ export function exportDexToCSV(dex: DexEntryForExport[]): string {
   ]
 
   const rows = dex.map(entry => {
-    const commonName = getDisplayName(entry.speciesName)
-    const scientificName = getScientificName(entry.speciesName) || ''
+    const metadata = getTaxonMetadata(entry.speciesName, entry.taxonCode ?? entry.speciesCode)
+    const commonName = metadata.common ?? entry.speciesName
+    const scientificName = metadata.scientific ?? ''
 
     return [
       commonName,

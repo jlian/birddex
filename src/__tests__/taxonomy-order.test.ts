@@ -3,7 +3,9 @@ import {
   getSpeciesOrder,
   buildSyncOrderLookup,
   getEbirdSpeciesUrl,
+  getTaxonMetadataByCode,
   getWikiTitleForSpecies,
+  resolveSpeciesIdentity,
 } from '../lib/taxonomy-order'
 
 // The first three entries in taxonomy.json are:
@@ -99,6 +101,39 @@ describe('getEbirdSpeciesUrl', () => {
 
   it('returns undefined for an unknown species rather than guessing a code', async () => {
     expect(await getEbirdSpeciesUrl('Fake Bird That Does Not Exist')).toBeUndefined()
+  })
+})
+
+describe('resolveSpeciesIdentity', () => {
+  it('separates exact ISSF identity from REPORT_AS grouping', async () => {
+    expect(await resolveSpeciesIdentity('Southern Brown Kiwi (South I.)')).toEqual({
+      taxonCode: 'sobkiw2',
+      speciesCode: 'sobkiw1',
+    })
+  })
+
+  it('resolves alternate stored spellings before local persistence', async () => {
+    expect(await resolveSpeciesIdentity('Northern Cardinal (Cardinalis cardinalis)')).toEqual({
+      taxonCode: 'norcar',
+      speciesCode: 'norcar',
+    })
+    expect(await resolveSpeciesIdentity('Brant (Branta bernicla (Gray-bellied))')).toEqual({
+      taxonCode: 'brant',
+      speciesCode: 'brant',
+    })
+  })
+
+  it('returns undefined rather than inventing a key', async () => {
+    expect(await resolveSpeciesIdentity('Unknown bird')).toBeUndefined()
+  })
+})
+
+describe('getTaxonMetadataByCode', () => {
+  it('returns canonical names for an exact ISSF code', async () => {
+    await expect(getTaxonMetadataByCode('sobkiw2')).resolves.toEqual({
+      commonName: 'Southern Brown Kiwi (South I.)',
+      scientificName: 'Apteryx australis australis',
+    })
   })
 })
 

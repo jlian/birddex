@@ -99,6 +99,7 @@ describe('eBird CSV utilities', () => {
   it('escapes quotes in dex CSV export', () => {
     const dex: DexEntry[] = [
       {
+        id: 'name:Test Bird, Example (Testus exempli)',
         speciesName: 'Test Bird, Example (Testus exempli)',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-02-01T00:00:00.000Z',
@@ -109,8 +110,8 @@ describe('eBird CSV utilities', () => {
     ]
 
     const csv = exportDexToCSV(dex)
-    expect(csv).toContain('"Test Bird, Example"')
-    expect(csv).toContain('"Testus exempli"')
+    expect(csv).toContain('"Test Bird, Example (Testus exempli)"')
+    expect(csv).not.toContain('"Testus exempli"')
     expect(csv).toContain('"He said ""wow"""')
   })
 
@@ -213,6 +214,7 @@ describe('eBird CSV utilities', () => {
   it('marks in-range dates as duplicate import conflicts', () => {
     const existing = new Map<string, DexEntry>([
       ['Mallard', {
+        id: 'name:Mallard',
         speciesName: 'Mallard',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-12-31T00:00:00.000Z',
@@ -237,6 +239,7 @@ describe('eBird CSV utilities', () => {
   it('detects conflicts when import has scientific name but dex has only common name', () => {
     const existing = new Map<string, DexEntry>([
       ['Mallard', {
+        id: 'name:Mallard',
         speciesName: 'Mallard',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-12-31T00:00:00.000Z',
@@ -261,6 +264,7 @@ describe('eBird CSV utilities', () => {
   it('detects conflicts when dex has scientific name but import has only common name', () => {
     const existing = new Map<string, DexEntry>([
       ['Mallard (Anas platyrhynchos)', {
+        id: 'name:Mallard (Anas platyrhynchos)',
         speciesName: 'Mallard (Anas platyrhynchos)',
         firstSeenDate: '2024-01-01T00:00:00.000Z',
         lastSeenDate: '2024-12-31T00:00:00.000Z',
@@ -514,6 +518,50 @@ describe('eBird CSV utilities', () => {
       const { observations } = groupPreviewsIntoOutings(previews, 'u1')
       expect(observations[0].notes).toBe('Flying overhead')
     })
+
+    it('keeps distinct observation notes when one is a substring of another', () => {
+      const previews = [
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'adult male',
+        },
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'adult',
+        },
+      ]
+
+      const { observations } = groupPreviewsIntoOutings(previews, 'u1')
+      expect(observations[0].notes).toBe('adult male; adult')
+    })
+
+    it('keeps distinct notes when one contains the rendered separator', () => {
+      const previews = [
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'adult; male',
+        },
+        {
+          speciesName: 'Mallard',
+          date: '2024-05-01T10:00:00.000Z',
+          location: 'Lake',
+          count: 1,
+          observationNotes: 'male',
+        },
+      ]
+
+      const { observations } = groupPreviewsIntoOutings(previews, 'u1')
+      expect(observations[0].notes).toBe('adult; male; male')
+    })
   })
 
   /* ---------- export tests ---------- */
@@ -522,6 +570,7 @@ describe('eBird CSV utilities', () => {
     it('uses ISO date format (YYYY-MM-DD) instead of locale-dependent format', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Mallard (Anas platyrhynchos)',
           speciesName: 'Mallard (Anas platyrhynchos)',
           firstSeenDate: '2024-01-15T00:00:00.000Z',
           lastSeenDate: '2024-12-25T00:00:00.000Z',
@@ -541,6 +590,7 @@ describe('eBird CSV utilities', () => {
     it('splits species name into Common Name and Scientific Name columns', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Bald Eagle (Haliaeetus leucocephalus)',
           speciesName: 'Bald Eagle (Haliaeetus leucocephalus)',
           firstSeenDate: '2025-06-01T00:00:00.000Z',
           lastSeenDate: '2025-06-01T00:00:00.000Z',
@@ -561,6 +611,7 @@ describe('eBird CSV utilities', () => {
     it('handles species without scientific name', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Mystery Bird',
           speciesName: 'Mystery Bird',
           firstSeenDate: '2025-06-01T00:00:00.000Z',
           lastSeenDate: '2025-06-01T00:00:00.000Z',
@@ -589,6 +640,7 @@ describe('eBird CSV utilities', () => {
     it('preserves local calendar date from offset-aware timestamps', () => {
       const dex: DexEntry[] = [
         {
+          id: 'name:Chukar (Alectoris chukar)',
           speciesName: 'Chukar (Alectoris chukar)',
           firstSeenDate: '2025-01-15T23:30:00-10:00',
           lastSeenDate: '2025-01-16T00:30:00-10:00',
@@ -604,9 +656,91 @@ describe('eBird CSV utilities', () => {
       expect(cells[2]).toBe('2025-01-15')
       expect(cells[3]).toBe('2025-01-16')
     })
+
+    it('uses exact taxon metadata for an ISSF export', () => {
+      const csv = exportDexToCSV([{
+        speciesName: 'Southern Brown Kiwi (South I.)',
+        taxonCode: 'sobkiw2',
+        firstSeenDate: '2025-06-01T00:00:00.000Z',
+        lastSeenDate: '2025-06-01T00:00:00.000Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: '',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[0]).toBe('Southern Brown Kiwi (South I.)')
+      expect(cells[1]).toBe('Apteryx australis australis')
+    })
+
+    it('uses the stable grouping code when the exact code is missing', () => {
+      const csv = exportDexToCSV([{
+        speciesName: 'Legacy cardinal label',
+        speciesCode: 'norcar',
+        firstSeenDate: '2025-06-01T00:00:00.000Z',
+        lastSeenDate: '2025-06-01T00:00:00.000Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: '',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[0]).toBe('Northern Cardinal')
+      expect(cells[1]).toBe('Cardinalis cardinalis')
+    })
+
+    it('does not parse unresolved qualified free text as taxonomy', () => {
+      const csv = exportDexToCSV([{
+        speciesName: 'Mystery Bird (South I.)',
+        firstSeenDate: '2025-06-01T00:00:00.000Z',
+        lastSeenDate: '2025-06-01T00:00:00.000Z',
+        totalOutings: 1,
+        totalCount: 1,
+        notes: '',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[0]).toBe('Mystery Bird (South I.)')
+      expect(cells[1]).toBe('')
+    })
   })
 
   describe('outing CSV export', () => {
+    it('uses exact taxon metadata for an ISSF export', () => {
+      const csv = exportOutingToEBirdCSV({
+        id: 'o1',
+        startTime: '2025-06-01T08:00:00.000Z',
+        locationName: 'Park',
+      }, [{
+        speciesName: 'Southern Brown Kiwi (South I.)',
+        taxonCode: 'sobkiw2',
+        count: 1,
+        certainty: 'confirmed',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[1]).toBe('Southern Brown Kiwi (South I.)')
+      expect(cells[2]).toBe('Apteryx')
+      expect(cells[3]).toBe('australis australis')
+    })
+
+    it('does not fabricate taxonomy for unknown qualified free text', () => {
+      const csv = exportOutingToEBirdCSV({
+        id: 'o1',
+        startTime: '2025-06-01T08:00:00.000Z',
+        locationName: 'Park',
+      }, [{
+        speciesName: 'Mystery Bird (South I.)',
+        count: 1,
+        certainty: 'confirmed',
+      }])
+      const cells = parseCSVLineForTest(csv.split('\n')[1])
+
+      expect(cells[1]).toBe('Mystery Bird (South I.)')
+      expect(cells[2]).toBe('')
+      expect(cells[3]).toBe('')
+    })
+
     it('uses "X" for zero-count observations', () => {
       const outing: Outing = {
         id: 'o1',

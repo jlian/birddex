@@ -1,5 +1,6 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { groupPreviewsIntoOutings, parseEBirdCSV } from '../../lib/ebird'
+import { resolveSpeciesIdentity } from '../../lib/species-code-resolve'
 import { getOutingColumnNames, hasObservationColumn } from '../../lib/schema'
 import { createRouteResponder } from '../../lib/log'
 import { rateLimitKey } from '../../lib/rate-limit'
@@ -113,7 +114,12 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
     stage = 'read the pre-import dex snapshot'
     const priorDex = await computeDex(context.env.DB, userId)
-    const priorSpecies = new Set(priorDex.map(row => row.speciesName))
+    // Compare the same key DEX_QUERY groups on, not the display string.
+    // MIN(speciesName) can change when another spelling of an existing coded
+    // species arrives, which would report a species already in the dex as new.
+    const dexKey = (row: { speciesName: string; speciesCode?: string | null }) =>
+      row.speciesCode ? `code:${row.speciesCode}` : `name:${row.speciesName}`
+    const priorSpecies = new Set(priorDex.map(dexKey))
 
     stage = 'check exact import receipt'
     const existingFileIdentity = await existingImportKeys(
@@ -141,6 +147,9 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       columnNames.has('effortAreaAcres')
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
     const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
+    const supportsSpeciesCode = await hasObservationColumn(context.env.DB, 'speciesCode')
+    const supportsTaxonCode = await hasObservationColumn(context.env.DB, 'taxonCode')
+    const unresolvedNames = new Set<string>()
 
     // Checklist-level idempotency, applied to the rows BEFORE they are grouped.
     // An outing can merge several checklists, so it cannot identify them; an
@@ -244,21 +253,38 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       const observationColumns = ['id', 'outingId', 'userId', 'speciesName', 'count', 'certainty', 'notes']
       if (supportsSpeciesCommentsColumn) observationColumns.push('speciesComments')
       if (supportsSubmissionId) observationColumns.push('submissionId')
+      // Resolve the eBird code at write time so an import never leaves rows for
+      // a later backfill to find. Unresolvable taxa store NULL and keep
+      // grouping by name; see resolveSpeciesCode for why the code cannot be
+      // total.
+      if (supportsSpeciesCode) observationColumns.push('speciesCode')
+      if (supportsTaxonCode) observationColumns.push('taxonCode')
+      // Tracked at function scope: there is no client-side import preview any
+      // more, so an unresolved name has no natural place to surface. It has to
+      // land in the route log next to the parsed/persisted counts or nobody
+      // will ever see it.
+      unresolvedNames.clear()
       const observationInsert = jsonBulkInsert(
         context.env.DB,
         'observation',
         observationColumns,
-        observations.map(observation => ({
-          id: observation.id,
-          outingId: observation.outingId,
-          userId,
-          speciesName: observation.speciesName,
-          count: observation.count,
-          certainty: observation.certainty,
-          notes: supportsSpeciesCommentsColumn ? '' : observation.notes,
-          speciesComments: observation.notes || null,
-          submissionId: observation.submissionId ?? null,
-        })),
+        observations.map(observation => {
+          const identity = resolveSpeciesIdentity(observation.speciesName)
+          if (!identity) unresolvedNames.add(observation.speciesName)
+          return {
+            id: observation.id,
+            outingId: observation.outingId,
+            userId,
+            speciesName: observation.speciesName,
+            count: observation.count,
+            certainty: observation.certainty,
+            notes: supportsSpeciesCommentsColumn ? '' : observation.notes,
+            speciesComments: observation.notes || null,
+            submissionId: observation.submissionId ?? null,
+            speciesCode: identity?.speciesCode ?? null,
+            taxonCode: identity?.taxonCode ?? null,
+          }
+        }),
       )
       if (observationInsert) insertStatements.push(observationInsert)
 
@@ -296,12 +322,12 @@ export const onRequestPost: PagesFunction<Env> = async context => {
       throw new Error('Import identity retry limit exceeded')
     }
     if (importBatchCommitted) {
-      route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}`)
+      route.succeeded(`Committed eBird import batch from ${countLabel(parsedRowCount, 'parsed row')}, persisting ${countLabel(persistedOutingCount, 'outing')} and ${countLabel(persistedObservationCount, 'observation')}${unresolvedNames.size > 0 ? `; ${countLabel(unresolvedNames.size, 'species name')} did not resolve to an eBird code and will group by name` : ''}`)
     }
 
     stage = 'recompute dex after the committed import batch'
     const dexUpdates = await computeDex(context.env.DB, userId)
-    const newSpecies = dexUpdates.filter(row => !priorSpecies.has(row.speciesName)).length
+    const newSpecies = dexUpdates.filter(row => !priorSpecies.has(dexKey(row))).length
 
     return route.complete(Response.json({
       imported: {

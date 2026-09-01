@@ -18,6 +18,7 @@ type ExportRow = {
   effortAreaAcres?: number | null
   outingNotes?: string | null
   speciesName: string
+  taxonCode?: string | null
   count: number
   certainty: 'confirmed' | 'possible' | 'pending' | 'rejected'
   observationNotes?: string | null
@@ -41,6 +42,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
     stage = 'observation schema inspection'
     const supportsSpeciesCommentsColumn = await hasObservationColumn(context.env.DB, 'speciesComments')
     const supportsSubmissionId = await hasObservationColumn(context.env.DB, 'submissionId')
+    const supportsTaxonCode = await hasObservationColumn(context.env.DB, 'taxonCode')
     const observationNotesSelect = supportsSpeciesCommentsColumn
     ? 'COALESCE(ob.speciesComments, ob.notes)'
     : 'ob.notes'
@@ -60,6 +62,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
          ${columnNames.has('effortAreaAcres') ? 'o.effortAreaAcres' : 'NULL'} as effortAreaAcres,
          o.notes as outingNotes,
          ob.speciesName,
+         ${supportsTaxonCode ? 'ob.taxonCode' : 'NULL'} as taxonCode,
          ob.count,
          ob.certainty,
          ${supportsSubmissionId ? 'ob.submissionId' : 'NULL'} as submissionId,
@@ -129,6 +132,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
       },
       outingRows.map(row => ({
         speciesName: row.speciesName,
+        taxonCode: row.taxonCode,
         count: row.count,
         certainty: row.certainty,
         notes: row.observationNotes,

@@ -194,16 +194,20 @@ struct EBirdImportView: View {
 
                 let service = DataService(auth: auth, expectedAccountID: accountID)
                 let timezone = selectedTimezone == "observation-local" ? nil : selectedTimezone
-                let priorSpecies = Set(store.dex.map(\.speciesName))
+                // Snapshot the dex keys, not the display names. A group's MIN
+                // label can change when an import adds another spelling of an
+                // existing coded species, so comparing names would report a new
+                // species the server dex did not actually add. DexEntry.id is
+                // the code-or-name key the server groups on.
+                let priorSpecies = Set(store.dex.map(\.id))
                 let imported = try await service.importEBirdCSV(csvData, profileTimezone: timezone)
                 guard store.activeAccountID == accountID else { throw CancellationError() }
 
                 await store.loadAll()
                 guard store.activeAccountID == accountID else { throw CancellationError() }
                 let newSpeciesNames = store.dex
-                    .map(\.speciesName)
-                    .filter { !priorSpecies.contains($0) }
-                    .map { getDisplayName($0) }
+                    .filter { !priorSpecies.contains($0.id) }
+                    .map { $0.commonName ?? getDisplayName($0.speciesName) }
 
                 log.info("Imported eBird data across \(imported.imported.outings) outings; skipped \(imported.skipped.rows) rows")
                 onImported?(imported, newSpeciesNames)

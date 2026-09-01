@@ -96,12 +96,9 @@ describe('taxonomy', () => {
       expect(match).toBeNull()
     })
 
-    it('fuzzy-matches partial names with enough word overlap', () => {
-      // "American Robin" should match from "American Robin bird"
-      // since 2 out of 3 words match
-      const match = findBestMatch('American Robin bird')
-      expect(match).not.toBeNull()
-      expect(match!.common).toBe('American Robin')
+    it('does not guess from word overlap', () => {
+      expect(findBestMatch('American Robin bird')).toBeNull()
+      expect(findBestMatch('Pink-headed Duck')).toBeNull()
     })
 
     it('rejects domestic species with only one word overlap', () => {

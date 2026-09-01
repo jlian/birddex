@@ -55,7 +55,7 @@ describe('buildDexFromState', () => {
     expect(result[0].lastSeenDate).toBe('2025-06-01T08:00:00Z')
   })
 
-  it('skips non-confirmed observations', () => {
+  it('includes possible observations but skips pending and rejected', () => {
     const outings = [makeOuting()]
     const observations = [
       makeObs({ certainty: 'possible' }),
@@ -63,7 +63,8 @@ describe('buildDexFromState', () => {
       makeObs({ id: 'obs-3', certainty: 'pending' }),
     ]
     const result = buildDexFromState(outings, observations, [])
-    expect(result).toHaveLength(0)
+    expect(result).toHaveLength(1)
+    expect(result[0].totalCount).toBe(1)
   })
 
   it('aggregates count and outings across multiple observations', () => {
@@ -103,6 +104,7 @@ describe('buildDexFromState', () => {
     const outings = [makeOuting()]
     const observations = [makeObs()]
     const existingDex: DexEntry[] = [{
+      id: 'name:Blue Jay',
       speciesName: 'Blue Jay',
       firstSeenDate: '2025-01-01T00:00:00Z',
       lastSeenDate: '2025-01-01T00:00:00Z',

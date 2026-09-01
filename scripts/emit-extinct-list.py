@@ -1,185 +1,162 @@
 #!/usr/bin/env python3
-"""Emit the EX/EW species list from the AviList workbook.
+"""Emit the extinct-species exclusion list from eBird's own EXTINCT column.
 
-WHY THIS EXISTS RATHER THAN A HARDCODED LIST OF 152 ROW INDEXES
----------------------------------------------------------------
+WHY EBIRD RATHER THAN AVILIST/IUCN
+----------------------------------
+This used to read the AviList workbook's IUCN status column and exclude EX + EW.
+It now follows eBird, because eBird is the taxonomy we align with everywhere
+else: species codes, common names, taxonomic order, and the display sidecar all
+come from their file. Having the extinct rule come from a second authority meant
+two sources could disagree about the same bird, and they did.
+
+The disagreement was real and definitional, not a data error in either source:
+
+  - eBird flagged 27 species extinct that AviList rates CR, CR (PE) or NE.
+    South Island Kokako (CR (PE), last accepted 1967) is the clearest case.
+    eBird's EXTINCT column is an editorial "you will not see this"; IUCN EX is a
+    formal assessment needing exhaustive surveys, so eBird is more aggressive.
+  - AviList rated 6 extinct that eBird does not flag. Five are EW, Extinct in
+    the Wild, which is not the same as gone: Spix's Macaw, Hawaiian Crow, Guam
+    Kingfisher, Socorro Dove and Alagoas Curassow all exist in captivity with
+    active reintroduction programmes. The sixth, White-chested White-eye, is a
+    genuine judgement call.
+
+Following eBird restores those 6 and drops the 27, which is the point: one
+authority, no reconciliation.
+
+WHY THIS EXISTS RATHER THAN A HARDCODED LIST OF ROW INDEXES
+-----------------------------------------------------------
 Row indexes are meaningless across taxonomy versions: dropping rows renumbers
 everything after them, so a list of indexes is only valid for one exact file.
-Deriving the exclusion from the IUCN status column means the next taxonomy
-refresh re-derives it automatically instead of someone remembering to redo 152
-deletions by hand.
+Deriving the exclusion from a status column means the next taxonomy refresh
+re-derives it automatically instead of someone redoing the deletions by hand.
 
-The workbook is the same one scripts/build-birdlife-crosswalk.py already opens,
-so this adds a column read rather than a new data source.
+SOURCING: ONE HTTP REQUEST
+--------------------------
+The full eBird taxonomy is a single public CSV, no API key, carrying CATEGORY
+and EXTINCT for every taxon. Fetch it once and cache it; there is no
+per-species lookup to make.
 
 Usage:
   python3 scripts/emit-extinct-list.py \
-      --avilist .tmp/AviList-v2025-11Jun-extended.xlsx \
+      --ebird .tmp/ebird-taxonomy-full.csv \
       --taxonomy src/lib/taxonomy.json \
       --out scripts/extinct-species.json
 """
 import argparse
+import csv
 import json
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
-try:
-    import openpyxl
-except ImportError:
-    sys.exit("pip install openpyxl first")
-
-# IUCN codes that mean "cannot be photographed alive in the wild".
-#
-# Measured on AviList v2025b: EX 147, EW 5, CR (PE) 17, CR (PEW) 2, CR 183.
-#
-# EW is included because an Extinct in the Wild species exists only in
-# captivity, so a wild-bird identifier should not offer it.
-#
-# CR (PE), "Critically Endangered, Possibly Extinct", is deliberately NOT
-# excluded, and neither is plain CR. Ivory-billed Woodpecker sits in that group,
-# and those are exactly the records that would matter most if one were ever
-# photographed. Excluding them would make the app unable to report the single
-# most significant sighting it could ever receive.
-EXCLUDE = {"EX", "EW"}
-
-# AviList v2025b column headers, matched case-insensitively. Falls back to a
-# fuzzy search so a header rename does not silently exclude nothing.
-SCI_HEADERS = ("scientific_name",)
-STATUS_HEADERS = ("iucn_red_list_category",)
-CODE_HEADERS = ("species_code_cornell_lab",)
+EBIRD_CSV_URL = "https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=csv"
 
 
 def norm(s):
     return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
 
+def load_ebird(path):
+    p = Path(path)
+    if p.exists():
+        print(f"  using cached eBird taxonomy: {p}")
+        return p.read_text(encoding="utf-8")
+    print("  fetching the full eBird taxonomy (one request)...")
+    with urllib.request.urlopen(EBIRD_CSV_URL, timeout=120) as fh:
+        text = fh.read().decode("utf-8")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+    print(f"  cached to {p}")
+    return text
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--avilist", required=True)
+    ap.add_argument("--ebird", default=".tmp/ebird-taxonomy-full.csv")
     ap.add_argument("--taxonomy", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--allow-unmatched", action="store_true",
-                    help="write the list even if an EX/EW row did not match "
-                         "into the taxonomy; use only after checking the names")
+                    help="write the list even if a flagged species is missing "
+                         "from the taxonomy; use only after checking the names")
     args = ap.parse_args()
 
+    rows = list(csv.DictReader(load_ebird(args.ebird).splitlines()))
+    if not rows:
+        sys.exit("the eBird CSV parsed to zero rows")
+    for col in ("SPECIES_CODE", "CATEGORY", "EXTINCT", "EXTINCT_YEAR",
+                "COMMON_NAME", "SCIENTIFIC_NAME"):
+        if col not in rows[0]:
+            sys.exit(f"eBird CSV has no {col} column; headers are "
+                     f"{list(rows[0])}")
+
     tax = json.loads(Path(args.taxonomy).read_text())
-    by_sci = {}
-    for i, row in enumerate(tax):
-        if len(row) > 1 and row[1]:
-            by_sci.setdefault(norm(row[1]), i)
-
-    wb = openpyxl.load_workbook(args.avilist, read_only=True)
-    ws = wb[wb.sheetnames[0]]
-
     by_code = {}
-    for i, row in enumerate(tax):
-        if len(row) > 2 and row[2]:
-            by_code.setdefault(row[2], i)
+    for i, entry in enumerate(tax):
+        code = entry[2] if len(entry) > 2 else ""
+        if code:
+            by_code[code] = (i, entry)
 
-    header = None
-    sci_col = status_col = code_col = rank_col = None
-    hits = []
-    unmatched = []
-    seen_status = {}
+    # CATEGORY must be species. eBird also flags extinct issf/form taxa, which
+    # are subspecies groups that were never in the classifier, so counting them
+    # would inflate the list with names we cannot match.
+    flagged = [r for r in rows
+               if r["CATEGORY"] == "species" and r["EXTINCT"].strip()]
 
-    def find(headers, exact, *fuzzy):
-        for j, h in enumerate(headers):
-            if h in exact:
-                return j
-        for j, h in enumerate(headers):
-            if all(f in h for f in fuzzy):
-                return j
-        return None
-
-    for row in ws.iter_rows(min_row=1, values_only=True):
-        if header is None:
-            header = [norm(c) for c in row]
-            sci_col = find(header, SCI_HEADERS, "scientific")
-            status_col = find(header, STATUS_HEADERS, "iucn")
-            code_col = find(header, CODE_HEADERS, "species_code")
-            rank_col = find(header, ("taxon_rank",), "rank")
-            if sci_col is None or status_col is None:
-                sys.exit("could not find scientific-name and IUCN columns; "
-                         f"headers were: {header}")
-            # taxon_rank is not optional for correctness. Subspecies rows carry
-            # their PARENT's status, so without the rank filter an EX parent
-            # contributes one hit per subspecies and the exclusion list is both
-            # inflated and full of names that are not in our taxonomy. Silently
-            # degrading to "process every row" is the wrong failure: it produces
-            # a plausible-looking list. Fail instead.
-            if rank_col is None:
-                sys.exit("could not find the taxon_rank column, which is "
-                         "required to skip subspecies rows; "
-                         f"headers were: {header}")
-            print(f"columns: scientific={sci_col} iucn={status_col} "
-                  f"code={code_col} rank={rank_col}")
-            continue
-
-        # Subspecies rows carry their parent's status; only species rows map
-        # onto our taxonomy, and counting both would inflate the total.
-        if norm(row[rank_col]) != "species":
-            continue
-
-        sci = norm(row[sci_col])
-        status = norm(row[status_col]).upper()
-        if not sci or not status:
-            continue
-        seen_status[status] = seen_status.get(status, 0) + 1
-        if status not in EXCLUDE:
-            continue
-        # Match on the eBird code first: it is the join key the rest of the
-        # pipeline uses, and it survives a scientific-name revision.
-        idx = None
-        if code_col is not None and row[code_col]:
-            idx = by_code.get(str(row[code_col]).strip())
-        if idx is None:
-            idx = by_sci.get(sci)
-        if idx is None:
-            unmatched.append((sci, status))
-            continue
-        hits.append(dict(idx=idx, scientific=tax[idx][1], common=tax[idx][0],
-                         status=status))
+    hits, unmatched = [], []
+    for r in flagged:
+        found = by_code.get(r["SPECIES_CODE"])
+        if found:
+            idx, entry = found
+            hits.append({
+                "idx": idx,
+                "code": r["SPECIES_CODE"],
+                "scientific": entry[1],
+                "common": entry[0],
+                "extinct_year": r["EXTINCT_YEAR"].strip() or None,
+            })
+        else:
+            unmatched.append((r["SPECIES_CODE"], r["COMMON_NAME"]))
 
     hits.sort(key=lambda h: h["idx"])
-    print(f"IUCN status values seen: {dict(sorted(seen_status.items()))}")
-    print(f"EX/EW rows matched into taxonomy: {len(hits)}")
-    print(f"EX/EW rows NOT in our taxonomy:   {len(unmatched)}")
+    print(f"  eBird species flagged EXTINCT : {len(flagged)}")
+    print(f"  matched into our taxonomy     : {len(hits)}")
+    print(f"  flagged but not in taxonomy   : {len(unmatched)}")
 
-    # An unmatched EX/EW row means an extinct species SURVIVES the drop while
-    # the taxonomy, classifier and both blobs stay internally consistent, so
-    # verify-taxonomy-drop.py passes and nothing downstream notices. That makes
-    # a silent regression in either join key ship extinct birds.
-    #
-    # It is currently zero against AviList v2025b, so zero is the contract. A
-    # future workbook may legitimately carry an extinct species absent from our
-    # taxonomy; --allow-unmatched exists for that, and forces someone to look at
-    # the names first.
+    # An unmatched flagged species means an extinct bird SURVIVES the drop while
+    # every artifact stays internally consistent, so verify-taxonomy-drop.py
+    # passes and nothing downstream notices.
     if unmatched and not args.allow_unmatched:
-        print(f"\nERROR: {len(unmatched)} EX/EW row(s) did not match into the "
-              f"taxonomy by species code or scientific name.", file=sys.stderr)
-        for sci, status in unmatched[:20]:
-            print(f"    {status}  {sci}", file=sys.stderr)
+        print(f"\nERROR: {len(unmatched)} flagged species did not match a "
+              f"taxonomy row by species code.", file=sys.stderr)
+        for code, name in unmatched[:20]:
+            print(f"    {code}  {name}", file=sys.stderr)
         if len(unmatched) > 20:
             print(f"    ... and {len(unmatched) - 20} more", file=sys.stderr)
         sys.exit("refusing to write an incomplete exclusion list; re-run with "
                  "--allow-unmatched once the names above are confirmed absent "
-                 "from src/lib/taxonomy.json")
+                 "from the taxonomy")
 
-    out = dict(
-        excluded_statuses=sorted(EXCLUDE),
-        taxonomy_rows=len(tax),
-        count=len(hits),
-        species=[{k: h[k] for k in ("scientific", "common", "status")} for h in hits],
-        indexes_for_reference_only=[h["idx"] for h in hits],
-    )
-    Path(args.out).write_text(json.dumps(out, indent=1) + "\n")
-    print(f"wrote {args.out}")
-    for h in hits[:10]:
-        print(f"  {h['idx']:>6}  {h['status']}  {h['common']}")
-    if len(hits) > 10:
-        print(f"  ... and {len(hits)-10} more")
+    out = {
+        "source": "eBird taxonomy EXTINCT column",
+        "source_url": EBIRD_CSV_URL,
+        "rule": "CATEGORY == species AND EXTINCT is set",
+        "note": (
+            "Follows eBird rather than AviList/IUCN so the extinct rule comes "
+            "from the same authority as species codes, names and taxonomic "
+            "order. This keeps Extinct in the Wild species, which exist in "
+            "captivity and are being reintroduced, and drops species eBird "
+            "considers gone that IUCN still rates CR or CR (PE)."),
+        "taxonomy_rows": len(tax),
+        "count": len(hits),
+        "species": [
+            {k: h[k] for k in ("code", "scientific", "common", "extinct_year")}
+            for h in hits
+        ],
+    }
+    Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
+    print(f"\nwrote {args.out}: {len(hits)} species")
 
 
 if __name__ == "__main__":

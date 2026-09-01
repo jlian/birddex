@@ -7,6 +7,9 @@ import { getDisplayName, getScientificName } from '@/lib/utils'
 
 interface BirdRowProps {
   speciesName: string
+  commonName?: string
+  scientificName?: string
+  taxonCode?: string
   imageUrl?: string
   /** Optional subtitle text below the name (e.g. "3 outings · 5 seen · Jan 1") */
   subtitle?: string
@@ -19,10 +22,10 @@ interface BirdRowProps {
   outing?: { lat?: number | null; lon?: number | null; startTime?: string | null }
 }
 
-export const BirdRow = memo(function BirdRow({ speciesName, imageUrl, subtitle, onClick, actions, outing }: BirdRowProps) {
-  const displayName = getDisplayName(speciesName)
-  const scientificName = getScientificName(speciesName)
-  const rarity = useRarity(speciesName, outing?.lat, outing?.lon, localMonth(outing?.startTime))
+export const BirdRow = memo(function BirdRow({ speciesName, commonName, scientificName: canonicalScientificName, taxonCode, imageUrl, subtitle, onClick, actions, outing }: BirdRowProps) {
+  const displayName = commonName ?? getDisplayName(speciesName)
+  const scientificName = canonicalScientificName ?? getScientificName(speciesName)
+  const rarity = useRarity(speciesName, outing?.lat, outing?.lon, localMonth(outing?.startTime), taxonCode)
 
   return (
     <ListRow

@@ -166,7 +166,7 @@ struct SpeciesCarousel: UIViewRepresentable {
                     guard let self else { return nil }
                     let controller = UIHostingController(
                         rootView: NavigationStack {
-                            SpeciesDetailView(speciesName: entry.speciesName)
+                            SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                         }
                         .environment(self.auth)
                         .environment(self.store)

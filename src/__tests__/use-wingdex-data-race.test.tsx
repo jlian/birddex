@@ -7,7 +7,7 @@ import { waitFor } from '@testing-library/dom'
 import { useEffect } from 'react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
-import { rollbackItemsById, useWingDexData } from '@/hooks/use-wingdex-data'
+import { publishPayload, rollbackItemsById, useWingDexData } from '@/hooks/use-wingdex-data'
 import type { Outing } from '@/lib/types'
 import type { Observation } from '@/lib/types'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
@@ -38,6 +38,21 @@ describe('rollbackItemsById', () => {
       { id: 'edited', value: 'before' },
       { id: 'concurrent', value: 'new' },
     ])
+  })
+})
+
+describe('publishPayload', () => {
+  it('updates the current snapshot before a chained operation can read it', () => {
+    const ref = { current: { observations: [] as string[] } }
+    let observedDuringPublish: string[] = []
+    const next = { observations: ['new-observation'] }
+
+    publishPayload(ref, next, () => {
+      observedDuringPublish = ref.current.observations
+    })
+
+    expect(observedDuringPublish).toEqual(['new-observation'])
+    expect(ref.current).toBe(next)
   })
 })
 

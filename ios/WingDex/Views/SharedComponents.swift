@@ -74,7 +74,7 @@ private struct OutingRowActionsModifier: ViewModifier {
                     }
                     .disabled(observations.isEmpty || isExporting)
                 }
-                ShareLink(item: SharePayload.outing(outing, observations: observations)) {
+                ShareLink(item: SharePayload.outing(outing, observations: observations, dex: store.dex)) {
                     Label("Share Summary", systemImage: "text.bubble")
                 }
                 Button(role: .destructive) {
@@ -395,6 +395,9 @@ private final class MapSnapshotCache {
 /// Matches web app's BirdRow/ListRow pattern: thumbnail, serif name, italic scientific name, metadata.
 struct BirdRow: View {
     let speciesName: String
+    var displayName: String?
+    var scientificName: String?
+    var taxonCode: String?
     var thumbnailUrl: String?
     var subtitle: String?
     var count: Int?
@@ -406,7 +409,7 @@ struct BirdRow: View {
 
     private var rarity: RarityState {
         guard let outing else { return .none }
-        return RarityStore.shared.state(species: speciesName, outing: outing)
+        return RarityStore.shared.state(species: speciesName, taxonCode: taxonCode, outing: outing)
     }
 
     var body: some View {
@@ -415,7 +418,7 @@ struct BirdRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(getDisplayName(speciesName))
+                    Text(displayName ?? getDisplayName(speciesName))
                         .font(.system(.body, design: .serif, weight: .semibold))
                         .foregroundStyle(Color.foregroundText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -424,7 +427,7 @@ struct BirdRow: View {
                     }
                 }
 
-                if let sci = getScientificName(speciesName) {
+                if let sci = scientificName ?? getScientificName(speciesName) {
                     Text(sci)
                         .font(.caption)
                         .italic()
@@ -478,7 +481,7 @@ struct SpeciesCard: View {
             )
         }
         .overlay(alignment: .bottomLeading) {
-            Text(getDisplayName(entry.speciesName))
+            Text(entry.commonName ?? getDisplayName(entry.speciesName))
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(2)
@@ -515,12 +518,18 @@ struct OutingRow: View {
     /// Outings cover many species at once and have no single answer.
     private var rarity: RarityState {
         guard let observation else { return .none }
-        return RarityStore.shared.state(species: observation.speciesName, outing: outing)
+        return RarityStore.shared.state(
+            species: observation.speciesName,
+            taxonCode: observation.taxonCode,
+            outing: outing
+        )
     }
 
     var body: some View {
         let confirmed = store.confirmedObservations(outing.id)
-        let speciesNames = Array(Set(confirmed.map(\.speciesName))).sorted()
+        // Deduplicate by dex key so two spellings of one coded bird show once,
+        // matching store.speciesCount for the same outing.
+        let speciesNames = groupByDexKey(confirmed).map(\.label).sorted()
 
         HStack(alignment: .center, spacing: 12) {
             outingLeadingIcon
@@ -586,10 +595,7 @@ struct OutingRow: View {
             return "\(location), \(date), \(getDisplayName(observation.speciesName)), \(observation.certainty.rawValue)"
                 + (rarity.accessibilityLabel.map { ", \($0)" } ?? "")
         }
-        let speciesCount = store.confirmedObservations(outing.id)
-            .map(\.speciesName)
-            .reduce(into: Set<String>()) { $0.insert($1) }
-            .count
+        let speciesCount = store.speciesCount(for: outing.id)
         return "\(location), \(date), \(speciesCount) species"
     }
 

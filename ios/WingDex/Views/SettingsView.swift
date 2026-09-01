@@ -220,6 +220,7 @@ struct SettingsView: View {
             : AnyLayout(HStackLayout(spacing: 8))
         return layout {
             Text("Display Name")
+                .font(.body)
                 .accessibilityLabeledPair(
                     role: .label,
                     id: "displayName",

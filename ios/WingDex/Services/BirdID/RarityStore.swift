@@ -57,17 +57,18 @@ final class RarityStore {
     }
 
     /// The verdict for a sighting. `.none` whenever anything is unknown.
-    func state(species: String, lat: Double?, lon: Double?, month: Int?) -> RarityState {
+    func state(species: String, taxonCode: String? = nil, lat: Double?, lon: Double?, month: Int?) -> RarityState {
         guard let blob, let lat, let lon, let month else { return .none }
-        let idx = getTaxonomicOrder(species)
+        let idx = taxonCode.map(getTaxonomicOrder(forCode:)) ?? getTaxonomicOrder(species)
         guard idx != Int.max else { return .none }
         return blob.state(speciesIdx: idx, lat: lat, lon: lon, month: month)
     }
 
     /// The verdict for an observation on an outing, which is the form every
     /// list row has to hand.
-    func state(species: String, outing: Outing) -> RarityState {
+    func state(species: String, taxonCode: String? = nil, outing: Outing) -> RarityState {
         state(species: species,
+              taxonCode: taxonCode,
               lat: outing.lat,
               lon: outing.lon,
               month: DateFormatting.localMonth(outing.startTime))
@@ -76,9 +77,9 @@ final class RarityStore {
     /// The 12 months this species is ordinary at an outing's location. Nil when
     /// the location carries no usable data, which must read as "not enough
     /// records" rather than as a bird that belongs in no month at all.
-    func ordinaryMonths(species: String, outing: Outing) -> [Bool]? {
+    func ordinaryMonths(species: String, taxonCode: String? = nil, outing: Outing) -> [Bool]? {
         guard let blob, let lat = outing.lat, let lon = outing.lon else { return nil }
-        let idx = getTaxonomicOrder(species)
+        let idx = taxonCode.map(getTaxonomicOrder(forCode:)) ?? getTaxonomicOrder(species)
         guard idx != Int.max else { return nil }
         return blob.ordinaryMonths(speciesIdx: idx, lat: lat, lon: lon)
     }

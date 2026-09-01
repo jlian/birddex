@@ -10,7 +10,7 @@ import {
   finalizePendingAccountMerge,
 } from './account-merge'
 
-function database(): {
+function database(through?: string): {
   sqlite: DatabaseSync
   d1: D1Database
   failNextBatchAt: (index: number) => void
@@ -19,6 +19,7 @@ function database(): {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec('PRAGMA foreign_keys = ON')
   for (const file of readdirSync(path.resolve('migrations')).filter(file => file.endsWith('.sql')).sort()) {
+    if (through && file > through) break
     sqlite.exec(readFileSync(path.resolve('migrations', file), 'utf8'))
   }
 
@@ -110,11 +111,11 @@ function seedDurableData(sqlite: DatabaseSync) {
       ('target-similar', 'target-outing', 'target-user', 'American Robin', 1, 'confirmed', 'target-photo', 0.95, 'confirmed note', 'confirmed comment', 'S2'),
       ('target-exact', 'target-outing', 'target-user', 'Killdeer', 1, 'confirmed', NULL, 0.80, 'same note', NULL, 'S3'),
       ('target-different', 'target-outing', 'target-user', 'Osprey', 1, 'possible', NULL, 0.70, 'target changed', NULL, 'S4');
-    INSERT INTO dex_meta (userId, speciesName, addedDate, bestPhotoId, notes)
+    INSERT INTO dex_meta (userId, groupKey, speciesName, addedDate, bestPhotoId, notes)
     VALUES
-      ('source-user', 'American Robin', '2025-05-01', 'source-photo', 'source note'),
-      ('target-user', 'American Robin', '2026-05-01', 'target-photo', 'target note'),
-      ('source-user', 'Blue Jay', '2024-04-01', 'source-photo', 'source only');
+      ('source-user', 'name:American Robin', 'American Robin', '2025-05-01', 'source-photo', 'source note'),
+      ('target-user', 'name:American Robin', 'American Robin', '2026-05-01', 'target-photo', 'target note'),
+      ('source-user', 'name:Blue Jay', 'Blue Jay', '2024-04-01', 'source-photo', 'source only');
     INSERT INTO importIdentity (userId, source, sourceKey, rowCount, createdAt)
     VALUES
       ('source-user', 'submission', 'S1', 5, '2025-01-01 00:00:00'),
@@ -195,6 +196,93 @@ describe('account merge', () => {
       .toEqual({ status: 'completed', sourceUserId: 'source-user', targetUserId: 'target-user' })
     expect(sqlite.prepare("SELECT count(*) AS count FROM account WHERE userId = 'target-user'").get()).toEqual({ count: 1 })
     expect(sqlite.prepare("SELECT count(*) AS count FROM passkey WHERE userId = 'target-user'").get()).toEqual({ count: 1 })
+  })
+
+  it('deduplicates renamed labels with the same submission and exact taxon code', async () => {
+    const { sqlite, d1 } = database()
+    seedUsers(sqlite)
+    seedDurableData(sqlite)
+    sqlite.exec(`
+      INSERT INTO observation (
+        id, outingId, userId, speciesName, speciesCode, taxonCode, count, certainty,
+        representativePhotoId, aiConfidence, notes, speciesComments, submissionId
+      ) VALUES
+        ('source-renamed', 'source-outing', 'source-user', 'Old Kiwi Label', 'sobkiw1', 'sobkiw2', 1, 'confirmed', NULL, NULL, '', NULL, 'S5'),
+        ('target-renamed', 'target-outing', 'target-user', 'Southern Brown Kiwi (South I.)', 'sobkiw1', 'sobkiw2', 1, 'confirmed', NULL, NULL, '', NULL, 'S5');
+    `)
+    const token = await createAccountMergeIntent(d1, 'source-session', 'github')
+
+    const result = await finalizeAccountMerge(d1, token, 'target-user')
+
+    expect(result.observations).toBe(5)
+    expect(sqlite.prepare("SELECT count(*) AS count FROM observation WHERE id = 'source-renamed'").get())
+      .toEqual({ count: 0 })
+    expect(sqlite.prepare("SELECT count(*) AS count FROM observation WHERE id = 'target-renamed'").get())
+      .toEqual({ count: 1 })
+  })
+
+  it('keeps matching labels with different exact taxon codes distinct', async () => {
+    const { sqlite, d1 } = database()
+    seedUsers(sqlite)
+    seedDurableData(sqlite)
+    sqlite.exec(`
+      INSERT INTO observation (
+        id, outingId, userId, speciesName, speciesCode, taxonCode, count, certainty,
+        representativePhotoId, aiConfidence, notes, speciesComments, submissionId
+      ) VALUES
+        ('source-issf', 'source-outing', 'source-user', 'Southern Brown Kiwi', 'sobkiw1', 'sobkiw2', 1, 'confirmed', NULL, NULL, '', NULL, 'S6'),
+        ('target-issf', 'target-outing', 'target-user', 'Southern Brown Kiwi', 'sobkiw1', 'sobkiw3', 1, 'confirmed', NULL, NULL, '', NULL, 'S6');
+    `)
+    const token = await createAccountMergeIntent(d1, 'source-session', 'github')
+
+    const result = await finalizeAccountMerge(d1, token, 'target-user')
+
+    expect(result.observations).toBe(6)
+    expect(sqlite.prepare("SELECT userId FROM observation WHERE id = 'source-issf'").get())
+      .toEqual({ userId: 'target-user' })
+    expect(sqlite.prepare("SELECT count(*) AS count FROM observation WHERE submissionId = 'S6'").get())
+      .toEqual({ count: 2 })
+  })
+
+  it('uses normalized-name fallback when one duplicate row is uncoded', async () => {
+    const { sqlite, d1 } = database()
+    seedUsers(sqlite)
+    seedDurableData(sqlite)
+    sqlite.exec(`
+      INSERT INTO observation (
+        id, outingId, userId, speciesName, speciesCode, taxonCode, count, certainty,
+        representativePhotoId, aiConfidence, notes, speciesComments, submissionId
+      ) VALUES
+        ('source-legacy', 'source-outing', 'source-user', ' northern cardinal ', NULL, NULL, 1, 'confirmed', NULL, NULL, '', NULL, 'S7'),
+        ('target-coded', 'target-outing', 'target-user', 'Northern Cardinal', 'norcar', 'norcar', 1, 'confirmed', NULL, NULL, '', NULL, 'S7');
+    `)
+    const token = await createAccountMergeIntent(d1, 'source-session', 'github')
+
+    const result = await finalizeAccountMerge(d1, token, 'target-user')
+
+    expect(result.observations).toBe(5)
+    expect(sqlite.prepare("SELECT count(*) AS count FROM observation WHERE id = 'source-legacy'").get())
+      .toEqual({ count: 0 })
+  })
+
+  it('finalizes safely against the pre-groupKey schema during rollout', async () => {
+    const { sqlite, d1 } = database('0014_species_code.sql')
+    seedUsers(sqlite)
+    sqlite.exec(`
+      INSERT INTO dex_meta (userId, speciesName, addedDate, notes)
+      VALUES
+        ('source-user', 'American Robin', '2025-01-01', 'source note'),
+        ('target-user', 'American Robin', '2026-01-01', 'target note');
+    `)
+    const token = await createAccountMergeIntent(d1, 'source-session', 'github')
+
+    await expect(finalizeAccountMerge(d1, token, 'target-user')).resolves.toMatchObject({
+      status: 'completed',
+      sourceUserId: 'source-user',
+      targetUserId: 'target-user',
+    })
+    expect(sqlite.prepare("SELECT addedDate, notes FROM dex_meta WHERE userId = 'target-user'").get())
+      .toEqual({ addedDate: '2025-01-01', notes: 'target note\n\nsource note' })
   })
 
   it('promotes source equal to target without deleting data or the user', async () => {

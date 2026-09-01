@@ -53,6 +53,11 @@ struct BirdObservation: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let outingId: String
     let speciesName: String
+    /// eBird species code, nil when the name resolves to no known taxon.
+    /// The dex grouping key when present; speciesName is the fallback.
+    var speciesCode: String?
+    /// Exact eBird taxon code, including ISSF and other below-species taxa.
+    var taxonCode: String?
     var count: Int
     var certainty: ObservationStatus
     var representativePhotoId: String?
@@ -61,8 +66,53 @@ struct BirdObservation: Codable, Identifiable, Hashable, Sendable {
     var notes: String
 }
 
+/// The key the dex groups on, matching DEX_QUERY on the server and
+/// rebuildDexFromState on web: the eBird code when present, the display name
+/// otherwise, in separate namespaces so a name cannot collide with a code.
+func dexGroupKey(speciesCode: String?, speciesName: String) -> String {
+    if let code = speciesCode, !code.isEmpty { return "code:\(code)" }
+    return "name:\(speciesName)"
+}
+
+/// One dex group: the observations that share a key, plus the label to show.
+struct SpeciesGroup {
+    let key: String
+    let label: String
+    let taxonCode: String?
+    let observations: [BirdObservation]
+}
+
+/// Group observations the way the dex does, sorted for display.
+///
+/// The label is the smallest spelling in the group, mirroring MIN(speciesName)
+/// in DEX_QUERY, so a bird recorded under two spellings shows one row with a
+/// stable name rather than two rows that disagree with the dex count.
+func groupByDexKey(_ observations: [BirdObservation]) -> [SpeciesGroup] {
+    Dictionary(grouping: observations) {
+        dexGroupKey(speciesCode: $0.speciesCode, speciesName: $0.speciesName)
+    }
+    .map { key, group in
+        let selected = group.min { $0.speciesName < $1.speciesName }
+        let exactCodes = Set(group.map { $0.taxonCode ?? "" })
+        let unanimousExactCode = exactCodes.count == 1 ? selected?.taxonCode : nil
+        let taxonCode = unanimousExactCode ?? group.compactMap(\.speciesCode).first
+        return SpeciesGroup(
+            key: key,
+            label: selected?.speciesName ?? "",
+            taxonCode: taxonCode,
+            observations: group
+        )
+    }
+    .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+}
+
 struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     let speciesName: String
+    /// eBird species code for this entry, nil for an unresolvable taxon.
+    var speciesCode: String?
+    var taxonCode: String?
+    var commonName: String?
+    var scientificName: String?
     let firstSeenDate: String
     let lastSeenDate: String
     var addedDate: String?
@@ -72,9 +122,29 @@ struct DexEntry: Codable, Identifiable, Hashable, Sendable {
     var notes: String
     var wikiTitle: String?
     var thumbnailUrl: String?
+    var borrowedFrom: String?
+    var compound: CompoundTaxon?
 
-    /// Use speciesName as the stable identity.
-    var id: String { speciesName }
+    /// Identity is the grouping key, not the display name. Two spellings of one
+    /// bird are a single entry server-side, so keying on speciesName here would
+    /// disagree with the dex the server returns.
+    var id: String { dexGroupKey(speciesCode: speciesCode, speciesName: speciesName) }
+}
+
+struct CompoundTaxon: Codable, Hashable, Sendable {
+    let kind: String
+    let parents: [CompoundTaxonParent]
+}
+
+struct CompoundTaxonParent: Codable, Hashable, Sendable, Identifiable {
+    let commonName: String
+    let scientificName: String
+    let speciesCode: String?
+    let wikiTitle: String?
+    let thumbnailUrl: String?
+    let birdlifeId: String?
+
+    var id: String { speciesCode ?? commonName }
 }
 
 // MARK: - API Response Types

@@ -9,14 +9,13 @@ import {
 } from '@phosphor-icons/react'
 import { BirdLogo } from '@/components/ui/bird-logo'
 import { useBirdSummary } from '@/hooks/use-bird-image'
-import { getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
+import { getFilePageUrl, getHeroImageUrl, fetchImageCredit, type ImageCredit } from '@/lib/wikimedia'
 import { BirdRow } from '@/components/ui/bird-row'
 import { RarityMark, RARITY_LABELS } from '@/components/ui/rarity-mark'
 import { useRarityResolver, localMonth } from '@/lib/rarity-client'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
 import { getDisplayName, getScientificName } from '@/lib/utils'
-import { fetchWithLocalAuthRetry } from '@/lib/local-auth-fetch'
 import { formatStoredDate } from '@/lib/timezone'
 import { buildSyncOrderLookup, getBirdlifeFactsheetUrl } from '@/lib/taxonomy-order'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
@@ -27,44 +26,6 @@ export type SortDir = 'asc' | 'desc'
 
 const INITIAL_VISIBLE_ITEMS = 40
 const LOAD_MORE_STEP = 40
-
-function getEbirdUrl(commonName: string): string {
-  const words = commonName.replace(/'/g, '').split(/[\s-]+/).filter(Boolean)
-  if (words.length === 0) return 'https://ebird.org/species'
-
-  let code = ''
-  if (words.length === 1) {
-    code = words[0].slice(0, 6)
-  } else if (words.length === 2) {
-    code = words[0].slice(0, 3) + words[1].slice(0, 3)
-  } else if (words.length === 3) {
-    code = words[0].slice(0, 2) + words[1].slice(0, 1) + words[2].slice(0, 3)
-  } else {
-    const charsFromLast = Math.max(1, 7 - words.length)
-    const prefixChars = 6 - charsFromLast
-    code = words.slice(0, words.length - 1).map(word => word[0]).join('').slice(0, prefixChars)
-      + words[words.length - 1].slice(0, charsFromLast)
-  }
-
-  return `https://ebird.org/species/${code.toLowerCase()}`
-}
-
-async function fetchEbirdUrl(speciesName: string): Promise<string> {
-  const response = await fetchWithLocalAuthRetry(`/api/species/ebird-code?name=${encodeURIComponent(speciesName)}`, {
-    credentials: 'include',
-  })
-  if (!response.ok) {
-    return getEbirdUrl(getDisplayName(speciesName))
-  }
-
-  const payload = await response.json() as { ebirdCode?: string | null }
-  const code = payload.ebirdCode?.trim()
-  if (!code) {
-    return getEbirdUrl(getDisplayName(speciesName))
-  }
-
-  return `https://ebird.org/species/${code.toLowerCase()}`
-}
 
 interface WingDexPageProps {
   data: WingDexDataStore
@@ -113,7 +74,7 @@ export default function WingDexPage({
   // Load taxonomic order data lazily when family sort is selected
   useEffect(() => {
     if (effectiveSortField !== 'family') return
-    const names = dex.map(e => e.speciesName)
+    const names = dex.map(entry => entry.commonName ?? entry.speciesName)
     void buildSyncOrderLookup(names).then(lookup => {
       setFamilyOrderLookup(() => lookup)
     })
@@ -145,13 +106,15 @@ export default function WingDexPage({
   const sortedList = useMemo(() => {
     return [...dex].sort((a, b) => {
       const dir = effectiveSortDir === 'asc' ? 1 : -1
-      if (effectiveSortField === 'name') return dir * a.speciesName.localeCompare(b.speciesName)
+      const aName = a.commonName ?? a.speciesName
+      const bName = b.commonName ?? b.speciesName
+      if (effectiveSortField === 'name') return dir * aName.localeCompare(bName)
       if (effectiveSortField === 'count') return dir * (a.totalCount - b.totalCount)
       if (effectiveSortField === 'family') {
-        if (!familyOrderLookup) return a.speciesName.localeCompare(b.speciesName)
-        const orderDiff = familyOrderLookup(a.speciesName) - familyOrderLookup(b.speciesName)
+        if (!familyOrderLookup) return aName.localeCompare(bName)
+        const orderDiff = familyOrderLookup(aName) - familyOrderLookup(bName)
         if (orderDiff !== 0) return dir * orderDiff
-        return a.speciesName.localeCompare(b.speciesName)
+        return aName.localeCompare(bName)
       }
       return dir * (new Date(a.firstSeenDate).getTime() - new Date(b.firstSeenDate).getTime())
     })
@@ -159,7 +122,8 @@ export default function WingDexPage({
 
   const filteredList = useMemo(() => {
     const query = effectiveSearchQuery.toLowerCase()
-    return sortedList.filter(entry => entry.speciesName.toLowerCase().includes(query))
+    return sortedList.filter(entry => [entry.commonName, entry.scientificName, entry.speciesName]
+      .some(name => name?.toLowerCase().includes(query)))
   }, [sortedList, effectiveSearchQuery])
 
   useEffect(() => {
@@ -233,7 +197,11 @@ export default function WingDexPage({
   }
 
   if (selectedSpecies) {
-    const entry = dex.find(e => e.speciesName === selectedSpecies)
+    // Match on the grouping key first. speciesName is NOT unique: a coded and an
+    // uncoded group can share one MIN(speciesName), so a name lookup can land on
+    // the wrong entry. The name fallback keeps older bookmarked URLs working.
+    const entry = dex.find(e => e.id === selectedSpecies)
+      ?? dex.find(e => e.speciesName === selectedSpecies)
     if (!entry) {
       // Don't call onSelectSpecies during render -- return null gracefully
       return null
@@ -314,11 +282,14 @@ export default function WingDexPage({
         {visibleList.map((entry) => {
           return (
             <BirdRow
-              key={entry.speciesName}
+              key={entry.id}
               speciesName={entry.speciesName}
+              commonName={entry.commonName}
+              scientificName={entry.scientificName}
+              taxonCode={entry.taxonCode}
               imageUrl={entry.thumbnailUrl}
               subtitle={`${entry.totalOutings} ${entry.totalOutings === 1 ? 'outing' : 'outings'} · ${entry.totalCount} seen · ${formatStoredDate(entry.firstSeenDate)}`}
-              onClick={() => onSelectSpecies(entry.speciesName)}
+              onClick={() => onSelectSpecies(entry.id)}
             />
           )
         })}
@@ -355,28 +326,18 @@ function SpeciesDetail({
   onBack: () => void
   onSelectOuting: (id: string) => void
 }) {
-  const displayName = getDisplayName(entry.speciesName)
-  const scientificName = getScientificName(entry.speciesName)
+  const displayName = entry.commonName ?? getDisplayName(entry.speciesName)
+  const scientificName = entry.scientificName ?? getScientificName(entry.speciesName)
   // Taken once for the whole sightings list rather than per row.
   const resolveRarity = useRarityResolver()
   const { summary } = useBirdSummary(entry.speciesName, { wikiTitle: entry.wikiTitle })
-  const [ebirdUrl, setEbirdUrl] = useState(() => getEbirdUrl(displayName))
+  const ebirdUrl = entry.taxonCode
+    ? `https://ebird.org/species/${entry.taxonCode.toLowerCase()}`
+    : undefined
   const [birdlifeUrl, setBirdlifeUrl] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     let active = true
-    void fetchEbirdUrl(entry.speciesName)
-      .then(url => {
-        if (active) {
-          setEbirdUrl(url)
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setEbirdUrl(getEbirdUrl(displayName))
-        }
-      })
-
     void getBirdlifeFactsheetUrl(entry.speciesName)
       .then(url => {
         if (active) setBirdlifeUrl(url)
@@ -388,14 +349,15 @@ function SpeciesDetail({
     return () => {
       active = false
     }
-  }, [entry.speciesName, displayName])
+  }, [entry.speciesName])
 
   // Find all sightings of this species across outings
   const sightings: Array<{ observation: Observation; outing: { id: string; locationName: string; startTime: string; lat?: number | null; lon?: number | null } }> = []
   for (const outing of data.outings) {
     const obs = data.getOutingObservations(outing.id)
     for (const o of obs) {
-      if (o.speciesName === entry.speciesName && o.certainty !== 'rejected') {
+      const observationKey = o.speciesCode ? `code:${o.speciesCode}` : `name:${o.speciesName}`
+      if (observationKey === entry.id && o.certainty !== 'rejected') {
         sightings.push({ observation: o, outing: { id: outing.id, locationName: outing.locationName, startTime: outing.startTime, lat: outing.lat, lon: outing.lon } })
       }
     }
@@ -513,6 +475,56 @@ function SpeciesDetail({
           </div>
         </div>
 
+        {entry.borrowedFrom && (
+          <p className="text-xs font-medium text-muted-foreground">
+            Shown for {entry.borrowedFrom}, one of {entry.compound?.parents.length ?? 2} {entry.compound?.kind === 'slash' ? 'possible species' : 'parents'}.
+          </p>
+        )}
+
+        {(imageCredit?.pageUrl ?? getFilePageUrl(baseImageUrl)) && (
+          <p className="text-xs text-muted-foreground/60">
+            Photo <a href={imageCredit?.pageUrl ?? getFilePageUrl(baseImageUrl)} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">
+              {[imageCredit?.artist, imageCredit?.license].filter(Boolean).join(' / ') || 'on Wikimedia Commons'}
+            </a>.
+          </p>
+        )}
+
+        {entry.compound && (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {entry.compound.kind === 'hybrid'
+                ? `Hybrid of ${entry.compound.parents.map(parent => parent.commonName).join(' and ')}.`
+                : `Recorded when ${entry.compound.parents.map(parent => parent.commonName).join(' and ')} could not be told apart.`}
+            </p>
+            <div className="divide-y border-y">
+              {entry.compound.parents.map(parent => (
+                <div key={parent.commonName} className="flex gap-3 py-3">
+                  {parent.thumbnailUrl && (
+                    <img src={parent.thumbnailUrl} alt="" className="size-14 shrink-0 rounded object-cover" />
+                  )}
+                  <div className="min-w-0 space-y-1">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{parent.commonName}</p>
+                      <p className="text-xs italic text-muted-foreground">{parent.scientificName}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                      {parent.wikiTitle && (
+                        <a className="text-primary hover:underline" href={`https://en.wikipedia.org/wiki/${encodeURIComponent(parent.wikiTitle.replace(/ /g, '_'))}`} target="_blank" rel="noopener noreferrer">Wikipedia</a>
+                      )}
+                      {parent.speciesCode && (
+                        <a className="text-primary hover:underline" href={`https://ebird.org/species/${parent.speciesCode}`} target="_blank" rel="noopener noreferrer">eBird</a>
+                      )}
+                      {parent.birdlifeId && (
+                        <a className="text-primary hover:underline" href={`https://datazone.birdlife.org/species/factsheet/${parent.birdlifeId}`} target="_blank" rel="noopener noreferrer">BirdLife</a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* About -- fade in when loaded */}
         {summary?.extract && (
           <div className="space-y-1">
@@ -521,15 +533,6 @@ function SpeciesDetail({
             </p>
             <p className="text-xs text-muted-foreground/60">
               Text from <a href={summary.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Wikipedia</a> under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">CC BY-SA 4.0</a>.
-              {imageCredit && (
-                <>
-                  {' Photo '}
-                  <a href={imageCredit.pageUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">
-                    {[imageCredit.artist, imageCredit.license].filter(Boolean).join(' / ') || 'on Wikimedia Commons'}
-                  </a>
-                  .
-                </>
-              )}
             </p>
           </div>
         )}
@@ -544,12 +547,14 @@ function SpeciesDetail({
               </a>
             </Button>
           )}
-          <Button variant="outline" size="sm" asChild>
-            <a href={ebirdUrl} target="_blank" rel="noopener noreferrer">
-              <ArrowSquareOut size={14} className="mr-1.5" />
-              eBird
-            </a>
-          </Button>
+          {ebirdUrl && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={ebirdUrl} target="_blank" rel="noopener noreferrer">
+                <ArrowSquareOut size={14} className="mr-1.5" />
+                eBird
+              </a>
+            </Button>
+          )}
           {birdlifeUrl && (
             <Button variant="outline" size="sm" asChild>
               <a href={birdlifeUrl} target="_blank" rel="noopener noreferrer">
@@ -584,7 +589,13 @@ function SpeciesDetail({
                     {(() => {
                       // Species detail is the one screen with room for the word,
                       // which is where the issue asks for a fuller label.
-                      const state = resolveRarity(entry.speciesName, outing.lat, outing.lon, localMonth(outing.startTime))
+                      const state = resolveRarity(
+                        observation.speciesName,
+                        outing.lat,
+                        outing.lon,
+                        localMonth(outing.startTime),
+                        observation.taxonCode,
+                      )
                       if (state === 'none') return null
                       return (
                         <span className="text-amber-700 dark:text-amber-400">

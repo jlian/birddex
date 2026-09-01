@@ -299,7 +299,7 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   const saveOuting = async (allResults: PhotoResult[]) => {
     if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
     const confirmed = filterConfirmedResults(allResults)
-    const existingSpecies = new Set(data.dex.map(entry => entry.speciesName))
+    const existingSpecies = new Set(data.dex.map(entry => entry.id))
 
     const speciesMap = groupResultsBySpecies(confirmed)
 
@@ -322,13 +322,12 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
 
     if (observations.length > 0) {
       await ensureOutingAndPhotosExist()
-      const persistObservations = data.addObservations(observations)
-      const result = data.updateDex(currentOutingId, observations)
-      await persistObservations
+      const savedObservations = await data.addObservations(observations)
+      const result = data.updateDex(currentOutingId, savedObservations)
       newSpeciesCount = result.newSpeciesCount
-      const newSpeciesNames = observations
+      const newSpeciesNames = savedObservations
+        .filter(obs => !existingSpecies.has(obs.speciesCode ? `code:${obs.speciesCode}` : `name:${obs.speciesName}`))
         .map(obs => obs.speciesName)
-        .filter(species => !existingSpecies.has(species))
 
       if (newSpeciesCount > 0) {
         hasNewSpecies = true

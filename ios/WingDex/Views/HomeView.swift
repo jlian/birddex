@@ -65,7 +65,7 @@ struct HomeView: View {
                     Text(store.error?.message ?? "Something went wrong. Try again.")
                 }
                 .navigationDestination(for: DexEntry.self) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
                 .navigationDestination(for: Outing.self) { outing in
                     OutingDetailView(outingId: outing.id)
@@ -77,7 +77,7 @@ struct HomeView: View {
                     )
                 }
                 .navigationDestination(item: $committedSpeciesEntry) { entry in
-                    SpeciesDetailView(speciesName: entry.speciesName)
+                    SpeciesDetailView(speciesName: entry.speciesName, speciesKey: entry.id)
                 }
         }
     }
@@ -289,7 +289,7 @@ struct HomeView: View {
             presentActivitySheet(items: [SharePayload.species(entry)])
         })
 
-        if let url = getEbirdURL(for: entry.speciesName) {
+        if let url = getEbirdURL(forCode: entry.taxonCode) ?? getEbirdURL(for: entry.speciesName) {
             actions.append(UIAction(title: "Open in eBird", image: UIImage(systemName: "globe")) { _ in
                 UIApplication.shared.open(url)
             })
@@ -315,7 +315,7 @@ struct HomeView: View {
                 presentActivitySheet(items: [SharePayload.species(entry)])
             },
         ]
-        if let url = getEbirdURL(for: entry.speciesName) {
+        if let url = getEbirdURL(forCode: entry.taxonCode) ?? getEbirdURL(for: entry.speciesName) {
             actions.append(.init(name: "Open in eBird") { UIApplication.shared.open(url) })
         }
         if let url = getWikipediaURL(for: entry.wikiTitle) {

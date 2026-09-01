@@ -1,7 +1,9 @@
 import { computeDex, enrichDexEntries } from '../../lib/dex-query'
 import { createRouteResponder } from '../../lib/log'
+import { hasDexMetaColumn } from '../../lib/schema'
 
 type DexMetaPatch = {
+  groupKey?: string
   speciesName: string
   addedDate?: string | null
   bestPhotoId?: string | null
@@ -15,6 +17,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function isDexMetaPatch(value: unknown): value is DexMetaPatch {
   if (!isObject(value)) return false
   return typeof value.speciesName === 'string'
+    && (value.groupKey === undefined || (
+      typeof value.groupKey === 'string'
+      && (/^code:.+/.test(value.groupKey) || value.groupKey === `name:${value.speciesName}`)
+    ))
 }
 
 function countLabel(count: number, singular: string, plural = `${singular}s`): string {
@@ -22,9 +28,19 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
 }
 
 async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMetaPatch) {
+  const resolvedCode = patch.groupKey
+    ? null
+    : (await import('../../lib/species-code-resolve')).resolveSpeciesCode(patch.speciesName) || null
+  const groupKey = patch.groupKey ?? (resolvedCode ? `code:${resolvedCode}` : `name:${patch.speciesName}`)
+  const speciesCode = groupKey.startsWith('code:') ? groupKey.slice(5) : null
+  const supportsSpeciesCode = await hasDexMetaColumn(db, 'speciesCode')
+  const supportsGroupKey = await hasDexMetaColumn(db, 'groupKey')
+
   const existingResult = await db
-    .prepare('SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND speciesName = ? LIMIT 1')
-    .bind(userId, patch.speciesName)
+    .prepare(supportsGroupKey
+      ? 'SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND groupKey = ? LIMIT 1'
+      : 'SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND speciesName = ? LIMIT 1')
+    .bind(userId, supportsGroupKey ? groupKey : patch.speciesName)
     .all<{ addedDate?: string | null; bestPhotoId?: string | null; notes?: string | null }>()
 
   const existing = existingResult.results[0]
@@ -33,18 +49,38 @@ async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMeta
   const nextBestPhotoId = 'bestPhotoId' in patch ? patch.bestPhotoId ?? null : (existing?.bestPhotoId ?? null)
   const nextNotes = typeof patch.notes === 'string' ? patch.notes : (existing?.notes ?? '')
 
-  await db
-    .prepare(
-      `INSERT INTO dex_meta (userId, speciesName, addedDate, bestPhotoId, notes)
-       VALUES (?1, ?2, ?3, ?4, ?5)
-       ON CONFLICT(userId, speciesName)
-       DO UPDATE SET
-         addedDate = excluded.addedDate,
-         bestPhotoId = excluded.bestPhotoId,
-         notes = excluded.notes`
-    )
-    .bind(userId, patch.speciesName, nextAddedDate, nextBestPhotoId, nextNotes)
-    .run()
+  if (!supportsGroupKey) {
+    await db
+      .prepare(
+        `INSERT INTO dex_meta (userId, speciesName, addedDate, bestPhotoId, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(userId, speciesName)
+         DO UPDATE SET addedDate = excluded.addedDate, bestPhotoId = excluded.bestPhotoId, notes = excluded.notes`
+      )
+      .bind(userId, patch.speciesName, nextAddedDate, nextBestPhotoId, nextNotes)
+      .run()
+    return
+  }
+
+  if (supportsSpeciesCode) {
+    await db
+      .prepare(
+        `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(userId, groupKey)
+         DO UPDATE SET
+           speciesName = excluded.speciesName,
+           speciesCode = excluded.speciesCode,
+           addedDate = excluded.addedDate,
+           bestPhotoId = excluded.bestPhotoId,
+           notes = excluded.notes`
+      )
+      .bind(userId, groupKey, patch.speciesName, speciesCode, nextAddedDate, nextBestPhotoId, nextNotes)
+      .run()
+    return
+  }
+
+  throw new Error('groupKey exists without speciesCode')
 }
 
 export const onRequestGet: PagesFunction<Env> = async context => {
@@ -78,12 +114,31 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
 
   const patches = Array.isArray(body) ? body : [body]
   if (!patches.every(isDexMetaPatch)) {
-    return route.fail(400, 'Invalid dex patch payload', 'Dex patch payload failed validation; expected {speciesName} with optional addedDate, bestPhotoId, notes')
+    return route.fail(400, 'Invalid dex patch payload', 'Dex patch payload failed validation; expected {speciesName} with optional groupKey, addedDate, bestPhotoId, notes')
   }
 
   let appliedPatchCount = 0
   try {
+    const supportsGroupKey = await hasDexMetaColumn(context.env.DB, 'groupKey')
+    const currentDex = supportsGroupKey || patches.some(patch => patch.groupKey)
+      ? await computeDex(context.env.DB, userId)
+      : []
+    const entriesByKey = new Map(currentDex.map(entry => [entry.id, entry]))
+    const resolvedPatches: DexMetaPatch[] = []
     for (const patch of patches) {
+      if (!supportsGroupKey) {
+        resolvedPatches.push(patch)
+        continue
+      }
+      const matches = patch.groupKey
+        ? [entriesByKey.get(patch.groupKey)].filter(Boolean)
+        : currentDex.filter(entry => entry.speciesName === patch.speciesName)
+      if (matches.length !== 1 || !matches[0]) {
+        return route.fail(400, 'Invalid dex grouping key', 'groupKey and speciesName must identify an existing dex entry')
+      }
+      resolvedPatches.push({ ...patch, groupKey: matches[0].id, speciesName: matches[0].speciesName })
+    }
+    for (const patch of resolvedPatches) {
       await upsertDexMetaPatch(context.env.DB, userId, patch)
       appliedPatchCount += 1
     }

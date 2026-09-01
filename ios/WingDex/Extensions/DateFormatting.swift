@@ -185,6 +185,7 @@ private struct TaxonomyLookups: Sendable {
     var wikiThumb: [String: String] = [:]
     var wikiTitle: [String: String] = [:]
     var order: [String: Int] = [:]
+    var orderByCode: [String: Int] = [:]
 }
 
 @MainActor
@@ -237,6 +238,7 @@ private final class TaxonomyLookupStore {
         lookups.wikiThumb.reserveCapacity(rawEntries.count)
         lookups.wikiTitle.reserveCapacity(rawEntries.count)
         lookups.order.reserveCapacity(rawEntries.count)
+        lookups.orderByCode.reserveCapacity(rawEntries.count)
 
         for (index, entry) in rawEntries.enumerated() {
             guard let commonName = entry.first as? String else { continue }
@@ -245,6 +247,7 @@ private final class TaxonomyLookupStore {
 
             if entry.count > 2, let code = entry[2] as? String, !code.isEmpty {
                 lookups.ebird[key] = code
+                lookups.orderByCode[code] = index
             }
             if entry.count > 3, let title = entry[3] as? String, !title.isEmpty {
                 lookups.wikiTitle[key] = title
@@ -288,6 +291,14 @@ func getTaxonomicOrder(_ speciesName: String) -> Int {
     return store.lookups.order[commonName.lowercased()] ?? Int.max
 }
 
+/// Return the classifier taxonomy index for an exact eBird code.
+@MainActor
+func getTaxonomicOrder(forCode code: String) -> Int {
+    let store = TaxonomyLookupStore.shared
+    store.loadIfNeeded()
+    return store.lookups.orderByCode[code] ?? Int.max
+}
+
 /// Compare stored species names by taxonomic sequence, keeping unknown species last.
 @MainActor
 func taxonomicSpeciesPrecedes(_ lhs: String, _ rhs: String, ascending: Bool) -> Bool {
@@ -309,6 +320,11 @@ func getEbirdURL(for speciesName: String) -> URL? {
     store.loadIfNeeded()
     guard let ebirdCode = store.lookups.ebird[commonName.lowercased()] else { return nil }
     return URL(string: "https://ebird.org/species/\(ebirdCode)")
+}
+
+func getEbirdURL(forCode code: String?) -> URL? {
+    guard let code, !code.isEmpty else { return nil }
+    return URL(string: "https://ebird.org/species/\(code)")
 }
 
 /// Build a Wikipedia URL from the taxonomy-provided article title.

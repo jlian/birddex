@@ -54,6 +54,46 @@ interface OutingsPageProps {
 export type OutingSortField = 'date' | 'species' | 'name'
 export type SortDir = 'asc' | 'desc'
 
+export function groupOutingObservations(list: Observation[]) {
+  const groups = new Map<string, {
+    key: string
+    speciesName: string
+    speciesCode?: string
+    taxonCodes: Set<string>
+    totalCount: number
+    obsIds: string[]
+  }>()
+  for (const observation of list) {
+    const key = observation.speciesCode
+      ? `code:${observation.speciesCode}`
+      : `name:${observation.speciesName}`
+    const existing = groups.get(key)
+    if (existing) {
+      existing.totalCount += observation.count
+      existing.obsIds.push(observation.id)
+      if (observation.speciesName < existing.speciesName) {
+        existing.speciesName = observation.speciesName
+      }
+      existing.taxonCodes.add(observation.taxonCode ?? '')
+    } else {
+      groups.set(key, {
+        key,
+        speciesName: observation.speciesName,
+        speciesCode: observation.speciesCode,
+        taxonCodes: new Set([observation.taxonCode ?? '']),
+        totalCount: observation.count,
+        obsIds: [observation.id],
+      })
+    }
+  }
+  return Array.from(groups.values()).map(group => ({
+    ...group,
+    taxonCode: group.taxonCodes.size === 1
+      ? [...group.taxonCodes][0] || group.speciesCode
+      : group.speciesCode,
+  }))
+}
+
 const INITIAL_VISIBLE_ITEMS = 40
 const LOAD_MORE_STEP = 40
 
@@ -348,34 +388,15 @@ function OutingDetail({
   const confirmed = observations.filter(obs => obs.certainty === 'confirmed')
   const possible = observations.filter(obs => obs.certainty === 'possible')
 
-  // Group observations by species to deduplicate
-  const groupedConfirmed = useMemo(() => {
-    const map = new Map<string, { speciesName: string; totalCount: number; obsIds: string[] }>()
-    for (const obs of confirmed) {
-      const existing = map.get(obs.speciesName)
-      if (existing) {
-        existing.totalCount += obs.count
-        existing.obsIds.push(obs.id)
-      } else {
-        map.set(obs.speciesName, { speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
-      }
-    }
-    return Array.from(map.values())
-  }, [confirmed])
+  // Group observations by species to deduplicate.
+  //
+  // Keyed the same way as DEX_QUERY and rebuildDexFromState: the eBird code
+  // when present, the display name otherwise, in separate namespaces. Without
+  // this an outing showing two spellings of one bird would list it twice while
+  // the dex counted it once.
+  const groupedConfirmed = useMemo(() => groupOutingObservations(confirmed), [confirmed])
 
-  const groupedPossible = useMemo(() => {
-    const map = new Map<string, { speciesName: string; totalCount: number; obsIds: string[] }>()
-    for (const obs of possible) {
-      const existing = map.get(obs.speciesName)
-      if (existing) {
-        existing.totalCount += obs.count
-        existing.obsIds.push(obs.id)
-      } else {
-        map.set(obs.speciesName, { speciesName: obs.speciesName, totalCount: obs.count, obsIds: [obs.id] })
-      }
-    }
-    return Array.from(map.values())
-  }, [possible])
+  const groupedPossible = useMemo(() => groupOutingObservations(possible), [possible])
 
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(outing.notes || '')
@@ -461,8 +482,8 @@ function OutingDetail({
     }
     setIsAddingSpecies(true)
     try {
-      await data.addObservations([obs])
-      data.updateDex(outing.id, [obs])
+      const saved = await data.addObservations([obs])
+      data.updateDex(outing.id, saved)
       setNewSpeciesName('')
       setSelectedSpeciesEntry(null)
       setAddingSpecies(false)
@@ -628,12 +649,17 @@ function OutingDetail({
         {/* Confirmed species */}
         {groupedConfirmed.length > 0 && (
           <div>
-            {groupedConfirmed.map(group => (
+            {groupedConfirmed.map(group => {
+              const entry = data.getDexEntry(group.key)
+              return (
               <BirdRow
-                key={group.speciesName}
+                key={group.key}
                 speciesName={group.speciesName}
+                commonName={entry?.commonName}
+                scientificName={entry?.scientificName}
+                taxonCode={group.taxonCode}
                 subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
-                onClick={() => onSelectSpecies(group.speciesName)}
+                onClick={() => onSelectSpecies(group.key)}
                 outing={outing}
                 actions={
                   <Button
@@ -646,7 +672,8 @@ function OutingDetail({
                   </Button>
                 }
               />
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -657,12 +684,17 @@ function OutingDetail({
               Possible
             </p>
             <div>
-              {groupedPossible.map(group => (
+              {groupedPossible.map(group => {
+                const entry = data.getDexEntry(group.key)
+                return (
                 <BirdRow
-                  key={group.speciesName}
+                  key={group.key}
                   speciesName={group.speciesName}
+                  commonName={entry?.commonName}
+                  scientificName={entry?.scientificName}
+                  taxonCode={group.taxonCode}
                   subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
-                  onClick={() => onSelectSpecies(group.speciesName)}
+                  onClick={() => onSelectSpecies(group.key)}
                   outing={outing}
                   actions={
                     <>
@@ -678,7 +710,8 @@ function OutingDetail({
                     </>
                   }
                 />
-              ))}
+                )
+              })}
             </div>
           </>
         )}

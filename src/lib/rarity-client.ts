@@ -21,6 +21,7 @@ type Resolver = (
   lat: number | null | undefined,
   lon: number | null | undefined,
   month: number | null | undefined,
+  taxonCode?: string,
 ) => RarityState
 
 const NO_MARK: Resolver = () => 'none'
@@ -43,9 +44,9 @@ async function build(): Promise<Resolver> {
     // taxonomy bumped without rebuilding the asset must fail closed rather
     // than apply every verdict to the wrong bird.
     const blob = parseRarity(raw, TAXONOMY_SHA16)
-    return (species, lat, lon, month) => {
+    return (species, lat, lon, month, taxonCode) => {
       if (lat == null || lon == null || month == null) return 'none'
-      const idx = speciesIndex(species)
+      const idx = speciesIndex(species, taxonCode)
       if (idx < 0) return 'none'
       return rarityAt(blob, idx, lat, lon, month)
     }
@@ -94,9 +95,10 @@ export function useRarity(
   lat: number | null | undefined,
   lon: number | null | undefined,
   month: number | null | undefined,
+  taxonCode?: string,
 ): RarityState {
   const known = lat != null && lon != null && month != null
-  return useRarityResolver(known)(species, lat, lon, month)
+  return useRarityResolver(known)(species, lat, lon, month, taxonCode)
 }
 
 /**

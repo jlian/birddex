@@ -7,7 +7,7 @@ import XCTest
 /// deliberately the same cases in the same order. A verdict that differs
 /// between platforms is the failure this file exists to catch.
 final class RarityTests: XCTestCase {
-    private let taxHash = "61cd7f2a1e3093e9"
+    private let taxHash = "a217aceafc34f8ba"
     private let allMonths: UInt16 = 0xfff
 
     // Seattle. Any land point works; the key is derived rather than hardcoded so
@@ -237,5 +237,22 @@ final class RarityTests: XCTestCase {
                 species: species, lat: seattle.lat, lon: seattle.lon, month: month)
             XCTAssertEqual(got, expected, "\(species) in month \(month)")
         }
+    }
+
+    @MainActor
+    func testExactSidecarCodeDoesNotFallBackToClassifierSpecies() async {
+        await prewarmTaxonomyLookups()
+
+        XCTAssertEqual(getTaxonomicOrder(forCode: "mallar2"), Int.max)
+        XCTAssertEqual(
+            RarityStore.shared.state(
+                species: "Mallard (Domestic type)",
+                taxonCode: "mallar2",
+                lat: 47.61,
+                lon: -122.33,
+                month: 1
+            ),
+            .none
+        )
     }
 }
