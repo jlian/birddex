@@ -12,8 +12,7 @@ import {
   type GalleryImage,
   type ImageCredit,
 } from '@/lib/wikimedia'
-import { getEbirdSpeciesUrl, getBirdlifeFactsheetUrl, getWikiTitleForSpecies, getCompoundSpecies, joinNames } from '@/lib/taxonomy-order'
-import type { CompoundSpecies } from '@/lib/taxonomy-order'
+import { getEbirdSpeciesUrl, getBirdlifeFactsheetUrl, getWikiTitleForSpecies } from '@/lib/taxonomy-order'
 import { formatConfidence } from '@/lib/bird-id-local-adapter'
 import type { RarityState } from '@/lib/rarity'
 
@@ -37,25 +36,17 @@ interface SpeciesDetails {
       at render, because two photos of the same species can carry different plumage. */
   images: GalleryImage[]
   links: SpeciesLinks
-  /**
-   * Set when the taxon is not a single species. A hybrid is a real bird with
-   * two parents; a slash is an unresolved identification. They carry the same
-   * shape and mean opposite things, so the sentence differs.
-   */
-  compound?: CompoundSpecies
 }
 
 const EMPTY: SpeciesDetails = { images: [], links: {} }
 
 /**
  * Whether an entry is worth keeping rather than refetching. The extract is the
- * only field that can fail transiently, so a compound taxon counts as complete
- * without one: hybrids and slashes have no Wikipedia article of their own, and
- * treating them as perpetually incomplete reran the whole five-request loader
- * every time the candidate was revisited.
+ * part that fails on its own: the gallery and the links come from the bundled
+ * taxonomy, so they survive a Wikipedia outage while the extract does not.
  */
 function isComplete(detail: SpeciesDetails | undefined): boolean {
-  return detail?.extract !== undefined || detail?.compound !== undefined
+  return detail?.extract !== undefined
 }
 
 function confidenceClass(confidence: number): string {
@@ -131,19 +122,17 @@ export function SpeciesPeekSheet({
         // left one behind with no extract, and skipping on mere presence made
         // that first failure permanent for the life of the flow.
         if (isComplete(detailsRef.current[name])) continue
-        const [images, wikiTitle, ebird, birdlife, compound] = await Promise.all([
+        const [images, wikiTitle, ebird, birdlife] = await Promise.all([
           getWikimediaGallery(name),
           getWikiTitleForSpecies(name),
           getEbirdSpeciesUrl(name),
           getBirdlifeFactsheetUrl(name),
-          getCompoundSpecies(name),
         ])
         const summary = await getWikimediaSummary(name, { wikiTitle })
         if (cancelled) return
         const next: SpeciesDetails = {
           extract: summary?.extract,
           images,
-          compound,
           links: {
             wikipedia: summary?.pageUrl
               ?? (wikiTitle ? `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiTitle)}` : undefined),
@@ -316,14 +305,6 @@ export function SpeciesPeekSheet({
                   here and would otherwise be read out a second time. */}
               <RarityMark state={current.rarity} decorative />
               {RARITY_SENTENCES[current.rarity]}
-            </p>
-          )}
-
-          {detail.compound && (
-            <p className="text-sm text-muted-foreground">
-              {detail.compound.kind === 'hybrid'
-                ? `Hybrid of ${joinNames(detail.compound.parents)}.`
-                : `Recorded when ${joinNames(detail.compound.parents)} could not be told apart.`}
             </p>
           )}
 

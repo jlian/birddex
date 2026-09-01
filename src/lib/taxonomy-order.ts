@@ -61,6 +61,12 @@ export function joinNames(names: string[]): string {
 /**
  * Resolve the parents of a hybrid or slash taxon.
  *
+ * NOT used by the identification flow. The classifier taxonomy holds species
+ * only: 0 of its 10,994 rows carry a parenthetical, a " x ", a "/" or an
+ * "sp.", so `identifyBirdLocally` cannot propose a compound taxon and the peek
+ * sheet has nothing to render. These taxa reach the app only by eBird CSV
+ * import, which is why the species page is the caller.
+ *
  * eBird generates these names mechanically, so they can be parsed rather than
  * guessed: "Western x Glaucous-winged Gull" and "Common/Somali Ostrich". Only
  * the LAST side spells out the shared group noun, so an earlier side completes

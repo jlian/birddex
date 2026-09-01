@@ -71,3 +71,28 @@ describe('getCompoundSpecies', () => {
     expect(result?.parents).toEqual(['Common Ostrich', 'Somali Ostrich'])
   })
 })
+
+/**
+ * The identification flow cannot produce a compound taxon, so the peek sheet
+ * deliberately does not resolve one. This asserts the premise rather than the
+ * omission, so if a future taxonomy ever carries compound rows this fails and
+ * the decision gets revisited instead of quietly becoming wrong.
+ */
+describe('the classifier taxonomy holds species only', () => {
+  it('has no row that parses as a hybrid or a slash', async () => {
+    const { default: raw } = await import('../lib/taxonomy.json')
+    const rows = raw as unknown[][]
+    for (const row of rows) {
+      const common = row[0] as string
+      expect(await getCompoundSpecies(`${common} (${row[1] as string})`), common).toBeUndefined()
+    }
+  })
+
+  it('has no parenthetical, separator or sp. in any common name', async () => {
+    const { default: raw } = await import('../lib/taxonomy.json')
+    const offenders = (raw as unknown[][])
+      .map(row => row[0] as string)
+      .filter(name => /[()/]| x |sp\.$/.test(name))
+    expect(offenders).toEqual([])
+  })
+})
