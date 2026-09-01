@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, it } from 'vitest'
 
-import { resolveSpeciesCode } from '../functions/lib/taxonomy'
+import { resolveSpeciesIdentity } from '../functions/lib/taxonomy'
 
 const ROOT = resolve(__dirname, '..')
 const NAMES = resolve(ROOT, '.tmp/species-names.json')
@@ -35,11 +35,11 @@ describe('species code backfill plan', () => {
     }
     const names: string[] = JSON.parse(readFileSync(NAMES, 'utf8'))
 
-    const map: Record<string, string> = {}
+    const map: Record<string, { speciesCode: string; taxonCode: string }> = {}
     const unresolved: string[] = []
     for (const name of names) {
-      const code = resolveSpeciesCode(name)
-      if (code) map[name] = code
+      const identity = resolveSpeciesIdentity(name)
+      if (identity) map[name] = identity
       else unresolved.push(name)
     }
 

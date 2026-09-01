@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Backfill observation.speciesCode and dex_meta.speciesCode (#306).
+ * Backfill observation speciesCode/taxonCode and dex_meta.speciesCode (#306).
  *
  * WHY THIS IS A SCRIPT AND NOT PART OF THE MIGRATION
  * --------------------------------------------------
@@ -30,13 +30,16 @@
  *   1. apply migration 0014 to the remote database
  *        wrangler d1 migrations apply wingdex-db --remote
  *   2. dump the distinct names FROM THAT DATABASE, not from local
- *        D1_REMOTE=1 node scripts/backfill-species-code.mjs --dump-names
+ *        D1_REMOTE=1 D1_DATABASE=DB D1_ENV=preview \
+ *          node scripts/backfill-species-code.mjs --dump-names
  *   3. build the plan against those names
  *        npx vitest run --config vitest.plan.config.ts
  *   4. DRY RUN first and read the unresolved tail
- *        D1_REMOTE=1 node scripts/backfill-species-code.mjs
+ *        D1_REMOTE=1 D1_DATABASE=DB D1_ENV=preview \
+ *          node scripts/backfill-species-code.mjs
  *   5. only then write
- *        D1_REMOTE=1 node scripts/backfill-species-code.mjs --apply --strict 5
+ *        D1_REMOTE=1 D1_DATABASE=DB D1_ENV=preview \
+ *          node scripts/backfill-species-code.mjs --apply --strict 5
  *
  * Step 2 matters: production holds names local data does not, so a plan built
  * from a local dump would silently leave those rows NULL. Step 4 matters
@@ -78,7 +81,8 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
-const DB = 'wingdex-db'
+const DB = process.env.D1_DATABASE || 'wingdex-db'
+const D1_ENV = process.env.D1_ENV
 const STATE = `${process.env.HOME}/.cache/wingdex/wrangler-state`
 
 const apply = process.argv.includes('--apply')
@@ -104,6 +108,7 @@ function d1(sql) {
   const args = [
     'wrangler', 'd1', 'execute', DB,
     remote ? '--remote' : '--local',
+    ...(D1_ENV ? ['--env', D1_ENV] : []),
     ...(remote ? [] : ['--persist-to', STATE]),
     '--json', '--command', sql,
   ]
@@ -148,7 +153,13 @@ try {
     `then: npx vitest run --config vitest.plan.config.ts`)
   process.exit(1)
 }
-const resolveSpeciesCode = name => plan.map[name] ?? ''
+const resolveIdentity = name => {
+  const value = plan.map[name]
+  if (!value) return null
+  return typeof value === 'string'
+    ? { speciesCode: value, taxonCode: value }
+    : value
+}
 
 console.log(`target: ${remote ? 'REMOTE' : 'local'} ${DB}`)
 console.log(`plan  : ${plan.count} names resolved, built ${plan.builtAt}`)
@@ -172,8 +183,8 @@ for (const table of TABLES) {
   const resolved = new Map()
   const unresolved = []
   for (const name of names) {
-    const code = resolveSpeciesCode(name)
-    if (code) resolved.set(name, code)
+    const identity = resolveIdentity(name)
+    if (identity) resolved.set(name, identity)
     else unresolved.push(name)
   }
 
@@ -217,19 +228,30 @@ for (const { table, resolved } of plans) {
   //
   // json_each is the same mechanism the import path already uses for bulk
   // inserts, so this is one prepared statement carrying the whole mapping.
-  const pairs = [...resolved].map(([speciesName, code]) => ({ speciesName, code }))
+  const pairs = [...resolved].map(([speciesName, identity]) => ({ speciesName, ...identity }))
+  const json = sqlQuote(JSON.stringify(pairs))
+  const taxonAssignment = table === 'observation'
+    ? `, taxonCode = (` +
+      `  SELECT json_extract(value, '$.taxonCode') FROM json_each(${json})` +
+      `  WHERE json_extract(value, '$.speciesName') = ${table}.speciesName` +
+      `)`
+    : ''
   const sql =
-    `UPDATE ${table} SET speciesCode = (` +
-    `  SELECT json_extract(value, '$.code') FROM json_each(${sqlQuote(JSON.stringify(pairs))})` +
+    `UPDATE ${table} SET speciesCode = COALESCE(speciesCode, (` +
+    `  SELECT json_extract(value, '$.speciesCode') FROM json_each(${json})` +
     `  WHERE json_extract(value, '$.speciesName') = ${table}.speciesName` +
-    `) WHERE speciesCode IS NULL AND speciesName IN (` +
+    `))${taxonAssignment} WHERE speciesName IN (` +
     `  SELECT json_extract(value, '$.speciesName') ` +
-    `  FROM json_each(${sqlQuote(JSON.stringify(pairs))})` +
+    `  FROM json_each(${json})` +
     `)`
   d1(sql)
   console.log(`  wrote      : ${resolved.size} mappings in 1 statement`)
 
   const after = d1(
-    `SELECT COUNT(*) AS total, COUNT(speciesCode) AS coded FROM ${table}`)[0]
-  console.log(`  verified   : ${after.coded}/${after.total} rows carry a code`)
+    `SELECT COUNT(*) AS total, COUNT(speciesCode) AS coded` +
+    `${table === 'observation' ? ', COUNT(taxonCode) AS taxonCoded' : ''} FROM ${table}`)[0]
+  const taxonSummary = table === 'observation'
+    ? `; ${after.taxonCoded}/${after.total} carry an exact taxon code`
+    : ''
+  console.log(`  verified   : ${after.coded}/${after.total} rows carry a grouping code${taxonSummary}`)
 }
