@@ -374,6 +374,15 @@ export const onRequestPost: PagesFunction<Env> = async context => {
 
     const observations = body.map(observation => ({
       ...observation,
+      // Echo the code the SERVER resolved, not whatever the client sent. Both
+      // web and iOS replace their optimistic observation with this response, so
+      // omitting it left every newly created observation name-keyed until the
+      // next full reload, which is exactly the split this change exists to fix.
+      // When the column is absent the field stays undefined rather than null,
+      // so the response shape matches a pre-migration database.
+      ...(supportsSpeciesCode
+        ? { speciesCode: resolveSpeciesCode(observation.speciesName) || undefined }
+        : {}),
       representativePhotoId: observation.representativePhotoId || undefined,
       aiConfidence: observation.aiConfidence ?? undefined,
       speciesComments: supportsSpeciesComments ? (observation.speciesComments || undefined) : undefined,
