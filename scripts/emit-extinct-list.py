@@ -44,6 +44,7 @@ Usage:
       --out scripts/extinct-species.json
 """
 import argparse
+import time
 import csv
 import json
 import re
@@ -58,11 +59,31 @@ def norm(s):
     return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
 
-def load_ebird(path):
+CACHE_MAX_AGE_DAYS = 30
+
+
+def load_ebird(path, offline=False):
+    """Read the eBird taxonomy, refetching when the cache is old.
+
+    A cache that never expires is worse than no cache here. The extinct list is
+    a DIFFERENCE against eBird: a species newly flagged EXTINCT upstream simply
+    does not appear, and every downstream count and hash check still agrees,
+    because those only verify that this file is internally consistent with the
+    taxonomy it produced. So a stale cache yields a plausible but quietly
+    incomplete drop list, with nothing to signal it.
+
+    Pass --offline to force the cached copy, which is the right flag for
+    reproducing an earlier artifact set byte for byte.
+    """
     p = Path(path)
     if p.exists():
-        print(f"  using cached eBird taxonomy: {p}")
-        return p.read_text(encoding="utf-8")
+        age_days = (time.time() - p.stat().st_mtime) / 86400
+        if offline or age_days <= CACHE_MAX_AGE_DAYS:
+            print(f"  using cached eBird taxonomy ({age_days:.0f} days old): {p}")
+            return p.read_text(encoding="utf-8")
+        print(f"  cached eBird taxonomy is {age_days:.0f} days old, refetching")
+    elif offline:
+        raise SystemExit(f"--offline given but no cached taxonomy at {p}")
     print("  fetching the full eBird taxonomy (one request)...")
     with urllib.request.urlopen(EBIRD_CSV_URL, timeout=120) as fh:
         text = fh.read().decode("utf-8")
@@ -75,6 +96,8 @@ def load_ebird(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ebird", default=".tmp/ebird-taxonomy-full.csv")
+    ap.add_argument("--offline", action="store_true",
+                    help="use the cached eBird taxonomy regardless of age")
     ap.add_argument("--taxonomy", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--allow-unmatched", action="store_true",
@@ -82,7 +105,7 @@ def main():
                          "from the taxonomy; use only after checking the names")
     args = ap.parse_args()
 
-    rows = list(csv.DictReader(load_ebird(args.ebird).splitlines()))
+    rows = list(csv.DictReader(load_ebird(args.ebird, offline=args.offline).splitlines()))
     if not rows:
         sys.exit("the eBird CSV parsed to zero rows")
     for col in ("SPECIES_CODE", "CATEGORY", "EXTINCT", "COMMON_NAME",

@@ -63,6 +63,34 @@ if (resolvedBase === resolvedHead) {
   process.exit(2)
 }
 
+// Comparing against a DIFFERENT commit that happens to carry the SAME taxonomy
+// is just as useless, and far easier to do by accident: every commit on this
+// branch after the taxonomy landed holds an identical blob, so `HEAD~1` or a
+// merge-base computed after the fact reports a clean run while checking
+// nothing.
+//
+// Compare the blob rather than the commit. That is the invariant the gate
+// actually depends on: the base must have shipped a different taxonomy.
+function taxonomyBlob(rev) {
+  try {
+    return execFileSync('git', ['rev-parse', '--verify', '--end-of-options', `${rev}:${TAXONOMY}`], {
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    return ''
+  }
+}
+const baseBlob = taxonomyBlob(resolvedBase)
+const headBlob = taxonomyBlob('HEAD')
+if (baseBlob && baseBlob === headBlob) {
+  console.error(
+    `Refusing base ref ${baseRef}: it carries the same ${TAXONOMY} as HEAD\n` +
+    `(blob ${baseBlob.slice(0, 12)}), so every name compares equal and no\n` +
+    'rename can be reported. Pass a revision from before the taxonomy\n' +
+    'changed, e.g. origin/main.')
+  process.exit(2)
+}
+
 /** code -> { common, scientific }, for every row that carries a code. */
 function mapping(rows) {
   const out = new Map()

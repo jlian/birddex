@@ -32,4 +32,4 @@
  * Update this constant only after that check, in the same commit as the
  * taxonomy change, so review sees both together.
  */
-export const TAXONOMY_NAMES_SHA16 = '7764abb85959fa21'
+export const TAXONOMY_NAMES_SHA16 = '686e64653d8ac478'

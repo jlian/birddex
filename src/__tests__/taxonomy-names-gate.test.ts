@@ -21,7 +21,10 @@ describe('taxonomy name gate', () => {
     const pairs: string[] = []
     for (const row of rows) {
       const code = row[2] as string | undefined
-      if (code) pairs.push(`${code}\t${row[0] as string}\t${row[1] as string}`)
+      // JSON, not tab-joined: a tab or newline inside any field would let two
+      // different taxonomies serialize identically and hash the same, which
+      // would silently disarm the gate.
+      if (code) pairs.push(JSON.stringify([code, row[0] as string, row[1] as string]))
     }
     pairs.sort()
     const actual = createHash('sha256').update(pairs.join('\n')).digest('hex').slice(0, 16)
