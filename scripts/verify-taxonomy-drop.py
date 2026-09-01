@@ -24,7 +24,7 @@ Checks:
   6. each blob carries its own magic (WDOP, WDRR) and the new taxonomy hash
   7. with --old-classifier, every kept row is byte-identical to the row the
      keep-map says it came from, which is the only check that distinguishes
-     "152 rows were dropped" from "the RIGHT 152 rows were dropped"
+     "173 rows were dropped" from "the RIGHT 173 rows were dropped"
 
 Usage:
   python3 scripts/verify-taxonomy-drop.py \
@@ -284,9 +284,9 @@ def main():
 
     # 5b. classifier ROW IDENTITY against the pre-drop file.
     #
-    # The row count above passes for ANY 152 dropped rows, which is exactly the
+    # The row count above passes for ANY 173 dropped rows, which is exactly the
     # silent mis-keying this script exists to catch: a classifier that dropped a
-    # different 152 has the right size, the right hash, and the wrong names.
+    # different 173 has the right size, the right hash, and the wrong names.
     #
     # Rows are L2-normalised then quantised per row, so a kept row must be
     # BYTE-IDENTICAL to its old-index row: same int8 payload, same fp32 scale.

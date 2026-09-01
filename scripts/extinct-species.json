@@ -1,924 +1,1048 @@
 {
- "excluded_statuses": [
-  "EW",
-  "EX"
- ],
- "taxonomy_rows": 11167,
- "count": 152,
- "species": [
-  {
-   "scientific": "Alopochen mauritiana",
-   "common": "Mauritius Shelduck",
-   "status": "EX"
-  },
-  {
-   "scientific": "Alopochen kervazoi",
-   "common": "Reunion Shelduck",
-   "status": "EX"
-  },
-  {
-   "scientific": "Mareca marecula",
-   "common": "Amsterdam Duck",
-   "status": "EX"
-  },
-  {
-   "scientific": "Anas theodori",
-   "common": "Mauritius Duck",
-   "status": "EX"
-  },
-  {
-   "scientific": "Camptorhynchus labradorius",
-   "common": "Labrador Duck",
-   "status": "EX"
-  },
-  {
-   "scientific": "Mergus australis",
-   "common": "Auckland Islands Merganser",
-   "status": "EX"
-  },
-  {
-   "scientific": "Mitu mitu",
-   "common": "Alagoas Curassow",
-   "status": "EW"
-  },
-  {
-   "scientific": "Coturnix novaezelandiae",
-   "common": "New Zealand Quail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Columba jouyi",
-   "common": "Ryukyu Pigeon",
-   "status": "EX"
-  },
-  {
-   "scientific": "Columba versicolor",
-   "common": "Bonin Pigeon",
-   "status": "EX"
-  },
-  {
-   "scientific": "Ectopistes migratorius",
-   "common": "Passenger Pigeon",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nesoenas rodericanus",
-   "common": "Rodrigues Turtle-Dove",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pampusana salamonis",
-   "common": "Thick-billed Ground Dove",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pampusana ferruginea",
-   "common": "Tanna Ground Dove",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zenaida graysoni",
-   "common": "Socorro Dove",
-   "status": "EW"
-  },
-  {
-   "scientific": "Caloenas maculata",
-   "common": "Spotted Green Pigeon",
-   "status": "EX"
-  },
-  {
-   "scientific": "Raphus cucullatus",
-   "common": "Dodo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pezophaps solitaria",
-   "common": "Rodrigues Solitaire",
-   "status": "EX"
-  },
-  {
-   "scientific": "Microgoura meeki",
-   "common": "Choiseul Pigeon",
-   "status": "EX"
-  },
-  {
-   "scientific": "Alectroenas nitidissimus",
-   "common": "Mauritius Blue-Pigeon",
-   "status": "EX"
-  },
-  {
-   "scientific": "Ptilinopus mercierii",
-   "common": "Red-moustached Fruit-Dove",
-   "status": "EX"
-  },
-  {
-   "scientific": "Coua delalandei",
-   "common": "Snail-eating Coua",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nannococcyx psix",
-   "common": "St. Helena Cuckoo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Riccordia bracei",
-   "common": "Brace's Emerald",
-   "status": "EX"
-  },
-  {
-   "scientific": "Dryolimnas augusti",
-   "common": "Reunion Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Aphanapteryx bonasia",
-   "common": "Red Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Erythromachus leguati",
-   "common": "Rodrigues Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Aphanocrex podarces",
-   "common": "St. Helena Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Mundia elpenor",
-   "common": "Ascension Crake",
-   "status": "EX"
-  },
-  {
-   "scientific": "Diaphorapteryx hawkinsi",
-   "common": "Hawkins's Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gallirallus pacificus",
-   "common": "Tahiti Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gallirallus modestus",
-   "common": "Chatham Islands Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gallirallus dieffenbachii",
-   "common": "Dieffenbach's Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gallirallus poecilopterus",
-   "common": "Bar-winged Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gallirallus wakensis",
-   "common": "Wake Island Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gallinula nesiotis",
-   "common": "Tristan Moorhen",
-   "status": "EX"
-  },
-  {
-   "scientific": "Fulica newtonii",
-   "common": "Mascarene Coot",
-   "status": "EX"
-  },
-  {
-   "scientific": "Porphyrio paepae",
-   "common": "Marquesan Swamphen",
-   "status": "EX"
-  },
-  {
-   "scientific": "Porphyrio mantelli",
-   "common": "North Island Takahe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Porphyrio albus",
-   "common": "Lord Howe Swamphen",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zapornia astrictocarpus",
-   "common": "St. Helena Crake",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zapornia palmeri",
-   "common": "Laysan Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zapornia sandwichensis",
-   "common": "Hawaiian Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zapornia nigra",
-   "common": "Miller's Rail",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zapornia monasa",
-   "common": "Kosrae Crake",
-   "status": "EX"
-  },
-  {
-   "scientific": "Haematopus meadewaldoi",
-   "common": "Canarian Oystercatcher",
-   "status": "EX"
-  },
-  {
-   "scientific": "Numenius tenuirostris",
-   "common": "Slender-billed Curlew",
-   "status": "EX"
-  },
-  {
-   "scientific": "Coenocorypha barrierensis",
-   "common": "North Island Snipe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Coenocorypha iredalei",
-   "common": "South Island Snipe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Prosobonia cancellata",
-   "common": "Kiritimati Sandpiper",
-   "status": "EX"
-  },
-  {
-   "scientific": "Prosobonia leucoptera",
-   "common": "White-winged Sandpiper",
-   "status": "EX"
-  },
-  {
-   "scientific": "Prosobonia ellisi",
-   "common": "Moorea Sandpiper",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pinguinus impennis",
-   "common": "Great Auk",
-   "status": "EX"
-  },
-  {
-   "scientific": "Tachybaptus rufolavatus",
-   "common": "Alaotra Grebe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Podilymbus gigas",
-   "common": "Atitlan Grebe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Podiceps andinus",
-   "common": "Colombian Grebe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pterodroma rupinarum",
-   "common": "Large St. Helena Petrel",
-   "status": "EX"
-  },
-  {
-   "scientific": "Bulweria bifax",
-   "common": "Small St. Helena Petrel",
-   "status": "EX"
-  },
-  {
-   "scientific": "Urile perspicillatus",
-   "common": "Pallas's Cormorant",
-   "status": "EX"
-  },
-  {
-   "scientific": "Threskiornis solitarius",
-   "common": "Reunion Ibis",
-   "status": "EX"
-  },
-  {
-   "scientific": "Botaurus novaezelandiae",
-   "common": "New Zealand Bittern",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nyctanassa carcinocatactes",
-   "common": "Bermuda Night Heron",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nycticorax duboisi",
-   "common": "Reunion Night Heron",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nycticorax mauritianus",
-   "common": "Mauritius Night Heron",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nycticorax megacephalus",
-   "common": "Rodrigues Night Heron",
-   "status": "EX"
-  },
-  {
-   "scientific": "Bermuteo avivorus",
-   "common": "Bermuda Hawk",
-   "status": "EX"
-  },
-  {
-   "scientific": "Otus grucheti",
-   "common": "Reunion Scops-Owl",
-   "status": "EX"
-  },
-  {
-   "scientific": "Otus murivorus",
-   "common": "Rodrigues Scops-Owl",
-   "status": "EX"
-  },
-  {
-   "scientific": "Otus sauzieri",
-   "common": "Mauritius Scops-Owl",
-   "status": "EX"
-  },
-  {
-   "scientific": "Aegolius gradyi",
-   "common": "Bermuda Saw-whet Owl",
-   "status": "EX"
-  },
-  {
-   "scientific": "Ninox albifacies",
-   "common": "Laughing Owl",
-   "status": "EX"
-  },
-  {
-   "scientific": "Upupa antaios",
-   "common": "St. Helena Hoopoe",
-   "status": "EX"
-  },
-  {
-   "scientific": "Todiramphus cinnamominus",
-   "common": "Guam Kingfisher",
-   "status": "EW"
-  },
-  {
-   "scientific": "Colaptes oceanicus",
-   "common": "Bermuda Flicker",
-   "status": "EX"
-  },
-  {
-   "scientific": "Caracara lutosa",
-   "common": "Guadalupe Caracara",
-   "status": "EX"
-  },
-  {
-   "scientific": "Falco duboisi",
-   "common": "Reunion Kestrel",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nestor productus",
-   "common": "Norfolk Island Kaka",
-   "status": "EX"
-  },
-  {
-   "scientific": "Eclectus infectus",
-   "common": "Oceanic Eclectus",
-   "status": "EX"
-  },
-  {
-   "scientific": "Mascarinus mascarinus",
-   "common": "Mascarene Parrot",
-   "status": "EX"
-  },
-  {
-   "scientific": "Psittacula wardi",
-   "common": "Seychelles Parakeet",
-   "status": "EX"
-  },
-  {
-   "scientific": "Psittacula exsul",
-   "common": "Newton's Parakeet",
-   "status": "EX"
-  },
-  {
-   "scientific": "Psittacula bensoni",
-   "common": "Mauritius Gray Parrot",
-   "status": "EX"
-  },
-  {
-   "scientific": "Lophopsittacus mauritianus",
-   "common": "Broad-billed Parrot",
-   "status": "EX"
-  },
-  {
-   "scientific": "Necropsittacus rodricanus",
-   "common": "Rodrigues Parrot",
-   "status": "EX"
-  },
-  {
-   "scientific": "Cyanoramphus ulietanus",
-   "common": "Raiatea Parakeet",
-   "status": "EX"
-  },
-  {
-   "scientific": "Cyanoramphus zealandicus",
-   "common": "Black-fronted Parakeet",
-   "status": "EX"
-  },
-  {
-   "scientific": "Psephotellus pulcherrimus",
-   "common": "Paradise Parrot",
-   "status": "EX"
-  },
-  {
-   "scientific": "Conuropsis carolinensis",
-   "common": "Carolina Parakeet",
-   "status": "EX"
-  },
-  {
-   "scientific": "Cyanopsitta spixii",
-   "common": "Spix's Macaw",
-   "status": "EW"
-  },
-  {
-   "scientific": "Ara tricolor",
-   "common": "Cuban Macaw",
-   "status": "EX"
-  },
-  {
-   "scientific": "Traversia lyalli",
-   "common": "Stephens Island Wren",
-   "status": "EX"
-  },
-  {
-   "scientific": "Xenicus longipes",
-   "common": "Bush Wren",
-   "status": "EX"
-  },
-  {
-   "scientific": "Cichlocolaptes mazarbarnetti",
-   "common": "Cryptic Treehunter",
-   "status": "EX"
-  },
-  {
-   "scientific": "Philydor novaesi",
-   "common": "Alagoas Foliage-gleaner",
-   "status": "EX"
-  },
-  {
-   "scientific": "Anthornis melanocephala",
-   "common": "Chatham Islands Bellbird",
-   "status": "EX"
-  },
-  {
-   "scientific": "Gerygone insularis",
-   "common": "Lord Howe Gerygone",
-   "status": "EX"
-  },
-  {
-   "scientific": "Turnagra tanagra",
-   "common": "North Island Piopio",
-   "status": "EX"
-  },
-  {
-   "scientific": "Turnagra capensis",
-   "common": "South Island Piopio",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pomarea maupitiensis",
-   "common": "Maupiti Monarch",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pomarea fluxa",
-   "common": "Eiao Monarch",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pomarea nukuhivae",
-   "common": "Nuku Hiva Monarch",
-   "status": "EX"
-  },
-  {
-   "scientific": "Myiagra freycineti",
-   "common": "Guam Flycatcher",
-   "status": "EX"
-  },
-  {
-   "scientific": "Corvus hawaiiensis",
-   "common": "Hawaiian Crow",
-   "status": "EW"
-  },
-  {
-   "scientific": "Heteralocha acutirostris",
-   "common": "Huia",
-   "status": "EX"
-  },
-  {
-   "scientific": "Nesillas aldabrana",
-   "common": "Aldabra Brush-Warbler",
-   "status": "EX"
-  },
-  {
-   "scientific": "Acrocephalus luscinius",
-   "common": "Nightingale Reed Warbler",
-   "status": "EX"
-  },
-  {
-   "scientific": "Acrocephalus nijoi",
-   "common": "Aguiguan Reed Warbler",
-   "status": "EX"
-  },
-  {
-   "scientific": "Acrocephalus yamashinae",
-   "common": "Pagan Reed Warbler",
-   "status": "EX"
-  },
-  {
-   "scientific": "Acrocephalus musae",
-   "common": "Society Islands Reed Warbler",
-   "status": "EX"
-  },
-  {
-   "scientific": "Acrocephalus astrolabii",
-   "common": "Mangareva Reed Warbler",
-   "status": "EX"
-  },
-  {
-   "scientific": "Poodytes rufescens",
-   "common": "Chatham Islands Fernbird",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zosterops semiflavus",
-   "common": "Marianne White-eye",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zosterops albogularis",
-   "common": "White-chested White-eye",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zosterops strenuus",
-   "common": "Robust White-eye",
-   "status": "EX"
-  },
-  {
-   "scientific": "Aplonis corvina",
-   "common": "Kosrae Starling",
-   "status": "EX"
-  },
-  {
-   "scientific": "Aplonis mavornata",
-   "common": "Mysterious Starling",
-   "status": "EX"
-  },
-  {
-   "scientific": "Aplonis fusca",
-   "common": "Tasman Starling",
-   "status": "EX"
-  },
-  {
-   "scientific": "Necropsar rodericanus",
-   "common": "Rodrigues Starling",
-   "status": "EX"
-  },
-  {
-   "scientific": "Fregilupus varius",
-   "common": "Reunion Starling",
-   "status": "EX"
-  },
-  {
-   "scientific": "Myadestes myadestinus",
-   "common": "Kamao",
-   "status": "EX"
-  },
-  {
-   "scientific": "Myadestes woahensis",
-   "common": "Amaui",
-   "status": "EX"
-  },
-  {
-   "scientific": "Zoothera terrestris",
-   "common": "Bonin Thrush",
-   "status": "EX"
-  },
-  {
-   "scientific": "Turdus ravidus",
-   "common": "Grand Cayman Thrush",
-   "status": "EX"
-  },
-  {
-   "scientific": "Moho braccatus",
-   "common": "Kauai Oo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Moho apicalis",
-   "common": "Oahu Oo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Moho bishopi",
-   "common": "Bishop's Oo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Moho nobilis",
-   "common": "Hawaii Oo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Chaetoptila angustipluma",
-   "common": "Kioea",
-   "status": "EX"
-  },
-  {
-   "scientific": "Melamprosops phaeosoma",
-   "common": "Poo-uli",
-   "status": "EX"
-  },
-  {
-   "scientific": "Paroreomyza flammea",
-   "common": "Kakawahie",
-   "status": "EX"
-  },
-  {
-   "scientific": "Chloridops kona",
-   "common": "Kona Grosbeak",
-   "status": "EX"
-  },
-  {
-   "scientific": "Rhodacanthis flaviceps",
-   "common": "Lesser Koa-Finch",
-   "status": "EX"
-  },
-  {
-   "scientific": "Rhodacanthis palmeri",
-   "common": "Greater Koa-Finch",
-   "status": "EX"
-  },
-  {
-   "scientific": "Ciridops anna",
-   "common": "Ula-ai-hawane",
-   "status": "EX"
-  },
-  {
-   "scientific": "Himatione fraithii",
-   "common": "Laysan Honeycreeper",
-   "status": "EX"
-  },
-  {
-   "scientific": "Drepanis pacifica",
-   "common": "Hawaii Mamo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Drepanis funerea",
-   "common": "Black Mamo",
-   "status": "EX"
-  },
-  {
-   "scientific": "Psittirostra psittacea",
-   "common": "Ou",
-   "status": "EX"
-  },
-  {
-   "scientific": "Dysmorodrepanis munroi",
-   "common": "Lanai Hookbill",
-   "status": "EX"
-  },
-  {
-   "scientific": "Hemignathus hanapepe",
-   "common": "Kauai Nukupuu",
-   "status": "EX"
-  },
-  {
-   "scientific": "Hemignathus lucidus",
-   "common": "Oahu Nukupuu",
-   "status": "EX"
-  },
-  {
-   "scientific": "Hemignathus affinis",
-   "common": "Maui Nukupuu",
-   "status": "EX"
-  },
-  {
-   "scientific": "Akialoa obscura",
-   "common": "Lesser Akialoa",
-   "status": "EX"
-  },
-  {
-   "scientific": "Akialoa ellisiana",
-   "common": "Oahu Akialoa",
-   "status": "EX"
-  },
-  {
-   "scientific": "Akialoa stejnegeri",
-   "common": "Kauai Akialoa",
-   "status": "EX"
-  },
-  {
-   "scientific": "Akialoa lanaiensis",
-   "common": "Maui-nui Akialoa",
-   "status": "EX"
-  },
-  {
-   "scientific": "Viridonia sagittirostris",
-   "common": "Greater Amakihi",
-   "status": "EX"
-  },
-  {
-   "scientific": "Loxops wolstenholmei",
-   "common": "Oahu Akepa",
-   "status": "EX"
-  },
-  {
-   "scientific": "Loxops ochraceus",
-   "common": "Maui Akepa",
-   "status": "EX"
-  },
-  {
-   "scientific": "Carpodacus ferreorostris",
-   "common": "Bonin Grosbeak",
-   "status": "EX"
-  },
-  {
-   "scientific": "Pipilo naufragus",
-   "common": "Bermuda Towhee",
-   "status": "EX"
-  },
-  {
-   "scientific": "Quiscalus palustris",
-   "common": "Slender-billed Grackle",
-   "status": "EX"
-  }
- ],
- "indexes_for_reference_only": [
-  110,
-  111,
-  154,
-  177,
-  206,
-  223,
-  289,
-  508,
-  574,
-  575,
-  597,
-  601,
-  654,
-  655,
-  731,
-  733,
-  734,
-  735,
-  743,
-  799,
-  830,
-  992,
-  1060,
-  1618,
-  1759,
-  1760,
-  1761,
-  1765,
-  1766,
-  1775,
-  1783,
-  1785,
-  1786,
-  1789,
-  1791,
-  1820,
-  1831,
-  1840,
-  1847,
-  1850,
-  1872,
-  1873,
-  1876,
-  1877,
-  1880,
-  1954,
-  2051,
-  2069,
-  2070,
-  2111,
-  2112,
-  2113,
-  2200,
-  2322,
-  2328,
-  2336,
-  2428,
-  2474,
-  2569,
-  2609,
-  2650,
-  2652,
-  2654,
-  2655,
-  2656,
-  2945,
-  3047,
-  3048,
-  3049,
-  3180,
-  3194,
-  3277,
-  3476,
-  3969,
-  3985,
-  4008,
-  4042,
-  4100,
-  4106,
-  4108,
-  4120,
-  4122,
-  4123,
-  4124,
-  4149,
-  4150,
-  4172,
-  4412,
-  4419,
-  4427,
-  4451,
-  4453,
-  5055,
-  5059,
-  5928,
-  6182,
-  6500,
-  6501,
-  6819,
-  6821,
-  6822,
-  6878,
-  7053,
-  7092,
-  7521,
-  7560,
-  7564,
-  7567,
-  7574,
-  7579,
-  7616,
-  8164,
-  8257,
-  8259,
-  8729,
-  8731,
-  8732,
-  8761,
-  8762,
-  8880,
-  8881,
-  8899,
-  9013,
-  9413,
-  9414,
-  9415,
-  9416,
-  9417,
-  10112,
-  10115,
-  10120,
-  10121,
-  10122,
-  10123,
-  10125,
-  10128,
-  10129,
-  10130,
-  10131,
-  10133,
-  10134,
-  10135,
-  10137,
-  10138,
-  10139,
-  10140,
-  10145,
-  10149,
-  10150,
-  10153,
-  10450,
-  10582
- ]
+  "source": "eBird taxonomy EXTINCT column",
+  "source_url": "https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=csv",
+  "rule": "CATEGORY == species AND EXTINCT is set",
+  "note": "Follows eBird rather than AviList/IUCN so the extinct rule comes from the same authority as species codes, names and taxonomic order. This keeps Extinct in the Wild species, which exist in captivity and are being reintroduced, and drops species eBird considers gone that IUCN still rates CR or CR (PE).",
+  "taxonomy_rows": 11167,
+  "count": 173,
+  "species": [
+    {
+      "code": "maushe1",
+      "scientific": "Alopochen mauritiana",
+      "common": "Mauritius Shelduck",
+      "extinct_year": "0"
+    },
+    {
+      "code": "reushe1",
+      "scientific": "Alopochen kervazoi",
+      "common": "Reunion Shelduck",
+      "extinct_year": "0"
+    },
+    {
+      "code": "creshe1",
+      "scientific": "Tadorna cristata",
+      "common": "Crested Shelduck",
+      "extinct_year": "1916"
+    },
+    {
+      "code": "finduc1",
+      "scientific": "Chenonetta finschi",
+      "common": "Finsch's Duck",
+      "extinct_year": "1760"
+    },
+    {
+      "code": "amsduc1",
+      "scientific": "Mareca marecula",
+      "common": "Amsterdam Duck",
+      "extinct_year": "1793"
+    },
+    {
+      "code": "mauduc1",
+      "scientific": "Anas theodori",
+      "common": "Mauritius Duck",
+      "extinct_year": "1710"
+    },
+    {
+      "code": "pihduc1",
+      "scientific": "Rhodonessa caryophyllacea",
+      "common": "Pink-headed Duck",
+      "extinct_year": "1935"
+    },
+    {
+      "code": "labduc",
+      "scientific": "Camptorhynchus labradorius",
+      "common": "Labrador Duck",
+      "extinct_year": "1875"
+    },
+    {
+      "code": "auimer1",
+      "scientific": "Mergus australis",
+      "common": "Auckland Islands Merganser",
+      "extinct_year": "1902"
+    },
+    {
+      "code": "nezqua1",
+      "scientific": "Coturnix novaezelandiae",
+      "common": "New Zealand Quail",
+      "extinct_year": "1875"
+    },
+    {
+      "code": "himqua1",
+      "scientific": "Ophrysia superciliosa",
+      "common": "Himalayan Quail",
+      "extinct_year": "1876"
+    },
+    {
+      "code": "mauwop1",
+      "scientific": "Columba thiriouxi",
+      "common": "Mauritius Wood-Pigeon",
+      "extinct_year": "0"
+    },
+    {
+      "code": "ryupig1",
+      "scientific": "Columba jouyi",
+      "common": "Ryukyu Pigeon",
+      "extinct_year": "1936"
+    },
+    {
+      "code": "bonpig1",
+      "scientific": "Columba versicolor",
+      "common": "Bonin Pigeon",
+      "extinct_year": "1889"
+    },
+    {
+      "code": "paspig",
+      "scientific": "Ectopistes migratorius",
+      "common": "Passenger Pigeon",
+      "extinct_year": "1914"
+    },
+    {
+      "code": "mautud1",
+      "scientific": "Nesoenas cicur",
+      "common": "Mauritius Turtle-Dove",
+      "extinct_year": "1720"
+    },
+    {
+      "code": "rodtud1",
+      "scientific": "Nesoenas rodericanus",
+      "common": "Rodrigues Turtle-Dove",
+      "extinct_year": "1726"
+    },
+    {
+      "code": "tbgdov1",
+      "scientific": "Pampusana salamonis",
+      "common": "Thick-billed Ground Dove",
+      "extinct_year": "1927"
+    },
+    {
+      "code": "tangrd1",
+      "scientific": "Pampusana ferruginea",
+      "common": "Tanna Ground Dove",
+      "extinct_year": "1774"
+    },
+    {
+      "code": "norgrd1",
+      "scientific": "Pampusana norfolkensis",
+      "common": "Norfolk Ground Dove",
+      "extinct_year": "1800"
+    },
+    {
+      "code": "spgpig1",
+      "scientific": "Caloenas maculata",
+      "common": "Spotted Green Pigeon",
+      "extinct_year": "0"
+    },
+    {
+      "code": "dodo1",
+      "scientific": "Raphus cucullatus",
+      "common": "Dodo",
+      "extinct_year": "1662"
+    },
+    {
+      "code": "rodsol2",
+      "scientific": "Pezophaps solitaria",
+      "common": "Rodrigues Solitaire",
+      "extinct_year": "1770"
+    },
+    {
+      "code": "chopig1",
+      "scientific": "Microgoura meeki",
+      "common": "Choiseul Pigeon",
+      "extinct_year": "1904"
+    },
+    {
+      "code": "rodblp1",
+      "scientific": "Alectroenas payandeei",
+      "common": "Rodrigues Blue-Pigeon",
+      "extinct_year": "1690"
+    },
+    {
+      "code": "mabpig2",
+      "scientific": "Alectroenas nitidissimus",
+      "common": "Mauritius Blue-Pigeon",
+      "extinct_year": "1840"
+    },
+    {
+      "code": "rmfdov1",
+      "scientific": "Ptilinopus mercierii",
+      "common": "Red-moustached Fruit-Dove",
+      "extinct_year": "1950"
+    },
+    {
+      "code": "snecou1",
+      "scientific": "Coua delalandei",
+      "common": "Snail-eating Coua",
+      "extinct_year": "1834"
+    },
+    {
+      "code": "sthcuc1",
+      "scientific": "Nannococcyx psix",
+      "common": "St. Helena Cuckoo",
+      "extinct_year": "1750"
+    },
+    {
+      "code": "jampau",
+      "scientific": "Siphonorhis americana",
+      "common": "Jamaican Pauraque",
+      "extinct_year": "1859"
+    },
+    {
+      "code": "braeme2",
+      "scientific": "Riccordia bracei",
+      "common": "Brace's Emerald",
+      "extinct_year": "1877"
+    },
+    {
+      "code": "reurai1",
+      "scientific": "Dryolimnas augusti",
+      "common": "Reunion Rail",
+      "extinct_year": "1674"
+    },
+    {
+      "code": "redrai1",
+      "scientific": "Aphanapteryx bonasia",
+      "common": "Red Rail",
+      "extinct_year": "1700"
+    },
+    {
+      "code": "rodrai1",
+      "scientific": "Erythromachus leguati",
+      "common": "Rodrigues Rail",
+      "extinct_year": "1726"
+    },
+    {
+      "code": "sthcra1",
+      "scientific": "Aphanocrex podarces",
+      "common": "St. Helena Rail",
+      "extinct_year": "1502"
+    },
+    {
+      "code": "asccra1",
+      "scientific": "Mundia elpenor",
+      "common": "Ascension Crake",
+      "extinct_year": "1815"
+    },
+    {
+      "code": "hawrai1",
+      "scientific": "Diaphorapteryx hawkinsi",
+      "common": "Hawkins's Rail",
+      "extinct_year": "1895"
+    },
+    {
+      "code": "tahrai1",
+      "scientific": "Gallirallus pacificus",
+      "common": "Tahiti Rail",
+      "extinct_year": "1800"
+    },
+    {
+      "code": "chirai1",
+      "scientific": "Gallirallus modestus",
+      "common": "Chatham Islands Rail",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "dierai1",
+      "scientific": "Gallirallus dieffenbachii",
+      "common": "Dieffenbach's Rail",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "bawrai1",
+      "scientific": "Gallirallus poecilopterus",
+      "common": "Bar-winged Rail",
+      "extinct_year": "1973"
+    },
+    {
+      "code": "wairai1",
+      "scientific": "Gallirallus wakensis",
+      "common": "Wake Island Rail",
+      "extinct_year": "1944"
+    },
+    {
+      "code": "hodwat1",
+      "scientific": "Tribonyx hodgenorum",
+      "common": "Hodgen's Waterhen",
+      "extinct_year": "1700"
+    },
+    {
+      "code": "trimoo2",
+      "scientific": "Gallinula nesiotis",
+      "common": "Tristan Moorhen",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "sammoo1",
+      "scientific": "Gallinula pacifica",
+      "common": "Samoan Moorhen",
+      "extinct_year": "1873"
+    },
+    {
+      "code": "mascoo1",
+      "scientific": "Fulica newtonii",
+      "common": "Mascarene Coot",
+      "extinct_year": "1693"
+    },
+    {
+      "code": "marswa1",
+      "scientific": "Porphyrio paepae",
+      "common": "Marquesan Swamphen",
+      "extinct_year": "1937"
+    },
+    {
+      "code": "necgal1",
+      "scientific": "Porphyrio kukwiedei",
+      "common": "New Caledonian Gallinule",
+      "extinct_year": "1860"
+    },
+    {
+      "code": "reugal1",
+      "scientific": "Porphyrio caerulescens",
+      "common": "Reunion Gallinule",
+      "extinct_year": "1724"
+    },
+    {
+      "code": "takahe2",
+      "scientific": "Porphyrio mantelli",
+      "common": "North Island Takahe",
+      "extinct_year": "1894"
+    },
+    {
+      "code": "lohswa1",
+      "scientific": "Porphyrio albus",
+      "common": "Lord Howe Swamphen",
+      "extinct_year": "1834"
+    },
+    {
+      "code": "sthrai1",
+      "scientific": "Zapornia astrictocarpus",
+      "common": "St. Helena Crake",
+      "extinct_year": "1502"
+    },
+    {
+      "code": "layrai",
+      "scientific": "Zapornia palmeri",
+      "common": "Laysan Rail",
+      "extinct_year": "1944"
+    },
+    {
+      "code": "hawrai",
+      "scientific": "Zapornia sandwichensis",
+      "common": "Hawaiian Rail",
+      "extinct_year": "1844"
+    },
+    {
+      "code": "milrai1",
+      "scientific": "Zapornia nigra",
+      "common": "Miller's Rail",
+      "extinct_year": "1784"
+    },
+    {
+      "code": "koscra1",
+      "scientific": "Zapornia monasa",
+      "common": "Kosrae Crake",
+      "extinct_year": "1828"
+    },
+    {
+      "code": "canoys1",
+      "scientific": "Haematopus meadewaldoi",
+      "common": "Canarian Oystercatcher",
+      "extinct_year": "1950"
+    },
+    {
+      "code": "slbcur",
+      "scientific": "Numenius tenuirostris",
+      "common": "Slender-billed Curlew",
+      "extinct_year": "1995"
+    },
+    {
+      "code": "noisni1",
+      "scientific": "Coenocorypha barrierensis",
+      "common": "North Island Snipe",
+      "extinct_year": "1870"
+    },
+    {
+      "code": "soisni1",
+      "scientific": "Coenocorypha iredalei",
+      "common": "South Island Snipe",
+      "extinct_year": "1964"
+    },
+    {
+      "code": "kirsan1",
+      "scientific": "Prosobonia cancellata",
+      "common": "Kiritimati Sandpiper",
+      "extinct_year": "1768"
+    },
+    {
+      "code": "whwsan1",
+      "scientific": "Prosobonia leucoptera",
+      "common": "White-winged Sandpiper",
+      "extinct_year": "1790"
+    },
+    {
+      "code": "moosan1",
+      "scientific": "Prosobonia ellisi",
+      "common": "Moorea Sandpiper",
+      "extinct_year": "1777"
+    },
+    {
+      "code": "paibut1",
+      "scientific": "Turnix novaecaledoniae",
+      "common": "New Caledonian Buttonquail",
+      "extinct_year": "1889"
+    },
+    {
+      "code": "greauk",
+      "scientific": "Pinguinus impennis",
+      "common": "Great Auk",
+      "extinct_year": "1844"
+    },
+    {
+      "code": "alagre1",
+      "scientific": "Tachybaptus rufolavatus",
+      "common": "Alaotra Grebe",
+      "extinct_year": "1950"
+    },
+    {
+      "code": "atigre1",
+      "scientific": "Podilymbus gigas",
+      "common": "Atitlan Grebe",
+      "extinct_year": "1986"
+    },
+    {
+      "code": "colgre1",
+      "scientific": "Podiceps andinus",
+      "common": "Colombian Grebe",
+      "extinct_year": "1977"
+    },
+    {
+      "code": "guspet",
+      "scientific": "Hydrobates macrodactylus",
+      "common": "Guadalupe Storm-Petrel",
+      "extinct_year": "1912"
+    },
+    {
+      "code": "lshpet1",
+      "scientific": "Pterodroma rupinarum",
+      "common": "Large St. Helena Petrel",
+      "extinct_year": "1502"
+    },
+    {
+      "code": "bkcpet2",
+      "scientific": "Pterodroma caribbaea",
+      "common": "Jamaican Petrel",
+      "extinct_year": "1936"
+    },
+    {
+      "code": "sshpet1",
+      "scientific": "Bulweria bifax",
+      "common": "Small St. Helena Petrel",
+      "extinct_year": "1502"
+    },
+    {
+      "code": "palcor1",
+      "scientific": "Urile perspicillatus",
+      "common": "Pallas's Cormorant",
+      "extinct_year": "1852"
+    },
+    {
+      "code": "reusol1",
+      "scientific": "Threskiornis solitarius",
+      "common": "Reunion Ibis",
+      "extinct_year": "1715"
+    },
+    {
+      "code": "nezbit1",
+      "scientific": "Botaurus novaezelandiae",
+      "common": "New Zealand Bittern",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "bernih1",
+      "scientific": "Nyctanassa carcinocatactes",
+      "common": "Bermuda Night Heron",
+      "extinct_year": "0"
+    },
+    {
+      "code": "reunih1",
+      "scientific": "Nycticorax duboisi",
+      "common": "Reunion Night Heron",
+      "extinct_year": "1674"
+    },
+    {
+      "code": "maunih1",
+      "scientific": "Nycticorax mauritianus",
+      "common": "Mauritius Night Heron",
+      "extinct_year": "1693"
+    },
+    {
+      "code": "rodnih1",
+      "scientific": "Nycticorax megacephalus",
+      "common": "Rodrigues Night Heron",
+      "extinct_year": "1726"
+    },
+    {
+      "code": "asnher1",
+      "scientific": "Nycticorax olsoni",
+      "common": "Ascension Night Heron",
+      "extinct_year": "1500"
+    },
+    {
+      "code": "berhaw1",
+      "scientific": "Bermuteo avivorus",
+      "common": "Bermuda Hawk",
+      "extinct_year": "1603"
+    },
+    {
+      "code": "reusco1",
+      "scientific": "Otus grucheti",
+      "common": "Reunion Scops-Owl",
+      "extinct_year": "1610"
+    },
+    {
+      "code": "rodsco1",
+      "scientific": "Otus murivorus",
+      "common": "Rodrigues Scops-Owl",
+      "extinct_year": "1726"
+    },
+    {
+      "code": "mausco1",
+      "scientific": "Otus sauzieri",
+      "common": "Mauritius Scops-Owl",
+      "extinct_year": "1837"
+    },
+    {
+      "code": "bswowl1",
+      "scientific": "Aegolius gradyi",
+      "common": "Bermuda Saw-whet Owl",
+      "extinct_year": "0"
+    },
+    {
+      "code": "lauowl1",
+      "scientific": "Ninox albifacies",
+      "common": "Laughing Owl",
+      "extinct_year": "1970"
+    },
+    {
+      "code": "sthhoo1",
+      "scientific": "Upupa antaios",
+      "common": "St. Helena Hoopoe",
+      "extinct_year": "1502"
+    },
+    {
+      "code": "berfli1",
+      "scientific": "Colaptes oceanicus",
+      "common": "Bermuda Flicker",
+      "extinct_year": "1623"
+    },
+    {
+      "code": "guacar2",
+      "scientific": "Caracara lutosa",
+      "common": "Guadalupe Caracara",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "reukes1",
+      "scientific": "Falco duboisi",
+      "common": "Reunion Kestrel",
+      "extinct_year": "1672"
+    },
+    {
+      "code": "noikak1",
+      "scientific": "Nestor productus",
+      "common": "Norfolk Island Kaka",
+      "extinct_year": "1851"
+    },
+    {
+      "code": "ocepar1",
+      "scientific": "Eclectus infectus",
+      "common": "Oceanic Eclectus",
+      "extinct_year": "1793"
+    },
+    {
+      "code": "maspar1",
+      "scientific": "Mascarinus mascarinus",
+      "common": "Mascarene Parrot",
+      "extinct_year": "1834"
+    },
+    {
+      "code": "seypar2",
+      "scientific": "Psittacula wardi",
+      "common": "Seychelles Parakeet",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "newpar2",
+      "scientific": "Psittacula exsul",
+      "common": "Newton's Parakeet",
+      "extinct_year": "1875"
+    },
+    {
+      "code": "magpar1",
+      "scientific": "Psittacula bensoni",
+      "common": "Mauritius Gray Parrot",
+      "extinct_year": "1759"
+    },
+    {
+      "code": "brbpar3",
+      "scientific": "Lophopsittacus mauritianus",
+      "common": "Broad-billed Parrot",
+      "extinct_year": "1675"
+    },
+    {
+      "code": "rodpar1",
+      "scientific": "Necropsittacus rodricanus",
+      "common": "Rodrigues Parrot",
+      "extinct_year": "1761"
+    },
+    {
+      "code": "raipar1",
+      "scientific": "Cyanoramphus ulietanus",
+      "common": "Raiatea Parakeet",
+      "extinct_year": "1773"
+    },
+    {
+      "code": "blfpar2",
+      "scientific": "Cyanoramphus zealandicus",
+      "common": "Black-fronted Parakeet",
+      "extinct_year": "1850"
+    },
+    {
+      "code": "parpar2",
+      "scientific": "Psephotellus pulcherrimus",
+      "common": "Paradise Parrot",
+      "extinct_year": "1927"
+    },
+    {
+      "code": "neclor1",
+      "scientific": "Vini diadema",
+      "common": "New Caledonian Lorikeet",
+      "extinct_year": "1860"
+    },
+    {
+      "code": "marpar1",
+      "scientific": "Amazona martinicana",
+      "common": "Martinique Amazon",
+      "extinct_year": "1779"
+    },
+    {
+      "code": "guapar1",
+      "scientific": "Amazona violacea",
+      "common": "Guadeloupe Amazon",
+      "extinct_year": "1779"
+    },
+    {
+      "code": "carpar",
+      "scientific": "Conuropsis carolinensis",
+      "common": "Carolina Parakeet",
+      "extinct_year": "1918"
+    },
+    {
+      "code": "cubmac1",
+      "scientific": "Ara tricolor",
+      "common": "Cuban Macaw",
+      "extinct_year": "1864"
+    },
+    {
+      "code": "purpar2",
+      "scientific": "Psittacara maugei",
+      "common": "Puerto Rican Parakeet",
+      "extinct_year": "1892"
+    },
+    {
+      "code": "guapar2",
+      "scientific": "Psittacara labati",
+      "common": "Guadeloupe Parakeet",
+      "extinct_year": "0"
+    },
+    {
+      "code": "stiwre1",
+      "scientific": "Traversia lyalli",
+      "common": "Stephens Island Wren",
+      "extinct_year": "1894"
+    },
+    {
+      "code": "buswre1",
+      "scientific": "Xenicus longipes",
+      "common": "Bush Wren",
+      "extinct_year": "1972"
+    },
+    {
+      "code": "crytre1",
+      "scientific": "Cichlocolaptes mazarbarnetti",
+      "common": "Cryptic Treehunter",
+      "extinct_year": "2007"
+    },
+    {
+      "code": "alfgle1",
+      "scientific": "Philydor novaesi",
+      "common": "Alagoas Foliage-gleaner",
+      "extinct_year": "2011"
+    },
+    {
+      "code": "chibel1",
+      "scientific": "Anthornis melanocephala",
+      "common": "Chatham Islands Bellbird",
+      "extinct_year": "1906"
+    },
+    {
+      "code": "lohger1",
+      "scientific": "Gerygone insularis",
+      "common": "Lord Howe Gerygone",
+      "extinct_year": "1928"
+    },
+    {
+      "code": "noipio1",
+      "scientific": "Turnagra tanagra",
+      "common": "North Island Piopio",
+      "extinct_year": "1902"
+    },
+    {
+      "code": "soipio1",
+      "scientific": "Turnagra capensis",
+      "common": "South Island Piopio",
+      "extinct_year": "1897"
+    },
+    {
+      "code": "maumon1",
+      "scientific": "Pomarea maupitiensis",
+      "common": "Maupiti Monarch",
+      "extinct_year": "0"
+    },
+    {
+      "code": "eiamon1",
+      "scientific": "Pomarea fluxa",
+      "common": "Eiao Monarch",
+      "extinct_year": "0"
+    },
+    {
+      "code": "nuhmon1",
+      "scientific": "Pomarea nukuhivae",
+      "common": "Nuku Hiva Monarch",
+      "extinct_year": "1930"
+    },
+    {
+      "code": "guafly1",
+      "scientific": "Myiagra freycineti",
+      "common": "Guam Flycatcher",
+      "extinct_year": "1983"
+    },
+    {
+      "code": "kokako4",
+      "scientific": "Callaeas cinereus",
+      "common": "South Island Kokako",
+      "extinct_year": "1967"
+    },
+    {
+      "code": "huia1",
+      "scientific": "Heteralocha acutirostris",
+      "common": "Huia",
+      "extinct_year": "1907"
+    },
+    {
+      "code": "albwar1",
+      "scientific": "Nesillas aldabrana",
+      "common": "Aldabra Brush-Warbler",
+      "extinct_year": "1983"
+    },
+    {
+      "code": "nigrew1",
+      "scientific": "Acrocephalus luscinius",
+      "common": "Nightingale Reed Warbler",
+      "extinct_year": "1969"
+    },
+    {
+      "code": "agurew1",
+      "scientific": "Acrocephalus nijoi",
+      "common": "Aguiguan Reed Warbler",
+      "extinct_year": "1995"
+    },
+    {
+      "code": "pagrew1",
+      "scientific": "Acrocephalus yamashinae",
+      "common": "Pagan Reed Warbler",
+      "extinct_year": "1976"
+    },
+    {
+      "code": "soirew1",
+      "scientific": "Acrocephalus musae",
+      "common": "Society Islands Reed Warbler",
+      "extinct_year": "1887"
+    },
+    {
+      "code": "manrew2",
+      "scientific": "Acrocephalus astrolabii",
+      "common": "Mangareva Reed Warbler",
+      "extinct_year": "1839"
+    },
+    {
+      "code": "chifer1",
+      "scientific": "Poodytes rufescens",
+      "common": "Chatham Islands Fernbird",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "marwhe1",
+      "scientific": "Zosterops semiflavus",
+      "common": "Marianne White-eye",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "robwhe1",
+      "scientific": "Zosterops strenuus",
+      "common": "Robust White-eye",
+      "extinct_year": "1923"
+    },
+    {
+      "code": "kossta1",
+      "scientific": "Aplonis corvina",
+      "common": "Kosrae Starling",
+      "extinct_year": "1880"
+    },
+    {
+      "code": "myssta1",
+      "scientific": "Aplonis mavornata",
+      "common": "Mysterious Starling",
+      "extinct_year": "1825"
+    },
+    {
+      "code": "norsta1",
+      "scientific": "Aplonis fusca",
+      "common": "Tasman Starling",
+      "extinct_year": "1923"
+    },
+    {
+      "code": "raista2",
+      "scientific": "Aplonis ulietensis",
+      "common": "Raiatea Starling",
+      "extinct_year": "1774"
+    },
+    {
+      "code": "rodsta2",
+      "scientific": "Necropsar rodericanus",
+      "common": "Rodrigues Starling",
+      "extinct_year": "1750"
+    },
+    {
+      "code": "reusta1",
+      "scientific": "Fregilupus varius",
+      "common": "Reunion Starling",
+      "extinct_year": "1860"
+    },
+    {
+      "code": "kamao",
+      "scientific": "Myadestes myadestinus",
+      "common": "Kamao",
+      "extinct_year": "1989"
+    },
+    {
+      "code": "amaui",
+      "scientific": "Myadestes woahensis",
+      "common": "Amaui",
+      "extinct_year": "1825"
+    },
+    {
+      "code": "bonthr2",
+      "scientific": "Zoothera terrestris",
+      "common": "Bonin Thrush",
+      "extinct_year": "1889"
+    },
+    {
+      "code": "norist1",
+      "scientific": "Turdus poliocephalus",
+      "common": "Tasman Sea Island-Thrush",
+      "extinct_year": "1975"
+    },
+    {
+      "code": "grcthr1",
+      "scientific": "Turdus ravidus",
+      "common": "Grand Cayman Thrush",
+      "extinct_year": "1938"
+    },
+    {
+      "code": "kauoo",
+      "scientific": "Moho braccatus",
+      "common": "Kauai Oo",
+      "extinct_year": "1987"
+    },
+    {
+      "code": "oahoo",
+      "scientific": "Moho apicalis",
+      "common": "Oahu Oo",
+      "extinct_year": "1850"
+    },
+    {
+      "code": "bisoo",
+      "scientific": "Moho bishopi",
+      "common": "Bishop's Oo",
+      "extinct_year": "1981"
+    },
+    {
+      "code": "hawoo",
+      "scientific": "Moho nobilis",
+      "common": "Hawaii Oo",
+      "extinct_year": "1898"
+    },
+    {
+      "code": "kioea",
+      "scientific": "Chaetoptila angustipluma",
+      "common": "Kioea",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "reufod1",
+      "scientific": "Foudia delloni",
+      "common": "Reunion Fody",
+      "extinct_year": "0"
+    },
+    {
+      "code": "poouli",
+      "scientific": "Melamprosops phaeosoma",
+      "common": "Poo-uli",
+      "extinct_year": "2004"
+    },
+    {
+      "code": "kakawa",
+      "scientific": "Paroreomyza flammea",
+      "common": "Kakawahie",
+      "extinct_year": "1963"
+    },
+    {
+      "code": "kongro",
+      "scientific": "Chloridops kona",
+      "common": "Kona Grosbeak",
+      "extinct_year": "1894"
+    },
+    {
+      "code": "lekfin",
+      "scientific": "Rhodacanthis flaviceps",
+      "common": "Lesser Koa-Finch",
+      "extinct_year": "1891"
+    },
+    {
+      "code": "grkfin",
+      "scientific": "Rhodacanthis palmeri",
+      "common": "Greater Koa-Finch",
+      "extinct_year": "1896"
+    },
+    {
+      "code": "ulahaw",
+      "scientific": "Ciridops anna",
+      "common": "Ula-ai-hawane",
+      "extinct_year": "1937"
+    },
+    {
+      "code": "apapan2",
+      "scientific": "Himatione fraithii",
+      "common": "Laysan Honeycreeper",
+      "extinct_year": "1923"
+    },
+    {
+      "code": "hawmam1",
+      "scientific": "Drepanis pacifica",
+      "common": "Hawaii Mamo",
+      "extinct_year": "1898"
+    },
+    {
+      "code": "blkmam",
+      "scientific": "Drepanis funerea",
+      "common": "Black Mamo",
+      "extinct_year": "1907"
+    },
+    {
+      "code": "ou",
+      "scientific": "Psittirostra psittacea",
+      "common": "Ou",
+      "extinct_year": "1989"
+    },
+    {
+      "code": "lanhoo",
+      "scientific": "Dysmorodrepanis munroi",
+      "common": "Lanai Hookbill",
+      "extinct_year": "1920"
+    },
+    {
+      "code": "nukupu2",
+      "scientific": "Hemignathus hanapepe",
+      "common": "Kauai Nukupuu",
+      "extinct_year": "1899"
+    },
+    {
+      "code": "nukupu3",
+      "scientific": "Hemignathus lucidus",
+      "common": "Oahu Nukupuu",
+      "extinct_year": "1860"
+    },
+    {
+      "code": "nukupu1",
+      "scientific": "Hemignathus affinis",
+      "common": "Maui Nukupuu",
+      "extinct_year": "1996"
+    },
+    {
+      "code": "lesaki",
+      "scientific": "Akialoa obscura",
+      "common": "Lesser Akialoa",
+      "extinct_year": "1940"
+    },
+    {
+      "code": "greaki2",
+      "scientific": "Akialoa ellisiana",
+      "common": "Oahu Akialoa",
+      "extinct_year": "1969"
+    },
+    {
+      "code": "greaki4",
+      "scientific": "Akialoa stejnegeri",
+      "common": "Kauai Akialoa",
+      "extinct_year": "1969"
+    },
+    {
+      "code": "greaki3",
+      "scientific": "Akialoa lanaiensis",
+      "common": "Maui-nui Akialoa",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "greama",
+      "scientific": "Viridonia sagittirostris",
+      "common": "Greater Amakihi",
+      "extinct_year": "1901"
+    },
+    {
+      "code": "akepa2",
+      "scientific": "Loxops wolstenholmei",
+      "common": "Oahu Akepa",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "akepa3",
+      "scientific": "Loxops ochraceus",
+      "common": "Maui Akepa",
+      "extinct_year": "1988"
+    },
+    {
+      "code": "bongro1",
+      "scientific": "Carpodacus ferreorostris",
+      "common": "Bonin Grosbeak",
+      "extinct_year": "1900"
+    },
+    {
+      "code": "bertow1",
+      "scientific": "Pipilo naufragus",
+      "common": "Bermuda Towhee",
+      "extinct_year": "1611"
+    },
+    {
+      "code": "slbgra1",
+      "scientific": "Quiscalus palustris",
+      "common": "Slender-billed Grackle",
+      "extinct_year": "1910"
+    },
+    {
+      "code": "purbul3",
+      "scientific": "Melopyrrha grandis",
+      "common": "St. Kitts Bullfinch",
+      "extinct_year": "1920"
+    }
+  ]
 }

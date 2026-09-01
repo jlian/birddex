@@ -9,4 +9,4 @@
  * Its own module so a page that only needs the 1.38 MiB rarity asset can check
  * the guard without importing bird-id-local-adapter and the ONNX runtime.
  */
-export const TAXONOMY_SHA16 = "61cd7f2a1e3093e9"
+export const TAXONOMY_SHA16 = "a217aceafc34f8ba"

@@ -111,7 +111,7 @@ final class BirdIDParityTests: XCTestCase {
     /// substituting whichever name happened to sort first. The name must stay in
     /// step with MODEL_ASSET_URLS in src/lib/bird-id-local-adapter.ts and with the
     /// input path of the Sync Bird ID Assets build phase.
-    static let shippedPriorName = "occurrence.7c39b341.bin.gz"
+    static let shippedPriorName = "occurrence.d0abc168.bin.gz"
 
     /// The decompressed prior, inflated once. The shipped v4 blob is 32.94 MiB
     /// decompressed (34,541,674 bytes) from 21.54 MiB gzipped, and five tests

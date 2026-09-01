@@ -53,18 +53,21 @@ def main():
     # agrees: the keep-map, the classifier and the blobs are all derived from
     # this same set, so they stay mutually consistent around a wrong count.
     # The species that should have gone simply survives.
-    sci_list = [norm(s["scientific"]) for s in spec["species"]]
-    drop_sci = set(sci_list)
-    if len(drop_sci) != len(sci_list):
-        dupes = sorted({s for s in drop_sci if sci_list.count(s) > 1})
-        sys.exit(f"ERROR: {args.list} repeats {len(sci_list) - len(drop_sci)} "
-                 f"scientific name(s), e.g. {dupes[:5]}; each species must "
+    # Match on the eBird species code, not the scientific name. The code is the
+    # stable identifier and is what the list now carries; scientific names can
+    # be revised between taxonomy versions while the code stays put.
+    code_list = [norm(s["code"]) for s in spec["species"]]
+    drop_codes = set(code_list)
+    if len(drop_codes) != len(code_list):
+        dupes = sorted({c for c in drop_codes if code_list.count(c) > 1})
+        sys.exit(f"ERROR: {args.list} repeats {len(code_list) - len(drop_codes)} "
+                 f"species code(s), e.g. {dupes[:5]}; each species must "
                  f"appear once or the drop count is not what the list says")
 
     listed = spec.get("count")
-    if listed is not None and listed != len(sci_list):
+    if listed is not None and listed != len(code_list):
         sys.exit(f"ERROR: {args.list} reports count {listed} but holds "
-                 f"{len(sci_list)} species entries")
+                 f"{len(code_list)} species entries")
 
     if spec.get("taxonomy_rows") != len(tax):
         msg = (f"list was built against {spec.get('taxonomy_rows')} rows, "
@@ -73,7 +76,7 @@ def main():
         # --apply command against an already-dropped taxonomy matches zero rows,
         # so it would rewrite taxonomy.json unchanged and emit a keep-map that
         # is the identity, silently overwriting the real map that records which
-        # 152 rows went. The classifier re-emit reads that map, so the damage
+        # 173 rows went. The classifier re-emit reads that map, so the damage
         # only surfaces later as mis-keyed species.
         if args.apply:
             sys.exit(f"ERROR: {msg}\n"
@@ -82,12 +85,12 @@ def main():
         print(f"WARNING: {msg}", file=sys.stderr)
 
     keep, dropped = [], []
-    matched_sci = set()
+    matched_codes = set()
     for i, row in enumerate(tax):
-        sci = norm(row[1] if len(row) > 1 else "")
-        if sci in drop_sci:
+        code = norm(row[2] if len(row) > 2 else "")
+        if code and code in drop_codes:
             dropped.append(i)
-            matched_sci.add(sci)
+            matched_codes.add(code)
         else:
             keep.append(i)
 
@@ -95,14 +98,14 @@ def main():
     # against a DIFFERENT taxonomy with the same number of rows passes it, then
     # matches only some of its species here. The drop would still look
     # successful, the artifacts would still agree with each other, and the
-    # unmatched extinct species would simply survive. Every name in the list
+    # unmatched extinct species would simply survive. Every code in the list
     # must land on a row.
-    missing = sorted(drop_sci - matched_sci)
+    missing = sorted(drop_codes - matched_codes)
     if missing:
-        print(f"\nERROR: {len(missing)} of {len(drop_sci)} species in the "
+        print(f"\nERROR: {len(missing)} of {len(drop_codes)} species in the "
               f"exclusion list did not match a taxonomy row:", file=sys.stderr)
-        for sci in missing[:20]:
-            print(f"    {sci}", file=sys.stderr)
+        for code in missing[:20]:
+            print(f"    {code}", file=sys.stderr)
         if len(missing) > 20:
             print(f"    ... and {len(missing) - 20} more", file=sys.stderr)
         sys.exit("the list does not describe this taxonomy; refusing to "
@@ -116,8 +119,8 @@ def main():
     # keep-map new_sha16, the client constants and both blob headers all key
     # off these bytes.
     #
-    # KNOWN COST, deliberately not changed here: one line means a 152-row drop
-    # renders as 11,169 deletions and 1 insertion, so a reviewer cannot see
+    # KNOWN COST, deliberately not changed here: one line means a 173-row drop
+    # renders as 10,996 deletions and 1 insertion, so a reviewer cannot see
     # WHICH species went. Writing one row per line fixes the diff and
     # round-trips the pre-drop file byte for byte, but it moves the taxonomy
     # hash (61cd7f2a1e3093e9 -> bcfc23ea0c5f9bdd) and therefore requires

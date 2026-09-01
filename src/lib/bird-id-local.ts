@@ -8,8 +8,8 @@
  * Assets, all served from public/:
  *   models/wingclip_visual_int8.onnx    13.72 MiB graph
  *   models/wingclip_visual_int8.data    24.00 MiB weights, external data
- *   models/text_classifier_int8.bin     11016 x 768 int8 + per-row fp32 scales
- *                                       (11015 species, then the bird probe)
+ *   models/text_classifier_int8.bin     10995 x 768 int8 + per-row fp32 scales
+ *                                       (10994 species, then the bird probe)
  *   priors/occurrence.<hash>.bin.gz     21.54 MiB v4 geographic prior
  *
  * The .data file is referenced by the `location` string inside the graph, and
@@ -139,7 +139,7 @@ export class BirdIdEngine {
     // the probe can never appear as a candidate.
     //
     // The count check is what catches a stale cached classifier: an older
-    // 11167-row file no longer matches the 11015-row taxonomy, so this throws
+    // 11167-row file no longer matches the 10994-row taxonomy, so this throws
     // rather than silently handing its last SPECIES row to the probe. That is
     // why MODEL_VERSION moved with these bytes.
     this.nSpecies = nRows - 1
@@ -200,7 +200,7 @@ export class BirdIdEngine {
     const pRaw = sigmoid(dot / norm + probe.bias)
     const pBird = sigmoid(probe.plattA * logit(pRaw) + probe.plattB)
 
-    // Full 11015-way similarity, then keep the top 25 for reranking.
+    // Full 10994-way similarity, then keep the top 25 for reranking.
     // Four accumulators so the JIT does not serialise on a single one.
     // 23.51 ms to 16.22 ms on a Cortex-A76. EMBED_DIM is 768, so no tail.
     const sims = new Float32Array(this.nSpecies)
@@ -217,7 +217,7 @@ export class BirdIdEngine {
       sims[s] = (a + b + c + d) / norm
     }
 
-    // Partial top-K, not a full sort. Sorting all 11015 to take 25 measured
+    // Partial top-K, not a full sort. Sorting all 10994 to take 25 measured
     // 5.90 ms against 0.16 ms here on a Cortex-A76, for identical output.
     const K = 25
     const bi: number[] = []

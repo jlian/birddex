@@ -4,7 +4,7 @@ import XCTest
 /// WDOP v4 backoff, checked against a hand-built blob.
 ///
 /// BirdIDParityTests already reads the shipped v4 artifact
-/// (public/priors/occurrence.7c39b341.bin.gz), so end-to-end parity against
+/// (public/priors/occurrence.d0abc168.bin.gz), so end-to-end parity against
 /// the bytes the app ships is covered there. These tests deliberately do NOT
 /// use that file, for three reasons.
 ///

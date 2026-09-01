@@ -50,7 +50,7 @@ has since shipped a ViT-H/14 claiming +5.7% on species classification over
 BioCLIP 2 and is untested here, and supervised fine-grained models trained
 directly on NABirds score higher than any model in this table (93.2 for the
 Token Injection Transformer, 92.4 for DBMFNet) with a fixed 555-class head
-rather than zero-shot over 11,015 species.
+rather than zero-shot over 10,994 species.
 
 This model is therefore **not** a claim to be the best open bird classifier.
 The defensible claim is parameter efficiency: BioCLIP-2 accuracy at 13% of its
@@ -75,12 +75,12 @@ A visual tower whose output is projected into the 768-d BioCLIP-2 embedding
 space and L2-normalized. `forward()` is the whole exportable graph: no text
 encoder runs at inference time.
 
-Classification is a cosine similarity against a frozen **11,015 x 768** matrix
+Classification is a cosine similarity against a frozen **10,994 x 768** matrix
 of BioCLIP-2 text embeddings, shipped here as `text_classifier_fp32.npy`. So the
-model covers 11,015 bird species even though only a subset had enough photos to
+model covers 10,994 bird species even though only a subset had enough photos to
 distil on. A species needs a *name* to be predictable, not training images.
 
-The matrix held 11,167 rows until 152 species with IUCN status EX or EW were
+The matrix held 11,167 rows until 173 species flagged extinct by eBird were
 dropped from the taxonomy. Rows are keyed by position, so the published matrix
 and `labels.json` are filtered together and stay row-aligned.
 
@@ -92,8 +92,8 @@ and `labels.json` are filtered together and stay row-aligned.
 | `wingclip-0.3.safetensors` | the same weights, without the pickle |
 | `wingclip-0.3-alpha.pt` | after distillation, before fine-tuning. val cosine 0.9436 |
 | `wingclip-0.3-beta.pt` | after fine-tuning, before the WiSE-FT merge |
-| `text_classifier_fp32.npy` | 11,015 x 768 frozen BioCLIP-2 text embeddings |
-| `labels.json` | 11,015 rows of `[common name, scientific name, eBird code]`, in classifier row order |
+| `text_classifier_fp32.npy` | 10,994 x 768 frozen BioCLIP-2 text embeddings |
+| `labels.json` | 10,994 rows of `[common name, scientific name, eBird code]`, in classifier row order |
 | `onnx/wingclip_visual_fp32.onnx` | fp32 export, parity-checked against PyTorch |
 | `onnx/wingclip_visual_int8.onnx` + `.data` | int8, 39 MB across two files, what WingDex ships to the web |
 
@@ -233,8 +233,8 @@ The prior blob and the fitted `T`, `beta` and `k` live in the
   outside North America is less well characterised.
 - **Long tail.** Training covered the pre-drop taxonomy of 11,167 species, of
   which 7,555 were distilled and 3,850 were fine-tuned. The rest ride entirely
-  on the text embedding of their name. The shipped matrix is now 11,015 rows,
-  since 152 extinct species were dropped after training.
+  on the text embedding of their name. The shipped matrix is now 10,994 rows,
+  since 173 extinct species were dropped after training.
 - **Two distillation steps from the original.** Errors in WingCLIP-0.1 are
   inherited, and there is no path back to BioCLIP-2's behaviour through this
   model.
