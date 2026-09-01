@@ -459,8 +459,8 @@ function OutingDetail({
     }
     setIsAddingSpecies(true)
     try {
-      await data.addObservations([obs])
-      data.updateDex(outing.id, [obs])
+      const saved = await data.addObservations([obs])
+      data.updateDex(outing.id, saved)
       setNewSpeciesName('')
       setSelectedSpeciesEntry(null)
       setAddingSpecies(false)

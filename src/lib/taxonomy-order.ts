@@ -9,12 +9,19 @@ let orderMap: Map<string, number> | null = null
 let birdlifeMap: Map<string, string> | null = null
 let ebirdMap: Map<string, string> | null = null
 let wikiTitleMap: Map<string, string> | null = null
+let identityByCommon: Map<string, SpeciesIdentity> | null = null
+let identityByScientific: Map<string, SpeciesIdentity> | null = null
 // Row index into taxonomy.json, for callers that key data by classifier
 // position. Sidecar taxa are deliberately absent: they have no row.
 let indexMap: Map<string, number> | null = null
 // Lowercased names that exist ONLY in the sidecar. Used to stop an exact
 // sidecar hit from falling through to a stripped-name classifier lookup.
 const extraNames = new Set<string>()
+
+export type SpeciesIdentity = {
+  taxonCode: string
+  speciesCode: string
+}
 
 async function loadOrderMap(): Promise<Map<string, number>> {
   if (orderMap) return orderMap
@@ -24,14 +31,22 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   const bl = new Map<string, string>()
   const eb = new Map<string, string>()
   const wiki = new Map<string, string>()
+  const commonIdentities = new Map<string, SpeciesIdentity>()
+  const scientificIdentities = new Map<string, SpeciesIdentity>()
   for (let i = 0; i < raw.length; i++) {
     const common = raw[i][0] as string
+    const scientific = raw[i][1] as string
     map.set(common.toLowerCase(), i)
     idx.set(common.toLowerCase(), i)
     const birdlifeId = raw[i][5] as string | undefined
     if (birdlifeId) bl.set(common.toLowerCase(), birdlifeId)
     const ebirdCode = raw[i][2] as string | undefined
-    if (ebirdCode) eb.set(common.toLowerCase(), ebirdCode)
+    if (ebirdCode) {
+      const identity = { taxonCode: ebirdCode, speciesCode: ebirdCode }
+      eb.set(common.toLowerCase(), ebirdCode)
+      commonIdentities.set(common.toLowerCase(), identity)
+      scientificIdentities.set(scientific.toLowerCase(), identity)
+    }
     const wikiTitle = raw[i][3] as string | undefined
     if (wikiTitle) wiki.set(common.toLowerCase(), wikiTitle)
   }
@@ -54,12 +69,19 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   const extra = (await import('./taxonomy-extra.json')).default as unknown as {
     entries: [string, string, string, string, number, string][]
   }
-  for (const [code, common, , , taxonOrder] of extra.entries) {
+  for (const [code, common, scientific, , taxonOrder, reportAsCode] of extra.entries) {
     const key = common.toLowerCase()
-    if (map.has(key)) continue          // classifier wins on any collision
-    map.set(key, raw.length + taxonOrder)
-    extraNames.add(key)
-    if (code) eb.set(key, code)
+    const identity = { taxonCode: code, speciesCode: reportAsCode || code }
+    if (!map.has(key)) {
+      map.set(key, raw.length + taxonOrder)
+      extraNames.add(key)
+      if (code) eb.set(key, code)
+      commonIdentities.set(key, identity)
+    }
+    const scientificKey = scientific.toLowerCase()
+    if (!scientificIdentities.has(scientificKey)) {
+      scientificIdentities.set(scientificKey, identity)
+    }
   }
 
   orderMap = map
@@ -67,7 +89,40 @@ async function loadOrderMap(): Promise<Map<string, number>> {
   birdlifeMap = bl
   ebirdMap = eb
   wikiTitleMap = wiki
+  identityByCommon = commonIdentities
+  identityByScientific = scientificIdentities
   return map
+}
+
+export async function resolveSpeciesIdentity(speciesName: string): Promise<SpeciesIdentity | undefined> {
+  await loadOrderMap()
+  const raw = speciesName.trim()
+  if (!raw) return undefined
+
+  const whole = raw.toLowerCase()
+  const exact = identityByCommon?.get(whole) ?? identityByScientific?.get(whole)
+  if (exact) return exact
+
+  const paren = raw.match(/^(.+?)\s*\((.+)\)\s*$/)
+  const commonPart = (paren ? paren[1] : raw).trim().toLowerCase()
+  const scientificPart = paren ? paren[2].trim().toLowerCase() : ''
+  if (scientificPart) {
+    const scientific = identityByScientific?.get(scientificPart)
+    if (scientific) return scientific
+    const words = scientificPart.split(/\s+/)
+    if (words.length > 2 && !scientificPart.includes(' x ') && !scientificPart.includes('/')) {
+      const binomial = identityByScientific?.get(words.slice(0, 2).join(' '))
+      if (binomial) return binomial
+    }
+  }
+
+  const common = identityByCommon?.get(commonPart)
+  if (common) return common
+  for (const suffix of [' (hybrid)', ' (intergrade)']) {
+    const compound = identityByCommon?.get(whole + suffix)
+    if (compound) return compound
+  }
+  return undefined
 }
 
 /**

@@ -4,6 +4,7 @@ import { getUserStorageKey } from '@/lib/storage-keys'
 import { fetchWithLocalAuthRetry, isLocalRuntime } from '@/lib/local-auth-fetch'
 import { assertWingDexApiResponse } from '@/lib/api-error'
 import { logClientFailure } from '@/lib/client-log'
+import { resolveSpeciesIdentity } from '@/lib/taxonomy-order'
 
 export type WingDexDataStore = ReturnType<typeof useWingDexData>
 
@@ -404,16 +405,25 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     }
   }
 
-  const addObservations = async (newObservations: Observation[]): Promise<void> => {
-    if (newObservations.length === 0) return
+  const addObservations = async (newObservations: Observation[]): Promise<Observation[]> => {
+    if (newObservations.length === 0) return []
+
+    const preparedObservations = await Promise.all(newObservations.map(async observation => {
+      const identity = await resolveSpeciesIdentity(observation.speciesName)
+      const { speciesCode: _speciesCode, taxonCode: _taxonCode, ...rest } = observation
+      return {
+        ...rest,
+        ...(identity ?? {}),
+      }
+    }))
 
     const previousObservations = payloadRef.current.observations
-    const newIds = new Set(newObservations.map(observation => observation.id))
+    const newIds = new Set(preparedObservations.map(observation => observation.id))
     const optimistic: WingDexPayload = {
       ...payloadRef.current,
       observations: [
         ...payloadRef.current.observations.filter(observation => !newIds.has(observation.id)),
-        ...newObservations,
+        ...preparedObservations,
       ],
     }
     applyPayload(optimistic)
@@ -422,7 +432,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
       try {
         const response = await apiJson<{ observations: Observation[]; dexUpdates: DexEntry[] }>('/api/data/observations', {
           method: 'POST',
-          body: JSON.stringify(newObservations),
+          body: JSON.stringify(preparedObservations),
         })
         setPayload(current => {
           const byId = new Map(current.observations.map(observation => [observation.id, observation]))
@@ -435,6 +445,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
             dex: response.dexUpdates || current.dex,
           }
         })
+        return response.observations || preparedObservations
       } catch (err) {
         logClientFailure('data/observations/write', err, { count: newObservations.length })
         setPayload(current => ({
@@ -444,6 +455,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
         throw err
       }
     }
+    return preparedObservations
   }
 
   const updateObservation = (observationId: string, updates: Partial<Observation>) => {
@@ -653,6 +665,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
 
     if (storageMode === 'api') {
       const patches = entries.map(entry => ({
+        groupKey: entry.id,
         speciesName: entry.speciesName,
         addedDate: entry.addedDate,
         bestPhotoId: entry.bestPhotoId,
