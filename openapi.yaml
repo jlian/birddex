@@ -715,6 +715,13 @@ components:
           type: string
         speciesName:
           type: string
+        speciesCode:
+          type: string
+          description: >-
+            eBird species code, resolved server-side from speciesName. Absent
+            when the name matches no eBird taxon, in which case the dex groups
+            by name instead. Clients must not send this; it is recomputed on
+            every write, including a rename.
         count:
           type: integer
         certainty:
@@ -732,10 +739,22 @@ components:
 
     DexEntry:
       type: object
-      required: [speciesName, firstSeenDate, lastSeenDate, totalOutings, totalCount, notes]
+      required: [id, speciesName, firstSeenDate, lastSeenDate, totalOutings, totalCount, notes]
       properties:
+        id:
+          type: string
+          description: >-
+            Grouping key: "code:<ebirdCode>" when the species resolved,
+            "name:<speciesName>" otherwise. Stable across a rename and unique
+            where speciesName is not, since a coded and an uncoded group can
+            share one display name. Use it for identity; use speciesName for
+            display.
+          example: "code:norcar"
         speciesName:
           type: string
+        speciesCode:
+          type: string
+          description: eBird species code for this group, absent for unresolvable taxa.
         firstSeenDate:
           type: string
         lastSeenDate:
