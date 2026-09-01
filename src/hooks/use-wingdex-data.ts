@@ -144,6 +144,32 @@ export function rebuildDexFromState(
 
 export const buildDexFromState = rebuildDexFromState
 
+async function resolveObservationIdentity(observation: Observation): Promise<Observation> {
+  const identity = await resolveSpeciesIdentity(observation.speciesName)
+  const { speciesCode: _speciesCode, taxonCode: _taxonCode, ...rest } = observation
+  return { ...rest, ...(identity ?? {}) }
+}
+
+export async function applyLocalObservationUpdates(
+  observation: Observation,
+  updates: Partial<Observation>,
+): Promise<Observation> {
+  const updated = { ...observation, ...updates }
+  return typeof updates.speciesName === 'string'
+    ? resolveObservationIdentity(updated)
+    : updated
+}
+
+async function resolveLocalUpdates(updates: Partial<Observation>): Promise<Partial<Observation>> {
+  if (typeof updates.speciesName !== 'string') return updates
+  const identity = await resolveSpeciesIdentity(updates.speciesName)
+  return {
+    ...updates,
+    speciesCode: identity?.speciesCode,
+    taxonCode: identity?.taxonCode,
+  }
+}
+
 function readLocalData(userId: string): WingDexPayload {
   if (!isLocalRuntime() || typeof window === 'undefined' || !window.localStorage) {
     return { outings: [], photos: [], observations: [], dex: [] }
@@ -171,14 +197,28 @@ function readLocalData(userId: string): WingDexPayload {
 }
 
 export async function enrichLocalDex(payload: WingDexPayload): Promise<WingDexPayload> {
-  const dex = await Promise.all(payload.dex.map(async entry => {
+  const observations = await Promise.all(payload.observations.map(resolveObservationIdentity))
+  const rebuiltFromObservations = rebuildDexFromState(payload.outings, observations, payload.dex)
+  const rebuiltIds = new Set(rebuiltFromObservations.map(entry => entry.id))
+  const sourceIds = new Set(payload.observations.flatMap(observation => [
+    `name:${observation.speciesName}`,
+    ...(observation.speciesCode ? [`code:${observation.speciesCode}`] : []),
+  ]))
+  const rebuiltDex = [
+    ...rebuiltFromObservations,
+    ...payload.dex.filter(entry => {
+      const id = entry.id ?? (entry.speciesCode ? `code:${entry.speciesCode}` : `name:${entry.speciesName}`)
+      return !rebuiltIds.has(id) && !sourceIds.has(id)
+    }),
+  ]
+  const dex = await Promise.all(rebuiltDex.map(async entry => {
     const id = entry.id ?? (entry.speciesCode ? `code:${entry.speciesCode}` : `name:${entry.speciesName}`)
     const code = entry.taxonCode ?? entry.speciesCode
     if (!code) return { ...entry, id }
     const metadata = await getTaxonMetadataByCode(code)
     return metadata ? { ...entry, id, ...metadata } : { ...entry, id }
   }))
-  return { ...payload, dex }
+  return { ...payload, observations, dex }
 }
 
 function writeLocalData(userId: string, payload: WingDexPayload) {
@@ -260,8 +300,11 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     } catch {
       if (refreshGeneration.current !== generation) return
       if (isLocalRuntime()) {
+        const next = await enrichLocalDex(readLocalData(userId))
+        if (refreshGeneration.current !== generation) return
         setStorageMode('local')
-        setPayload(await enrichLocalDex(readLocalData(userId)))
+        setPayload(next)
+        writeLocalData(userId, next)
       }
     }
   }, [userId, hasSession])
@@ -434,14 +477,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
   const addObservations = async (newObservations: Observation[]): Promise<Observation[]> => {
     if (newObservations.length === 0) return []
 
-    const preparedObservations = await Promise.all(newObservations.map(async observation => {
-      const identity = await resolveSpeciesIdentity(observation.speciesName)
-      const { speciesCode: _speciesCode, taxonCode: _taxonCode, ...rest } = observation
-      return {
-        ...rest,
-        ...(identity ?? {}),
-      }
-    }))
+    const preparedObservations = await Promise.all(newObservations.map(resolveObservationIdentity))
 
     const previousObservations = payloadRef.current.observations
     const newIds = new Set(preparedObservations.map(observation => observation.id))
@@ -484,11 +520,12 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     return preparedObservations
   }
 
-  const updateObservation = (observationId: string, updates: Partial<Observation>) => {
+  const updateObservation = async (observationId: string, updates: Partial<Observation>) => {
+    const localUpdates = storageMode === 'local' ? await resolveLocalUpdates(updates) : undefined
     const optimistic: WingDexPayload = {
       ...payloadRef.current,
       observations: payloadRef.current.observations.map(observation =>
-        observation.id === observationId ? { ...observation, ...updates } : observation
+        observation.id === observationId ? { ...observation, ...(localUpdates ?? updates) } : observation
       ),
     }
 
@@ -528,14 +565,17 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     }
   }
 
-  const bulkUpdateObservations = (ids: string[], updates: Partial<Observation>) => {
+  const bulkUpdateObservations = async (ids: string[], updates: Partial<Observation>) => {
     if (ids.length === 0) return
 
     const idSet = new Set(ids)
+    const localUpdates = storageMode === 'local' ? await resolveLocalUpdates(updates) : undefined
     const optimistic: WingDexPayload = {
       ...payloadRef.current,
       observations: payloadRef.current.observations.map(observation =>
-        idSet.has(observation.id) ? { ...observation, ...updates } : observation
+        idSet.has(observation.id)
+          ? { ...observation, ...(localUpdates ?? updates) }
+          : observation
       ),
     }
 

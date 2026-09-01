@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { enrichLocalDex, rebuildDexFromState } from '@/hooks/use-wingdex-data'
+import { applyLocalObservationUpdates, enrichLocalDex, rebuildDexFromState } from '@/hooks/use-wingdex-data'
 import { getTaxonMetadataByCode } from '@/lib/taxonomy-order'
 import type { DexEntry, Observation, Outing } from '@/lib/types'
 
@@ -132,5 +132,112 @@ describe('enrichLocalDex', () => {
     })
 
     expect(payload.dex.map(entry => entry.id)).toEqual(['code:mallar3', 'name:Mystery Bird'])
+  })
+
+  it('migrates legacy observations before rebuilding so new coded rows do not split the species', async () => {
+    const legacyDex = {
+      id: 'name:Mallard',
+      speciesName: 'Mallard',
+      firstSeenDate: '2025-01-01T00:00:00Z',
+      lastSeenDate: '2025-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: 'legacy notes',
+    } as DexEntry
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z'), outing('o2', '2025-02-01T00:00:00Z')],
+      photos: [],
+      observations: [
+        obs('legacy', 'o1', 'Mallard'),
+        obs('new', 'o2', 'Mallard', 'mallar3', 'mallar3'),
+      ],
+      dex: [legacyDex],
+    })
+
+    expect(payload.observations.every(observation => observation.speciesCode === 'mallar3')).toBe(true)
+    expect(payload.dex).toHaveLength(1)
+    expect(payload.dex[0]).toMatchObject({ id: 'code:mallar3', totalCount: 2, totalOutings: 2 })
+  })
+
+  it('preserves dex-only entries while rebuilding migrated observation groups', async () => {
+    const dexOnly = {
+      id: 'name:Imported Lifer',
+      speciesName: 'Imported Lifer',
+      firstSeenDate: '2024-01-01T00:00:00Z',
+      lastSeenDate: '2024-01-01T00:00:00Z',
+      totalOutings: 0,
+      totalCount: 0,
+      notes: 'keep me',
+    } as DexEntry
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z')],
+      photos: [],
+      observations: [obs('legacy', 'o1', 'Mallard')],
+      dex: [dexOnly],
+    })
+
+    expect(payload.dex.map(entry => entry.id).sort()).toEqual(['code:mallar3', 'name:Imported Lifer'])
+    expect(payload.dex.find(entry => entry.id === 'name:Imported Lifer')?.notes).toBe('keep me')
+  })
+
+  it('drops a stale name-keyed alias when its observation is already coded', async () => {
+    const staleAlias = {
+      id: 'name:Mallard',
+      speciesName: 'Mallard',
+      firstSeenDate: '2025-01-01T00:00:00Z',
+      lastSeenDate: '2025-01-01T00:00:00Z',
+      totalOutings: 1,
+      totalCount: 1,
+      notes: '',
+    } as DexEntry
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z')],
+      photos: [],
+      observations: [obs('coded', 'o1', 'Mallard', 'mallar3', 'mallar3')],
+      dex: [staleAlias],
+    })
+
+    expect(payload.dex.map(entry => entry.id)).toEqual(['code:mallar3'])
+  })
+
+  it('recomputes historically stale codes even when both fields are populated', async () => {
+    const payload = await enrichLocalDex({
+      outings: [outing('o1', '2025-01-01T00:00:00Z')],
+      photos: [],
+      observations: [obs('stale', 'o1', 'Northern Cardinal', 'mallar3', 'mallar3')],
+      dex: [],
+    })
+
+    expect(payload.observations[0]).toMatchObject({
+      speciesName: 'Northern Cardinal',
+      speciesCode: 'norcar',
+      taxonCode: 'norcar',
+    })
+    expect(payload.dex.map(entry => entry.id)).toEqual(['code:norcar'])
+  })
+})
+
+describe('applyLocalObservationUpdates', () => {
+  it('recomputes identity when a local observation is renamed', async () => {
+    const renamed = await applyLocalObservationUpdates(
+      obs('ob1', 'o1', 'Mallard', 'mallar3', 'mallar3'),
+      { speciesName: 'Northern Cardinal' },
+    )
+
+    expect(renamed).toMatchObject({
+      speciesName: 'Northern Cardinal',
+      speciesCode: 'norcar',
+      taxonCode: 'norcar',
+    })
+  })
+
+  it('clears stale identity when a local rename is unresolved', async () => {
+    const renamed = await applyLocalObservationUpdates(
+      obs('ob1', 'o1', 'Mallard', 'mallar3', 'mallar3'),
+      { speciesName: 'Mystery Bird' },
+    )
+
+    expect(renamed.speciesCode).toBeUndefined()
+    expect(renamed.taxonCode).toBeUndefined()
   })
 })
