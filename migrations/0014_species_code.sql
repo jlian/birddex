@@ -33,16 +33,18 @@
 --
 -- DEPLOYMENT ORDER
 -- ----------------
--- Schema must land BEFORE the code that reads it. DEX_QUERY selects both
--- speciesCode columns, so a database without them fails the dex query outright.
+-- Deploy the dual-schema-compatible Worker BEFORE this migration. It probes
+-- the live schema and writes through either shape, so migration or backfill
+-- failure leaves a compatible Worker serving. After deployment, apply all
+-- migrations and run scripts/backfill-species-code.mjs before considering the
+-- rollout complete.
 --
 -- Rolling back is therefore not just `DROP COLUMN`: the name-based query has to
 -- be restored first, then the columns dropped. Dropping the columns under the
 -- deployed code breaks the dex rather than reverting it.
 --
--- Backfilling is NOT required for correctness. A NULL speciesCode groups by
--- speciesName, which is exactly the previous behaviour, so an un-backfilled
--- database behaves as it did before.
+-- Backfilling is required before rollout completion. Otherwise historical NULL
+-- rows and new coded rows for the same taxon can form separate dex groups.
 
 ALTER TABLE observation ADD COLUMN speciesCode TEXT;
 

@@ -116,7 +116,7 @@ function main(csvText) {
     // UI can offer "counts toward X", and as a fallback ordering anchor.
     // Empty for spuh/slash/hybrid that span multiple species, and for the
     // extinct species, which are species in their own right.
-    const parent = classifierCodes.has(r.REPORT_AS) ? r.REPORT_AS : ''
+    const parent = r.REPORT_AS?.trim() || ''
 
     extra.push([
       r.SPECIES_CODE,

@@ -54,6 +54,14 @@ describe('resolveSpeciesCode', () => {
     })
   })
 
+  it('preserves REPORT_AS when both child and extinct parent are sidecar-only', () => {
+    expect(resolveSpeciesIdentity('Tasman Sea Island-Thrush (Lord Howe I.)')).toEqual({
+      taxonCode: 'islthr38',
+      speciesCode: 'norist1',
+    })
+    expect(getEbirdCode('Tasman Sea Island-Thrush (Lord Howe I.)')).toBe('islthr38')
+  })
+
   it('rolls a subspecies up to its species, matching eBird REPORT_AS', () => {
     // Same rule, wider application: an ISSF taxon counts as its species.
     expect(resolveSpeciesCode('Dark-eyed Junco (Oregon)')).toBe('daejun')

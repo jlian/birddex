@@ -27,19 +27,27 @@
  * purpose. Set D1_REMOTE=1 deliberately, and only after the local run looks
  * right. The order that matters:
  *
- *   1. apply migration 0014 to the remote database
+ *   1. deploy and migrate ONE matching target, then export its environment
+ *
+ *      production:
+ *        wrangler deploy
  *        wrangler d1 migrations apply wingdex-db --remote
+ *        export D1_REMOTE=1 D1_DATABASE=wingdex-db
+ *        unset D1_ENV
+ *
+ *      preview:
+ *        wrangler deploy --env preview
+ *        wrangler d1 migrations apply wingdex-db-dev --remote --env preview
+ *        export D1_REMOTE=1 D1_DATABASE=wingdex-db-dev D1_ENV=preview
+ *
  *   2. dump the distinct names FROM THAT DATABASE, not from local
- *        D1_REMOTE=1 D1_DATABASE=DB D1_ENV=preview \
- *          node scripts/backfill-species-code.mjs --dump-names
+ *        node scripts/backfill-species-code.mjs --dump-names
  *   3. build the plan against those names
  *        npx vitest run --config vitest.plan.config.ts
  *   4. DRY RUN first and read the unresolved tail
- *        D1_REMOTE=1 D1_DATABASE=DB D1_ENV=preview \
- *          node scripts/backfill-species-code.mjs
+ *        node scripts/backfill-species-code.mjs --strict 5
  *   5. only then write
- *        D1_REMOTE=1 D1_DATABASE=DB D1_ENV=preview \
- *          node scripts/backfill-species-code.mjs --apply --strict 5
+ *        node scripts/backfill-species-code.mjs --apply --strict 5
  *
  * Step 2 matters: production holds names local data does not, so a plan built
  * from a local dump would silently leave those rows NULL. Step 4 matters
@@ -52,10 +60,9 @@
  * because every UPDATE is guarded by `speciesCode IS NULL`, so it only fills
  * gaps and never overwrites.
  *
- * The release workflow runs this after migrations and before deployment. That
- * ordering is required once new writes carry codes: otherwise an old NULL-code
- * row and a new coded row for the same taxon form separate dex groups, and the
- * old group's metadata remains attached to its name key.
+ * The release workflow deploys compatible code first, then runs migrations and
+ * this backfill. That ordering ensures writes already carry codes while names
+ * are dumped and leaves a compatible Worker serving if migration/backfill fails.
  *
  * Usage:
  *   npx vitest run --config vitest.plan.config.ts   # writes the plan
