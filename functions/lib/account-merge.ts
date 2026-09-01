@@ -254,11 +254,12 @@ async function mergeDifferentUsers(
         )
     `).bind(intent.sourceUserId, intent.tokenHash, targetUserId, targetUserId),
     db.prepare(`
-      INSERT INTO dex_meta (userId, speciesName, speciesCode, addedDate, bestPhotoId, notes)
-      SELECT ?, speciesName, speciesCode, addedDate, bestPhotoId, notes
+      INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes)
+      SELECT ?, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
       FROM dex_meta
       WHERE userId = ? AND ${guardSql()}
-      ON CONFLICT(userId, speciesName) DO UPDATE SET
+      ON CONFLICT(userId, groupKey) DO UPDATE SET
+        speciesName = min(dex_meta.speciesName, excluded.speciesName),
         -- Carry the grouping key across the merge. Observations keep theirs
         -- because they are re-owned by UPDATE, but this copies rows, so
         -- omitting the column would silently name-key every merged metadata

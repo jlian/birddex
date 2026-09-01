@@ -4,6 +4,7 @@ import { hasDexMetaColumn } from '../../lib/schema'
 import { resolveSpeciesCode } from '../../lib/taxonomy'
 
 type DexMetaPatch = {
+  groupKey?: string
   speciesName: string
   addedDate?: string | null
   bestPhotoId?: string | null
@@ -17,6 +18,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function isDexMetaPatch(value: unknown): value is DexMetaPatch {
   if (!isObject(value)) return false
   return typeof value.speciesName === 'string'
+    && (value.groupKey === undefined || (
+      typeof value.groupKey === 'string'
+      && (/^code:.+/.test(value.groupKey) || value.groupKey === `name:${value.speciesName}`)
+    ))
 }
 
 function countLabel(count: number, singular: string, plural = `${singular}s`): string {
@@ -24,15 +29,13 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
 }
 
 async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMetaPatch) {
-  // Resolve the grouping key alongside the name. dex_meta is still
-  // PRIMARY KEY (userId, speciesName), so the row identity does not change, but
-  // storing the code lets DEX_QUERY match this metadata to a coded observation
-  // directly instead of going through the name-resolution fallback.
-  const speciesCode = resolveSpeciesCode(patch.speciesName) || null
+  const resolvedCode = resolveSpeciesCode(patch.speciesName) || null
+  const groupKey = patch.groupKey ?? (resolvedCode ? `code:${resolvedCode}` : `name:${patch.speciesName}`)
+  const speciesCode = groupKey.startsWith('code:') ? groupKey.slice(5) : null
 
   const existingResult = await db
-    .prepare('SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND speciesName = ? LIMIT 1')
-    .bind(userId, patch.speciesName)
+    .prepare('SELECT addedDate, bestPhotoId, notes FROM dex_meta WHERE userId = ? AND groupKey = ? LIMIT 1')
+    .bind(userId, groupKey)
     .all<{ addedDate?: string | null; bestPhotoId?: string | null; notes?: string | null }>()
 
   const existing = existingResult.results[0]
@@ -46,31 +49,33 @@ async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMeta
   if (supportsSpeciesCode) {
     await db
       .prepare(
-        `INSERT INTO dex_meta (userId, speciesName, speciesCode, addedDate, bestPhotoId, notes)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT(userId, speciesName)
+        `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(userId, groupKey)
          DO UPDATE SET
+           speciesName = excluded.speciesName,
            speciesCode = excluded.speciesCode,
            addedDate = excluded.addedDate,
            bestPhotoId = excluded.bestPhotoId,
            notes = excluded.notes`
       )
-      .bind(userId, patch.speciesName, speciesCode, nextAddedDate, nextBestPhotoId, nextNotes)
+      .bind(userId, groupKey, patch.speciesName, speciesCode, nextAddedDate, nextBestPhotoId, nextNotes)
       .run()
     return
   }
 
   await db
     .prepare(
-      `INSERT INTO dex_meta (userId, speciesName, addedDate, bestPhotoId, notes)
-       VALUES (?1, ?2, ?3, ?4, ?5)
-       ON CONFLICT(userId, speciesName)
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, addedDate, bestPhotoId, notes)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT(userId, groupKey)
        DO UPDATE SET
+         speciesName = excluded.speciesName,
          addedDate = excluded.addedDate,
          bestPhotoId = excluded.bestPhotoId,
          notes = excluded.notes`
     )
-    .bind(userId, patch.speciesName, nextAddedDate, nextBestPhotoId, nextNotes)
+    .bind(userId, groupKey, patch.speciesName, nextAddedDate, nextBestPhotoId, nextNotes)
     .run()
 }
 
@@ -105,7 +110,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
 
   const patches = Array.isArray(body) ? body : [body]
   if (!patches.every(isDexMetaPatch)) {
-    return route.fail(400, 'Invalid dex patch payload', 'Dex patch payload failed validation; expected {speciesName} with optional addedDate, bestPhotoId, notes')
+    return route.fail(400, 'Invalid dex patch payload', 'Dex patch payload failed validation; expected {speciesName} with optional groupKey, addedDate, bestPhotoId, notes')
   }
 
   let appliedPatchCount = 0

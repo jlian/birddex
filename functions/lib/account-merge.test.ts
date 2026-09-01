@@ -110,11 +110,11 @@ function seedDurableData(sqlite: DatabaseSync) {
       ('target-similar', 'target-outing', 'target-user', 'American Robin', 1, 'confirmed', 'target-photo', 0.95, 'confirmed note', 'confirmed comment', 'S2'),
       ('target-exact', 'target-outing', 'target-user', 'Killdeer', 1, 'confirmed', NULL, 0.80, 'same note', NULL, 'S3'),
       ('target-different', 'target-outing', 'target-user', 'Osprey', 1, 'possible', NULL, 0.70, 'target changed', NULL, 'S4');
-    INSERT INTO dex_meta (userId, speciesName, addedDate, bestPhotoId, notes)
+    INSERT INTO dex_meta (userId, groupKey, speciesName, addedDate, bestPhotoId, notes)
     VALUES
-      ('source-user', 'American Robin', '2025-05-01', 'source-photo', 'source note'),
-      ('target-user', 'American Robin', '2026-05-01', 'target-photo', 'target note'),
-      ('source-user', 'Blue Jay', '2024-04-01', 'source-photo', 'source only');
+      ('source-user', 'name:American Robin', 'American Robin', '2025-05-01', 'source-photo', 'source note'),
+      ('target-user', 'name:American Robin', 'American Robin', '2026-05-01', 'target-photo', 'target note'),
+      ('source-user', 'name:Blue Jay', 'Blue Jay', '2024-04-01', 'source-photo', 'source only');
     INSERT INTO importIdentity (userId, source, sourceKey, rowCount, createdAt)
     VALUES
       ('source-user', 'submission', 'S1', 5, '2025-01-01 00:00:00'),

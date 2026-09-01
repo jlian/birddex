@@ -32,17 +32,9 @@ export type DexRow = {
 // whose display name happened to equal another species' code would merge. They
 // are different namespaces, so they are kept apart explicitly.
 //
-// WHY METADATA IS AGGREGATED SEPARATELY INSTEAD OF JOINED DIRECTLY
-// ----------------------------------------------------------------
-// dex_meta is still PRIMARY KEY (userId, speciesName), so ONE species code can
-// legitimately have several metadata rows: exactly the duplicate-spelling case
-// this change exists to consolidate. Joining dex_meta to observation before
-// aggregating multiplies every observation row by the number of matching
-// metadata rows, so SUM(obs.count) silently doubles. Measured: a species with
-// one observation of count 5 and two metadata rows reported 10.
-//
-// Aggregating observations and metadata into separate CTEs and joining one row
-// to one row makes the fan-out impossible.
+// dex_meta uses this same prefixed group key as its primary identity. That lets
+// coded and uncoded groups with the same display label keep separate notes and
+// guarantees the metadata join cannot multiply observation counts.
 //
 // MIN(speciesName) picks the display string. Rows sharing a code are the same
 // bird spelled differently, which is the exact case this change fixes, so any
@@ -65,59 +57,14 @@ export const DEX_QUERY = `
     WHERE obs.userId = ?1 AND obs.certainty IN ('confirmed', 'possible')
     GROUP BY groupKey
   ),
-  -- Metadata that already carries a code. Name-keyed rows are handled by
-  -- metaByName below; including them here too would attach one note to two
-  -- groups when the same name exists both coded and uncoded, which is a normal
-  -- state mid-rollout.
   meta AS (
     SELECT
-      'code:' || dm.speciesCode AS groupKey,
-      MIN(dm.addedDate) AS addedDate,
-      MIN(dm.bestPhotoId) AS bestPhotoId,
-      COALESCE(MIN(NULLIF(dm.notes, '')), '') AS notes
+      dm.groupKey AS groupKey,
+      dm.addedDate AS addedDate,
+      dm.bestPhotoId AS bestPhotoId,
+      dm.notes AS notes
     FROM dex_meta dm
-    WHERE dm.userId = ?1 AND dm.speciesCode IS NOT NULL
-    GROUP BY groupKey
-  ),
-  -- Metadata saved BEFORE this migration, or by a writer that has not been
-  -- updated yet, carries a NULL speciesCode and is keyed by name. Resolve it
-  -- to the same group through an observation that shares its name, so a note
-  -- written by the old path is not lost the moment the observation gains a
-  -- code.
-  --
-  -- The join has to go through EVERY observation name in the group, not the
-  -- single MIN(speciesName) the group displays. Metadata saved under a
-  -- non-minimum alias would otherwise stay orphaned, which is precisely the
-  -- duplicate-spelling case this change consolidates.
-  --
-  -- A name is bound to at most one group here: coded observations win, so a
-  -- name that appears both coded and uncoded resolves to its coded group
-  -- rather than attaching one note to two dex entries.
-  nameToGroup AS (
-    SELECT
-      obs.speciesName AS speciesName,
-      MIN(CASE
-        WHEN obs.speciesCode IS NOT NULL THEN 'code:' || obs.speciesCode
-        ELSE 'name:' || obs.speciesName
-      END) AS groupKey
-    FROM observation obs
-    WHERE obs.userId = ?1 AND obs.certainty IN ('confirmed', 'possible')
-    GROUP BY obs.speciesName
-  ),
-  metaByName AS (
-    SELECT
-      -- Prefer the group an observation with this exact name belongs to, which
-      -- routes a legacy note onto the coded entry. Fall back to the plain name
-      -- key so metadata for a species with no matching observation is not
-      -- silently dropped.
-      COALESCE(n.groupKey, 'name:' || dm.speciesName) AS groupKey,
-      MIN(dm.addedDate) AS addedDate,
-      MIN(dm.bestPhotoId) AS bestPhotoId,
-      COALESCE(MIN(NULLIF(dm.notes, '')), '') AS notes
-    FROM dex_meta dm
-    LEFT JOIN nameToGroup n ON n.speciesName = dm.speciesName
-    WHERE dm.userId = ?1 AND dm.speciesCode IS NULL
-    GROUP BY COALESCE(n.groupKey, 'name:' || dm.speciesName)
+    WHERE dm.userId = ?1
   )
   SELECT
     g.groupKey AS id,
@@ -125,14 +72,13 @@ export const DEX_QUERY = `
     g.speciesCode AS speciesCode,
     g.firstSeenDate AS firstSeenDate,
     g.lastSeenDate AS lastSeenDate,
-    COALESCE(m.addedDate, n.addedDate) AS addedDate,
+    m.addedDate AS addedDate,
     g.totalOutings AS totalOutings,
     g.totalCount AS totalCount,
-    COALESCE(m.bestPhotoId, n.bestPhotoId) AS bestPhotoId,
-    COALESCE(NULLIF(m.notes, ''), n.notes, '') AS notes
+    m.bestPhotoId AS bestPhotoId,
+    COALESCE(m.notes, '') AS notes
   FROM grouped g
   LEFT JOIN meta m ON m.groupKey = g.groupKey
-  LEFT JOIN metaByName n ON n.groupKey = g.groupKey
   ORDER BY g.speciesName
 `
 

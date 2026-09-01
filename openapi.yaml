@@ -966,6 +966,9 @@ components:
       type: object
       required: [speciesName]
       properties:
+        groupKey:
+          type: string
+          description: Exact dex grouping key (`code:<ebirdCode>` or `name:<speciesName>`).
         speciesName:
           type: string
         addedDate:

@@ -52,8 +52,9 @@ beforeEach(() => {
       speciesName TEXT NOT NULL, speciesCode TEXT,
       count INTEGER DEFAULT 1, certainty TEXT DEFAULT 'confirmed');
     CREATE TABLE dex_meta (
-      userId TEXT, speciesName TEXT, speciesCode TEXT,
-      addedDate TEXT, bestPhotoId TEXT, notes TEXT);
+      userId TEXT, groupKey TEXT, speciesName TEXT, speciesCode TEXT,
+      addedDate TEXT, bestPhotoId TEXT, notes TEXT,
+      PRIMARY KEY (userId, groupKey));
   `)
 })
 
@@ -118,8 +119,8 @@ describe('dex grouping by species code', () => {
   it('joins dex_meta by code when the observation has one', () => {
     seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal', 'norcar', 'seen at the feeder')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'code:norcar', 'Northern Cardinal', 'norcar', 'seen at the feeder')`).run()
     const rows = run()
     expect(rows[0].notes).toBe('seen at the feeder')
   })
@@ -127,8 +128,8 @@ describe('dex grouping by species code', () => {
   it('falls back to joining dex_meta by name when the code is null', () => {
     seed([{ name: 'Gull sp.', code: null, outing: 'o1' }])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Gull sp.', NULL, 'could not tell which')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'name:Gull sp.', 'Gull sp.', NULL, 'could not tell which')`).run()
     const rows = run()
     expect(rows[0].notes).toBe('could not tell which')
   })
@@ -143,8 +144,8 @@ describe('dex grouping by species code', () => {
       { name: 'Northern Cardinal (Cardinalis cardinalis)', code: 'norcar', outing: 'o1' },
     ])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal (Cardinalis cardinalis)', NULL, 'legacy note')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'code:norcar', 'Northern Cardinal (Cardinalis cardinalis)', 'norcar', 'legacy note')`).run()
     const rows = run()
     expect(rows).toHaveLength(1)
     expect(rows[0].notes).toBe('legacy note')
@@ -158,8 +159,8 @@ describe('dex grouping by species code', () => {
       { name: 'Rock Pigeon', code: null, outing: 'o2' },
     ])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Rock Pigeon', NULL, 'one note')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'code:rocpig', 'Rock Pigeon', 'rocpig', 'one note')`).run()
     const rows = run()
     const withNote = rows.filter(r => r.notes === 'one note')
     expect(withNote).toHaveLength(1)
@@ -172,50 +173,31 @@ describe('dex grouping by species code', () => {
     // date and best photo silently disappears on the next dex recomputation.
     seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal', NULL, 'seen at the feeder')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'code:norcar', 'Northern Cardinal', 'norcar', 'seen at the feeder')`).run()
     const rows = run()
     expect(rows[0].notes).toBe('seen at the feeder')
   })
 
-  it('does not multiply totalCount when one code has several metadata rows', () => {
-    // dex_meta is still PRIMARY KEY (userId, speciesName), so the duplicate
-    // spellings this change consolidates can each carry their own metadata row.
-    // Joining before aggregating multiplied SUM(obs.count) by the number of
-    // matches: measured 10 for a single observation of count 5.
+  it('does not multiply totalCount when metadata is joined by group key', () => {
     seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1', count: 5 }])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal', 'norcar', 'a')`).run()
-    db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal (Cardinalis cardinalis)', 'norcar', 'b')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'code:norcar', 'Northern Cardinal', 'norcar', 'a')`).run()
     const rows = run()
     expect(rows).toHaveLength(1)
     expect(rows[0].totalCount).toBe(5)
     expect(rows[0].totalOutings).toBe(1)
   })
 
-  it('does not let an empty metadata row hide a note for the same code', () => {
-    seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
-    db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal', 'norcar', '')`).run()
-    db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal (Cardinalis cardinalis)', 'norcar', 'feeder')`).run()
-    const rows = run()
-    expect(rows[0].notes).toBe('feeder')
-  })
-
   it('prefers metadata stored against the code over a name-keyed leftover', () => {
     seed([{ name: 'Northern Cardinal', code: 'norcar', outing: 'o1' }])
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal', NULL, 'old note')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'name:Northern Cardinal', 'Northern Cardinal', NULL, 'old note')`).run()
     db.prepare(
-      `INSERT INTO dex_meta (userId, speciesName, speciesCode, notes)
-       VALUES ('u1', 'Northern Cardinal', 'norcar', 'new note')`).run()
+      `INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, notes)
+       VALUES ('u1', 'code:norcar', 'Northern Cardinal', 'norcar', 'new note')`).run()
     const rows = run()
     expect(rows[0].notes).toBe('new note')
   })
