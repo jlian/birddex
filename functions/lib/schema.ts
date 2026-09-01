@@ -5,11 +5,10 @@
  * so endpoints probe PRAGMA table_info to decide whether newer columns
  * are available before referencing them in queries.
  *
- * Results are cached per isolate (module-scoped) so repeated calls
- * within the same Worker invocation avoid extra D1 round trips.
+ * Capabilities are intentionally not cached. A worker version is deployed
+ * before migrations, so an isolate can observe the old schema first and must
+ * see the new columns immediately after the migration completes.
  */
-
-const cache = new WeakMap<object, Map<string, Set<string>>>()
 
 export interface SchemaDB {
   prepare(sql: string): {
@@ -20,17 +19,8 @@ export interface SchemaDB {
 }
 
 export async function getTableColumnNames(db: SchemaDB, table: string): Promise<Set<string>> {
-  const databaseCache = cache.get(db as object)
-  const cached = databaseCache?.get(table)
-  if (cached) return cached
   const info = await db.prepare(`PRAGMA table_info('${table}')`).bind().all<{ name: string }>()
-  const names = new Set((info?.results ?? []).map(column => column.name))
-  if (databaseCache) {
-    databaseCache.set(table, names)
-  } else {
-    cache.set(db as object, new Map([[table, names]]))
-  }
-  return names
+  return new Set((info?.results ?? []).map(column => column.name))
 }
 
 export async function getOutingColumnNames(db: SchemaDB): Promise<Set<string>> {

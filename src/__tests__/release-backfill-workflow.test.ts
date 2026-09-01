@@ -5,16 +5,22 @@ import { describe, expect, it } from 'vitest'
 const workflow = readFileSync(resolve(process.cwd(), '.github/workflows/release.yml'), 'utf8')
 
 describe('release species identity rollout', () => {
-  it('backfills the target database after migrations and before deployment', () => {
+  it('deploys the compatible worker before migrating and backfilling the target database', () => {
     const migrationStep = workflow.indexOf('- name: Apply D1 migrations')
     const backfillStep = workflow.indexOf('- name: Backfill species identities')
     const deployStep = workflow.indexOf('- name: Deploy to Cloudflare Workers')
 
+    expect(deployStep).toBeGreaterThan(-1)
     expect(migrationStep).toBeGreaterThan(-1)
+    expect(migrationStep).toBeGreaterThan(deployStep)
     expect(backfillStep).toBeGreaterThan(migrationStep)
-    expect(deployStep).toBeGreaterThan(backfillStep)
 
-    const backfill = workflow.slice(backfillStep, deployStep)
+    const migration = workflow.slice(migrationStep, backfillStep)
+    expect(migration).toMatch(
+      /if \[ "\$\{\{ github\.ref_name \}\}" = "main" \]; then\s+npx wrangler d1 migrations apply wingdex-db --remote\s+else\s+npx wrangler d1 migrations apply wingdex-db-dev --remote --env preview\s+fi/
+    )
+
+    const backfill = workflow.slice(backfillStep, workflow.indexOf('- name: Purge production edge cache'))
     expect(backfill).toContain('export D1_REMOTE=1')
     expect(backfill).toMatch(
       /if \[ "\$\{\{ github\.ref_name \}\}" = "main" \]; then\s+export D1_DATABASE=wingdex-db\s+else\s+export D1_DATABASE=wingdex-db-dev\s+export D1_ENV=preview\s+fi/

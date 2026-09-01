@@ -1,4 +1,5 @@
 import { accountMergeTokenHash, type AccountMergeIntent } from './account-merge-intent'
+import { getTableColumnNames } from './schema'
 
 export const accountMergeTablePolicies = {
   session: 'delete-source',
@@ -140,6 +141,7 @@ async function exactDuplicateObservationCount(
   db: D1Database,
   sourceUserId: string,
   targetUserId: string,
+  identityPredicate: string,
 ): Promise<number> {
   const row = await db.prepare(`
     SELECT count(*) AS count
@@ -151,7 +153,7 @@ async function exactDuplicateObservationCount(
         SELECT 1 FROM observation AS target
         WHERE target.userId = ?
           AND trim(target.submissionId) = trim(source.submissionId)
-          AND lower(trim(target.speciesName)) = lower(trim(source.speciesName))
+          AND ${identityPredicate}
           AND target.count = source.count
           AND target.certainty = source.certainty
           AND target.representativePhotoId IS source.representativePhotoId
@@ -161,6 +163,66 @@ async function exactDuplicateObservationCount(
       )
   `).bind(sourceUserId, targetUserId).first<{ count: number }>()
   return row?.count ?? 0
+}
+
+function duplicateIdentityPredicate(supportsTaxonCode: boolean): string {
+  if (!supportsTaxonCode) {
+    return 'lower(trim(target.speciesName)) = lower(trim(source.speciesName))'
+  }
+  return `(
+    (
+      nullif(trim(target.taxonCode), '') IS NOT NULL
+      AND nullif(trim(source.taxonCode), '') IS NOT NULL
+      AND lower(trim(target.taxonCode)) = lower(trim(source.taxonCode))
+    )
+    OR (
+      (nullif(trim(target.taxonCode), '') IS NULL OR nullif(trim(source.taxonCode), '') IS NULL)
+      AND lower(trim(target.speciesName)) = lower(trim(source.speciesName))
+    )
+  )`
+}
+
+function dexMetaMergeSql(supportsGroupKey: boolean): string {
+  if (!supportsGroupKey) {
+    return `
+      INSERT INTO dex_meta (userId, speciesName, addedDate, bestPhotoId, notes)
+      SELECT ?, speciesName, addedDate, bestPhotoId, notes
+      FROM dex_meta
+      WHERE userId = ? AND ${guardSql()}
+      ON CONFLICT(userId, speciesName) DO UPDATE SET
+        addedDate = CASE
+          WHEN dex_meta.addedDate IS NULL THEN excluded.addedDate
+          WHEN excluded.addedDate IS NULL THEN dex_meta.addedDate
+          ELSE min(dex_meta.addedDate, excluded.addedDate)
+        END,
+        bestPhotoId = coalesce(dex_meta.bestPhotoId, excluded.bestPhotoId),
+        notes = CASE
+          WHEN trim(excluded.notes) = '' OR excluded.notes = dex_meta.notes THEN dex_meta.notes
+          WHEN trim(dex_meta.notes) = '' THEN excluded.notes
+          ELSE dex_meta.notes || char(10) || char(10) || excluded.notes
+        END
+    `
+  }
+  return `
+    INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes)
+    SELECT ?, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
+    FROM dex_meta
+    WHERE userId = ? AND ${guardSql()}
+    ON CONFLICT(userId, groupKey) DO UPDATE SET
+      speciesName = min(dex_meta.speciesName, excluded.speciesName),
+      speciesCode = coalesce(dex_meta.speciesCode, excluded.speciesCode),
+      addedDate = CASE
+        WHEN dex_meta.addedDate IS NULL THEN excluded.addedDate
+        WHEN excluded.addedDate IS NULL THEN dex_meta.addedDate
+        ELSE min(dex_meta.addedDate, excluded.addedDate)
+      END,
+      bestPhotoId = coalesce(dex_meta.bestPhotoId, excluded.bestPhotoId),
+      notes = CASE
+        WHEN trim(excluded.notes) = '' OR excluded.notes = dex_meta.notes THEN dex_meta.notes
+        WHEN trim(dex_meta.notes) = '' THEN excluded.notes
+        ELSE dex_meta.notes || char(10) || char(10) || excluded.notes
+      END
+  `
 }
 
 function guardSql(): string {
@@ -207,11 +269,18 @@ async function mergeDifferentUsers(
   intent: MergePreflight,
   targetUserId: string,
 ): Promise<AccountMergeResult> {
+  const [observationColumns, dexMetaColumns] = await Promise.all([
+    getTableColumnNames(db, 'observation'),
+    getTableColumnNames(db, 'dex_meta'),
+  ])
+  const identityPredicate = duplicateIdentityPredicate(observationColumns.has('taxonCode'))
+  const supportsGroupKey = dexMetaColumns.has('groupKey') && dexMetaColumns.has('speciesCode')
   const counts = await ownedRowCounts(db, intent.sourceUserId)
   const duplicateObservations = await exactDuplicateObservationCount(
     db,
     intent.sourceUserId,
     targetUserId,
+    identityPredicate,
   )
   const statements = [
     db.prepare(`
@@ -244,7 +313,7 @@ async function mergeDifferentUsers(
           SELECT 1 FROM observation AS target
           WHERE target.userId = ?
             AND trim(target.submissionId) = trim(source.submissionId)
-            AND lower(trim(target.speciesName)) = lower(trim(source.speciesName))
+            AND ${identityPredicate}
             AND target.count = source.count
             AND target.certainty = source.certainty
             AND target.representativePhotoId IS source.representativePhotoId
@@ -253,30 +322,8 @@ async function mergeDifferentUsers(
             AND target.notes = source.notes
         )
     `).bind(intent.sourceUserId, intent.tokenHash, targetUserId, targetUserId),
-    db.prepare(`
-      INSERT INTO dex_meta (userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes)
-      SELECT ?, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
-      FROM dex_meta
-      WHERE userId = ? AND ${guardSql()}
-      ON CONFLICT(userId, groupKey) DO UPDATE SET
-        speciesName = min(dex_meta.speciesName, excluded.speciesName),
-        -- Carry the grouping key across the merge. Observations keep theirs
-        -- because they are re-owned by UPDATE, but this copies rows, so
-        -- omitting the column would silently name-key every merged metadata
-        -- row and orphan it from its coded dex entry.
-        speciesCode = coalesce(dex_meta.speciesCode, excluded.speciesCode),
-        addedDate = CASE
-          WHEN dex_meta.addedDate IS NULL THEN excluded.addedDate
-          WHEN excluded.addedDate IS NULL THEN dex_meta.addedDate
-          ELSE min(dex_meta.addedDate, excluded.addedDate)
-        END,
-        bestPhotoId = coalesce(dex_meta.bestPhotoId, excluded.bestPhotoId),
-        notes = CASE
-          WHEN trim(excluded.notes) = '' OR excluded.notes = dex_meta.notes THEN dex_meta.notes
-          WHEN trim(dex_meta.notes) = '' THEN excluded.notes
-          ELSE dex_meta.notes || char(10) || char(10) || excluded.notes
-        END
-    `).bind(targetUserId, intent.sourceUserId, intent.tokenHash, targetUserId),
+    db.prepare(dexMetaMergeSql(supportsGroupKey))
+      .bind(targetUserId, intent.sourceUserId, intent.tokenHash, targetUserId),
     db.prepare(`DELETE FROM dex_meta WHERE userId = ? AND ${guardSql()}`)
       .bind(intent.sourceUserId, intent.tokenHash, targetUserId),
     db.prepare(`
