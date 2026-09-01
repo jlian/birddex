@@ -2,6 +2,22 @@
 import XCTest
 
 final class CelebrationTests: XCTestCase {
+    func testSuccessNoticeDefaults() {
+        let notice = TransientNotice.success("Saved")
+
+        XCTAssertEqual(notice.message, "Saved")
+        XCTAssertEqual(notice.symbol, "checkmark.circle.fill")
+        XCTAssertEqual(notice.kind, .success)
+    }
+
+    func testErrorNoticeDefaults() {
+        let notice = TransientNotice.error("Authentication failed")
+
+        XCTAssertEqual(notice.message, "Authentication failed")
+        XCTAssertEqual(notice.symbol, "exclamationmark.circle.fill")
+        XCTAssertEqual(notice.kind, .error)
+    }
+
     func testBannerMessageWithNamesListsUpToThree() {
         let message = LiferCelebration.bannerMessage(
             newSpeciesCount: 2,

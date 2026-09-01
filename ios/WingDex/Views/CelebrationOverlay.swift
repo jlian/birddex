@@ -29,9 +29,23 @@ struct LiferCelebration: Equatable, Identifiable {
 }
 
 struct TransientNotice: Equatable, Identifiable {
+    enum Kind: Equatable {
+        case success
+        case error
+    }
+
     let id = UUID()
     let message: String
     var symbol = "checkmark.circle.fill"
+    var kind: Kind = .success
+
+    static func success(_ message: String, symbol: String = "checkmark.circle.fill") -> Self {
+        Self(message: message, symbol: symbol)
+    }
+
+    static func error(_ message: String) -> Self {
+        Self(message: message, symbol: "exclamationmark.circle.fill", kind: .error)
+    }
 }
 
 /// App-wide transient notices, so a view can report success without owning a banner and a
@@ -43,10 +57,29 @@ final class ToastCenter {
     @ObservationIgnored private var dismissTask: Task<Void, Never>?
 
     func show(_ message: String, symbol: String = "checkmark.circle.fill") {
-        let next = TransientNotice(message: message, symbol: symbol)
+        present(
+            .success(message, symbol: symbol),
+            announcement: message,
+            feedback: .success
+        )
+    }
+
+    func showError(_ message: String) {
+        present(
+            .error(message),
+            announcement: "Error: \(message)",
+            feedback: .error
+        )
+    }
+
+    private func present(
+        _ next: TransientNotice,
+        announcement: String,
+        feedback: UINotificationFeedbackGenerator.FeedbackType
+    ) {
         notice = next
-        UIAccessibility.post(notification: .announcement, argument: message)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+        UINotificationFeedbackGenerator().notificationOccurred(feedback)
         dismissTask?.cancel()
         dismissTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(4))
@@ -64,46 +97,17 @@ extension View {
         modifier(CelebrationModifier(celebration: celebration))
     }
 
-    func transientNotice(_ notice: Binding<TransientNotice?>) -> some View {
-        modifier(TransientNoticeModifier(notice: notice))
-    }
-
     /// Render whatever the `ToastCenter` is currently showing. Safe to apply in more than one
     /// presentation context; the center owns dismissal, announcement and haptics.
     func toastPresenter(_ notice: TransientNotice?) -> some View {
         overlay(alignment: .top) {
             if let notice {
-                StatusBanner(message: notice.message, symbol: notice.symbol)
+                StatusBanner(message: notice.message, symbol: notice.symbol, kind: notice.kind)
                     .padding(.horizontal)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: notice)
-    }
-}
-
-private struct TransientNoticeModifier: ViewModifier {
-    @Binding var notice: TransientNotice?
-
-    func body(content: Content) -> some View {
-        content
-            .overlay(alignment: .top) {
-                if let notice {
-                    StatusBanner(message: notice.message, symbol: notice.symbol)
-                        .padding(.horizontal)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: notice)
-            .sensoryFeedback(.success, trigger: notice)
-            .onChange(of: notice) { _, newValue in
-                guard let newValue else { return }
-                UIAccessibility.post(notification: .announcement, argument: newValue.message)
-                Task {
-                    try? await Task.sleep(for: .seconds(4))
-                    if notice?.id == newValue.id { notice = nil }
-                }
-            }
     }
 }
 
@@ -169,6 +173,7 @@ private struct CelebrationModifier: ViewModifier {
 private struct StatusBanner: View {
     let message: String
     let symbol: String
+    var kind: TransientNotice.Kind = .success
 
     var body: some View {
         Label {
@@ -178,14 +183,14 @@ private struct StatusBanner: View {
                 .multilineTextAlignment(.leading)
         } icon: {
             Image(systemName: symbol)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(kind == .error ? Color.red : Color.accentColor)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .glassEffect(.regular, in: Capsule())
         .padding(.top, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(message)
+        .accessibilityLabel(kind == .error ? "Error: \(message)" : message)
     }
 }
 

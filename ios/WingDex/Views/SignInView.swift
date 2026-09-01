@@ -42,7 +42,6 @@ struct SignInView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 52
 
     @State private var isSigningIn = false
-    @State private var errorMessage: String?
     @State private var parallaxOffset: CGSize = .zero
     @State private var collageCache = CollageImageCache.shared
 
@@ -126,9 +125,10 @@ struct SignInView: View {
                 .padding(.bottom, 32)
 
                 if hasAnonymousData {
-                    Text("Your sightings are tied to this app on this device. You may lose access if its data is removed or you switch devices. Create an account to keep them and unlock import and export. A passkey needs no email or password.")
+                    Text("Create an account to keep your data saved. No email or password required.")
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("auth.accountDurability")
                     .foregroundStyle(.white)
                     .padding(.horizontal, 28)
                     .padding(.bottom, 20)
@@ -170,13 +170,12 @@ struct SignInView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: glassLabelHeight)
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 7)
-                        .background(Color.black, in: Capsule())
-                        .overlay(Capsule().stroke(.white.opacity(0.2)))
                         .clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
+                    .colorScheme(colorScheme == .dark ? .light : .dark)
+                    .background(Color.black.opacity(0.72), in: Capsule())
+                    .accessibilityIdentifier("auth.google")
 
                     // GitHub -- neutral style matching Google
                     Button {
@@ -193,13 +192,12 @@ struct SignInView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: glassLabelHeight)
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 7)
-                        .background(Color.black, in: Capsule())
-                        .overlay(Capsule().stroke(.white.opacity(0.2)))
                         .clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
+                    .colorScheme(colorScheme == .dark ? .light : .dark)
+                    .background(Color.black.opacity(0.72), in: Capsule())
+                    .accessibilityIdentifier("auth.github")
                 }
                 .padding(.horizontal, 28)
 
@@ -253,6 +251,7 @@ struct SignInView: View {
                         .buttonSizing(.flexible)
                         .foregroundStyle(.white)
                         .tint(Color.black.opacity(0.82))
+                        .accessibilityIdentifier("auth.passkeySignUp")
                     }
                 }
                 .padding(16)
@@ -266,15 +265,6 @@ struct SignInView: View {
                     }
                 )
                 .padding(.horizontal, 28)
-
-                // Error message (stable layout)
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 8)
-                }
 
                 // Legal text
                 Text("By continuing, you accept our [Terms of Use](https://wingdex.app/terms) and [Privacy Policy](https://wingdex.app/privacy).")
@@ -299,10 +289,11 @@ struct SignInView: View {
                     .padding(.bottom, 40)
             }
         }
-        .animation(.default, value: errorMessage)
         .task { await collageCache.load() }
         .onAppear {
-            errorMessage = auth.consumeSignInMessage()
+            if let message = auth.consumeSignInMessage() {
+                toasts.showError(message)
+            }
             startParallax()
         }
         .onChange(of: reduceMotion) { _, shouldReduceMotion in
@@ -314,6 +305,9 @@ struct SignInView: View {
         }
         .onDisappear { stopParallax() }
         }
+        // Success survives account-cover dismissal and is rendered by the app
+        // shell. Errors must render locally while this full-screen cover remains open.
+        .toastPresenter(toasts.notice?.kind == .error ? toasts.notice : nil)
     }
 
     // MARK: - Parallax Motion
@@ -370,7 +364,6 @@ struct SignInView: View {
         action: @escaping () async throws -> AccountMergeResult?
     ) {
         isSigningIn = true
-        errorMessage = nil
         Task {
             do {
                 let mergeResult = try await action()
@@ -378,7 +371,9 @@ struct SignInView: View {
                     toasts.show(Self.successMessage(fallback: successMessage, mergeResult: mergeResult))
                 }
             } catch {
-                errorMessage = AppError.map(error, fallback: "Authentication failed. Try again.")?.message
+                if let appError = AppError.map(error, fallback: "Authentication failed. Try again.") {
+                    toasts.showError(appError.message)
+                }
                 log.debug("Sign-in attempt failed")
             }
             isSigningIn = false
