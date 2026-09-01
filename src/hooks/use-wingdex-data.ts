@@ -41,6 +41,11 @@ export function rollbackItemsById<T extends { id: string }>(
   return result
 }
 
+export function publishPayload<T>(ref: { current: T }, next: T, publish: (value: T) => void): void {
+  ref.current = next
+  publish(next)
+}
+
 /**
  * Local-mode equivalent of DEX_QUERY. Exported for tests: it has to agree with
  * the server grouping or a species merges one way offline and splits the other.
@@ -278,7 +283,7 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
   }, [refresh])
 
   const applyPayload = (next: WingDexPayload) => {
-    setPayload(next)
+    publishPayload(payloadRef, next, setPayload)
     if (storageMode === 'local') {
       writeLocalData(userId, next)
     }
@@ -631,6 +636,10 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     return map
   }, [payload.photos])
 
+  const dexByKey = useMemo(() =>
+    new Map(payload.dex.map(entry => [entry.id, entry])),
+    [payload.dex]
+  )
   const dexBySpecies = useMemo(() =>
     new Map(payload.dex.map(entry => [entry.speciesName, entry])),
     [payload.dex]
@@ -644,8 +653,8 @@ export function useWingDexData(userId: string, { hasSession = true }: { hasSessi
     return photosByOuting.get(outingId) ?? []
   }
 
-  const getDexEntry = (speciesName: string) => {
-    return dexBySpecies.get(speciesName)
+  const getDexEntry = (identity: string) => {
+    return dexByKey.get(identity) ?? dexBySpecies.get(identity)
   }
 
   const importDexEntries = (entries: DexEntry[]) => {

@@ -78,6 +78,7 @@ func dexGroupKey(speciesCode: String?, speciesName: String) -> String {
 struct SpeciesGroup {
     let key: String
     let label: String
+    let taxonCode: String?
     let observations: [BirdObservation]
 }
 
@@ -91,9 +92,11 @@ func groupByDexKey(_ observations: [BirdObservation]) -> [SpeciesGroup] {
         dexGroupKey(speciesCode: $0.speciesCode, speciesName: $0.speciesName)
     }
     .map { key, group in
-        SpeciesGroup(
+        let selected = group.min { $0.speciesName < $1.speciesName }
+        return SpeciesGroup(
             key: key,
-            label: group.map(\.speciesName).min() ?? "",
+            label: selected?.speciesName ?? "",
+            taxonCode: selected?.taxonCode,
             observations: group
         )
     }

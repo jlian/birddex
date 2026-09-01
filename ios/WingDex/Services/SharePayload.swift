@@ -2,8 +2,8 @@ import Foundation
 
 enum SharePayload {
     static func species(_ entry: DexEntry) -> String {
-        var lines = [getDisplayName(entry.speciesName)]
-        if let scientificName = getScientificName(entry.speciesName) {
+        var lines = [entry.commonName ?? getDisplayName(entry.speciesName)]
+        if let scientificName = entry.scientificName ?? getScientificName(entry.speciesName) {
             lines.append(scientificName)
         }
         lines.append(
@@ -15,12 +15,13 @@ enum SharePayload {
         return lines.joined(separator: "\n")
     }
 
-    static func outing(_ outing: Outing, observations: [BirdObservation]) -> String {
+    static func outing(_ outing: Outing, observations: [BirdObservation], dex: [DexEntry] = []) -> String {
         let confirmed = observations.filter { $0.certainty == .confirmed }
+        let dexByKey = Dictionary(uniqueKeysWithValues: dex.map { ($0.id, $0) })
         // Group by the dex key so a bird recorded under two spellings shares one
         // line and the species count matches what the app shows elsewhere.
         let grouped = groupByDexKey(confirmed).sorted {
-            getDisplayName($0.label).localizedCaseInsensitiveCompare(getDisplayName($1.label)) == .orderedAscending
+            $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending
         }
         let totalBirds = confirmed.reduce(0) { $0 + $1.count }
 
@@ -37,7 +38,8 @@ enum SharePayload {
             // twice and drop the second; mapping the groups keeps them distinct.
             lines.append(contentsOf: grouped.map { group in
                 let count = group.observations.reduce(0) { $0 + $1.count }
-                return "\(count)x \(getDisplayName(group.label))"
+                let label = dexByKey[group.key]?.commonName ?? group.label
+                return "\(count)x \(label)"
             })
         }
 

@@ -74,7 +74,7 @@ private struct OutingRowActionsModifier: ViewModifier {
                     }
                     .disabled(observations.isEmpty || isExporting)
                 }
-                ShareLink(item: SharePayload.outing(outing, observations: observations)) {
+                ShareLink(item: SharePayload.outing(outing, observations: observations, dex: store.dex)) {
                     Label("Share Summary", systemImage: "text.bubble")
                 }
                 Button(role: .destructive) {
@@ -397,6 +397,7 @@ struct BirdRow: View {
     let speciesName: String
     var displayName: String?
     var scientificName: String?
+    var taxonCode: String?
     var thumbnailUrl: String?
     var subtitle: String?
     var count: Int?
@@ -408,7 +409,7 @@ struct BirdRow: View {
 
     private var rarity: RarityState {
         guard let outing else { return .none }
-        return RarityStore.shared.state(species: speciesName, outing: outing)
+        return RarityStore.shared.state(species: speciesName, taxonCode: taxonCode, outing: outing)
     }
 
     var body: some View {
@@ -480,7 +481,7 @@ struct SpeciesCard: View {
             )
         }
         .overlay(alignment: .bottomLeading) {
-            Text(getDisplayName(entry.speciesName))
+            Text(entry.commonName ?? getDisplayName(entry.speciesName))
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(2)
@@ -517,7 +518,11 @@ struct OutingRow: View {
     /// Outings cover many species at once and have no single answer.
     private var rarity: RarityState {
         guard let observation else { return .none }
-        return RarityStore.shared.state(species: observation.speciesName, outing: outing)
+        return RarityStore.shared.state(
+            species: observation.speciesName,
+            taxonCode: observation.taxonCode,
+            outing: outing
+        )
     }
 
     var body: some View {

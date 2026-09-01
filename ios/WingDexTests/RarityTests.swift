@@ -238,4 +238,21 @@ final class RarityTests: XCTestCase {
             XCTAssertEqual(got, expected, "\(species) in month \(month)")
         }
     }
+
+    @MainActor
+    func testExactSidecarCodeDoesNotFallBackToClassifierSpecies() async {
+        await prewarmTaxonomyLookups()
+
+        XCTAssertEqual(getTaxonomicOrder(forCode: "mallar2"), Int.max)
+        XCTAssertEqual(
+            RarityStore.shared.state(
+                species: "Mallard (Domestic type)",
+                taxonCode: "mallar2",
+                lat: 47.61,
+                lon: -122.33,
+                month: 1
+            ),
+            .none
+        )
+    }
 }

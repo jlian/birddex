@@ -57,7 +57,7 @@ struct OutingDetailView: View {
         .toolbar {
             if let outing {
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: SharePayload.outing(outing, observations: confirmed)) {
+                    ShareLink(item: SharePayload.outing(outing, observations: confirmed, dex: store.dex)) {
                         Label("Share Outing", systemImage: "square.and.arrow.up")
                     }
                 }
@@ -347,6 +347,9 @@ struct OutingDetailView: View {
                     NavigationLink(value: SpeciesRoute(key: group.key, label: speciesName)) {
                         BirdRow(
                             speciesName: speciesName,
+                            displayName: entry?.commonName,
+                            scientificName: entry?.scientificName,
+                            taxonCode: group.taxonCode,
                             thumbnailUrl: entry?.thumbnailUrl,
                             count: totalCount,
                             outing: outing
@@ -420,6 +423,9 @@ struct OutingDetailView: View {
                     NavigationLink(value: SpeciesRoute(key: group.key, label: speciesName)) {
                         BirdRow(
                             speciesName: speciesName,
+                            displayName: entry?.commonName,
+                            scientificName: entry?.scientificName,
+                            taxonCode: group.taxonCode,
                             thumbnailUrl: entry?.thumbnailUrl,
                             count: totalCount,
                             outing: outing

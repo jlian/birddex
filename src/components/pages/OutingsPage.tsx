@@ -626,10 +626,14 @@ function OutingDetail({
         {/* Confirmed species */}
         {groupedConfirmed.length > 0 && (
           <div>
-            {groupedConfirmed.map(group => (
+            {groupedConfirmed.map(group => {
+              const entry = data.getDexEntry(group.key)
+              return (
               <BirdRow
                 key={group.key}
                 speciesName={group.speciesName}
+                commonName={entry?.commonName}
+                scientificName={entry?.scientificName}
                 subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                 onClick={() => onSelectSpecies(group.key)}
                 outing={outing}
@@ -644,7 +648,8 @@ function OutingDetail({
                   </Button>
                 }
               />
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -655,10 +660,14 @@ function OutingDetail({
               Possible
             </p>
             <div>
-              {groupedPossible.map(group => (
+              {groupedPossible.map(group => {
+                const entry = data.getDexEntry(group.key)
+                return (
                 <BirdRow
                   key={group.key}
                   speciesName={group.speciesName}
+                  commonName={entry?.commonName}
+                  scientificName={entry?.scientificName}
                   subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
                   onClick={() => onSelectSpecies(group.key)}
                   outing={outing}
@@ -676,7 +685,8 @@ function OutingDetail({
                     </>
                   }
                 />
-              ))}
+                )
+              })}
             </div>
           </>
         )}

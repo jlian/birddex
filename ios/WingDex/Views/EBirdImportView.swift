@@ -207,7 +207,7 @@ struct EBirdImportView: View {
                 guard store.activeAccountID == accountID else { throw CancellationError() }
                 let newSpeciesNames = store.dex
                     .filter { !priorSpecies.contains($0.id) }
-                    .map { getDisplayName($0.speciesName) }
+                    .map { $0.commonName ?? getDisplayName($0.speciesName) }
 
                 log.info("Imported eBird data across \(imported.imported.outings) outings; skipped \(imported.skipped.rows) rows")
                 onImported?(imported, newSpeciesNames)

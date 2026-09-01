@@ -53,6 +53,24 @@ final class Phase9FoundationTests: XCTestCase {
         XCTAssertTrue(payload.contains("Shared from WingDex"))
     }
 
+    func testSpeciesSharePayloadPrefersCanonicalNames() {
+        let entry = DexEntry(
+            speciesName: "Southern Brown Kiwi (South I.)",
+            commonName: "Southern Brown Kiwi (South I.)",
+            scientificName: "Apteryx australis australis",
+            firstSeenDate: "2026-01-02T12:00:00Z",
+            lastSeenDate: "2026-02-03T12:00:00Z",
+            totalOutings: 1,
+            totalCount: 1,
+            notes: ""
+        )
+
+        let payload = SharePayload.species(entry)
+
+        XCTAssertTrue(payload.contains("Southern Brown Kiwi (South I.)"))
+        XCTAssertTrue(payload.contains("Apteryx australis australis"))
+    }
+
     func testOutingSharePayloadIncludesConfirmedSpeciesOnly() {
         let outing = makeOuting()
         let observations = [
@@ -67,6 +85,35 @@ final class Phase9FoundationTests: XCTestCase {
         XCTAssertTrue(payload.contains("1 species, 3 birds"))
         XCTAssertTrue(payload.contains("3x American Robin"))
         XCTAssertFalse(payload.contains("Blue Jay"))
+    }
+
+    func testOutingSharePayloadPreservesQualifiedTaxonLabel() {
+        let outing = makeOuting()
+        var observation = makeObservation(
+            id: "issf",
+            species: "Southern Brown Kiwi (South I.)",
+            count: 1,
+            certainty: .confirmed
+        )
+        observation.speciesCode = "sobkiw1"
+        observation.taxonCode = "sobkiw2"
+        let canonical = DexEntry(
+            speciesName: "legacy kiwi label",
+            speciesCode: "sobkiw1",
+            taxonCode: "sobkiw2",
+            commonName: "Southern Brown Kiwi (South I.)",
+            scientificName: "Apteryx australis australis",
+            firstSeenDate: "2026-01-02T12:00:00Z",
+            lastSeenDate: "2026-02-03T12:00:00Z",
+            totalOutings: 1,
+            totalCount: 1,
+            notes: ""
+        )
+
+        let group = try? XCTUnwrap(groupByDexKey([observation]).first)
+        XCTAssertEqual(group?.taxonCode, "sobkiw2")
+        XCTAssertTrue(SharePayload.outing(outing, observations: [observation], dex: [canonical])
+            .contains("1x Southern Brown Kiwi (South I.)"))
     }
 
     func testExportFactoryWritesDeterministicSightingsFile() throws {
