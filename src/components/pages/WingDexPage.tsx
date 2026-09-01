@@ -476,14 +476,30 @@ function SpeciesDetail({
                 ? `Hybrid of ${entry.compound.parents.map(parent => parent.commonName).join(' and ')}.`
                 : `Recorded when ${entry.compound.parents.map(parent => parent.commonName).join(' and ')} could not be told apart.`}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {entry.compound.parents.map(parent => parent.speciesCode && (
-                <Button key={parent.commonName} variant="outline" size="sm" asChild>
-                  <a href={`https://ebird.org/species/${parent.speciesCode}`} target="_blank" rel="noopener noreferrer">
-                    <ArrowSquareOut size={14} className="mr-1.5" />
-                    {parent.commonName} on eBird
-                  </a>
-                </Button>
+            <div className="divide-y border-y">
+              {entry.compound.parents.map(parent => (
+                <div key={parent.commonName} className="flex gap-3 py-3">
+                  {parent.thumbnailUrl && (
+                    <img src={parent.thumbnailUrl} alt="" className="size-14 shrink-0 rounded object-cover" />
+                  )}
+                  <div className="min-w-0 space-y-1">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{parent.commonName}</p>
+                      <p className="text-xs italic text-muted-foreground">{parent.scientificName}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                      {parent.wikiTitle && (
+                        <a className="text-primary hover:underline" href={`https://en.wikipedia.org/wiki/${encodeURIComponent(parent.wikiTitle.replace(/ /g, '_'))}`} target="_blank" rel="noopener noreferrer">Wikipedia</a>
+                      )}
+                      {parent.speciesCode && (
+                        <a className="text-primary hover:underline" href={`https://ebird.org/species/${parent.speciesCode}`} target="_blank" rel="noopener noreferrer">eBird</a>
+                      )}
+                      {parent.birdlifeId && (
+                        <a className="text-primary hover:underline" href={`https://datazone.birdlife.org/species/factsheet/${parent.birdlifeId}`} target="_blank" rel="noopener noreferrer">BirdLife</a>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

@@ -85,9 +85,34 @@ struct SpeciesDetailView: View {
                         .foregroundStyle(Color.mutedText)
 
                     ForEach(compound.parents) { parent in
-                        if let url = getEbirdURL(forCode: parent.speciesCode) {
-                            Link(destination: url) {
-                                Label("\(parent.commonName) on eBird", systemImage: "globe")
+                        HStack(alignment: .top, spacing: 12) {
+                            if let thumbnail = parent.thumbnailUrl, let url = URL(string: thumbnail) {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Color.secondary.opacity(0.15)
+                                }
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(parent.commonName).font(.subheadline).fontWeight(.semibold)
+                                Text(parent.scientificName).font(.caption).italic().foregroundStyle(Color.mutedText)
+                                HStack(spacing: 12) {
+                                    if let title = parent.wikiTitle,
+                                       let url = URL(string: "https://en.wikipedia.org/wiki/\(title.replacingOccurrences(of: " ", with: "_"))") {
+                                        Link("Wikipedia", destination: url)
+                                    }
+                                    if let url = getEbirdURL(forCode: parent.speciesCode) {
+                                        Link("eBird", destination: url)
+                                    }
+                                    if let id = parent.birdlifeId,
+                                       let url = URL(string: "https://datazone.birdlife.org/species/factsheet/\(id)") {
+                                        Link("BirdLife", destination: url)
+                                    }
+                                }
+                                .font(.caption)
                             }
                         }
                     }

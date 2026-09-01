@@ -75,6 +75,16 @@ describe('dex grouping by species code', () => {
     expect(rows[0].totalCount).toBe(2)
   })
 
+  it('keeps the exact taxon code aligned with the selected display name', () => {
+    seed([
+      { name: 'Southern Brown Kiwi (South I.)', code: 'sobkiw1', taxonCode: 'sobkiw2', outing: 'o1' },
+      { name: 'Southern Brown Kiwi (Stewart I.)', code: 'sobkiw1', taxonCode: 'sobkiw3', outing: 'o2' },
+    ])
+    const [row] = run()
+    expect(row.speciesName).toBe('Southern Brown Kiwi (South I.)')
+    expect(row.taxonCode).toBe('sobkiw2')
+  })
+
   it('keeps genuinely different species apart', () => {
     seed([
       { name: 'Northern Cardinal', code: 'norcar', outing: 'o1' },
