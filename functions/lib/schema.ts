@@ -22,7 +22,14 @@ export async function getTableColumnNames(db: D1Database, table: string): Promis
     const info = await db.prepare(`PRAGMA table_info('${table}')`).all<{ name: string }>()
     names = new Set((info?.results ?? []).map(column => column.name))
   } catch {
-    names = new Set<string>()
+    // Do NOT cache a failed probe. A stub database that cannot answer PRAGMA at
+    // all is answered conservatively on every call, which costs one cheap query
+    // per request. Caching it instead would let one transient D1 error pin the
+    // isolate to "no optional columns" for its whole lifetime, so every later
+    // write would silently drop speciesCode long after the database recovered.
+    // That failure is invisible and produces wrong data, which is far worse
+    // than repeating a probe.
+    return new Set<string>()
   }
   cache.set(table, names)
   return names

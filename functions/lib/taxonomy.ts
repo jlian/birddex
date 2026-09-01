@@ -206,6 +206,17 @@ export function getSpeciesByCode(code: string): TaxonEntry | undefined {
  * Resolving a code alongside the name is additive; rewriting the name is what
  * caused trouble before.
  */
+/**
+ * Whether a scientific name names more than one taxon.
+ *
+ * eBird writes a hybrid as "Genus a x b" and a slash as "Genus a/b", both of
+ * which exceed two words and would otherwise be truncated to their first
+ * parent's binomial.
+ */
+function isCompoundScientific(scientific: string): boolean {
+  return scientific.includes(' x ') || scientific.includes('/')
+}
+
 export function resolveSpeciesCode(speciesName: string): string {
   if (!speciesName) return ''
   const raw = speciesName.trim()
@@ -234,8 +245,17 @@ export function resolveSpeciesCode(speciesName: string): string {
 
     // 3. trinomial -> binomial. "anas platyrhynchos domesticus" is not an
     //    eBird scientific name, but "anas platyrhynchos" is.
+    // 3. trinomial -> binomial. "anas platyrhynchos domesticus" is not an
+    //    eBird scientific name, but "anas platyrhynchos" is.
+    //
+    //    Never applied to a COMPOUND scientific name. "anas platyrhynchos x
+    //    cardinalis cardinalis" is also more than two words, and truncating it
+    //    files a hybrid under its first parent as though it were that species,
+    //    which is the confident-wrong-answer this resolver exists to avoid. The
+    //    sidecar already answers every compound eBird publishes; anything that
+    //    reaches here is unlisted, so no code is the honest result.
     const words = scientificPart.split(/\s+/)
-    if (words.length > 2) {
+    if (words.length > 2 && !isCompoundScientific(scientificPart)) {
       const binomial = words.slice(0, 2).join(' ')
       const viaBinomial =
         byScientificLower.get(binomial) ?? extraByScientific.get(binomial)

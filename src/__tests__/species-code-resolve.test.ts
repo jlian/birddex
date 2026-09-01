@@ -51,6 +51,22 @@ describe('resolveSpeciesCode', () => {
     expect(resolveSpeciesCode('Domestic goose sp. (Domestic type)')).toBe('domgoo1')
   })
 
+  it('does not truncate an unlisted compound to its first parent', () => {
+    // The trinomial rollup exists for subspecies, but a compound scientific
+    // name is also more than two words. Truncating "Anas platyrhynchos x
+    // Cardinalis cardinalis" would file a hybrid under Mallard as though it
+    // were that species. Every compound eBird publishes is in the sidecar, so
+    // anything reaching the fallback is unlisted and no code is the honest
+    // answer.
+    expect(resolveSpeciesCode('Odd Cross (Anas platyrhynchos x Cardinalis cardinalis)')).toBe('')
+    expect(resolveSpeciesCode('Odd Cross (Anas platyrhynchos x madeuppus)')).toBe('')
+    expect(resolveSpeciesCode('Odd Slash (Anas platyrhynchos/Cardinalis cardinalis)')).toBe('')
+    // A listed compound still resolves, through the sidecar rather than the fallback.
+    expect(resolveSpeciesCode('Some Hybrid (Anser indicus x caerulescens)')).toBe('x00991')
+    // And a genuine subspecies trinomial is untouched.
+    expect(resolveSpeciesCode('Dark-eyed Junco (Junco hyemalis oreganus)')).toBe('daejun')
+  })
+
   it('resolves a species dropped by the extinct-taxa change', () => {
     expect(resolveSpeciesCode('Dodo (Raphus cucullatus)')).toBe('dodo1')
   })
