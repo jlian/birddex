@@ -3,6 +3,19 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('0016 dex metadata group key migration', () => {
+  it('leaves historical exact taxon codes unresolved in migration 0015', () => {
+    const db = new Database(':memory:')
+    db.exec(`
+      CREATE TABLE observation (userId TEXT, speciesCode TEXT);
+      INSERT INTO observation VALUES ('u1', 'sobkiw1');
+    `)
+    db.exec(readFileSync('migrations/0015_taxon_code.sql', 'utf8'))
+    expect(db.prepare('SELECT speciesCode, taxonCode FROM observation').get()).toEqual({
+      speciesCode: 'sobkiw1',
+      taxonCode: null,
+    })
+  })
+
   it('consolidates aliases by code and preserves every non-empty note', () => {
     const db = new Database(':memory:')
     db.exec(`
@@ -26,8 +39,9 @@ describe('0016 dex metadata group key migration', () => {
 
     db.exec(readFileSync('migrations/0016_dex_meta_group_key.sql', 'utf8'))
 
-    expect(db.prepare('SELECT groupKey, addedDate, notes FROM dex_meta').all()).toEqual([{
+    expect(db.prepare('SELECT groupKey, speciesCode, addedDate, notes FROM dex_meta').all()).toEqual([{
       groupKey: 'code:norcar',
+      speciesCode: 'norcar',
       addedDate: '2025-01-01',
       notes: 'feeder',
     }])

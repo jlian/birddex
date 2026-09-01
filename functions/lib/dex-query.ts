@@ -1,4 +1,5 @@
 import { findCompoundTaxon, getTaxonMetadata } from './taxonomy'
+import { getTableColumnNames } from './schema'
 
 export type DexRow = {
   id: string
@@ -85,6 +86,27 @@ export const DEX_QUERY = `
   ORDER BY g.speciesName
 `
 
+const LEGACY_DEX_QUERY = `
+  SELECT
+    'name:' || obs.speciesName AS id,
+    obs.speciesName AS speciesName,
+    NULL AS speciesCode,
+    NULL AS taxonCode,
+    MIN(o.startTime) AS firstSeenDate,
+    MAX(o.startTime) AS lastSeenDate,
+    dm.addedDate AS addedDate,
+    COUNT(DISTINCT obs.outingId) AS totalOutings,
+    SUM(obs.count) AS totalCount,
+    dm.bestPhotoId AS bestPhotoId,
+    COALESCE(dm.notes, '') AS notes
+  FROM observation obs
+  JOIN outing o ON obs.outingId = o.id
+  LEFT JOIN dex_meta dm ON dm.userId = obs.userId AND dm.speciesName = obs.speciesName
+  WHERE obs.userId = ? AND obs.certainty IN ('confirmed', 'possible')
+  GROUP BY obs.speciesName
+  ORDER BY obs.speciesName
+`
+
 /** D1-compatible database handle (only the subset we use). */
 export interface DexQueryDB {
   prepare(sql: string): {
@@ -95,7 +117,15 @@ export interface DexQueryDB {
 }
 
 export async function computeDex(db: DexQueryDB, userId: string): Promise<DexRow[]> {
-  const result = await db.prepare(DEX_QUERY).bind(userId).all<DexRow>()
+  const [observationColumns, metaColumns] = await Promise.all([
+    getTableColumnNames(db, 'observation'),
+    getTableColumnNames(db, 'dex_meta'),
+  ])
+  const supportsCodeGrouping = observationColumns.has('speciesCode')
+    && observationColumns.has('taxonCode')
+    && metaColumns.has('groupKey')
+  const result = await db.prepare(supportsCodeGrouping ? DEX_QUERY : LEGACY_DEX_QUERY)
+    .bind(userId).all<DexRow>()
   return result.results
 }
 
@@ -118,7 +148,7 @@ export function enrichDexEntries(rows: DexRow[]) {
       ...row,
       addedDate: row.addedDate || undefined,
       bestPhotoId: row.bestPhotoId || undefined,
-      taxonCode: row.taxonCode || undefined,
+      taxonCode: row.taxonCode || metadata.ebirdCode || undefined,
       commonName: metadata.common,
       scientificName: metadata.scientific,
       wikiTitle: metadata.wikiTitle ?? borrowedParent?.wikiTitle,

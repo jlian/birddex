@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { computeDex, enrichDexEntries, type DexQueryDB, type DexRow } from '../../functions/lib/dex-query'
+import Database from 'better-sqlite3'
 
 /**
  * Minimal mock satisfying DexQueryDB, only needs prepare().bind().all().
@@ -85,11 +86,11 @@ describe('computeDex', () => {
     expect(result[0].notes).toBe('')
   })
 
-  it('SQL includes both confirmed and possible observations', () => {
-    let capturedSql = ''
+  it('SQL includes both confirmed and possible observations', async () => {
+    const capturedSql: string[] = []
     const db: DexQueryDB = {
       prepare(sql: string) {
-        capturedSql = sql
+        capturedSql.push(sql)
         return {
           bind() {
             return { async all() { return { results: [] } } }
@@ -97,9 +98,46 @@ describe('computeDex', () => {
         }
       },
     }
-    void computeDex(db, 'user-1')
-    expect(capturedSql).toContain("IN ('confirmed', 'possible')")
-    expect(capturedSql).not.toContain("certainty = 'confirmed'")
+    await computeDex(db, 'user-1')
+    const dexSql = capturedSql.find(sql => sql.includes('FROM observation obs')) ?? ''
+    expect(dexSql).toContain("IN ('confirmed', 'possible')")
+    expect(dexSql).not.toContain("certainty = 'confirmed'")
+  })
+
+  it('computes a name-keyed dex before species-code migrations apply', async () => {
+    const sqlite = new Database(':memory:')
+    sqlite.exec(`
+      CREATE TABLE outing (id TEXT, userId TEXT, startTime TEXT);
+      CREATE TABLE observation (
+        id TEXT, outingId TEXT, userId TEXT, speciesName TEXT,
+        count INTEGER, certainty TEXT
+      );
+      CREATE TABLE dex_meta (
+        userId TEXT, speciesName TEXT, addedDate TEXT, bestPhotoId TEXT, notes TEXT
+      );
+      INSERT INTO outing VALUES ('o1', 'u1', '2026-01-01');
+      INSERT INTO observation VALUES ('ob1', 'o1', 'u1', 'Northern Cardinal', 2, 'confirmed');
+    `)
+    const db = {
+      prepare(sql: string) {
+        return {
+          bind(...parameters: unknown[]) {
+            return {
+              async all<T>() { return { results: sqlite.prepare(sql).all(...parameters) as T[] } },
+            }
+          },
+          async all<T>() { return { results: sqlite.prepare(sql).all() as T[] } },
+        }
+      },
+    } as DexQueryDB
+
+    const rows = await computeDex(db, 'u1')
+    expect(rows).toMatchObject([{
+      id: 'name:Northern Cardinal',
+      speciesName: 'Northern Cardinal',
+      speciesCode: null,
+      totalCount: 2,
+    }])
   })
 })
 

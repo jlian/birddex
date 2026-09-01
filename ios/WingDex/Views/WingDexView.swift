@@ -242,7 +242,7 @@ struct WingDexView: View {
                 ShareLink(item: SharePayload.species(entry)) {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
-                if let url = getEbirdURL(for: entry.speciesName) {
+                if let url = getEbirdURL(forCode: entry.taxonCode) ?? getEbirdURL(for: entry.speciesName) {
                     Link(destination: url) {
                         Label("Open in eBird", systemImage: "globe")
                     }

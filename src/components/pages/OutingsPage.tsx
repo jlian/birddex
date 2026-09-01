@@ -631,7 +631,7 @@ function OutingDetail({
                 key={group.key}
                 speciesName={group.speciesName}
                 subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
-                onClick={() => onSelectSpecies(group.speciesName)}
+                onClick={() => onSelectSpecies(group.key)}
                 outing={outing}
                 actions={
                   <Button
@@ -660,7 +660,7 @@ function OutingDetail({
                   key={group.key}
                   speciesName={group.speciesName}
                   subtitle={group.totalCount > 1 ? `x${group.totalCount}` : undefined}
-                  onClick={() => onSelectSpecies(group.speciesName)}
+                  onClick={() => onSelectSpecies(group.key)}
                   outing={outing}
                   actions={
                     <>

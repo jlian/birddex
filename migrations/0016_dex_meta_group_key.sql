@@ -12,32 +12,38 @@ CREATE TABLE dex_meta_grouped (
   PRIMARY KEY (userId, groupKey)
 );
 
+WITH keyed AS (
+  SELECT
+    dm.*,
+    CASE
+      WHEN dm.speciesCode IS NOT NULL THEN 'code:' || dm.speciesCode
+      ELSE COALESCE(
+        (
+          SELECT 'code:' || obs.speciesCode
+          FROM observation obs
+          WHERE obs.userId = dm.userId
+            AND obs.speciesName = dm.speciesName
+            AND obs.speciesCode IS NOT NULL
+          LIMIT 1
+        ),
+        'name:' || dm.speciesName
+      )
+    END AS resolvedGroupKey
+  FROM dex_meta dm
+)
 INSERT INTO dex_meta_grouped (
   userId, groupKey, speciesName, speciesCode, addedDate, bestPhotoId, notes
 )
 SELECT
-  dm.userId,
-  CASE
-    WHEN dm.speciesCode IS NOT NULL THEN 'code:' || dm.speciesCode
-    ELSE COALESCE(
-      (
-        SELECT 'code:' || obs.speciesCode
-        FROM observation obs
-        WHERE obs.userId = dm.userId
-          AND obs.speciesName = dm.speciesName
-          AND obs.speciesCode IS NOT NULL
-        LIMIT 1
-      ),
-      'name:' || dm.speciesName
-    )
-  END AS groupKey,
-  MIN(dm.speciesName),
-  dm.speciesCode,
-  MIN(dm.addedDate),
-  MIN(dm.bestPhotoId),
-  COALESCE(GROUP_CONCAT(NULLIF(dm.notes, ''), char(10) || char(10)), '')
-FROM dex_meta dm
-GROUP BY dm.userId, groupKey;
+  userId,
+  resolvedGroupKey,
+  MIN(speciesName),
+  CASE WHEN resolvedGroupKey LIKE 'code:%' THEN substr(resolvedGroupKey, 6) END,
+  MIN(addedDate),
+  MIN(bestPhotoId),
+  COALESCE(GROUP_CONCAT(NULLIF(notes, ''), char(10) || char(10)), '')
+FROM keyed
+GROUP BY userId, resolvedGroupKey;
 
 DROP TABLE dex_meta;
 ALTER TABLE dex_meta_grouped RENAME TO dex_meta;

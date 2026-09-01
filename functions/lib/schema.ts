@@ -9,17 +9,26 @@
  * within the same Worker invocation avoid extra D1 round trips.
  */
 
-const cache = new Map<string, Set<string>>()
+const cache = new WeakMap<object, Map<string, Set<string>>>()
 
-export async function getTableColumnNames(db: D1Database, table: string): Promise<Set<string>> {
-  const cached = cache.get(table)
+export interface SchemaDB {
+  prepare(sql: string): {
+    bind(...args: unknown[]): {
+      all<T>(): Promise<{ results: T[] }>
+    }
+  }
+}
+
+export async function getTableColumnNames(db: SchemaDB, table: string): Promise<Set<string>> {
+  const databaseCache = cache.get(db as object)
+  const cached = databaseCache?.get(table)
   if (cached) return cached
   // A stub or partial D1 that cannot answer PRAGMA must not take the request
   // down. Treat an unanswerable probe as "no optional columns", which is the
   // same conservative answer as a database that has not run the migration.
   let names: Set<string>
   try {
-    const info = await db.prepare(`PRAGMA table_info('${table}')`).all<{ name: string }>()
+    const info = await db.prepare(`PRAGMA table_info('${table}')`).bind().all<{ name: string }>()
     names = new Set((info?.results ?? []).map(column => column.name))
   } catch {
     // Do NOT cache a failed probe. A stub database that cannot answer PRAGMA at
@@ -31,20 +40,24 @@ export async function getTableColumnNames(db: D1Database, table: string): Promis
     // than repeating a probe.
     return new Set<string>()
   }
-  cache.set(table, names)
+  if (databaseCache) {
+    databaseCache.set(table, names)
+  } else {
+    cache.set(db as object, new Map([[table, names]]))
+  }
   return names
 }
 
-export async function getOutingColumnNames(db: D1Database): Promise<Set<string>> {
+export async function getOutingColumnNames(db: SchemaDB): Promise<Set<string>> {
   return getTableColumnNames(db, 'outing')
 }
 
-export async function hasObservationColumn(db: D1Database, column: string): Promise<boolean> {
+export async function hasObservationColumn(db: SchemaDB, column: string): Promise<boolean> {
   const names = await getTableColumnNames(db, 'observation')
   return names.has(column)
 }
 
-export async function hasDexMetaColumn(db: D1Database, column: string): Promise<boolean> {
+export async function hasDexMetaColumn(db: SchemaDB, column: string): Promise<boolean> {
   const names = await getTableColumnNames(db, 'dex_meta')
   return names.has(column)
 }

@@ -1009,6 +1009,7 @@ components:
       properties:
         groupKey:
           type: string
+          pattern: "^(code:.+|name:.+)$"
           description: Exact dex grouping key (`code:<ebirdCode>` or `name:<speciesName>`).
         speciesName:
           type: string
