@@ -35,4 +35,22 @@ describe('release species identity rollout', () => {
     expect(dryRun).toBeGreaterThan(plan)
     expect(apply).toBeGreaterThan(dryRun)
   })
+
+  it('runs strict backfill only while the identity migrations are in the release range', () => {
+    const deployCheck = workflow.slice(
+      workflow.indexOf('- name: Check for deployable changes'),
+      workflow.indexOf('- uses: actions/setup-node@v6')
+    )
+    expect(deployCheck.indexOf('BASE_SHA=$(gh api')).toBeLessThan(
+      deployCheck.indexOf('elif [ "$EVENT_NAME" = "workflow_dispatch" ]')
+    )
+    expect(workflow).toContain('echo "should_backfill=true" >> "$GITHUB_OUTPUT"')
+    expect(workflow).toContain('echo "should_backfill=false" >> "$GITHUB_OUTPUT"')
+    expect(workflow).toContain(
+      "if: steps.changes.outputs.should_deploy == 'true' && steps.changes.outputs.should_backfill == 'true'"
+    )
+    expect(workflow).toMatch(
+      /grep -Eq '\^migrations\/001\(4_species_code\|5_taxon_code\|6_dex_meta_group_key\)\\\.sql\$'/
+    )
+  })
 })
