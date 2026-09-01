@@ -7,7 +7,7 @@ import UIKit
 struct CropView: View {
     let imageData: Data
     let initialCropBox: CropBoxResult?
-    var reason: String = "Crop around one bird, then try again."
+    var reason: String = "Crop to one bird."
     let onBack: () -> Void
     let onSkip: () -> Void
     let onApply: (CropBoxResult) -> Void
@@ -21,7 +21,7 @@ struct CropView: View {
     init(
         imageData: Data,
         initialCropBox: CropBoxResult?,
-        reason: String = "Crop around one bird, then try again.",
+        reason: String = "Crop to one bird.",
         onBack: @escaping () -> Void,
         onSkip: @escaping () -> Void,
         onApply: @escaping (CropBoxResult) -> Void
@@ -60,10 +60,14 @@ struct CropView: View {
     var body: some View {
         GeometryReader { geo in
             if let uiImage = cachedImage {
-                let squareSide = geo.size.width - cropInset * 2
+                let squareSide = max(
+                    min(geo.size.width, geo.size.height, 400) - cropInset * 2,
+                    0
+                )
                 // Total height including safe area (since we ignoresSafeArea)
                 let totalHeight = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
                 let cropCenterY = totalHeight / 2
+                let cropTop = cropCenterY - squareSide / 2
 
                 ZStack {
                     Color.pageBg
@@ -119,12 +123,19 @@ struct CropView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
                 .overlay(alignment: .top) {
-                    Text(reason)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 60)
+                    ViewThatFits(in: .vertical) {
+                        Text(reason)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 60)
+                            .padding(.bottom, 16)
+                            .allowsHitTesting(false)
+
+                        Color.clear
+                    }
+                    .frame(height: max(cropTop, 0), alignment: .top)
                 }
             } else {
                 Color.pageBg
@@ -516,7 +527,7 @@ extension View {
         CropView(
             imageData: PreviewData.placeholderImageData(systemName: "bird.fill", size: 400),
             initialCropBox: CropBoxResult(x: 20, y: 30, width: 40, height: 40),
-            reason: "The identification is uncertain. Crop around one bird and try again.",
+            reason: "Crop to one bird.",
             onBack: {},
             onSkip: {}
         ) { _ in }

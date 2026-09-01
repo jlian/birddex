@@ -186,32 +186,38 @@ struct PerPhotoConfirmView: View {
     // MARK: - No Candidates
 
     private var noCandidatesView: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
 
-            if let uiImage = decodedThumbnail {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal, 40)
+                    if let uiImage = decodedThumbnail {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal, 40)
+                    }
+
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+
+                    Text("No bird species identified")
+                        .font(.headline)
+
+                    Text("Try cropping to isolate the bird, or skip this photo.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: geo.size.height)
             }
-
-            Image(systemName: "questionmark.circle")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-
-            Text("No bird species identified")
-                .font(.headline)
-
-            Text("Try cropping to isolate the bird, or skip this photo.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-
-            Spacer()
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 
@@ -219,60 +225,62 @@ struct PerPhotoConfirmView: View {
 
     private var candidateView: some View {
         GeometryReader { geo in
-            let contentWidth = geo.size.width - 32
-            let photoSize = (contentWidth - 12) / 2
+            let contentWidth = min(geo.size.width - 32, 400)
+            let photoSize = max((contentWidth - 12) / 2, 0)
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
 
-                VStack(spacing: 16) {
-                    // Top-aligned so a caption that wraps at large text sizes cannot shift the
-                    // photo it belongs to.
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(spacing: 6) {
-                            aiCroppedUserPhoto(size: photoSize)
-                            Text("Cropped photo")
+                    VStack(spacing: 16) {
+                        // Top-aligned so a caption that wraps at large text sizes cannot shift the
+                        // photo it belongs to.
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(spacing: 6) {
+                                aiCroppedUserPhoto(size: photoSize)
+                                Text("Cropped photo")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: photoSize)
+
+                            VStack(spacing: 6) {
+                                wikiSquareThumbnail(size: photoSize)
+                                let credit = currentRefCredit
+                                Group {
+                                    if let url = credit.url {
+                                        Link(credit.label, destination: url).underline()
+                                    } else {
+                                        Text(credit.label)
+                                    }
+                                }
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
-                        .frame(width: photoSize)
-
-                        VStack(spacing: 6) {
-                            wikiSquareThumbnail(size: photoSize)
-                            let credit = currentRefCredit
-                            Group {
-                                if let url = credit.url {
-                                    Link(credit.label, destination: url).underline()
-                                } else {
-                                    Text(credit.label)
-                                }
+                                .multilineTextAlignment(.center)
+                                // Reserved so swiping to an image with a different plumage tag
+                                // cannot change the column height and shift both photos.
+                                .lineLimit(2, reservesSpace: true)
+                                .accessibilityLabel(credit.url == nil
+                                    ? credit.label
+                                    : "\(credit.label). Photo credit and license on Wikimedia Commons")
                             }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            // Reserved so swiping to an image with a different plumage tag
-                            // cannot change the column height and shift both photos.
-                            .lineLimit(2, reservesSpace: true)
-                            .accessibilityLabel(credit.url == nil
-                                ? credit.label
-                                : "\(credit.label). Photo credit and license on Wikimedia Commons")
+                            .frame(width: photoSize)
                         }
-                        .frame(width: photoSize)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 16)
-
-                    speciesCard
-                    Text("Photos from [Wikimedia Commons](https://commons.wikimedia.org), occurrence data from [iNaturalist](https://www.inaturalist.org).")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .tint(.secondary)
                         .frame(maxWidth: .infinity)
-                }
+                        .padding(.horizontal, 16)
 
-                Spacer(minLength: 0)
+                        speciesCard
+                        Text("Photos from [Wikimedia Commons](https://commons.wikimedia.org), occurrence data from [iNaturalist](https://www.inaturalist.org).")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .tint(.secondary)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: geo.size.height)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
