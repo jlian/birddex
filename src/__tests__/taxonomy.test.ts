@@ -96,12 +96,20 @@ describe('taxonomy', () => {
       expect(match).toBeNull()
     })
 
-    it('fuzzy-matches partial names with enough word overlap', () => {
-      // "American Robin" should match from "American Robin bird"
-      // since 2 out of 3 words match
-      const match = findBestMatch('American Robin bird')
-      expect(match).not.toBeNull()
-      expect(match!.common).toBe('American Robin')
+    it('does not word-match a name that is not an exact taxon', () => {
+      // This replaces a test that asserted "American Robin bird" fuzzy-matched
+      // American Robin. Word overlap looked helpful on that example and was
+      // wrong in general: it resolved extinct birds to different LIVING
+      // species (Pink-headed Duck -> White-headed Steamer-Duck) and hybrids to
+      // a bird that was neither parent. A miss the caller can handle beats a
+      // confident wrong species.
+      expect(findBestMatch('American Robin bird')).toBeNull()
+      // An exact common name still resolves; only the word-overlap guess is gone.
+      expect(findBestMatch('American Robin')?.common).toBe('American Robin')
+      // Pink-headed Duck is extinct and no longer in the classifier taxonomy.
+      // The scorer used to answer "White-headed Steamer-Duck" for it, showing a
+      // living bird for an extinct one. A null is the honest answer.
+      expect(findBestMatch('Pink-headed Duck')).toBeNull()
     })
 
     it('rejects domestic species with only one word overlap', () => {
