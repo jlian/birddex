@@ -5,7 +5,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { execSync } from 'child_process'
 import { homedir } from 'os'
 import { join } from 'path'
-import packageJson from './package.json'
+import packageJson from './package.json' with { type: 'json' }
 
 function gitInfo() {
   try {
