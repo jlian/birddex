@@ -43,7 +43,7 @@ export default function TermsPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">6. User content</h3>
-          <p>You retain ownership of data and content you submit to WingDex ("User Content"). By submitting User Content, you grant WingDex a limited, non-exclusive, royalty-free license to use, process, store, and display it solely to operate the Service. Photos processed locally for bird identification are not submitted User Content. This license terminates when you delete your content or account from the live Service, subject to the operational and backup retention described in the <a href="/#privacy" className="underline underline-offset-2 hover:text-foreground transition-colors">Privacy Policy</a>.</p>
+          <p>You retain ownership of data and content you submit to WingDex ("User Content"). By submitting User Content, you grant WingDex a limited, non-exclusive, royalty-free license to use, process, store, and display it solely to operate the Service. Photos processed locally for bird identification are not submitted User Content. This license terminates when you delete your content or account from the live Service, subject to the operational and backup retention described in the Privacy Policy.</p>
         </section>
 
         <section className="space-y-1">
