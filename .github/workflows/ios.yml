@@ -439,15 +439,21 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           ACCESSIBILITY_REQUIRED: ${{ needs.plan.outputs.accessibility }}
           ACCESSIBILITY_REASON: ${{ needs.plan.outputs.accessibility_reason }}
+          SKIP_DUPLICATE_PUSH: ${{ needs.plan.outputs.skip_duplicate_push }}
         run: |
           set -euo pipefail
           {
             echo "### iOS CI result"
-            if [[ "$ACCESSIBILITY_REQUIRED" == "true" ]]; then
+            if [[ "$SKIP_DUPLICATE_PUSH" == "true" ]]; then
+              echo "- Duplicate push coverage skipped; the pull request workflow owns the required lanes"
+            elif [[ "$ACCESSIBILITY_REQUIRED" == "true" ]]; then
               echo "- Lanes: core and accessibility"
             else
               echo "- Lanes: core; accessibility skipped ($ACCESSIBILITY_REASON)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$SKIP_DUPLICATE_PUSH" == "true" ]]; then
+            exit 0
+          fi
           [[ "$PLAN_RESULT" == "success" ]]
           [[ "$TEST_RESULT" == "success" ]]
