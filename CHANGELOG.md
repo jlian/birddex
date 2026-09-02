@@ -1,3 +1,12 @@
+## [1.28.1](https://github.com/jlian/wingdex/compare/v1.28.0...v1.28.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **ci:** avoid duplicate iOS coverage on dev PR pushes ([0eadb96](https://github.com/jlian/wingdex/commit/0eadb96ef1ab99764ad07af7fae9f960f240f4af))
+* **ci:** pass skipped duplicate iOS workflow ([60d85b4](https://github.com/jlian/wingdex/commit/60d85b4f86097cb704cf4eb67df57cf0dafb5512))
+* **ios:** remove duplicate CI and credit prefixes ([21c08ab](https://github.com/jlian/wingdex/commit/21c08abb46666a99795b7ecb7fa67072f395284f))
+
 # [1.28.0](https://github.com/jlian/wingdex/compare/v1.27.0...v1.28.0) (2026-09-01)
 
 
