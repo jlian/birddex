@@ -407,7 +407,7 @@ struct SpeciesDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if let photoPageURL {
                     Link(
-                        "Photo: \(imageCredit?.label ?? "Wikimedia Commons")", destination: photoPageURL)
+                        imageCredit?.label ?? "Photo: Wikimedia Commons", destination: photoPageURL)
                     .foregroundStyle(Color.accentColor)
                     
                     if creditsText {

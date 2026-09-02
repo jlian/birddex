@@ -160,7 +160,7 @@ struct SpeciesPeekSheet: View {
                     Button {
                         safariLink = SafariLink(url: filePage)
                     } label: {
-                        Text("Photo: \(credit?.label ?? "Wikimedia Commons")")
+                        Text(credit?.label ?? "Photo: Wikimedia Commons")
                             .foregroundStyle(Color.accentColor)
                     }
                     .buttonStyle(.plain)

@@ -20,23 +20,6 @@ on:
       - '.github/workflows/ios.yml'
       - '.github/workflows/ios-release.yml'
       - '.github/workflows/release.yml'
-  push:
-    branches: [dev]
-    paths:
-      - 'ios/**'
-      - 'openapi.yaml'
-      - 'functions/**'
-      - 'worker/**'
-      - 'migrations/**'
-      - 'public/models/text_classifier_int8.bin'
-      - 'public/priors/**'
-      - 'src/lib/bird-id-local-adapter.ts'
-      - 'src/lib/rarity.ts'
-      - 'src/lib/taxonomy.json'
-      - '.github/workflows/ios.yml'
-      - '.github/workflows/ios-release.yml'
-      - '.github/workflows/release.yml'
-
 concurrency:
   group: ios-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
