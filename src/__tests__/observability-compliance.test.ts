@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const FUNCTIONS_API_DIR = join(__dirname, '../../functions/api')
-const MIDDLEWARE_PATH = join(__dirname, '../../functions/_middleware.ts')
+const MIDDLEWARE_PATH = join(__dirname, '../../functions/middleware.ts')
 
 /** Recursively list all .ts files under a directory. */
 function listTsFiles(dir: string): string[] {

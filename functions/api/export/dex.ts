@@ -2,7 +2,7 @@ import { computeDex } from '../../lib/dex-query'
 import { exportDexToCSV } from '../../lib/ebird'
 import { createRouteResponder } from '../../lib/log'
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log?.withResourceId('dex'), 'export/dex/export', 'Application')
   if (!userId) {

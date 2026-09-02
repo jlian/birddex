@@ -23,7 +23,7 @@ import { rateLimitKey } from '../../lib/rate-limit'
  * finite resources. A dedicated limiter protects them without allowing reverse
  * traffic to consume the separate Geoapify search budget.
  */
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/reverse/read', 'Application')
 
   // Reject an exhausted caller before parsing even a valid-size JSON body.

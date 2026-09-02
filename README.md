@@ -70,7 +70,7 @@ npm run db:migrate
 npm run dev
 ```
 
-`npm run dev` serves Vite on `:5000` with Wrangler behind `/api/*` on `:8787`, and creates `.dev.vars` from the example on first run. `npm stop` clears stale ports. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
+`npm run dev` serves the React app and native Worker API together on `:5000` through the Cloudflare Vite plugin, with HMR for both sides. It creates `.dev.vars` from the example on first run. `npm stop` clears the local server. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
 
 Reverse geocoding reads the private production place archive through a remote
 R2 binding while the Worker and D1 stay local. Run `npx wrangler login` before
@@ -85,7 +85,8 @@ Run `npm run check` (lint, typecheck, unit) before pushing, and `npm run check:a
 | `src/components/` | React components: `ui/` primitives, `pages/`, `flows/` |
 | `src/lib/` | Client-side logic, including identification and ranking |
 | `src/__tests__/` | Vitest unit and integration tests |
-| `functions/` | Cloudflare Workers API routes and shared server logic |
+| `worker/` | Native Cloudflare Worker entry and API routing |
+| `functions/` | API route handlers and shared server logic |
 | `migrations/` | D1 SQL migrations |
 | `e2e/` | Playwright specs |
 | `ios/` | Native iOS app (XcodeGen) |

@@ -70,7 +70,7 @@ jobs:
         run: npm test
 
       - name: Build
-        run: npm run build
+        run: CLOUDFLARE_ENV=preview npm run build
 
       - name: Migrate local D1
         # `--env preview` to match the Playwright server, which now runs with
@@ -79,7 +79,7 @@ jobs:
         # name (wingdex-db-dev), so migrating `wingdex-db` here would leave the
         # server pointed at an unmigrated local database. Still --local: this
         # is a disposable file, not the remote dev database.
-        run: printf 'y\n' | npx wrangler d1 migrations apply wingdex-db-dev --local --env preview
+        run: printf 'y\n' | npx wrangler d1 migrations apply wingdex-db-dev --local --env preview --persist-to "$HOME/.cache/wingdex/wrangler-state"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -100,11 +100,11 @@ jobs:
         # GitHub withholds secrets from FORK pull requests, so those runs cannot
         # reach the R2 archive. Two things are needed there, not one:
         #
-        # 1. playwright.config.ts adds `--local` to the wrangler server when the
-        #    Cloudflare credentials are incomplete. Without it wrangler cannot
-        #    open the remote proxy session for the `remote = true` PLACES
-        #    binding and the server never boots, so the step times out before
-        #    any test runs.
+        # 1. playwright.config.ts disables Vite plugin remote bindings when the
+        #    Cloudflare credentials are incomplete. Without that the plugin
+        #    cannot open the remote proxy session for the `remote = true`
+        #    PLACES binding and the server never boots, so the step times out
+        #    before a single test runs.
         # 2. `@remote-r2` is excluded here, because that test asserts against the
         #    real archive and a local bucket is empty.
         #

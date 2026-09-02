@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { anonymousAccountPolicy, createAuth, normalizeAuthRequest } from '../../functions/lib/auth'
+import {
+  anonymousAccountPolicy,
+  createAuth,
+  isSameOriginRequest,
+  normalizeAuthRequest,
+} from '../../functions/lib/auth'
 import { passkeyRegistrationAction } from '../../functions/lib/auth'
 
 const mockEnv = {
@@ -92,8 +97,8 @@ describe('passkey registration action', () => {
     expect(auth.api.signInSocial).toBeDefined()
   })
 
-  it('maps local two-port runtime to app origin for baseURL', () => {
-    const req = new Request('http://localhost:8787/api/auth/get-session', {
+  it('uses the single-server local origin for baseURL', () => {
+    const req = new Request('http://localhost:5000/api/auth/get-session', {
       headers: { origin: 'http://localhost:5000' },
     })
 
@@ -101,19 +106,18 @@ describe('passkey registration action', () => {
     expect(auth.options.baseURL).toBe('http://localhost:5000')
   })
 
-  it('includes request and app origins in trustedOrigins for local runtime', () => {
-    const req = new Request('http://localhost:8787/api/auth/get-session', {
+  it('includes the request origin in trustedOrigins for local runtime', () => {
+    const req = new Request('http://localhost:5000/api/auth/get-session', {
       headers: { origin: 'http://localhost:5000' },
     })
 
     const auth = createAuth({ ...mockEnv, BETTER_AUTH_URL: '' }, { request: req })
     const trusted = auth.options.trustedOrigins as string[] | undefined
     expect(trusted).toContain('http://localhost:5000')
-    expect(trusted).toContain('http://localhost:8787')
   })
 
   it('uses configured non-loopback Origin header in default mode during proxied local dev', () => {
-    const req = new Request('http://localhost:8787/api/auth/sign-in/social', {
+    const req = new Request('http://localhost:5000/api/auth/sign-in/social', {
       headers: { origin: 'https://wingdev.example.net' },
     })
 
@@ -129,7 +133,7 @@ describe('passkey registration action', () => {
   })
 
   it('uses configured forwarded host in default mode during proxied callback requests', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/google', {
+    const req = new Request('http://localhost:5000/api/auth/callback/google', {
       headers: {
         host: 'wingdev.example.net',
         'x-forwarded-proto': 'https',
@@ -147,8 +151,42 @@ describe('passkey registration action', () => {
     expect(auth.options.baseURL).toBe('https://wingdev.example.net')
   })
 
+  it('recognizes a trusted browser origin behind a local TLS proxy', () => {
+    const req = new Request('http://localhost:5000/api/auth/merge/finalize', {
+      method: 'POST',
+      headers: {
+        origin: 'https://localhost.wingdex.app',
+        host: 'localhost.wingdex.app',
+        'x-forwarded-proto': 'https',
+      },
+    })
+    const env = {
+      ...mockEnv,
+      TRUSTED_ORIGINS: 'https://localhost.wingdex.app',
+    } as Env
+
+    expect(isSameOriginRequest(env, req)).toBe(true)
+  })
+
+  it('rejects an untrusted browser origin behind a local TLS proxy', () => {
+    const req = new Request('http://localhost:5000/api/auth/merge/finalize', {
+      method: 'POST',
+      headers: {
+        origin: 'https://attacker.test',
+        host: 'localhost.wingdex.app',
+        'x-forwarded-proto': 'https',
+      },
+    })
+    const env = {
+      ...mockEnv,
+      TRUSTED_ORIGINS: 'https://localhost.wingdex.app',
+    } as Env
+
+    expect(isSameOriginRequest(env, req)).toBe(false)
+  })
+
   it('uses configured referer origin in default mode during hosted callback requests', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/github?code=test&state=test', {
+    const req = new Request('http://localhost:5000/api/auth/callback/github?code=test&state=test', {
       headers: {
         referer: 'https://wingdev.example.net/',
       },
@@ -166,7 +204,7 @@ describe('passkey registration action', () => {
   })
 
   it('normalizes proxied hosted callback requests before passing to Better Auth', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/github?code=test&state=test', {
+    const req = new Request('http://localhost:5000/api/auth/callback/github?code=test&state=test', {
       headers: {
         referer: 'https://wingdev.example.net/',
       },
@@ -184,7 +222,7 @@ describe('passkey registration action', () => {
   })
 
   it('uses hosted auth URL when callback request carries secure Better Auth cookies', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/github?code=test&state=test', {
+    const req = new Request('http://localhost:5000/api/auth/callback/github?code=test&state=test', {
       headers: {
         cookie: '__Secure-better-auth.state=test.sig',
       },
@@ -202,7 +240,7 @@ describe('passkey registration action', () => {
   })
 
   it('normalizes secure-cookie callback requests to hosted auth URL', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/github?code=test&state=test', {
+    const req = new Request('http://localhost:5000/api/auth/callback/github?code=test&state=test', {
       headers: {
         cookie: '__Secure-better-auth.state=test.sig',
       },
@@ -245,7 +283,7 @@ describe('passkey registration action', () => {
   })
 
   it('uses localhost baseURL when request is loopback even if BETTER_AUTH_URL is a remote domain', () => {
-    const req = new Request('http://localhost:8787/api/auth/get-session', {
+    const req = new Request('http://localhost:5000/api/auth/get-session', {
       headers: { origin: 'http://localhost:5000' },
     })
 
@@ -257,7 +295,7 @@ describe('passkey registration action', () => {
   })
 
   it('uses hosted BETTER_AUTH_URL in hosted OAuth mode during local dev', () => {
-    const req = new Request('http://localhost:8787/api/auth/mobile/start?provider=github')
+    const req = new Request('http://localhost:5000/api/auth/mobile/start?provider=github')
 
     const auth = createAuth(
       { ...mockEnv, BETTER_AUTH_URL: 'https://wingdev.example.net' },
@@ -267,7 +305,7 @@ describe('passkey registration action', () => {
   })
 
   it('falls back to localhost in default mode on callback paths without hosted public origin signals', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/google')
+    const req = new Request('http://localhost:5000/api/auth/callback/google')
 
     const auth = createAuth(
       { ...mockEnv, BETTER_AUTH_URL: 'https://wingdev.example.net' },
@@ -277,7 +315,7 @@ describe('passkey registration action', () => {
   })
 
   it('uses hosted BETTER_AUTH_URL for OAuth callback routes when mode is hosted OAuth', () => {
-    const req = new Request('http://localhost:8787/api/auth/callback/google')
+    const req = new Request('http://localhost:5000/api/auth/callback/google')
 
     const auth = createAuth(
       { ...mockEnv, BETTER_AUTH_URL: 'https://wingdev.example.net' },

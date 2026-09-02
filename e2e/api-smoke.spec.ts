@@ -589,6 +589,30 @@ test.describe('API smoke (request context)', () => {
 
     await api.dispose()
   })
+
+  test('account merge origin checks keep same-origin requests and reject cross-origin requests', async () => {
+    const api = await request.newContext({ baseURL: API_BASE })
+
+    const sameOrigin = await api.post('/api/auth/merge/prepare', {
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: API_BASE,
+      },
+      data: { authMethod: 'passkey' },
+    })
+    expect(sameOrigin.status()).toBe(401)
+
+    const crossOrigin = await api.post('/api/auth/merge/prepare', {
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://attacker.test',
+      },
+      data: { authMethod: 'passkey' },
+    })
+    expect(crossOrigin.status()).toBe(403)
+
+    await api.dispose()
+  })
 })
 
 test.describe('API smoke @live (preview auth)', () => {

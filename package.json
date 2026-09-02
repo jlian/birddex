@@ -21,13 +21,13 @@
     },
     "scripts": {
         "dev": "bash scripts/dev.sh",
-        "start": "bash scripts/dev-full.sh",
+        "start": "npm run dev",
         "stop": "bash scripts/kill-dev.sh",
         "prebuild": "npm run taxonomy:codes",
-        "build": "tsc -b && vite build && wrangler pages functions build --outdir=./dist/worker/ && node scripts/check-asset-cap.mjs",
+        "build": "npm run typecheck && vite build && node scripts/check-asset-cap.mjs",
         "deploy": "npm run build && wrangler deploy",
         "lint": "eslint .",
-        "typecheck": "tsc -b",
+        "typecheck": "tsc -b && tsc -p functions/tsconfig.json",
         "test": "npm run test:web && npm run test:functions",
         "test:web": "vitest run",
         "test:functions": "vitest run --config vitest.functions.config.ts",
@@ -78,6 +78,7 @@
         "better-call": "1.4.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "hono": "^4.13.5",
         "kysely-d1": "^0.4.0",
         "lucide-react": "^0.568.0",
         "next-themes": "^0.4.6",
@@ -102,6 +103,7 @@
     },
     "devDependencies": {
         "@aws-sdk/client-s3": "^3.1013.0",
+        "@cloudflare/vite-plugin": "^1.54.3",
         "@cloudflare/workers-types": "^5.20260804.1",
         "@commitlint/cli": "^21.2.1",
         "@commitlint/config-conventional": "^21.2.0",
@@ -133,6 +135,6 @@
         "typescript-eslint": "^8.38.0",
         "vite": "^8.0.0",
         "vitest": "^4.1.0",
-        "wrangler": "^4.119.0"
+        "wrangler": "^4.128.0"
     }
 }

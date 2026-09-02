@@ -2,7 +2,7 @@ import { exportOutingToEBirdCSV } from '../../../lib/ebird'
 import { getOutingColumnNames, hasObservationColumn } from '../../../lib/schema'
 import { createRouteResponder } from '../../../lib/log'
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler<'id'> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const outingId = context.params.id as string | undefined
   const route = createRouteResponder(

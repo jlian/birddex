@@ -20,7 +20,7 @@ import { createAuth } from '../../../lib/auth'
 import { accountMergeSourceBearer, type AccountMergeAuthMethod } from '../../../lib/account-merge-intent'
 import { createRouteResponder } from '../../../lib/log'
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequestGet: ApiHandler = async (context) => {
   const route = createRouteResponder((context.data as RequestData).log, 'auth/mobileOAuth/invoke', 'Application')
   const url = new URL(context.request.url)
   const provider = url.searchParams.get('provider')

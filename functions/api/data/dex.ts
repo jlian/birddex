@@ -83,7 +83,7 @@ async function upsertDexMetaPatch(db: D1Database, userId: string, patch: DexMeta
   throw new Error('groupKey exists without speciesCode')
 }
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log?.withResourceId('dex'), 'data/dex/read', 'Application')
   if (!userId) {
@@ -98,7 +98,7 @@ export const onRequestGet: PagesFunction<Env> = async context => {
   }
 }
 
-export const onRequestPatch: PagesFunction<Env> = async context => {
+export const onRequestPatch: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log?.withResourceId('dex'), 'data/dex/write', 'Application')
   if (!userId) {
