@@ -319,13 +319,17 @@ struct SpeciesDetailView: View {
                 .focused($notesFocused)
                 .disabled(savingNotes)
 
+            // .borderless per button, not on the HStack: with the automatic style a List
+            // row is one tap target and a tap fires every button in it, so Cancel also saved.
             HStack {
                 Button("Cancel") {
                     editingNotes = false
                     notesFocused = false
                 }
+                .buttonStyle(.borderless)
                 Spacer()
                 Button("Save") { Task { await saveNotes(entry) } }
+                    .buttonStyle(.borderless)
                     .fontWeight(.semibold)
                     .disabled(savingNotes)
             }
