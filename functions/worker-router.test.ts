@@ -72,4 +72,36 @@ describe('native Worker routing', () => {
       resultDescription: 'Unhandled route error; inspect the result signature and trace ID, then retry or investigate the route implementation',
     }))
   })
+
+  it('sanitizes authentication lookup failures before they escape the Worker', async () => {
+    const errorApp = createWorkerApp()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const brokenEnv = new Proxy(env(), {
+      get(target, property, receiver) {
+        if (property === 'DB') throw new Error('database unavailable')
+        return Reflect.get(target, property, receiver)
+      },
+    })
+
+    const response = await errorApp.request(
+      'http://localhost:5000/api/data/all',
+      undefined,
+      brokenEnv,
+      executionContext(),
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.text()).toBe('Internal Server Error')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.has('traceparent')).toBe(true)
+    expect(consoleError).toHaveBeenCalledTimes(1)
+    const [logged] = consoleError.mock.calls[0]
+    expect(logged).not.toBeInstanceOf(Error)
+    expect(logged).toEqual(expect.objectContaining({
+      level: 'Error',
+      resultType: 'Failed',
+      resultSignature: 500,
+      resultDescription: 'Unhandled route error; inspect the result signature and trace ID, then retry or investigate the route implementation',
+    }))
+  })
 })

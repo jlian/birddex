@@ -10,6 +10,7 @@ on:
       - 'ios/**'
       - 'openapi.yaml'
       - 'functions/**'
+      - 'worker/**'
       - 'migrations/**'
       - 'public/models/text_classifier_int8.bin'
       - 'public/priors/**'
@@ -25,6 +26,7 @@ on:
       - 'ios/**'
       - 'openapi.yaml'
       - 'functions/**'
+      - 'worker/**'
       - 'migrations/**'
       - 'public/models/text_classifier_int8.bin'
       - 'public/priors/**'
@@ -87,7 +89,7 @@ jobs:
                 reason="$path is UI-facing"
                 break
                 ;;
-              functions/*|migrations/*|openapi.yaml|public/models/*|public/priors/*|src/lib/bird-id-local-adapter.ts|src/lib/rarity.ts|src/lib/taxonomy.json|ios/WingDex/Services/*|ios/WingDex/Models/*|ios/WingDex/ML/*|ios/WingDexTests/*|ios/WingDexShareExtension/*|ios/scripts/*|ios/build/*|ios/README.md|ios/package.json|ios/ExportOptions.plist|.github/workflows/ios-release.yml|.github/workflows/release.yml)
+              functions/*|worker/*|migrations/*|openapi.yaml|public/models/*|public/priors/*|src/lib/bird-id-local-adapter.ts|src/lib/rarity.ts|src/lib/taxonomy.json|ios/WingDex/Services/*|ios/WingDex/Models/*|ios/WingDex/ML/*|ios/WingDexTests/*|ios/WingDexShareExtension/*|ios/scripts/*|ios/build/*|ios/README.md|ios/package.json|ios/ExportOptions.plist|.github/workflows/ios-release.yml|.github/workflows/release.yml)
                 ;;
               ios/*)
                 run=true
