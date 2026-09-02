@@ -707,6 +707,7 @@ private final class ServiceStub: DataStoreService, @unchecked Sendable {
         return DexUpdateResponse(dexUpdates: deleteDexUpdates)
     }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -746,6 +747,7 @@ private actor MultiFetchService: DataStoreService {
 
     func deleteOuting(id _: String) async throws -> DexUpdateResponse { DexUpdateResponse(dexUpdates: []) }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -780,6 +782,7 @@ private actor SuspendedFetchService: DataStoreService {
         DexUpdateResponse(dexUpdates: [])
     }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -818,6 +821,7 @@ private actor RefreshDeleteRaceService: DataStoreService {
 
     func deleteOuting(id _: String) async throws -> DexUpdateResponse { DexUpdateResponse(dexUpdates: []) }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -862,6 +866,7 @@ private actor SuspendedDeleteService: DataStoreService {
 
     func deleteCallCount() -> Int { deleteCalls }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -901,6 +906,7 @@ private actor AmbiguousDeleteService: DataStoreService {
     }
 
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }

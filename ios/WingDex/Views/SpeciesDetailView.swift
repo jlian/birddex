@@ -17,6 +17,10 @@ struct SpeciesDetailView: View {
     @State private var imageShareItem: ExportFileItem?
     @State private var imageOperationError: String?
     @State private var savedImageToPhotos = false
+    @State private var editingNotes = false
+    @State private var notesDraft = ""
+    @State private var savingNotes = false
+    @FocusState private var notesFocused: Bool
 
     private var entry: DexEntry? {
         if let speciesKey { return store.dexEntry(byKey: speciesKey) }
@@ -165,17 +169,15 @@ struct SpeciesDetailView: View {
                     .foregroundStyle(Color.foregroundText)
             }
 
-            if let notes = entry?.notes.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            if let entry {
                 Section {
-                    Text(notes)
-                        .font(.subheadline)
-                        .italic()
-                        .foregroundStyle(Color.mutedText)
+                    notesSection(entry)
                 } header: {
                     Text("Notes")
                         .font(.system(size: 16, weight: .semibold, design: .serif))
                         .foregroundStyle(Color.foregroundText)
                 }
+                .listRowSeparator(.hidden)
             }
             }
         }
@@ -300,6 +302,68 @@ struct SpeciesDetailView: View {
     private var photoPageURL: URL? {
         (imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl))
             .flatMap(URL.init(string:))
+    }
+
+    // MARK: - Notes
+
+    /// A growing `TextField(axis: .vertical)` rather than a `TextEditor`: the editor is
+    /// itself a scroll view, and nesting one in this List is what makes the outing page's
+    /// notes fight the surrounding scroll.
+    @ViewBuilder
+    private func notesSection(_ entry: DexEntry) -> some View {
+        if editingNotes {
+            TextField("What to look for, where you found it, anything worth remembering",
+                      text: $notesDraft, axis: .vertical)
+                .font(.subheadline)
+                .lineLimit(3...12)
+                .focused($notesFocused)
+                .disabled(savingNotes)
+
+            HStack {
+                Button("Cancel") {
+                    editingNotes = false
+                    notesFocused = false
+                }
+                Spacer()
+                Button("Save") { Task { await saveNotes(entry) } }
+                    .fontWeight(.semibold)
+                    .disabled(savingNotes)
+            }
+            .font(.subheadline)
+        } else {
+            // A Button, not a tap gesture on the Text: VoiceOver and Full Keyboard Access
+            // get nothing from a gesture recognizer.
+            Button {
+                notesDraft = entry.notes
+                editingNotes = true
+                notesFocused = true
+            } label: {
+                let notes = entry.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                Text(notes.isEmpty ? "Add notes" : notes)
+                    .font(.subheadline)
+                    .italic(!notes.isEmpty)
+                    .foregroundStyle(notes.isEmpty ? Color.accentColor : Color.mutedText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit notes for this species")
+        }
+    }
+
+    @MainActor
+    private func saveNotes(_ entry: DexEntry) async {
+        savingNotes = true
+        defer { savingNotes = false }
+        do {
+            try await store.updateDexNotes(entry: entry, notes: notesDraft)
+            editingNotes = false
+            notesFocused = false
+            toasts.show("Notes saved")
+        } catch {
+            toasts.showError(AppError.map(error, fallback: "Could not save notes. Try again.")?.message
+                             ?? "Could not save notes. Try again.")
+        }
     }
 
     // MARK: - Wiki

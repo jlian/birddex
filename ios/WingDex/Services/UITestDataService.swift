@@ -42,6 +42,10 @@ final class UITestDataService: DataStoreService, Sendable {
         throw URLError(.unsupportedURL)
     }
 
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] {
+        throw URLError(.unsupportedURL)
+    }
+
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse {
         throw URLError(.unsupportedURL)
     }
