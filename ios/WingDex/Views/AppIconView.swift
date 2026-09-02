@@ -106,6 +106,7 @@ struct AppLoadingOverlay: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement()
         .accessibilityLabel(status)
+        .accessibilityAddTraits(.isModal)
     }
 }
 
