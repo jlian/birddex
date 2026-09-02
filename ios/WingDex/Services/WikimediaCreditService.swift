@@ -11,7 +11,7 @@ struct WikimediaImageCredit: Sendable, Equatable {
     /// neither, so the line never renders as a bare "Photo".
     var label: String {
         let parts = [artist, license].compactMap { $0 }
-        return parts.isEmpty ? "Photo on Wikimedia Commons" : "Photo \(parts.joined(separator: " / "))"
+        return parts.isEmpty ? "Wikimedia Commons" : "\(parts.joined(separator: " / "))"
     }
 }
 

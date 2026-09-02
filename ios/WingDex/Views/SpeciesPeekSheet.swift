@@ -142,33 +142,41 @@ struct SpeciesPeekSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The same two lines the species detail page shows, so a bird credits its
+    /// The same single credits line the species detail page shows, so a bird credits its
     /// sources identically whether it is a candidate or already in the dex.
     @ViewBuilder
     private func credits(for candidate: SpeciesPeekCandidate) -> some View {
         let filePage = currentHero(for: candidate)?.descriptionUrl
         let credit = filePage.flatMap { imageCredits[$0.absoluteString] }
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Text from \(Text("Wikipedia").foregroundStyle(Color.accentColor)) under \(Text("CC BY-SA 4.0").foregroundStyle(Color.accentColor)).")
-                .foregroundStyle(Color.mutedText)
+        let creditsText = extracts[candidate.species] != nil
 
-            // The hero is an individually licensed Commons photo, so it needs its own
-            // credit. The gallery already knows the file page, so that link stands in
-            // while the metadata loads and stays if the request fails: a displayed
-            // photo must never be uncredited, and CC 4.0 3(a)(2) accepts the file page
-            // in place of an inline creator and licence line. Matches the web sheet.
-            if let url = filePage {
-                Button {
-                    safariLink = SafariLink(url: url)
-                } label: {
-                    Text(credit?.label ?? "Photo on Wikimedia Commons")
-                        .foregroundStyle(Color.accentColor)
+        if filePage != nil || creditsText {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                // The gallery already knows the file page, so that link stands in while the
+                // metadata loads and stays if the request fails: a displayed photo must never
+                // be uncredited, and CC 4.0 3(a)(2) accepts the file page in place of an
+                // inline creator and licence line.
+                if let filePage {
+                    Button {
+                        safariLink = SafariLink(url: filePage)
+                    } label: {
+                        Text("Photo: \(credit?.label ?? "Wikimedia Commons")")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Photo credit and license on Wikimedia Commons")
+
+                    if creditsText {
+                        Text("\u{00B7}")
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Photo credit and license on Wikimedia Commons")
+                if creditsText {
+                    Text("Text: Wikipedia / CC BY-SA 4.0")
+                }
             }
+            .font(.system(size: 11))
+            .foregroundStyle(Color.mutedText)
         }
-        .font(.system(size: 11))
     }
 
     private func title(for candidate: SpeciesPeekCandidate) -> some View {

@@ -62,7 +62,6 @@ struct SpeciesDetailView: View {
                 heroSection
                     .listRowInsets(EdgeInsets())
             }
-            .listRowSeparator(.hidden)
 
             if let borrowedFrom = entry?.borrowedFrom {
                 Section {
@@ -70,18 +69,6 @@ struct SpeciesDetailView: View {
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.mutedText)
-                }
-                .listRowSeparator(.hidden)
-            }
-
-            if let pageUrl = imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl),
-               let url = URL(string: pageUrl) {
-                Section {
-                    Link(destination: url) {
-                        Text(imageCredit?.label ?? "Photo on Wikimedia Commons")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                    }
                 }
                 .listRowSeparator(.hidden)
             }
@@ -247,46 +234,46 @@ struct SpeciesDetailView: View {
                     height: geo.size.width
                 )
 
-            // Gradient overlay
-            LinearGradient(
-                colors: [.clear, .clear, .black.opacity(0.6)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+                // Gradient overlay
+                LinearGradient(
+                    colors: [.clear, .clear, .black.opacity(0.6)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
 
-            // Name + stats overlay
-            VStack(alignment: .leading, spacing: 4) {
-                Text(displayName)
-                    .font(.system(size: 26, weight: .semibold, design: .serif))
-                    .foregroundStyle(.white.opacity(0.9))
+                // Name + stats overlay
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayName)
+                        .font(.system(size: 26, weight: .semibold, design: .serif))
+                        .foregroundStyle(.white.opacity(0.9))
 
-                if let sci = scientificName {
-                    Text(sci)
-                        .font(.system(size: 14))
-                        .italic()
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-
-                if let entry {
-                    HStack(spacing: 4) {
-                        Text("\(entry.totalCount) seen")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white.opacity(0.9))
-                        Text("\u{00B7}").foregroundStyle(.white.opacity(0.4))
-                        Text("\(entry.totalOutings) outing\(entry.totalOutings == 1 ? "" : "s")")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white.opacity(0.9))
-                        Text("\u{00B7}").foregroundStyle(.white.opacity(0.4))
-                        Text("First \(Text(DateFormatting.formatDate(entry.firstSeenDate, style: .medium)).fontWeight(.semibold).foregroundStyle(.white.opacity(0.9)))")
-                            .foregroundStyle(.white.opacity(0.7))
+                    if let sci = scientificName {
+                        Text(sci)
+                            .font(.system(size: 14))
+                            .italic()
+                            .foregroundStyle(.white.opacity(0.75))
                     }
-                    .font(.system(size: 13))
+
+                    if let entry {
+                        HStack(spacing: 4) {
+                            Text("\(entry.totalCount) seen")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white.opacity(0.9))
+                            Text("\u{00B7}").foregroundStyle(.white.opacity(0.4))
+                            Text("\(entry.totalOutings) outing\(entry.totalOutings == 1 ? "" : "s")")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white.opacity(0.9))
+                            Text("\u{00B7}").foregroundStyle(.white.opacity(0.4))
+                            Text("First \(Text(DateFormatting.formatDate(entry.firstSeenDate, style: .medium)).fontWeight(.semibold).foregroundStyle(.white.opacity(0.9)))")
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .font(.system(size: 13))
+                    }
                 }
+                .padding()
             }
-            .padding()
-        }
-        .frame(width: geo.size.width, height: geo.size.width)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: geo.size.width, height: geo.size.width)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .aspectRatio(1, contentMode: .fit)
         .padding(.horizontal)
@@ -301,27 +288,59 @@ struct SpeciesDetailView: View {
             } label: {
                 Label("Save to Photos", systemImage: "square.and.arrow.down")
             }
+            if let photoPageURL {
+                Link(destination: photoPageURL) {
+                    Label("View Photo Page", systemImage: "info.circle")
+                }
+            }
         }
+    }
+
+    /// Wikimedia file page for the hero photo, carrying the creator and license.
+    private var photoPageURL: URL? {
+        (imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl))
+            .flatMap(URL.init(string:))
     }
 
     // MARK: - Wiki
 
     @ViewBuilder
     private var wikiSection: some View {
-        if let extract = displayedExtract {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+            if let extract = displayedExtract {
                 Text(extract)
                     .font(.system(size: 14))
                     .foregroundStyle(Color.foregroundText.opacity(0.8))
                     .lineSpacing(3)
-
-                if entry?.wikiTitle != nil {
-                    Text("Text from \(Text("Wikipedia").foregroundStyle(Color.accentColor)) under \(Text("CC BY-SA 4.0").foregroundStyle(Color.accentColor)).")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.mutedText)
-                }
-
             }
+
+            creditsLine
+        }
+    }
+
+    /// Photo and text attribution share one line: a credit under the hero sat 16pt inside
+    /// the image's own overlay text and read as an orphan.
+    @ViewBuilder
+    private var creditsLine: some View {
+        let creditsText = entry?.wikiTitle != nil && displayedExtract != nil
+
+        if photoPageURL != nil || creditsText {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if let photoPageURL {
+                    Link(
+                        "Photo: \(imageCredit?.label ?? "Wikimedia Commons")", destination: photoPageURL)
+                    .foregroundStyle(Color.accentColor)
+                    
+                    if creditsText {
+                        Text("\u{00B7}")
+                    }
+                }
+                if creditsText {
+                    Text("Text: Wikipedia / CC BY-SA 4.0")
+                }
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(Color.mutedText)
         }
     }
 
