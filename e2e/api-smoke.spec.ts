@@ -398,6 +398,11 @@ test.describe('API smoke (request context)', () => {
 
   test('passkey endpoints require signed session cookie for auth', async () => {
     const api = await request.newContext({ baseURL: API_BASE })
+    const fakeClientDataJSON = Buffer.from(JSON.stringify({
+      type: 'webauthn.create',
+      challenge: 'invalid',
+      origin: API_BASE,
+    })).toString('base64url')
 
     // Sign in to get both raw and signed tokens
     const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
@@ -442,7 +447,7 @@ test.describe('API smoke (request context)', () => {
       },
       data: {
         response: { id: 'test', rawId: 'test', type: 'public-key',
-          response: { clientDataJSON: 'test', attestationObject: 'test' },
+          response: { clientDataJSON: fakeClientDataJSON, attestationObject: 'test' },
           authenticatorAttachment: 'platform', clientExtensionResults: {} },
         name: 'test',
       },
@@ -465,7 +470,7 @@ test.describe('API smoke (request context)', () => {
       },
       data: {
         response: { id: 'test', rawId: 'test', type: 'public-key',
-          response: { clientDataJSON: 'test', attestationObject: 'test' },
+          response: { clientDataJSON: fakeClientDataJSON, attestationObject: 'test' },
           authenticatorAttachment: 'platform', clientExtensionResults: {} },
         name: 'test',
       },

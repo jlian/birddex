@@ -23,12 +23,11 @@ export default defineConfig({
   fullyParallel: true,
   timeout: isCI ? 15_000 : isARM ? 30_000 : 10_000,
   retries: isCI ? 1 : 0,
-  // ONE worker. Every spec shares a single local D1 database and the same dex,
-  // and several seed or clear it, so parallel workers corrupt each other's
-  // fixtures. The symptom was one test failing per run with the identity
-  // rotating between files, which reads as flakiness but is a data race.
-  // The suite is ~2 minutes serially, so the parallelism was not buying much.
-  workers: 1,
+  // Keep local runs deterministic while allowing CI to use the runner's spare
+  // capacity. The suite's database mutations are isolated enough for two
+  // workers, and this cuts the E2E wall-clock time without multiplying the
+  // number of browsers or servers.
+  workers: isCI ? 2 : 1,
   reporter: isCI ? 'line' : 'list',
   use: {
     baseURL: testBaseURL,

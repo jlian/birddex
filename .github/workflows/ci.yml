@@ -58,7 +58,7 @@ jobs:
         # Node version, so bumping node-version can restore modules built against
         # the previous runtime; change the key if that ever matters.
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
