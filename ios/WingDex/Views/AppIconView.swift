@@ -78,6 +78,37 @@ struct AppIconView: View {
     }
 }
 
+/// Full-screen blocking wait: a breathing app icon over a scrim, no visible copy.
+///
+/// `status` is not drawn. It is the accessibility label, because an unlabelled overlay
+/// that swallows every touch leaves VoiceOver with nothing to announce.
+struct AppLoadingOverlay: View {
+    let status: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+
+            if reduceMotion {
+                AppIconView()
+                    .frame(width: 88, height: 88)
+            } else {
+                AppIconView()
+                    .frame(width: 88, height: 88)
+                    .phaseAnimator([1.0, 1.08]) { icon, scale in
+                        icon.scaleEffect(scale)
+                    } animation: { _ in .easeInOut(duration: 1.2) }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement()
+        .accessibilityLabel(status)
+    }
+}
+
 #if DEBUG
 #Preview("Light") {
     AppIconView()
@@ -89,5 +120,12 @@ struct AppIconView: View {
     AppIconView()
         .frame(width: 120, height: 120)
         .preferredColorScheme(.dark)
+}
+
+#Preview("Loading Overlay") {
+    ZStack {
+        Color.pageBg.ignoresSafeArea()
+        AppLoadingOverlay(status: "Signing you in")
+    }
 }
 #endif
