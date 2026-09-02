@@ -85,3 +85,11 @@ these arguments.
 ## CI
 
 iOS builds and tests run via `.github/workflows/ios.yml` on PRs that touch `ios/`, `openapi.yaml`, or `functions/`. Releases are handled by `.github/workflows/ios-release.yml`.
+
+To publish a deliberate milestone version without marking a commit as breaking, dispatch the release workflow with an exact version:
+
+```bash
+gh workflow run ios-release.yml --ref main -f release_version=1.0.0
+```
+
+The override must be greater than the latest `ios-v*` tag. It keeps the existing successful-iOS-check gate and rebuilds the archive with the requested marketing version.
