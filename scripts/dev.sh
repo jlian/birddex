@@ -13,12 +13,14 @@ if [[ ! -f ".dev.vars" ]]; then
   cp .dev.vars.example .dev.vars
 fi
 
-if ! npx wrangler whoami >/dev/null 2>&1; then
-  export CLOUDFLARE_REMOTE_BINDINGS=false
-  echo "[dev] Not logged into Cloudflare. The remote PLACES archive will not work."
-  echo "[dev] Run 'npx wrangler login' to read the private PLACES archive."
-else
-  export CLOUDFLARE_REMOTE_BINDINGS=true
+if [[ -z "${CLOUDFLARE_REMOTE_BINDINGS+x}" ]]; then
+  if ! npx wrangler whoami >/dev/null 2>&1; then
+    export CLOUDFLARE_REMOTE_BINDINGS=false
+    echo "[dev] Not logged into Cloudflare. The remote PLACES archive will not work."
+    echo "[dev] Run 'npx wrangler login' to read the private PLACES archive."
+  else
+    export CLOUDFLARE_REMOTE_BINDINGS=true
+  fi
 fi
 
 echo "[dev] Starting Vite and the Cloudflare Worker on :${VITE_PORT}..."
