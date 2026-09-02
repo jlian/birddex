@@ -4,13 +4,12 @@ import {
   finalizeBoundAccountMerges,
   type AccountMergeResult,
 } from '../../../lib/account-merge'
-import { createAuth } from '../../../lib/auth'
+import { createAuth, isSameOriginRequest } from '../../../lib/auth'
 import { createRouteResponder } from '../../../lib/log'
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'auth/accountMerge/finalize', 'Application')
-  const requestOrigin = new URL(context.request.url).origin
-  if (context.request.headers.get('Origin') !== requestOrigin) {
+  if (!isSameOriginRequest(context.env, context.request)) {
     return route.fail(403, 'Forbidden', 'Account merge finalization requires a same-origin request')
   }
   if (!accountMergeFinalizationEnabled(context.env)) {

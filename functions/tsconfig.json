@@ -11,5 +11,6 @@
     "skipLibCheck": true,
     "strictNullChecks": true
   },
-  "include": ["."]
+  "include": [".", "../worker"],
+  "exclude": ["**/*.test.ts"]
 }

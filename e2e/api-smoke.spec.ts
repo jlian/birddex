@@ -398,6 +398,11 @@ test.describe('API smoke (request context)', () => {
 
   test('passkey endpoints require signed session cookie for auth', async () => {
     const api = await request.newContext({ baseURL: API_BASE })
+    const fakeClientDataJSON = Buffer.from(JSON.stringify({
+      type: 'webauthn.create',
+      challenge: 'invalid',
+      origin: API_BASE,
+    })).toString('base64url')
 
     // Sign in to get both raw and signed tokens
     const signIn = await api.post('/api/auth/sign-in/anonymous', { data: {} })
@@ -442,7 +447,7 @@ test.describe('API smoke (request context)', () => {
       },
       data: {
         response: { id: 'test', rawId: 'test', type: 'public-key',
-          response: { clientDataJSON: 'test', attestationObject: 'test' },
+          response: { clientDataJSON: fakeClientDataJSON, attestationObject: 'test' },
           authenticatorAttachment: 'platform', clientExtensionResults: {} },
         name: 'test',
       },
@@ -465,7 +470,7 @@ test.describe('API smoke (request context)', () => {
       },
       data: {
         response: { id: 'test', rawId: 'test', type: 'public-key',
-          response: { clientDataJSON: 'test', attestationObject: 'test' },
+          response: { clientDataJSON: fakeClientDataJSON, attestationObject: 'test' },
           authenticatorAttachment: 'platform', clientExtensionResults: {} },
         name: 'test',
       },
@@ -586,6 +591,30 @@ test.describe('API smoke (request context)', () => {
     expect(session.status()).toBe(200)
     const sessionJson = await session.json()
     expect(sessionJson?.user?.id).toBeTruthy()
+
+    await api.dispose()
+  })
+
+  test('account merge origin checks keep same-origin requests and reject cross-origin requests', async () => {
+    const api = await request.newContext({ baseURL: API_BASE })
+
+    const sameOrigin = await api.post('/api/auth/merge/prepare', {
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: API_BASE,
+      },
+      data: { authMethod: 'passkey' },
+    })
+    expect(sameOrigin.status()).toBe(401)
+
+    const crossOrigin = await api.post('/api/auth/merge/prepare', {
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://attacker.test',
+      },
+      data: { authMethod: 'passkey' },
+    })
+    expect(crossOrigin.status()).toBe(403)
 
     await api.dispose()
   })

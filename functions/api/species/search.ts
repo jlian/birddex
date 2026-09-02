@@ -8,7 +8,7 @@ function parseLimit(value: string | null): number {
   return Math.max(1, Math.min(parsed, 25))
 }
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'species/search/read', 'Application')
   const userId = (context.data as { user?: { id?: string } }).user?.id
   if (!userId) {

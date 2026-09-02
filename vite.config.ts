@@ -1,10 +1,11 @@
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+import { cloudflare } from '@cloudflare/vite-plugin'
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { execSync } from 'child_process'
-import packageJson from './package.json'
-
-const apiPort = process.env.API_PORT || '8787'
+import { homedir } from 'os'
+import { join } from 'path'
+import packageJson from './package.json' with { type: 'json' }
 
 function gitInfo() {
   try {
@@ -17,6 +18,31 @@ function gitInfo() {
 }
 
 const git = gitInfo()
+const persistPath = process.env.WINGDEX_WRANGLER_STATE_PATH
+  || join(homedir(), '.cache/wingdex/wrangler-state')
+
+function serveGzipFilesAsRawBytes(): Plugin {
+  return {
+    name: 'wingdex-raw-gzip-assets',
+    enforce: 'pre',
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = new URL(request.url || '/', 'http://localhost').pathname
+        if (!pathname.endsWith('.gz')) {
+          next()
+          return
+        }
+
+        const setHeader = response.setHeader.bind(response)
+        response.setHeader = (name, value) => {
+          if (name.toLowerCase() === 'content-encoding') return response
+          return setHeader(name, value)
+        }
+        next()
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -28,8 +54,13 @@ export default defineConfig(({ mode }) => {
       __GIT_BRANCH__: JSON.stringify(git.branch),
     },
     plugins: [
+      serveGzipFilesAsRawBytes(),
       react(),
       tailwindcss(),
+      cloudflare({
+        persistState: { path: persistPath },
+        remoteBindings: process.env.CLOUDFLARE_REMOTE_BINDINGS !== 'false',
+      }),
     ],
     server: {
       host: !!env.VITE_SERVER_HOST,
@@ -41,12 +72,9 @@ export default defineConfig(({ mode }) => {
         // handles. gitignore keeps it out of git; this keeps it out of chokidar.
         ignored: ['**/.wrangler/**', '**/.tmp/**', '**/ml/**'],
       },
-      proxy: {
-        '/api': `http://localhost:${apiPort}`,
-      },
     },
     resolve: {
       tsconfigPaths: true,
     },
   }
-});
+})

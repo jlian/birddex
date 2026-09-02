@@ -101,7 +101,7 @@ function errorResponse(body: string, status: number, extraHeaders?: Record<strin
   return response
 }
 
-export const onRequest: PagesFunction<Env> = async (context) => {
+export const onRequest: ApiMiddleware = async (context) => {
   const { pathname } = new URL(context.request.url)
 
   // Non-API requests -- pass through with security headers only.
@@ -191,7 +191,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
   }
 
-  const auth = createAuth(context.env, { request: context.request })
+  try {
+    const auth = createAuth(context.env, { request: context.request })
 
   const session = await auth.api.getSession({
     headers: context.request.headers,
@@ -204,7 +205,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return authResponse
   }
 
-  context.data.user = session.user
+  context.data.user = {
+    ...session.user,
+    isAnonymous: session.user.isAnonymous ?? undefined,
+  }
   context.data.session = session.session
 
   // Re-create logger with full identity + resourceId
@@ -242,7 +246,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return accountResponse
   }
 
-  try {
     const response = withSecurityHeaders(await context.next())
     addTraceHeaders(response, traceCtx)
     context.waitUntil(emitCompletionLog(log, op, response, Date.now() - start, method, routeTemplate, takeOutcomeMetadata(response)))

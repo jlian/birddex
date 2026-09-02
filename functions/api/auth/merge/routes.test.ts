@@ -17,7 +17,10 @@ vi.mock('../../../lib/account-merge', () => ({
   finalizeAccountMerge: dependencies.finalizeAccountMerge,
   finalizeBoundAccountMerges: dependencies.finalizeBoundAccountMerges,
 }))
-vi.mock('../../../lib/auth', () => ({ createAuth: dependencies.createAuth }))
+vi.mock('../../../lib/auth', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../lib/auth')>()),
+  createAuth: dependencies.createAuth,
+}))
 
 import { onRequestPost as prepareMerge } from './prepare'
 import { onRequestPost as finalizeMerge } from './finalize'
@@ -27,14 +30,20 @@ const origin = 'https://wingdex.test'
 function context(
   path: string,
   body: unknown,
-  options: { requestOrigin?: string; env?: Partial<Env> } = {},
+  options: {
+    requestOrigin?: string
+    requestUrlOrigin?: string
+    requestHeaders?: Record<string, string>
+    env?: Partial<Env>
+  } = {},
 ) {
   return {
-    request: new Request(`${origin}${path}`, {
+    request: new Request(`${options.requestUrlOrigin ?? origin}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Origin: options.requestOrigin ?? origin,
+        ...options.requestHeaders,
       },
       body: JSON.stringify(body),
     }),
@@ -109,6 +118,26 @@ describe('account merge routes', () => {
     }) as never) as Response
     expect(registered.status).toBe(401)
     expect(dependencies.createAccountMergeIntent).not.toHaveBeenCalled()
+  })
+
+  it('accepts the trusted browser origin behind a local TLS proxy', async () => {
+    const response = await prepareMerge(context('/api/auth/merge/prepare', {
+      authMethod: 'passkey',
+    }, {
+      requestOrigin: 'https://localhost.wingdex.app',
+      requestUrlOrigin: 'http://localhost:5000',
+      requestHeaders: {
+        host: 'localhost.wingdex.app',
+        'x-forwarded-proto': 'https',
+      },
+      env: {
+        TRUSTED_ORIGINS: 'https://localhost.wingdex.app',
+      },
+    }) as never) as Response
+
+    expect(response.status).toBe(200)
+    expect(dependencies.createAccountMergeIntent)
+      .toHaveBeenCalledWith(expect.anything(), 'source-session', 'passkey')
   })
 
   it('keeps preparation failures generic and free of private errors', async () => {

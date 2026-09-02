@@ -51,7 +51,7 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count} ${count === 1 ? singular : plural}`
 }
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/all/read', 'Application')
   if (!userId) {

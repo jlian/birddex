@@ -12,6 +12,25 @@ test.describe('App smoke tests', () => {
     await expect(header.getByText('WingDex')).toBeVisible();
   });
 
+  test('serves the gzipped occurrence prior as raw gzip bytes', async ({ page }) => {
+    await page.goto('/');
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/priors/occurrence.d0abc168.bin.gz', {
+        headers: { Range: 'bytes=0-1' },
+      });
+      const bytes = Array.from(new Uint8Array(await response.arrayBuffer()).slice(0, 2));
+      return {
+        status: response.status,
+        contentEncoding: response.headers.get('content-encoding'),
+        bytes,
+      };
+    });
+
+    expect([200, 206]).toContain(result.status);
+    expect(result.contentEncoding).toBeNull();
+    expect(result.bytes).toEqual([0x1f, 0x8b]);
+  });
+
   test('renders top nav tabs', async ({ page }) => {
     await loadApp(page, { promote: false });
 

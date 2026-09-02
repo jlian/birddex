@@ -1,6 +1,6 @@
 import { debug } from '@/lib/debug'
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -684,6 +684,9 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl">{getTitle()}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Upload photos to identify birds and save sightings.
+            </DialogDescription>
           </DialogHeader>
 
           {/* Upload */}

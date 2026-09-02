@@ -23,7 +23,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object'
 }
 
-export const onRequestPatch: PagesFunction<Env> = async context => {
+export const onRequestPatch: ApiHandler<'id'> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const outingId = context.params.id as string | undefined
   const route = createRouteResponder(
@@ -194,7 +194,7 @@ export const onRequestPatch: PagesFunction<Env> = async context => {
   }
 }
 
-export const onRequestDelete: PagesFunction<Env> = async context => {
+export const onRequestDelete: ApiHandler<'id'> = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const outingId = context.params.id as string | undefined
   const route = createRouteResponder(

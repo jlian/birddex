@@ -1,4 +1,5 @@
 interface Env {
+  ASSETS: Fetcher
   DB: D1Database
   BETTER_AUTH_URL: string
   BETTER_AUTH_SECRET: string
@@ -38,7 +39,7 @@ interface Env {
   LOG_FORMAT?: string
 }
 
-/** Shape of context.data populated by _middleware.ts. */
+/** Shape of request data populated by the Worker middleware. */
 interface RequestData extends Record<string, unknown> {
   user?: { id?: string; isAnonymous?: boolean }
   session?: { id: string }
@@ -51,3 +52,21 @@ interface RequestData extends Record<string, unknown> {
   /** True when middleware already appended an entity segment (e.g. outings/{id}) to resourceId from URL params. Handlers should NOT call withResourceId for the same entity. */
   autoScopedResourceId?: boolean
 }
+
+interface ApiContext<Params extends string = string> {
+  request: Request
+  waitUntil: (promise: Promise<unknown>) => void
+  env: Env
+  params: Record<Params, string | string[]>
+  data: RequestData
+}
+
+type ApiHandler<Params extends string = string> =
+  (context: ApiContext<Params>) => Response | Promise<Response>
+
+interface ApiMiddlewareContext extends ApiContext {
+  next: () => Promise<Response>
+}
+
+type ApiMiddleware =
+  (context: ApiMiddlewareContext) => Response | Promise<Response>
