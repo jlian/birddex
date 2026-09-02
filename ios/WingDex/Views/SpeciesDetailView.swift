@@ -8,6 +8,11 @@ struct SpeciesDetailView: View {
     /// screen bound to the exact group the user tapped. Callers that only hold
     /// a name (the dex list) leave this nil and resolve by name.
     var speciesKey: String?
+    /// Taxonomy for a species reached from a compound entry's parent list. Those
+    /// species are usually not in the dex - that is why the sighting was filed as
+    /// a hybrid or a slash - so the page falls back to this for the name, article
+    /// and reference links it would otherwise read off `entry`.
+    var reference: CompoundTaxonParent?
     @Environment(DataStore.self) private var store
     @Environment(ToastCenter.self) private var toasts
     @State private var wikiExtract: String?
@@ -24,14 +29,26 @@ struct SpeciesDetailView: View {
 
     private var entry: DexEntry? {
         if let speciesKey { return store.dexEntry(byKey: speciesKey) }
+        if let reference,
+           let match = store.dexEntry(byKey: dexGroupKey(speciesCode: reference.speciesCode,
+                                                         speciesName: reference.commonName)) {
+            return match
+        }
         return store.dexEntry(for: speciesName)
     }
     private var sightings: [(observation: BirdObservation, outing: Outing)] {
         if let speciesKey { return store.sightings(byKey: speciesKey) }
+        // A parent resolves through its eBird code, so read the sightings off the
+        // entry that lookup found rather than off a name the dex may not be keyed by.
+        if reference != nil { return entry.map { store.sightings(byKey: $0.id) } ?? [] }
         return store.sightings(for: speciesName)
     }
-    private var displayName: String { entry?.commonName ?? getDisplayName(speciesName) }
-    private var scientificName: String? { entry?.scientificName ?? getScientificName(speciesName) }
+    private var displayName: String { entry?.commonName ?? reference?.commonName ?? getDisplayName(speciesName) }
+    private var scientificName: String? {
+        entry?.scientificName ?? reference?.scientificName ?? getScientificName(speciesName)
+    }
+    private var wikiTitle: String? { entry?.wikiTitle ?? reference?.wikiTitle }
+    private var thumbnailUrl: String? { entry?.thumbnailUrl ?? reference?.thumbnailUrl }
 
     /// Several photos of the same bird on one outing are stored as separate observations, so
     /// the list shows one row per outing and certainty with the counts added up.
@@ -42,7 +59,7 @@ struct SpeciesDetailView: View {
     /// Read through to the cache so a preview-populated summary is available on the first
     /// render, before `.task` has a chance to run.
     private var cachedSummary: WikiSummary? {
-        guard let wikiTitle = entry?.wikiTitle else { return nil }
+        guard let wikiTitle else { return nil }
         return WikiSummaryService.cached(for: wikiTitle)
     }
     private var displayedExtract: String? { wikiExtract ?? cachedSummary?.extract }
@@ -51,8 +68,8 @@ struct SpeciesDetailView: View {
     /// rather than waiting on the Wikipedia summary. Species served as originals have no
     /// larger rendering, so only species with no dex thumbnail need the fetched URL.
     private var displayedFullImageUrl: String? {
-        heroImageUrl(fromThumbnail: entry?.thumbnailUrl)
-            ?? entry?.thumbnailUrl
+        heroImageUrl(fromThumbnail: thumbnailUrl)
+            ?? thumbnailUrl
             ?? fullImageUrl
             ?? cachedSummary?.imageUrl
     }
@@ -78,7 +95,7 @@ struct SpeciesDetailView: View {
             }
 
             // Wikipedia + links section
-            if displayedExtract != nil || entry != nil {
+            if displayedExtract != nil || entry != nil || reference != nil {
                 Section {
                     wikiSection
                 }
@@ -98,35 +115,14 @@ struct SpeciesDetailView: View {
                         .foregroundStyle(Color.mutedText)
 
                     ForEach(compound.parents) { parent in
-                        HStack(alignment: .top, spacing: 12) {
-                            if let thumbnail = parent.thumbnailUrl, let url = URL(string: thumbnail) {
-                                AsyncImage(url: url) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Color.secondary.opacity(0.15)
-                                }
-                                .frame(width: 56, height: 56)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(parent.commonName).font(.subheadline).fontWeight(.semibold)
-                                Text(parent.scientificName).font(.caption).italic().foregroundStyle(Color.mutedText)
-                                HStack(spacing: 12) {
-                                    if let title = parent.wikiTitle,
-                                       let url = URL(string: "https://en.wikipedia.org/wiki/\(title.replacingOccurrences(of: " ", with: "_"))") {
-                                        Link("Wikipedia", destination: url)
-                                    }
-                                    if let url = getEbirdURL(forCode: parent.speciesCode) {
-                                        Link("eBird", destination: url)
-                                    }
-                                    if let id = parent.birdlifeId,
-                                       let url = URL(string: "https://datazone.birdlife.org/species/factsheet/\(id)") {
-                                        Link("BirdLife", destination: url)
-                                    }
-                                }
-                                .font(.caption)
-                            }
+                        NavigationLink(value: parent) {
+                            BirdRow(
+                                speciesName: parent.commonName,
+                                displayName: parent.commonName,
+                                scientificName: parent.scientificName,
+                                taxonCode: parent.speciesCode,
+                                thumbnailUrl: parent.thumbnailUrl
+                            )
                         }
                     }
                 } header: {
@@ -135,6 +131,14 @@ struct SpeciesDetailView: View {
             }
 
             // Sightings section
+            if entry == nil && reference != nil {
+                Section {
+                    Text("Not in your dex yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.mutedText)
+                }
+                .listRowSeparator(.hidden)
+            } else {
             Section {
                 ForEach(mergedSightings, id: \.observation.id) { item in
                     NavigationLink(value: item.outing) {
@@ -167,6 +171,7 @@ struct SpeciesDetailView: View {
                 Text("Sightings (\(sightings.count))")
                     .font(.system(size: 16, weight: .semibold, design: .serif))
                     .foregroundStyle(Color.foregroundText)
+            }
             }
 
             if let entry {
@@ -202,6 +207,12 @@ struct SpeciesDetailView: View {
         .navigationDestination(for: Outing.self) { outing in
             OutingDetailView(outingId: outing.id)
         }
+        .navigationDestination(for: CompoundTaxonParent.self) { parent in
+            SpeciesDetailView(
+                speciesName: parent.commonName,
+                reference: parent
+            )
+        }
         .navigationDestination(item: $contextMenuOuting) { outing in
             OutingDetailView(outingId: outing.id)
         }
@@ -230,7 +241,7 @@ struct SpeciesDetailView: View {
         GeometryReader { geo in
             ZStack(alignment: .bottomLeading) {
                 BirdHeroImage(
-                    thumbnailUrl: entry?.thumbnailUrl,
+                    thumbnailUrl: thumbnailUrl,
                     fullImageUrl: displayedFullImageUrl,
                     width: geo.size.width,
                     height: geo.size.width
@@ -300,7 +311,7 @@ struct SpeciesDetailView: View {
 
     /// Wikimedia file page for the hero photo, carrying the creator and license.
     private var photoPageURL: URL? {
-        (imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: entry?.thumbnailUrl))
+        (imageCredit?.pageUrl ?? wikimediaFilePageUrl(fromImage: thumbnailUrl))
             .flatMap(URL.init(string:))
     }
 
@@ -390,7 +401,7 @@ struct SpeciesDetailView: View {
     /// the image's own overlay text and read as an orphan.
     @ViewBuilder
     private var creditsLine: some View {
-        let creditsText = entry?.wikiTitle != nil && displayedExtract != nil
+        let creditsText = wikiTitle != nil && displayedExtract != nil
 
         if photoPageURL != nil || creditsText {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -416,19 +427,21 @@ struct SpeciesDetailView: View {
 
     @ViewBuilder
     private var linksSection: some View {
-        if let url = getWikipediaURL(for: entry?.wikiTitle) {
+        if let url = getWikipediaURL(for: wikiTitle) {
                 Link(destination: url) {
                     Label("Wikipedia", systemImage: "book")
                 }
         }
 
-        if let url = getEbirdURL(forCode: entry?.taxonCode) ?? getEbirdURL(for: speciesName) {
+        if let url = getEbirdURL(forCode: entry?.taxonCode ?? reference?.speciesCode)
+            ?? getEbirdURL(for: speciesName) {
             Link(destination: url) {
                 Label("eBird", systemImage: "globe")
             }
         }
 
-        if let url = getBirdlifeFactsheetURL(for: speciesName) {
+        if let url = reference?.birdlifeId.flatMap({ URL(string: "https://datazone.birdlife.org/species/factsheet/\($0)") })
+            ?? getBirdlifeFactsheetURL(for: speciesName) {
             Link(destination: url) {
                 Label("BirdLife", systemImage: "leaf")
             }
@@ -445,7 +458,7 @@ struct SpeciesDetailView: View {
 
     @MainActor
     private func fetchWikipediaData() async {
-        guard let wikiTitle = entry?.wikiTitle else { return }
+        guard let wikiTitle else { return }
         guard let summary = await WikiSummaryService.summary(for: wikiTitle) else { return }
         wikiExtract = summary.extract
         fullImageUrl = summary.imageUrl
@@ -456,11 +469,11 @@ struct SpeciesDetailView: View {
     @MainActor
     private func fetchImageCredit() async {
         guard imageCredit == nil else { return }
-        imageCredit = await WikimediaCreditService.credit(forImage: entry?.thumbnailUrl)
+        imageCredit = await WikimediaCreditService.credit(forImage: thumbnailUrl)
     }
 
     private var heroImageURL: URL? {
-        guard let value = displayedFullImageUrl ?? entry?.thumbnailUrl else { return nil }
+        guard let value = displayedFullImageUrl ?? thumbnailUrl else { return nil }
         return URL(string: value)
     }
 
