@@ -58,7 +58,7 @@ export default function TermsPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">9. Third-party services</h3>
-          <p>WingDex uses infrastructure, authentication, content, and data services supplied by third parties, including Cloudflare; GitHub, Google, and Apple; Wikimedia; eBird/Cornell Lab; Geoapify; OpenStreetMap and Nominatim; BirdLife International; and iNaturalist Open Data. Their content and data remain subject to applicable third-party licenses and terms. When you choose social login or follow a link to a third-party website, you interact directly with that provider, whose terms and privacy policy apply. External links do not imply endorsement, and WingDex does not control third-party content, availability, security, or privacy practices.</p>
+          <p>WingDex uses infrastructure, authentication, mapping, content, and data services supplied by third parties, including Cloudflare; GitHub, Google, and Apple; Google Maps; Apple MapKit and Apple Maps; Wikimedia; eBird/Cornell Lab; Geoapify; OpenStreetMap and Nominatim; BirdLife International; and iNaturalist Open Data. Their content and data remain subject to applicable third-party licenses and terms. When you choose social login or follow a link to a third-party website, you interact directly with that provider, whose terms and privacy policy apply. External links do not imply endorsement, and WingDex does not control third-party content, availability, security, or privacy practices.</p>
         </section>
 
         <section className="space-y-1">
