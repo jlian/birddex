@@ -74,6 +74,9 @@ export async function loadApp(page: Page, { promote = true } = {}) {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
   }
   await expect(page.locator('header')).toBeVisible({ timeout: 5_000 })
+  // AppContent renders the header before the session check finishes, so wait
+  // for the identity control before assertions inspect guest or account state.
+  await expect(page.getByRole('button', { name: /^(Log in|Settings)$/ })).toBeVisible({ timeout: 10_000 })
 
   if (promote) {
     await promoteAnonymousUser(page)
