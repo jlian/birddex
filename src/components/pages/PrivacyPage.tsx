@@ -21,6 +21,7 @@ export default function PrivacyPage() {
               <li><strong>Birding data:</strong> Observations, outings, species lists, counts, identification confidence, notes, dates and times, location names, precise coordinates when present, checklist details, and related metadata you enter into the app.</li>
               <li><strong>Photo metadata:</strong> Images you add for bird identification are processed entirely on your device. WingDex does not upload or store the image pixels. We store associated metadata such as capture time, GPS coordinates when present, file name, and a file fingerprint hash used for duplicate detection.</li>
               <li><strong>Imported data:</strong> When you import an eBird CSV export, the file is uploaded to WingDex for server-side parsing. WingDex stores the resulting birding records, submission identifiers, and an import fingerprint used to prevent duplicate imports, but does not retain the original CSV after the request is processed.</li>
+              <li><strong>Private contact information:</strong> If you use the private contact form linked in Section 12, the separately hosted form collects your name, email address, and message, along with technical information including your user agent and referrer.</li>
             </ul>
           </div>
           <div className="space-y-2">
@@ -43,6 +44,7 @@ export default function PrivacyPage() {
             <li>Display species information, media, and related content</li>
             <li>Diagnose failures and understand aggregate service operation</li>
             <li>Monitor and protect the security and integrity of the Service</li>
+            <li>Receive and respond to private questions and privacy requests</li>
             <li>Comply with legal obligations</li>
           </ul>
         </section>
@@ -66,6 +68,7 @@ export default function PrivacyPage() {
             <li><strong>Google Maps:</strong> The web app provides optional links that include an outing's precise coordinates. If you follow one, your device sends those coordinates and ordinary request information to Google Maps under Google's privacy policy.</li>
             <li><strong>Apple MapKit and Apple Maps:</strong> The iOS app uses MapKit to display maps for saved outing coordinates. MapKit may send those coordinates and ordinary device and request information to Apple to provide map content. If you choose to open the location in Apple Maps, WingDex also passes the coordinates and outing name to Apple Maps. Apple's privacy policy applies.</li>
             <li><strong>Social-login providers:</strong> WingDex may offer GitHub, Google, and Apple sign-in. If you choose one, WingDex and that provider exchange a provider-issued account identifier, authentication tokens, and profile fields authorized for login, such as name, email address, and profile image. The provider also learns that you initiated a WingDex sign-in and receives ordinary network and device information. Each provider processes information under its own privacy policy, and you can review or revoke WingDex's access through the provider's account settings.</li>
+            <li><strong>Private contact services:</strong> The private contact form linked in Section 12 is hosted separately on Cloudflare. It stores your name, email address, message, user agent, referrer, and submission time in Cloudflare KV, sends your name, email address, and message through Resend for email delivery, and sends a challenge token and your IP address to Cloudflare Turnstile for abuse prevention. Cloudflare and Resend process this information under their own privacy policies.</li>
           </ul>
         </section>
 
@@ -78,6 +81,7 @@ export default function PrivacyPage() {
             <li>With Wikimedia when your device requests species descriptions, images, or image-license information</li>
             <li>With Google Maps when you choose to follow a web map link containing precise outing coordinates</li>
             <li>With Apple when the iOS app uses MapKit to display saved outing coordinates or you choose to open a location in Apple Maps</li>
+            <li>With Cloudflare Turnstile and Resend when you submit the private contact form, as described in Section 5</li>
             <li>With a third-party website when you choose to follow an external link</li>
             <li>If required by law, regulation, legal process, or governmental request</li>
             <li>To protect the rights, property, or safety of WingDex, its users, or the public</li>
@@ -86,7 +90,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">7. Data retention</h3>
-          <p>Account and birding records remain in WingDex's live database until you delete the records, delete a registered account, or ask us to remove them. Guest users can delete their birding records in the app, and those records may instead be merged into a registered account when they sign up. When in-app account deletion succeeds, WingDex deletes the live account record and its associated birding data, sessions, passkeys, authentication tokens, linked-provider records, and import receipts. Operational logs, provider records, and backup data may remain for the retention periods required by the relevant provider's configuration, security, recovery, or legal practices. WingDex does not retain the original eBird CSV after processing or cache Geoapify responses.</p>
+          <p>Account and birding records remain in WingDex's live database until you delete the records, delete a registered account, or ask us to remove them. Guest users can delete their birding records in the app, and those records may instead be merged into a registered account when they sign up. When in-app account deletion succeeds, WingDex deletes the live account record and its associated birding data, sessions, passkeys, authentication tokens, linked-provider records, and import receipts. Private contact submissions stored in Cloudflare KV currently have no automatic expiration and remain until manually deleted; Cloudflare Turnstile and Resend may retain their own processing records under their policies. Operational logs, other provider records, and backup data may remain for the retention periods required by the relevant provider's configuration, security, recovery, or legal practices. WingDex does not retain the original eBird CSV after processing or cache Geoapify responses.</p>
         </section>
 
         <section className="space-y-1">
