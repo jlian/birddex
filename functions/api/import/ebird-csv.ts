@@ -63,7 +63,7 @@ function jsonBulkInsert(
  * than a handle to server state, so confirm wrote whatever it was handed, and
  * which rows the client returned changed how the rest grouped.
  */
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'import/ebirdCsv/import', 'Application')
   if (!userId) {

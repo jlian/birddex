@@ -1,7 +1,7 @@
 import { getEbirdCode } from '../../lib/taxonomy'
 import { createRouteResponder } from '../../lib/log'
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'species/ebirdCode/read', 'Application')
   const userId = (context.data as { user?: { id?: string } }).user?.id
   if (!userId) {

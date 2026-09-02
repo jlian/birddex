@@ -1,6 +1,6 @@
 import { createRouteResponder } from '../../lib/log'
 
-export const onRequestDelete: PagesFunction<Env> = async context => {
+export const onRequestDelete: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/clear/delete', 'Audit')
   if (!userId) {

@@ -104,161 +104,180 @@ struct ContentView: View {
                 || accountMergeRefreshFailed)
     }
 
+    /// True only when sightings are actually moving between accounts. A plain interactive
+    /// sign-in also runs the finalize probe and reaches `.finalizing`, and telling that user
+    /// their WingDex is being kept is both alarming and untrue.
+    private var isMergingAccounts: Bool {
+        auth.hasPendingAccountMerge
+            || auth.accountMergeState == .pending
+            || pendingRecoveredMergeResult != nil
+    }
+
     var body: some View {
         // The restored account cache is activated immediately at launch (see
         // init above) so cached data stays visible while validation runs;
         // `blocksForAccountMerge` disables the shell until validation and any
         // pending merge resolve.
-        ZStack {
-            MainTabView()
-                .disabled(blocksForAccountMerge)
-            if blocksForAccountMerge {
-                AccountMergeRecoveryView(
-                    refreshFailed: accountMergeRefreshFailed,
-                    isRetrying: accountMergeRefreshInProgress
-                ) {
-                    guard let accountID = auth.userId else { return }
-                    Task { await recoverPendingAccountMerge(accountID: accountID) }
-                }
-            }
-        }
-        .background(Color.pageBg.ignoresSafeArea())
-        .onChange(of: auth.identity) { _, identity in
-            if identity == .none {
-                accountMergeRefreshInProgress = false
-                accountMergeRefreshAccountID = nil
-                accountMergeRefreshAttemptID = nil
-                accountMergeRefreshFailed = false
-                pendingRecoveredMergeResult = nil
-                pendingRecoveredMergeAccountID = nil
-                store.clearActiveAccount()
-                if let accountID = auth.consumeDiscardedAccountID() {
-                    store.clearCachedAccount(accountID: accountID)
-                }
-            }
-        }
-        .onChange(of: auth.userId) { _, accountID in
-            if pendingRecoveredMergeAccountID != accountID {
-                pendingRecoveredMergeResult = nil
-                pendingRecoveredMergeAccountID = nil
-            }
-            if let refreshAccountID = accountMergeRefreshAccountID,
-               refreshAccountID != accountID {
-                clearAccountMergeRefresh(accountID: refreshAccountID)
-            }
-            guard auth.hasSession, !blocksForAccountMerge, let accountID else { return }
-            store.activate(accountID: accountID)
-            Task { try? await store.ensureLoaded() }
-        }
-        .onChange(of: auth.accountMergeState) { previousState, state in
-            guard state == .none,
-                  !accountMergeRefreshInProgress,
-                  auth.isRegisteredAccount,
-                  let accountID = auth.userId
-            else { return }
-            store.activate(accountID: accountID)
-            if previousState == .finalizing {
-                if let result = auth.consumeCompletedAccountMergeResult() {
-                    if !result.promoted {
-                        rememberRecoveredMerge(result, accountID: accountID)
+        MainTabView()
+            .disabled(blocksForAccountMerge)
+            // An .overlay rather than a ZStack sibling so the fade's .animation stays
+            // off MainTabView, which would otherwise animate its own layout on the swap.
+            .overlay {
+                ZStack {
+                    if blocksForAccountMerge {
+                        AccountMergeRecoveryView(
+                            refreshFailed: accountMergeRefreshFailed,
+                            isRetrying: accountMergeRefreshInProgress,
+                            isMergingAccounts: isMergingAccounts
+                        ) {
+                            guard let accountID = auth.userId else { return }
+                            Task { await recoverPendingAccountMerge(accountID: accountID) }
+                        }
+                        .transition(.asymmetric(
+                            insertion: .opacity.animation(.smooth(duration: 0.4)),
+                            removal: .opacity.animation(.smooth(duration: 0.3))
+                        ))
                     }
                 }
-                let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
-                Task {
-                    await store.loadAll()
-                    guard ownsAccountMergeRefresh(
-                        accountID: accountID,
-                        attemptID: refreshAttemptID
-                    ), auth.userId == accountID,
-                       store.activeAccountID == accountID
-                    else {
-                        return
+                .animation(.smooth, value: blocksForAccountMerge)
+            }
+            .background(Color.pageBg.ignoresSafeArea())
+            .onChange(of: auth.identity) { _, identity in
+                if identity == .none {
+                    accountMergeRefreshInProgress = false
+                    accountMergeRefreshAccountID = nil
+                    accountMergeRefreshAttemptID = nil
+                    accountMergeRefreshFailed = false
+                    pendingRecoveredMergeResult = nil
+                    pendingRecoveredMergeAccountID = nil
+                    store.clearActiveAccount()
+                    if let accountID = auth.consumeDiscardedAccountID() {
+                        store.clearCachedAccount(accountID: accountID)
                     }
-                    let refreshFailed = !store.hasLoadedAll || store.refreshFailed
-                    if !refreshFailed {
-                        showRecoveredMergeToast(accountID: accountID)
-                    }
-                    finishAccountMergeRefresh(
-                        accountID: accountID,
-                        attemptID: refreshAttemptID,
-                        failed: refreshFailed
-                    )
                 }
-            } else {
+            }
+            .onChange(of: auth.userId) { _, accountID in
+                if pendingRecoveredMergeAccountID != accountID {
+                    pendingRecoveredMergeResult = nil
+                    pendingRecoveredMergeAccountID = nil
+                }
+                if let refreshAccountID = accountMergeRefreshAccountID,
+                   refreshAccountID != accountID {
+                    clearAccountMergeRefresh(accountID: refreshAccountID)
+                }
+                guard auth.hasSession, !blocksForAccountMerge, let accountID else { return }
+                store.activate(accountID: accountID)
                 Task { try? await store.ensureLoaded() }
             }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, auth.hasSession else { return }
-            Task { await auth.validateSession(force: false) }
-        }
-        .task {
-            #if DEBUG
-            if UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments) != nil {
-                return
-            }
-            if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
-                await auth.signOut()
-            }
-            if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
-               !auth.hasSession {
-                try? await auth.ensureAnonymousSession()
-            }
-            #endif
-            if let discardedAccountID = auth.consumeDiscardedAccountID() {
-                store.clearCachedAccount(accountID: discardedAccountID)
-            }
-            if auth.hasSession, let accountID = auth.userId {
-                let validation = await auth.validateSession()
-                if validation != .rejected,
-                   auth.userId == accountID {
-                    store.activate(accountID: accountID)
-                    if auth.isRegisteredAccount {
-                        if auth.hasPendingAccountMergeForCurrentAccount {
-                            await recoverPendingAccountMerge(accountID: accountID)
-                        } else {
-                            async let initialLoad: Void = store.loadAll()
-                            let outcome = await auth.resumePendingAccountMerge(reportsProgress: false)
-                            guard auth.userId == accountID,
-                                  store.activeAccountID == accountID
-                            else { return }
-                            if case .completed(let result) = outcome {
-                                _ = auth.consumeCompletedAccountMergeResult()
-                                if !result.promoted {
-                                    rememberRecoveredMerge(result, accountID: accountID)
-                                }
-                                let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
-                                await initialLoad
-                                guard ownsAccountMergeRefresh(
-                                    accountID: accountID,
-                                    attemptID: refreshAttemptID
-                                ) else { return }
-                                await store.loadAll()
-                                guard ownsAccountMergeRefresh(
-                                    accountID: accountID,
-                                    attemptID: refreshAttemptID
-                                ), auth.userId == accountID,
-                                   store.activeAccountID == accountID
-                                else { return }
-                                let refreshFailed = !store.hasLoadedAll || store.refreshFailed
-                                if !refreshFailed {
-                                    showRecoveredMergeToast(accountID: accountID)
-                                }
-                                finishAccountMergeRefresh(
-                                    accountID: accountID,
-                                    attemptID: refreshAttemptID,
-                                    failed: refreshFailed
-                                )
-                            } else {
-                                await initialLoad
-                            }
+            .onChange(of: auth.accountMergeState) { previousState, state in
+                guard state == .none,
+                      !accountMergeRefreshInProgress,
+                      auth.isRegisteredAccount,
+                      let accountID = auth.userId
+                else { return }
+                store.activate(accountID: accountID)
+                if previousState == .finalizing {
+                    if let result = auth.consumeCompletedAccountMergeResult() {
+                        if !result.promoted {
+                            rememberRecoveredMerge(result, accountID: accountID)
                         }
-                    } else {
-                        try? await store.ensureLoaded()
+                    }
+                    let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
+                    Task {
+                        await store.loadAll()
+                        guard ownsAccountMergeRefresh(
+                            accountID: accountID,
+                            attemptID: refreshAttemptID
+                        ), auth.userId == accountID,
+                           store.activeAccountID == accountID
+                        else {
+                            return
+                        }
+                        let refreshFailed = !store.hasLoadedAll || store.refreshFailed
+                        if !refreshFailed {
+                            showRecoveredMergeToast(accountID: accountID)
+                        }
+                        finishAccountMergeRefresh(
+                            accountID: accountID,
+                            attemptID: refreshAttemptID,
+                            failed: refreshFailed
+                        )
+                    }
+                } else {
+                    Task { try? await store.ensureLoaded() }
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active, auth.hasSession else { return }
+                Task { await auth.validateSession(force: false) }
+            }
+            .task {
+                #if DEBUG
+                if UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments) != nil {
+                    return
+                }
+                if ProcessInfo.processInfo.arguments.contains("--ui-test-sign-out") {
+                    await auth.signOut()
+                }
+                if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
+                   !auth.hasSession {
+                    try? await auth.ensureAnonymousSession()
+                }
+                #endif
+                if let discardedAccountID = auth.consumeDiscardedAccountID() {
+                    store.clearCachedAccount(accountID: discardedAccountID)
+                }
+                if auth.hasSession, let accountID = auth.userId {
+                    let validation = await auth.validateSession()
+                    if validation != .rejected,
+                       auth.userId == accountID {
+                        store.activate(accountID: accountID)
+                        if auth.isRegisteredAccount {
+                            if auth.hasPendingAccountMergeForCurrentAccount {
+                                await recoverPendingAccountMerge(accountID: accountID)
+                            } else {
+                                async let initialLoad: Void = store.loadAll()
+                                let outcome = await auth.resumePendingAccountMerge(reportsProgress: false)
+                                guard auth.userId == accountID,
+                                      store.activeAccountID == accountID
+                                else { return }
+                                if case .completed(let result) = outcome {
+                                    _ = auth.consumeCompletedAccountMergeResult()
+                                    if !result.promoted {
+                                        rememberRecoveredMerge(result, accountID: accountID)
+                                    }
+                                    let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
+                                    await initialLoad
+                                    guard ownsAccountMergeRefresh(
+                                        accountID: accountID,
+                                        attemptID: refreshAttemptID
+                                    ) else { return }
+                                    await store.loadAll()
+                                    guard ownsAccountMergeRefresh(
+                                        accountID: accountID,
+                                        attemptID: refreshAttemptID
+                                    ), auth.userId == accountID,
+                                       store.activeAccountID == accountID
+                                    else { return }
+                                    let refreshFailed = !store.hasLoadedAll || store.refreshFailed
+                                    if !refreshFailed {
+                                        showRecoveredMergeToast(accountID: accountID)
+                                    }
+                                    finishAccountMergeRefresh(
+                                        accountID: accountID,
+                                        attemptID: refreshAttemptID,
+                                        failed: refreshFailed
+                                    )
+                                } else {
+                                    await initialLoad
+                                }
+                            }
+                        } else {
+                            try? await store.ensureLoaded()
+                        }
                     }
                 }
             }
-        }
     }
 
     private func rememberRecoveredMerge(_ result: AccountMergeResult, accountID: String) {
@@ -349,44 +368,68 @@ private struct AccountMergeRecoveryView: View {
     @Environment(AuthService.self) private var auth
     let refreshFailed: Bool
     let isRetrying: Bool
+    let isMergingAccounts: Bool
     let onRetry: () -> Void
 
+    private var hasFailed: Bool {
+        !isRetrying && (auth.accountMergeState == .failed || refreshFailed)
+    }
+
     var body: some View {
-        VStack(spacing: 18) {
-            AppIconView()
-                .frame(width: 64, height: 64)
-            Text("Keeping your WingDex...")
-                .font(.title2.bold())
-            if isRetrying {
-                ProgressView()
-            } else if auth.accountMergeState == .failed || refreshFailed {
-                Text(accountMergeRecoveryMessage(refreshFailed: refreshFailed))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Button("Retry") {
-                    onRetry()
+        Group {
+            if hasFailed {
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .ignoresSafeArea()
+                    failureCard
                 }
-                .buttonStyle(.glassProminent)
-                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                AppLoadingOverlay(
+                    status: isMergingAccounts ? "Moving your sightings to this account" : "Signing you in"
+                )
+            }
+        }
+        .animation(.smooth, value: hasFailed)
+        .accessibilityIdentifier("accountMerge.recovery")
+    }
+
+    private var failureCard: some View {
+        VStack(spacing: 16) {
+            ContentUnavailableView {
+                Label(isMergingAccounts ? "Sightings not moved yet" : "Couldn't finish signing in",
+                      systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(accountMergeRecoveryMessage(
+                    refreshFailed: refreshFailed,
+                    isMergingAccounts: isMergingAccounts
+                ))
+            }
+
+            VStack(spacing: 10) {
+                Button("Retry", action: onRetry)
+                    .buttonStyle(.glassProminent)
+                    .buttonSizing(.flexible)
                 Button("Sign out") {
                     Task { await auth.signOut() }
                 }
                 .buttonStyle(.glass)
                 .buttonSizing(.flexible)
-            } else {
-                ProgressView()
             }
         }
         .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
-        .accessibilityIdentifier("accountMerge.recovery")
+        .frame(maxWidth: 360)
     }
 }
 
-func accountMergeRecoveryMessage(refreshFailed: Bool) -> String {
-    refreshFailed
+func accountMergeRecoveryMessage(refreshFailed: Bool, isMergingAccounts: Bool) -> String {
+    guard isMergingAccounts else {
+        return refreshFailed
+            ? "WingDex couldn't reload your account. Retry to refresh it."
+            : "WingDex couldn't finish signing you in. Retry to continue."
+    }
+    return refreshFailed
         ? "Your sightings were added, but WingDex couldn't reload them. Retry to refresh this account."
         : "Your original sightings are safe. Retry to finish adding them to this account."
 }

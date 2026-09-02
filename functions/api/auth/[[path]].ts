@@ -73,7 +73,7 @@ export function logDurableAuthRouteOutcome(
   }
 }
 
-export const onRequest: PagesFunction<Env> = async (context) => {
+export const onRequest: ApiHandler = async (context) => {
   const route = createRouteResponder((context.data as RequestData).log, 'auth/sessions/invoke', 'Application')
   // Generic auth routes rely on request, forwarded, and referer headers to
   // decide whether the public origin is localhost or a hosted dev domain.

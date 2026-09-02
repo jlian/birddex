@@ -9,7 +9,7 @@ function degraded(db: 'unexpected' | 'error', failure: Response): Response {
   })
 }
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequestGet: ApiHandler = async (context) => {
   const route = createRouteResponder((context.data as RequestData).log, 'health/database/read', 'Application')
   try {
     const result = await context.env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>()

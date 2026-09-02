@@ -12,7 +12,7 @@ Prefer up-to-date sources over training data. Search for error messages, check o
 - **Node:** >= 24
 - **Quick check:** `npm run check` (lint + typecheck + tests)
 - **Full check:** `npm run check:all` (adds e2e + build)
-- **Dev server:** `npm run dev` (Vite on `:5000`, Wrangler on `:8787`)
+- **Dev server:** `npm run dev` (Vite and the native Worker on `:5000`)
 - **Stop:** `npm stop`
 
 ## Commit History

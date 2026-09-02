@@ -43,7 +43,7 @@ function normalizeCountryCode(countryCode?: string, stateProvince?: string): str
   return derived.length === 2 ? derived : null
 }
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/outings/write', 'Application')
   if (!userId) {

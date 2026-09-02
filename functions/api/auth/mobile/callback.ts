@@ -45,7 +45,7 @@ function extractSignedSessionToken(cookieHeader: string | null): string | null {
   return null
 }
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequestGet: ApiHandler = async (context) => {
   let route = createRouteResponder((context.data as RequestData).log, 'auth/mobileOAuth/invoke', 'Application')
   // Try default mode first so localhost e2e/local cookies keep working.
   // If that does not resolve a session but the request carries a secure hosted

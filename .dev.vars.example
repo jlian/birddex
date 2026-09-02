@@ -34,4 +34,4 @@ BETTER_AUTH_SECRET=local-dev-secret
 
 # Extra trusted browser origins for LAN dev (comma-separated).
 # Does not affect OAuth redirect URIs.
-# TRUSTED_ORIGINS=
+# TRUSTED_ORIGINS=https://localhost.wingdex.app

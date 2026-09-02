@@ -296,6 +296,63 @@ final class DataStoreCacheTests: XCTestCase {
         XCTAssertEqual(cache.replacements.last?.response.dex, authoritativeDex)
     }
 
+    func testUpdateDexNotesSendsKeyAndInstallsAuthoritativeResponse() async throws {
+        var entry = fixtureDex(speciesName: "American Robin", totalCount: 1)
+        entry.speciesCode = "amerob"
+        let initial = AllDataResponse(
+            outings: [],
+            photos: [],
+            observations: [],
+            dex: [entry]
+        )
+        var authoritative = entry
+        authoritative.notes = "Seen at dawn"
+        let service = ServiceStub(result: .success(initial))
+        service.updateDexEntryResult = .success([authoritative])
+        let cache = CacheStub(snapshot: nil)
+        let store = DataStore(service: service, cache: cache)
+        store.activate(accountID: "account-a")
+        await store.loadAll()
+        cache.replacements.removeAll()
+
+        try await store.updateDexNotes(entry: entry, notes: "Seen at dawn")
+
+        XCTAssertEqual(service.updateDexEntryCalls, 1)
+        XCTAssertEqual(service.lastDexUpdate?.groupKey, "code:amerob")
+        XCTAssertEqual(service.lastDexUpdate?.speciesName, entry.speciesName)
+        XCTAssertEqual(service.lastDexUpdate?.notes, "Seen at dawn")
+        XCTAssertEqual(store.dex, [authoritative])
+        XCTAssertEqual(cache.replacements.last?.response.dex, [authoritative])
+    }
+
+    func testFailedUpdateDexNotesRestoresConfirmedSnapshot() async throws {
+        var entry = fixtureDex(speciesName: "American Robin", totalCount: 1)
+        entry.notes = "Original note"
+        let initial = AllDataResponse(
+            outings: [],
+            photos: [],
+            observations: [],
+            dex: [entry]
+        )
+        let service = ServiceStub(result: .success(initial))
+        service.updateDexEntryResult = .failure(URLError(.notConnectedToInternet))
+        let cache = CacheStub(snapshot: nil)
+        let store = DataStore(service: service, cache: cache)
+        store.activate(accountID: "account-a")
+        await store.loadAll()
+        cache.replacements.removeAll()
+
+        do {
+            try await store.updateDexNotes(entry: entry, notes: "Unsaved note")
+            XCTFail("Expected dex notes update to fail")
+        } catch {
+            XCTAssertTrue(error is URLError)
+        }
+
+        XCTAssertEqual(service.lastDexUpdate?.notes, "Unsaved note")
+        XCTAssertEqual(store.dex, [entry])
+    }
+
     func testDeleteOutingKeepsLocalDataUntilServerConfirms() async throws {
         let response = fixtureResponseWithDependentData(locationName: "Fresh Marsh")
         let service = SuspendedDeleteService(response: response)
@@ -696,6 +753,9 @@ private final class ServiceStub: DataStoreService, @unchecked Sendable {
     var deleteOutingCalls = 0
     var clearAllCalls = 0
     var deleteDexUpdates: [DexEntry] = []
+    var updateDexEntryCalls = 0
+    var lastDexUpdate: DexUpdate?
+    var updateDexEntryResult: Result<[DexEntry], Error> = .success([])
 
     init(result: Result<AllDataResponse, Error>) {
         self.result = result
@@ -707,6 +767,11 @@ private final class ServiceStub: DataStoreService, @unchecked Sendable {
         return DexUpdateResponse(dexUpdates: deleteDexUpdates)
     }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields: DexUpdate) async throws -> [DexEntry] {
+        updateDexEntryCalls += 1
+        lastDexUpdate = fields
+        return try updateDexEntryResult.get()
+    }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -746,6 +811,7 @@ private actor MultiFetchService: DataStoreService {
 
     func deleteOuting(id _: String) async throws -> DexUpdateResponse { DexUpdateResponse(dexUpdates: []) }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -780,6 +846,7 @@ private actor SuspendedFetchService: DataStoreService {
         DexUpdateResponse(dexUpdates: [])
     }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -818,6 +885,7 @@ private actor RefreshDeleteRaceService: DataStoreService {
 
     func deleteOuting(id _: String) async throws -> DexUpdateResponse { DexUpdateResponse(dexUpdates: []) }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -862,6 +930,7 @@ private actor SuspendedDeleteService: DataStoreService {
 
     func deleteCallCount() -> Int { deleteCalls }
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }
@@ -901,6 +970,7 @@ private actor AmbiguousDeleteService: DataStoreService {
     }
 
     func updateOuting(id _: String, fields _: OutingUpdate) async throws -> Outing { fatalError() }
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] { fatalError() }
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse { fatalError() }
     func searchSpecies(query _: String, limit _: Int) async throws -> [DataService.SpeciesSearchResult] { [] }
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse { fatalError() }

@@ -260,19 +260,19 @@ Local Explorer is the primary validation workflow. Start the normal development 
 npm run dev
 ```
 
-Wrangler runs on port `8787` by default and enables Local Explorer/local observability by default. The read-only query endpoint is:
+The Cloudflare Vite plugin runs the Worker on port `5000` and enables Local Explorer/local observability. The read-only query endpoint is:
 
 ```text
-http://localhost:8787/cdn-cgi/local/explorer/api/local/observability/query
+http://localhost:5000/cdn-cgi/local/explorer/api/local/observability/query
 ```
 
-If a different Wrangler port is configured, use the Local Explorer API URL printed at startup. The endpoint accepts only `SELECT`/`WITH` SQL over the `logs` and `spans` tables. In Wrangler 4.119, `logs` has the columns `trace_id`, `span_id`, `seq`, `ts_ms`, `level`, `message`, `operation`, and `created_at`. `message` is a JSON-encoded array of console arguments. WingDex passes its event object as the first argument, so select events where `json_type(message, '$[0]') = 'object'` and read fields below `$[0]`.
+If a different Vite port is configured, use that port instead. The endpoint accepts only `SELECT`/`WITH` SQL over the `logs` and `spans` tables. In Wrangler 4.128, `logs` has the columns `trace_id`, `span_id`, `seq`, `ts_ms`, `level`, `message`, `operation`, and `created_at`. `message` is a JSON-encoded array of console arguments. WingDex passes its event object as the first argument, so select events where `json_type(message, '$[0]') = 'object'` and read fields below `$[0]`.
 
 Generate the account/data flow being changed, then begin with the complete structured event objects:
 
 ```bash
 curl -sS -X POST \
-  http://localhost:8787/cdn-cgi/local/explorer/api/local/observability/query \
+  http://localhost:5000/cdn-cgi/local/explorer/api/local/observability/query \
   -H 'Content-Type: application/json' \
   -d '{"sql":"SELECT json_extract(message, '\''$[0]'\'') AS event FROM logs WHERE json_type(message, '\''$[0]'\'') = '\''object'\'' ORDER BY ts_ms DESC LIMIT 20"}'
 ```

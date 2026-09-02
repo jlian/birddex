@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractEntitySegment, onRequest, resolveOperation } from '../_middleware'
+import { extractEntitySegment, onRequest, resolveOperation } from '../middleware'
 import { RESULT_DESCRIPTION_HEADER, RESULT_TYPE_HEADER } from './log'
 
 describe('middleware observability metadata', () => {
@@ -53,7 +53,7 @@ describe('middleware observability metadata', () => {
         },
       }),
       waitUntil: () => {},
-    } as unknown as EventContext<Env, string, Record<string, unknown>>)
+    } as unknown as ApiMiddlewareContext)
 
     expect(response.headers.has(RESULT_DESCRIPTION_HEADER)).toBe(false)
     expect(response.headers.has(RESULT_TYPE_HEADER)).toBe(false)

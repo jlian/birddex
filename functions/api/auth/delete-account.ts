@@ -1,4 +1,4 @@
-import { createAuth } from '../../lib/auth'
+import { createAuth, isSameOriginRequest } from '../../lib/auth'
 import { createLogger, createRouteResponder, type Logger } from '../../lib/log'
 import {
   AccountDeletionStageError,
@@ -92,11 +92,9 @@ export function logAccountDeletionEvent(log: Logger, event: AccountDeletionEvent
   }
 }
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const originRoute = createRouteResponder((context.data as RequestData).log, 'auth/account/delete', 'Application')
-  const requestOrigin = new URL(context.request.url).origin
-  const origin = context.request.headers.get('Origin')
-  if (origin !== requestOrigin) {
+  if (!isSameOriginRequest(context.env, context.request)) {
     return originRoute.fail(403, 'Forbidden', 'Account deletion rejected because the request origin did not match WingDex')
   }
 

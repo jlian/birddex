@@ -11,6 +11,15 @@ struct OutingUpdate: Codable, Sendable {
     var notes: String?
 }
 
+/// Typed update for per-species dex metadata. `groupKey` is `DexEntry.id`, which the
+/// server requires to match an existing entry so two spellings of one bird cannot
+/// split their notes.
+struct DexUpdate: Codable, Sendable {
+    var groupKey: String
+    var speciesName: String
+    var notes: String?
+}
+
 /// Central observable data store for the app.
 ///
 /// Fetches all user data from `GET /api/data/all` and provides computed
@@ -485,6 +494,30 @@ final class DataStore {
             guard isCurrentMutation(mutationContext) else { return }
             restoreConfirmedSnapshot()
             log.warning("Outing update failed; reconciling account data")
+            reconcileAfterMutationFailure(mutationContext)
+            throw error
+        }
+    }
+
+    /// Update the per-species notes locally and on the server.
+    func updateDexNotes(entry: DexEntry, notes: String) async throws {
+        let mutationContext = try await acquireOperationContext(requireLoadedSnapshot: true)
+        defer { releaseOperation(mutationContext) }
+        guard let service else { throw AuthError.notAuthenticated }
+        if let idx = dex.firstIndex(where: { $0.id == entry.id }) {
+            dex[idx].notes = notes
+        }
+        do {
+            let updates = try await service.updateDexEntry(
+                fields: DexUpdate(groupKey: entry.id, speciesName: entry.speciesName, notes: notes)
+            )
+            guard isCurrentMutation(mutationContext) else { return }
+            dex = updates
+            confirmAndPersistCurrentSnapshot()
+        } catch {
+            guard isCurrentMutation(mutationContext) else { return }
+            restoreConfirmedSnapshot()
+            log.warning("Dex notes update failed; reconciling account data")
             reconcileAfterMutationFailure(mutationContext)
             throw error
         }

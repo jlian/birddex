@@ -19,6 +19,8 @@ struct OutingDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var editingNotes = false
     @State private var notesText = ""
+    @State private var savingNotes = false
+    @FocusState private var notesFocused: Bool
     @State private var contextMenuSpecies: SpeciesRoute?
     @State private var editingLocation = false
     @State private var locationText = ""
@@ -122,6 +124,10 @@ struct OutingDetailView: View {
             // Notes
             Section {
                 notesSection(outing)
+            } header: {
+                Text("Notes")
+                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .foregroundStyle(Color.foregroundText)
             }
             .listRowSeparator(.hidden)
 
@@ -503,43 +509,66 @@ struct OutingDetailView: View {
 
     // MARK: - Notes
 
+    /// A growing `TextField(axis: .vertical)` rather than a `TextEditor`: the editor is
+    /// itself a scroll view and fights the List it sits in.
+    @ViewBuilder
     private func notesSection(_ outing: Outing) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Notes")
-                .font(.system(size: 16, weight: .semibold, design: .serif))
-                .foregroundStyle(Color.foregroundText)
+        if editingNotes {
+            TextField("Weather, who you were with, anything worth remembering",
+                      text: $notesText, axis: .vertical)
+                .font(.subheadline)
+                .lineLimit(3...12)
+                .focused($notesFocused)
+                .disabled(savingNotes)
 
-            if editingNotes {
-                TextEditor(text: $notesText)
-                    .frame(minHeight: 60)
-                    .padding(8)
-                    .background(Color.cardBg)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                HStack {
-                    Button("Cancel") { editingNotes = false }
-                    Spacer()
-                    Button("Save") {
-                        Task {
-                            do {
-                                try await store.updateOuting(id: outingId, fields: OutingUpdate(notes: notesText))
-                                editingNotes = false
-                                toasts.show("Notes saved")
-                            } catch {
-                                showError(error, fallback: "Could not save notes. Try again.")
-                            }
-                        }
-                    }
-                    .fontWeight(.semibold)
+            // .borderless per button, not on the HStack: with the automatic style a List
+            // row is one tap target and a tap fires every button in it, so Cancel also saved.
+            HStack {
+                Button("Cancel") {
+                    editingNotes = false
+                    notesFocused = false
                 }
-            } else {
-                Text(outing.notes.isEmpty ? "No notes" : outing.notes)
-                    .font(.system(size: 14))
-                    .foregroundStyle(outing.notes.isEmpty ? Color.mutedText : Color.foregroundText)
-                    .onTapGesture {
-                        notesText = outing.notes
-                        editingNotes = true
-                    }
+                .buttonStyle(.borderless)
+                .disabled(savingNotes)
+                Spacer()
+                Button("Save") { Task { await saveNotes() } }
+                    .buttonStyle(.borderless)
+                    .fontWeight(.semibold)
+                    .disabled(savingNotes)
             }
+            .font(.subheadline)
+        } else {
+            // A Button, not a tap gesture on the Text: VoiceOver and Full Keyboard Access
+            // get nothing from a gesture recognizer.
+            Button {
+                notesText = outing.notes
+                editingNotes = true
+                notesFocused = true
+            } label: {
+                let notes = outing.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                Text(notes.isEmpty ? "Add notes" : notes)
+                    .font(.subheadline)
+                    .italic(!notes.isEmpty)
+                    .foregroundStyle(notes.isEmpty ? Color.accentColor : Color.mutedText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit notes for this outing")
+        }
+    }
+
+    @MainActor
+    private func saveNotes() async {
+        savingNotes = true
+        defer { savingNotes = false }
+        do {
+            try await store.updateOuting(id: outingId, fields: OutingUpdate(notes: notesText))
+            editingNotes = false
+            notesFocused = false
+            toasts.show("Notes saved")
+        } catch {
+            showError(error, fallback: "Could not save notes. Try again.")
         }
     }
 
@@ -744,6 +773,7 @@ struct OutingDetailView: View {
     PreviewTabs(.outings) {
         NavigationStack {
             OutingDetailView(outingId: PreviewData.sampleOutingId)
+                .environment(AuthService())
                 .environment(previewStore())
                 .environment(ToastCenter())
         }
@@ -754,6 +784,7 @@ struct OutingDetailView: View {
     PreviewTabs(.outings) {
         NavigationStack {
             OutingDetailView(outingId: PreviewData.richOutingId)
+                .environment(AuthService())
                 .environment(previewStore())
                 .environment(ToastCenter())
         }
@@ -764,6 +795,7 @@ struct OutingDetailView: View {
     PreviewTabs(.outings) {
         NavigationStack {
             OutingDetailView(outingId: "nonexistent")
+                .environment(AuthService())
                 .environment(previewStore())
                 .environment(ToastCenter())
         }

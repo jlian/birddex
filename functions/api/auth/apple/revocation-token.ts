@@ -14,7 +14,7 @@ export function logNativeAppleRevocationCredentialStorage(log: Logger): void {
   })
 }
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   let route = createRouteResponder((context.data as RequestData).log, 'auth/appleRevocationToken/write', 'Application')
   const auth = createAuth(context.env, { request: context.request })
   const session = await auth.api.getSession({ headers: context.request.headers })

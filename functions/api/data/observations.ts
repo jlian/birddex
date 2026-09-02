@@ -229,7 +229,7 @@ function hasConflictingPhotoRefs(observations: CreateObservationInput[]): boolea
   return false
 }
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/observations/write', 'Application')
   if (!userId) {
@@ -377,7 +377,7 @@ export const onRequestPost: PagesFunction<Env> = async context => {
   }
 }
 
-export const onRequestPatch: PagesFunction<Env> = async context => {
+export const onRequestPatch: ApiHandler = async context => {
   const userId = (context.data as { user?: { id?: string } }).user?.id
   const route = createRouteResponder((context.data as RequestData).log, 'data/observations/write', 'Application')
   if (!userId) {

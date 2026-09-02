@@ -1,7 +1,7 @@
 import { createAuth } from '../../lib/auth'
 import { createRouteResponder, createLogger } from '../../lib/log'
 
-export const onRequestGet: PagesFunction<Env> = async context => {
+export const onRequestGet: ApiHandler = async context => {
   let route = createRouteResponder((context.data as RequestData).log, 'auth/linkedProviders/read', 'Application')
   let stage = 'authenticated session lookup'
   try {

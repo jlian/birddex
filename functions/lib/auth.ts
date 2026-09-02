@@ -136,6 +136,21 @@ export function resolveConfiguredPublicOrigin(env: Env, request?: Request): stri
   return null
 }
 
+export function isSameOriginRequest(env: Env, request: Request): boolean {
+  const originHeader = request.headers.get('origin')
+  if (!originHeader) return false
+
+  let origin: string
+  try {
+    origin = new URL(originHeader).origin
+  } catch {
+    return false
+  }
+
+  if (origin === new URL(request.url).origin) return true
+  return origin === resolveConfiguredPublicOrigin(env, request)
+}
+
 export function normalizeAuthRequest(env: Env, request: Request): Request {
   const requestUrl = new URL(request.url)
   const configuredPublicOrigin = resolveConfiguredPublicOrigin(env, request)
@@ -158,18 +173,6 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
   const headerOrigin = options.request?.headers.get('origin') || null
   const refererHeader = options.request?.headers.get('referer') || null
 
-  const inferredLocalAppOrigin = (() => {
-    if (!requestOrigin || !requestUrl) return null
-    const isWranglerApiOrigin = isLoopbackOrigin(requestOrigin) && requestUrl.port !== '5000'
-    if (!isWranglerApiOrigin) return null
-
-    if (headerOrigin && isLoopbackOrigin(headerOrigin)) {
-      return headerOrigin
-    }
-
-    return `${requestUrl.protocol}//${requestUrl.hostname}:5000`
-  })()
-
   const configuredPublicOrigins = getConfiguredPublicOrigins(env)
   const hostedAuthURL = env.BETTER_AUTH_URL && !isLoopbackOrigin(env.BETTER_AUTH_URL)
     ? env.BETTER_AUTH_URL
@@ -185,7 +188,7 @@ export function createAuth(env: Env, options: CreateAuthOptions = {}) {
   // and e2e, but a hosted public URL for GitHub/Google/Apple OAuth callbacks.
   const baseURL = options.mode === 'hosted-oauth' && hostedAuthURL
     ? hostedAuthURL
-    : resolvedConfiguredPublicOrigin || inferredLocalAppOrigin || requestOrigin || env.BETTER_AUTH_URL
+    : resolvedConfiguredPublicOrigin || requestOrigin || env.BETTER_AUTH_URL
   if (!baseURL) throw new Error('Unable to determine a valid base URL for authentication')
 
   const useSecureCookies = baseURL.startsWith('https://')

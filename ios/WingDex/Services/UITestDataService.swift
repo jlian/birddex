@@ -42,6 +42,10 @@ final class UITestDataService: DataStoreService, Sendable {
         throw URLError(.unsupportedURL)
     }
 
+    func updateDexEntry(fields _: DexUpdate) async throws -> [DexEntry] {
+        throw URLError(.unsupportedURL)
+    }
+
     func rejectObservations(ids _: [String]) async throws -> DataService.ObservationsResponse {
         throw URLError(.unsupportedURL)
     }
@@ -97,6 +101,24 @@ final class UITestDataService: DataStoreService, Sendable {
             ("tundra-swan", rarityOuting.id, "Tundra Swan (Cygnus columbianus)"),
             ("cardinal", rarityOuting.id, "Northern Cardinal (Cardinalis cardinalis)"),
         ]
+        // A hybrid and one of its parents: the parent list on a compound entry links
+        // through to a species page, and the parent may or may not be in the dex.
+        let mallard = CompoundTaxonParent(
+            commonName: "Mallard",
+            scientificName: "Anas platyrhynchos",
+            speciesCode: "mallar3",
+            wikiTitle: "Mallard",
+            thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Anas_platyrhynchos_male_female_quadrat.jpg/330px-Anas_platyrhynchos_male_female_quadrat.jpg",
+            birdlifeId: "22680186"
+        )
+        let blackDuck = CompoundTaxonParent(
+            commonName: "American Black Duck",
+            scientificName: "Anas rubripes",
+            speciesCode: "ambduc",
+            wikiTitle: "American black duck",
+            thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/American_Black_Duck_pair_at_Green_Wood_Cemetery%2C_Brooklyn_%2862110%29.jpg/330px-American_Black_Duck_pair_at_Green_Wood_Cemetery%2C_Brooklyn_%2862110%29.jpg",
+            birdlifeId: "22680217"
+        )
         let observations = species.map { fixture in
             BirdObservation(
                 id: "ui-test-\(fixture.id)",
@@ -106,7 +128,51 @@ final class UITestDataService: DataStoreService, Sendable {
                 certainty: .confirmed,
                 notes: ""
             )
-        }
+        } + [
+            BirdObservation(
+                id: "ui-test-hybrid",
+                outingId: rarityOuting.id,
+                speciesName: "Mallard x American Black Duck (hybrid)",
+                count: 1,
+                certainty: .confirmed,
+                notes: ""
+            ),
+            BirdObservation(
+                id: "ui-test-mallard",
+                outingId: rarityOuting.id,
+                speciesName: "Mallard (Anas platyrhynchos)",
+                count: 2,
+                certainty: .confirmed,
+                notes: ""
+            ),
+        ]
+        let compoundDex = [
+            DexEntry(
+                speciesName: "Mallard x American Black Duck (hybrid)",
+                speciesCode: "x00001",
+                commonName: "Mallard x American Black Duck (hybrid)",
+                firstSeenDate: rarityOuting.startTime,
+                lastSeenDate: rarityOuting.endTime,
+                totalOutings: 1,
+                totalCount: 1,
+                notes: "",
+                wikiTitle: "Mallard",
+                borrowedFrom: "Mallard",
+                compound: CompoundTaxon(kind: "hybrid", parents: [mallard, blackDuck])
+            ),
+            DexEntry(
+                speciesName: "Mallard (Anas platyrhynchos)",
+                speciesCode: "mallar3",
+                commonName: "Mallard",
+                scientificName: "Anas platyrhynchos",
+                firstSeenDate: rarityOuting.startTime,
+                lastSeenDate: rarityOuting.endTime,
+                totalOutings: 1,
+                totalCount: 2,
+                notes: "",
+                wikiTitle: "Mallard"
+            ),
+        ]
         let dex = species.map { fixture in
             DexEntry(
                 speciesName: fixture.name,
@@ -120,7 +186,7 @@ final class UITestDataService: DataStoreService, Sendable {
                 totalCount: 1,
                 notes: ""
             )
-        }
+        } + compoundDex
         return AllDataResponse(
             outings: [primaryOuting, rarityOuting],
             photos: [],

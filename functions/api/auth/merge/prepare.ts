@@ -1,4 +1,4 @@
-import { createAuth } from '../../../lib/auth'
+import { createAuth, isSameOriginRequest } from '../../../lib/auth'
 import {
   createAccountMergeIntent,
   type AccountMergeAuthMethod,
@@ -7,10 +7,9 @@ import { createRouteResponder } from '../../../lib/log'
 
 const authMethods = new Set<AccountMergeAuthMethod>(['github', 'google', 'apple', 'passkey'])
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'auth/accountMerge/prepare', 'Application')
-  const requestOrigin = new URL(context.request.url).origin
-  if (context.request.headers.get('Origin') !== requestOrigin) {
+  if (!isSameOriginRequest(context.env, context.request)) {
     return route.fail(403, 'Forbidden', 'Account merge preparation requires a same-origin request')
   }
 

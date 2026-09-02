@@ -1,7 +1,7 @@
 import { GeocodingConfigurationError, GeocodingUpstreamError, rateLimitKey, searchPlaces } from '../../lib/geocoding-gateway'
 import { createRouteResponder } from '../../lib/log'
 
-export const onRequestPost: PagesFunction<Env> = async context => {
+export const onRequestPost: ApiHandler = async context => {
   const route = createRouteResponder((context.data as RequestData).log, 'geocoding/search/read', 'Application')
   const user = (context.data as RequestData).user
 

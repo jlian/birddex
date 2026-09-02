@@ -7,6 +7,7 @@ protocol DataStoreService: Sendable {
     func fetchAllData() async throws -> AllDataResponse
     func deleteOuting(id: String) async throws -> DexUpdateResponse
     func updateOuting(id: String, fields: OutingUpdate) async throws -> Outing
+    func updateDexEntry(fields: DexUpdate) async throws -> [DexEntry]
     func rejectObservations(ids: [String]) async throws -> DataService.ObservationsResponse
     func searchSpecies(query: String, limit: Int) async throws -> [DataService.SpeciesSearchResult]
     func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse
@@ -55,6 +56,15 @@ final class DataService: DataStoreService, Sendable {
         let data = try JSONEncoder().encode(fields)
         let responseData = try await patch("api/data/outings/\(id)", body: data)
         return try JSONDecoder().decode(Outing.self, from: responseData)
+    }
+
+    // MARK: - Dex
+
+    /// Patches one dex_meta row. The server answers with the whole recomputed dex.
+    func updateDexEntry(fields: DexUpdate) async throws -> [DexEntry] {
+        let data = try JSONEncoder().encode(fields)
+        let responseData = try await patch("api/data/dex", body: data)
+        return try JSONDecoder().decode(DexUpdateResponse.self, from: responseData).dexUpdates
     }
 
     // MARK: - Observations
