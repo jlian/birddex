@@ -20,6 +20,23 @@ on:
       - '.github/workflows/ios.yml'
       - '.github/workflows/ios-release.yml'
       - '.github/workflows/release.yml'
+  push:
+    branches: [dev]
+    paths:
+      - 'ios/**'
+      - 'openapi.yaml'
+      - 'functions/**'
+      - 'worker/**'
+      - 'migrations/**'
+      - 'public/models/text_classifier_int8.bin'
+      - 'public/priors/**'
+      - 'src/lib/bird-id-local-adapter.ts'
+      - 'src/lib/rarity.ts'
+      - 'src/lib/taxonomy.json'
+      - '.github/workflows/ios.yml'
+      - '.github/workflows/ios-release.yml'
+      - '.github/workflows/release.yml'
+
 concurrency:
   group: ios-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,6 +44,7 @@ concurrency:
 permissions:
   contents: read
   deployments: read
+  pull-requests: read
 
 jobs:
   plan:
@@ -36,10 +54,45 @@ jobs:
       matrix: ${{ steps.matrix.outputs.value }}
       accessibility: ${{ steps.accessibility.outputs.run }}
       accessibility_reason: ${{ steps.accessibility.outputs.reason }}
+      skip_duplicate_push: ${{ steps.duplicate-push.outputs.skip }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Skip duplicate push coverage
+        id: duplicate-push
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          skip=false
+          reason="not a push event"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            open_prs=$(curl --fail --silent --show-error --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              --get "$API_URL/repos/$REPOSITORY/pulls" \
+              --data-urlencode "state=open" \
+              --data-urlencode "head=$REPOSITORY_OWNER:$BRANCH" \
+              --data-urlencode "base=main" \
+              --data-urlencode "per_page=1")
+            if jq -e 'length > 0' >/dev/null <<< "$open_prs"; then
+              skip=true
+              reason="push has an open $BRANCH-to-main pull request"
+            else
+              reason="push has no open $BRANCH-to-main pull request"
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          echo "Duplicate push coverage: $skip ($reason)"
 
       - name: Select accessibility coverage
         id: accessibility
@@ -47,8 +100,14 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SKIP_DUPLICATE_PUSH: ${{ steps.duplicate-push.outputs.skip }}
         run: |
           set -euo pipefail
+          if [[ "$SKIP_DUPLICATE_PUSH" == "true" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=duplicate push coverage skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "reason=$EVENT_NAME always runs the full accessibility suite" >> "$GITHUB_OUTPUT"
@@ -100,8 +159,11 @@ jobs:
         id: matrix
         env:
           RUN_ACCESSIBILITY: ${{ steps.accessibility.outputs.run }}
+          SKIP_DUPLICATE_PUSH: ${{ steps.duplicate-push.outputs.skip }}
         run: |
-          if [[ "$RUN_ACCESSIBILITY" == "true" ]]; then
+          if [[ "$SKIP_DUPLICATE_PUSH" == "true" ]]; then
+            echo 'value={"include":[]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$RUN_ACCESSIBILITY" == "true" ]]; then
             echo 'value={"include":[{"lane":"core"},{"lane":"accessibility"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'value={"include":[{"lane":"core"}]}' >> "$GITHUB_OUTPUT"
@@ -110,6 +172,7 @@ jobs:
   test:
     name: iOS ${{ matrix.lane }} lane
     needs: plan
+    if: needs.plan.outputs.skip_duplicate_push != 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
