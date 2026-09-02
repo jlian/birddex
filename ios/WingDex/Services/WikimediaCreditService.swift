@@ -7,11 +7,13 @@ struct WikimediaImageCredit: Sendable, Equatable {
     let license: String?
     let pageUrl: String
 
-    /// "Photo Polinova / CC BY-SA 4.0". Names the source when the file page lists
+    /// "Photo: Polinova / CC BY-SA 4.0". Names the source when the file page lists
     /// neither, so the line never renders as a bare "Photo".
     var label: String {
         let parts = [artist, license].compactMap { $0 }
-        return parts.isEmpty ? "Wikimedia Commons" : "\(parts.joined(separator: " / "))"
+        return parts.isEmpty
+            ? "Photo: Wikimedia Commons"
+            : "Photo: \(parts.joined(separator: " / "))"
     }
 }
 

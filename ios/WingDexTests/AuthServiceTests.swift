@@ -253,12 +253,20 @@ final class SessionValidationTests: XCTestCase {
 
     func testMergeRecoveryMessagesDistinguishFinalizationFromRefreshFailure() {
         XCTAssertEqual(
-            accountMergeRecoveryMessage(refreshFailed: false),
+            accountMergeRecoveryMessage(refreshFailed: false, isMergingAccounts: true),
             "Your original sightings are safe. Retry to finish adding them to this account."
         )
         XCTAssertEqual(
-            accountMergeRecoveryMessage(refreshFailed: true),
+            accountMergeRecoveryMessage(refreshFailed: true, isMergingAccounts: true),
             "Your sightings were added, but WingDex couldn't reload them. Retry to refresh this account."
+        )
+        XCTAssertEqual(
+            accountMergeRecoveryMessage(refreshFailed: false, isMergingAccounts: false),
+            "WingDex couldn't finish signing you in. Retry to continue."
+        )
+        XCTAssertEqual(
+            accountMergeRecoveryMessage(refreshFailed: true, isMergingAccounts: false),
+            "WingDex couldn't reload your account. Retry to refresh it."
         )
     }
 

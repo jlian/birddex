@@ -529,6 +529,7 @@ struct OutingDetailView: View {
                     notesFocused = false
                 }
                 .buttonStyle(.borderless)
+                .disabled(savingNotes)
                 Spacer()
                 Button("Save") { Task { await saveNotes() } }
                     .buttonStyle(.borderless)

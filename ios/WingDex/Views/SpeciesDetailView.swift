@@ -29,10 +29,9 @@ struct SpeciesDetailView: View {
 
     private var entry: DexEntry? {
         if let speciesKey { return store.dexEntry(byKey: speciesKey) }
-        if let reference,
-           let match = store.dexEntry(byKey: dexGroupKey(speciesCode: reference.speciesCode,
-                                                         speciesName: reference.commonName)) {
-            return match
+        if let reference {
+            return store.dexEntry(byKey: dexGroupKey(speciesCode: reference.speciesCode,
+                                                     speciesName: reference.commonName))
         }
         return store.dexEntry(for: speciesName)
     }
@@ -338,6 +337,7 @@ struct SpeciesDetailView: View {
                     notesFocused = false
                 }
                 .buttonStyle(.borderless)
+                .disabled(savingNotes)
                 Spacer()
                 Button("Save") { Task { await saveNotes(entry) } }
                     .buttonStyle(.borderless)

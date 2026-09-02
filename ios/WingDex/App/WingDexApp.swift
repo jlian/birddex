@@ -401,7 +401,10 @@ private struct AccountMergeRecoveryView: View {
                 Label(isMergingAccounts ? "Sightings not moved yet" : "Couldn't finish signing in",
                       systemImage: "exclamationmark.triangle")
             } description: {
-                Text(accountMergeRecoveryMessage(refreshFailed: refreshFailed))
+                Text(accountMergeRecoveryMessage(
+                    refreshFailed: refreshFailed,
+                    isMergingAccounts: isMergingAccounts
+                ))
             }
 
             VStack(spacing: 10) {
@@ -420,8 +423,13 @@ private struct AccountMergeRecoveryView: View {
     }
 }
 
-func accountMergeRecoveryMessage(refreshFailed: Bool) -> String {
-    refreshFailed
+func accountMergeRecoveryMessage(refreshFailed: Bool, isMergingAccounts: Bool) -> String {
+    guard isMergingAccounts else {
+        return refreshFailed
+            ? "WingDex couldn't reload your account. Retry to refresh it."
+            : "WingDex couldn't finish signing you in. Retry to continue."
+    }
+    return refreshFailed
         ? "Your sightings were added, but WingDex couldn't reload them. Retry to refresh this account."
         : "Your original sightings are safe. Retry to finish adding them to this account."
 }
