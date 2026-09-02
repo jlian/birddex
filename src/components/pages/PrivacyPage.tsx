@@ -3,7 +3,7 @@ export default function PrivacyPage() {
     <div className="px-5 sm:px-8 py-8 sm:py-10 space-y-8 max-w-2xl mx-auto">
       <div className="space-y-2">
         <h2 className="font-serif text-2xl font-semibold text-foreground">Privacy Policy</h2>
-        <p className="text-sm text-muted-foreground/90">Last updated: August 2026</p>
+        <p className="text-sm text-muted-foreground/90">Last updated: September 2026</p>
       </div>
 
       <article className="space-y-8 text-[0.9375rem] text-foreground/75 leading-7">
@@ -17,17 +17,17 @@ export default function PrivacyPage() {
           <div className="space-y-2">
             <h4 className="font-medium text-foreground">2.1 Information you provide</h4>
             <ul className="list-disc ml-5 space-y-1.5">
-              <li><strong>Account information:</strong> Authentication credentials such as passkeys, or information from social login providers (e.g., display name, email address, and provider-issued identifiers).</li>
-              <li><strong>Birding data:</strong> Observations, outings, species lists, notes, and related metadata you enter into the app.</li>
-              <li><strong>Photos:</strong> Images you add for bird identification are processed entirely on your device. The image itself is never uploaded to us as part of identification; we store only associated metadata (capture time, GPS coordinates if present, file name) and a file fingerprint hash used for duplicate detection.</li>
-              <li><strong>Imported data:</strong> Data you import from external sources such as eBird CSV exports.</li>
+              <li><strong>Account and authentication information:</strong> Display name, email address, profile image, provider-issued account identifiers, and authentication tokens when you use social login. For passkeys, WingDex stores the public key and credential metadata; the private key remains with your device or passkey provider.</li>
+              <li><strong>Birding data:</strong> Observations, outings, species lists, counts, identification confidence, notes, dates and times, location names, precise coordinates when present, checklist details, and related metadata you enter into the app.</li>
+              <li><strong>Photo metadata:</strong> Images you add for bird identification are processed entirely on your device. WingDex does not upload or store the image pixels. We store associated metadata such as capture time, GPS coordinates when present, file name, and a file fingerprint hash used for duplicate detection.</li>
+              <li><strong>Imported data:</strong> When you import an eBird CSV export, the file is uploaded to WingDex for server-side parsing. WingDex stores the resulting birding records, submission identifiers, and an import fingerprint used to prevent duplicate imports, but does not retain the original CSV after the request is processed.</li>
             </ul>
           </div>
           <div className="space-y-2">
             <h4 className="font-medium text-foreground">2.2 Information collected automatically</h4>
             <ul className="list-disc ml-5 space-y-1.5">
-              <li><strong>Usage data:</strong> Basic request metadata (e.g., timestamps, IP addresses, user-agent strings) through hosting infrastructure for operational and security purposes.</li>
-              <li><strong>Local storage:</strong> Browser local storage and session cookies to maintain session state and preferences. We do not use third-party tracking or advertising cookies.</li>
+              <li><strong>Session and request data:</strong> Session identifiers and expiration, IP address, user-agent information, authenticated account identifier, requested API route, response status, request duration, trace identifiers, and limited operational counts. WingDex does not include request bodies, photos, coordinates, location searches, file names, or notes in its application logs.</li>
+              <li><strong>Device storage:</strong> The web app uses first-party cookies and browser storage for sessions, preferences, and limited content caches. The iOS app stores authentication tokens in the system Keychain and may keep a local cache of your WingDex account data. Photos shared to the iOS app may be staged temporarily on your device while the app imports them. We do not use third-party tracking or advertising cookies.</li>
             </ul>
           </div>
         </section>
@@ -38,7 +38,10 @@ export default function PrivacyPage() {
             <li>Provide, operate, and maintain the WingDex application and its features</li>
             <li>Authenticate your identity and manage your account</li>
             <li>Identify birds from your photos on your device, without uploading the image</li>
+            <li>Import and export birding records at your request</li>
+            <li>Suggest outing names and search for places</li>
             <li>Display species information, media, and related content</li>
+            <li>Diagnose failures and understand aggregate service operation</li>
             <li>Monitor and protect the security and integrity of the Service</li>
             <li>Comply with legal obligations</li>
           </ul>
@@ -46,21 +49,21 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">4. Photo handling</h3>
-          <p>Bird identification runs <strong>entirely on your device</strong> using a model the web app downloads once and the iOS app ships with. The photo you identify is <strong>not</strong> transmitted to us or to any third party for identification, and never leaves your device for that purpose. We do not use your photos to train AI models. To prevent accidental duplicate imports, we store a file fingerprint hash and related metadata (such as capture time and location, when present), but not the image contents.</p>
+          <p>Bird identification runs <strong>entirely on your device</strong> using a model the web app downloads once and the iOS app ships with. The photo you identify is <strong>not</strong> transmitted to us or to any third party for identification. We do not use your photos to train AI models. The web app processes selected photos in local browser memory. The iOS share extension may temporarily copy selected photos into the WingDex app group on your device until the app accepts and removes them. To prevent accidental duplicate imports, we store a file fingerprint hash and related metadata such as capture time and location, when present, but not the image contents.</p>
         </section>
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">5. Third-party services</h3>
           <p>WingDex relies on third-party services to deliver its functionality. These services may receive limited data as necessary:</p>
           <ul className="list-disc ml-5 space-y-0.5">
-            <li><strong>Cloudflare:</strong> Hosting, edge computing, DNS, and database infrastructure.</li>
-            <li><strong>Wikimedia / Wikipedia:</strong> Species images and descriptions fetched from Wikimedia APIs.</li>
-            <li><strong>eBird / Cornell Lab of Ornithology:</strong> Taxonomy and species data for matching and display.</li>
-            <li><strong>BirdLife International:</strong> We provide optional links to species factsheets on BirdLife's DataZone. No photo or location data is sent; following a link is your choice.</li>
-            <li><strong>iNaturalist:</strong> The identification model and its geographic prior are built from iNaturalist open data. Both ship with the app, so nothing is ever sent to iNaturalist.</li>
-            <li><strong>Geoapify:</strong> When you type a place name into the location search box, that query is forwarded through our server to Geoapify. Nothing else is. Coordinates are never sent to Geoapify. Geoapify states that successful API request bodies, headers, IP addresses, and timestamps are generally retained for no longer than 24 hours to generate aggregate usage statistics.</li>
-            <li><strong>OpenStreetMap:</strong> Suggesting an outing name from your photo's location runs entirely on WingDex infrastructure, against a place-name database built from OpenStreetMap data. Your coordinates are not sent to any third party for this. The place names and boundaries come from OpenStreetMap, &copy; OpenStreetMap contributors, made available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noreferrer" className="underline underline-offset-2">Open Database License (ODbL) 1.0</a>. Each place also carries a prominence score derived from Wikipedia article link counts, published by the <a href="https://nominatim.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2">Nominatim</a> project, which is joined in when the database is built and used only to break ties between similarly named places. That database is a Derivative Database under the ODbL, so the method used to produce an equivalent archive is published in full as <a href="https://github.com/jlian/wingdex/blob/main/scripts/osm-places/build-global.sh" target="_blank" rel="noreferrer" className="underline underline-offset-2">scripts/osm-places/build-global.sh</a>.</li>
-            <li><strong>Authentication providers:</strong> Limited profile data exchanged during social login (e.g., GitHub, Apple).</li>
+            <li><strong>Cloudflare:</strong> WingDex uses Cloudflare for website delivery, DNS, edge computing, databases, object storage, rate limiting, and operational logging. Cloudflare processes network and request information such as IP address, request URL, user agent, timestamps, and security metadata to provide and protect these services. Its retention varies by data type, configuration, operational need, and legal obligation.</li>
+            <li><strong>Wikimedia Foundation:</strong> When WingDex displays Wikipedia descriptions or Wikimedia Commons images, your device may request them directly from Wikimedia. Wikimedia therefore receives the requested species or media URL and ordinary request information such as your IP address, user agent, and timestamp under its own privacy policy.</li>
+            <li><strong>eBird / Cornell Lab of Ornithology:</strong> WingDex includes taxonomy and species identifiers derived from eBird/Clements data. Using that bundled data and importing an eBird CSV into WingDex do not contact eBird. If you follow an optional eBird species link, your device contacts eBird and its terms and privacy practices apply.</li>
+            <li><strong>BirdLife International:</strong> WingDex provides optional links to species factsheets on BirdLife's DataZone. WingDex does not place your photo or coordinates in those links. If you follow one, your device contacts BirdLife and may disclose ordinary request information such as IP address, user agent, timestamp, and referrer.</li>
+            <li><strong>iNaturalist Open Data:</strong> WingDex's identification model was trained using appropriately licensed images from the iNaturalist Open Data dataset, and its bundled geographic prior was derived from iNaturalist occurrence records. Identification and prior lookup run locally, so WingDex does not automatically send your photo, coordinates, or identification request to iNaturalist. If you follow an external iNaturalist link, your device contacts that site under its own privacy practices.</li>
+            <li><strong>Geoapify:</strong> When you submit a typed place-name search, WingDex's server sends the query and technical API-request information to Geoapify. WingDex does not include your photo, photo coordinates, or WingDex account data in that request, and Geoapify ordinarily sees the server's network address rather than your device's IP address. Geoapify states that it stores request bodies, headers, IP addresses, and timestamps for access control, usage counting, troubleshooting, and service improvement, and that successful-request data is generally retained no longer than 24 hours to produce aggregated usage statistics. Other records may follow different retention requirements under Geoapify's privacy policy.</li>
+            <li><strong>OpenStreetMap and Nominatim:</strong> Suggesting an outing name from photo coordinates runs on WingDex infrastructure using a locally hosted database derived from OpenStreetMap data; coordinates are not sent to OpenStreetMap or a third-party geocoding API. The database incorporates Nominatim's published Wikimedia-importance values to rank otherwise similar results. OpenStreetMap data is &copy; OpenStreetMap contributors and available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noreferrer" className="underline underline-offset-2">Open Database License (ODbL) 1.0</a>. WingDex publishes its reproducible build method and related notices in <a href="https://github.com/jlian/wingdex/blob/main/scripts/osm-places/build-global.sh" target="_blank" rel="noreferrer" className="underline underline-offset-2">scripts/osm-places/build-global.sh</a>.</li>
+            <li><strong>Social-login providers:</strong> WingDex may offer GitHub, Google, and Apple sign-in. If you choose one, WingDex and that provider exchange a provider-issued account identifier, authentication tokens, and profile fields authorized for login, such as name, email address, and profile image. The provider also learns that you initiated a WingDex sign-in and receives ordinary network and device information. Each provider processes information under its own privacy policy, and you can review or revoke WingDex's access through the provider's account settings.</li>
           </ul>
         </section>
 
@@ -68,8 +71,10 @@ export default function PrivacyPage() {
           <h3 className="font-semibold text-foreground">6. Data sharing and disclosure</h3>
           <p>We do not sell, rent, or trade your personal information. We may share information only:</p>
           <ul className="list-disc ml-5 space-y-0.5">
-            <li>With infrastructure and authentication providers as described in Section 5, solely to operate the Service</li>
-            <li>With Geoapify when you submit a location search, subject to its separate privacy policy. Location name suggestions from your coordinates do not involve Geoapify.</li>
+            <li>With Cloudflare and authentication providers as described in Section 5, solely to operate and secure the Service or complete a login you choose</li>
+            <li>With Geoapify when you submit a typed location search; location name suggestions from photo coordinates do not involve Geoapify</li>
+            <li>With Wikimedia when your device requests species descriptions, images, or image-license information</li>
+            <li>With a third-party website when you choose to follow an external link</li>
             <li>If required by law, regulation, legal process, or governmental request</li>
             <li>To protect the rights, property, or safety of WingDex, its users, or the public</li>
           </ul>
@@ -77,7 +82,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">7. Data retention</h3>
-          <p>Your account data and birding records are retained while your account is active. When in-app account deletion succeeds, WingDex deletes the active account record and its associated birding data, sessions, passkeys, and linked-provider records. WingDex does not retain a geocoding-provider response cache. Hosting and service providers may retain temporary operational or backup data under their own retention and recovery practices.</p>
+          <p>Account and birding records remain in WingDex's live database until you delete the records, delete a registered account, or ask us to remove them. Guest users can delete their birding records in the app, and those records may instead be merged into a registered account when they sign up. When in-app account deletion succeeds, WingDex deletes the live account record and its associated birding data, sessions, passkeys, authentication tokens, linked-provider records, and import receipts. Operational logs, provider records, and backup data may remain for the retention periods required by the relevant provider's configuration, security, recovery, or legal practices. WingDex does not retain the original eBird CSV after processing or cache Geoapify responses.</p>
         </section>
 
         <section className="space-y-1">
@@ -97,12 +102,13 @@ export default function PrivacyPage() {
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">11. International data transfers</h3>
-          <p>WingDex is hosted on globally distributed infrastructure (Cloudflare). Your data may be processed in jurisdictions outside your country of residence, which may have different data protection laws.</p>
+          <p>WingDex is hosted on globally distributed Cloudflare infrastructure. Cloudflare states that it primarily stores information in the United States and European Economic Area and may process or transfer it elsewhere using the safeguards described in its privacy policy. Your data may therefore be processed in jurisdictions outside your country of residence, which may have different data protection laws.</p>
         </section>
 
         <section className="space-y-1">
           <h3 className="font-semibold text-foreground">12. Changes and contact</h3>
-          <p>We may update this policy from time to time. Material changes will be reflected in the "Last updated" date above. For questions or requests, open an issue on the{' '}
+          <p>We may update this policy from time to time. Material changes will be reflected in the "Last updated" date above. For private questions or requests, use the{' '}
+            <a href="https://johnlian.net/about/#contact" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">private contact form</a>. For public project questions, open an issue on the{' '}
             <a href="https://github.com/jlian/wingdex/issues" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">WingDex GitHub repository</a>.
           </p>
         </section>
