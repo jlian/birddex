@@ -1,3 +1,15 @@
+# [1.30.0](https://github.com/jlian/wingdex/compare/v1.29.0...v1.30.0) (2026-09-03)
+
+
+### Features
+
+* **iOS:** support offline photo uploads ([48bfca2](https://github.com/jlian/wingdex/commit/48bfca20cc634587dc98193d5784d242e93a8ae5))
+
+
+### Performance Improvements
+
+* **CI:** run E2E tests with one worker ([58d9393](https://github.com/jlian/wingdex/commit/58d93932702635c63f8b2d42c6964967b64583e8))
+
 # [1.29.0](https://github.com/jlian/wingdex/compare/v1.28.1...v1.29.0) (2026-09-03)
 
 
