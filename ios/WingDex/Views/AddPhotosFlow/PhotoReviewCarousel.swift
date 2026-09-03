@@ -82,7 +82,7 @@ struct PhotoReviewCarousel: UIViewRepresentable {
             return UIContextMenuConfiguration(
                 identifier: photo.id as NSString,
                 previewProvider: {
-                    guard let image = UIImage(data: photo.image) else { return nil }
+                    guard let image = UIImage(contentsOfFile: photo.originalURL.path) else { return nil }
                     let size = Self.previewSize(for: image)
                     let controller = UIHostingController(
                         rootView: Image(uiImage: image)

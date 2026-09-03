@@ -17,6 +17,43 @@ private struct PhotoPreparationOutcome: Sendable {
     let rejectedSharedFileName: String?
 }
 
+private final class PhotoPreparationBatch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ownedURLs: Set<URL> = []
+    private var preparedBytes = 0
+
+    func registerOwned(_ url: URL) {
+        _ = lock.withLock { ownedURLs.insert(url) }
+    }
+
+    func unregisterOwned(_ url: URL) {
+        _ = lock.withLock { ownedURLs.remove(url) }
+    }
+
+    func reserve(_ byteCount: Int) -> Bool {
+        lock.withLock {
+            guard byteCount <= IncomingShareStore.maximumTotalBytes - preparedBytes else {
+                return false
+            }
+            preparedBytes += byteCount
+            return true
+        }
+    }
+
+    func cleanupOwnedFiles() {
+        let urls = lock.withLock {
+            let urls = ownedURLs
+            ownedURLs.removeAll()
+            return urls
+        }
+        PhotoFlowStore.remove(urls)
+    }
+
+    func relinquishOwnedFiles() {
+        lock.withLock { ownedURLs.removeAll() }
+    }
+}
+
 /// ViewModel for the multi-step Add Photos wizard flow.
 ///
 /// Flow: selectPhotos -> extracting -> outingReview -> photoProcessing ->
@@ -121,6 +158,8 @@ final class AddPhotosViewModel {
 
     /// AI candidates for the photo currently being confirmed.
     var currentCandidates: [IdentifiedCandidate] = []
+    private(set) var activeImageData: Data?
+    private var activeImagePhotoID: String?
 
     /// Whether range-prior data was used to adjust confidence.
     var rangeAdjusted = false
@@ -175,16 +214,21 @@ final class AddPhotosViewModel {
     private var sessionGeneration = UUID()
 
     func configure(auth: AuthService, dataStore: DataStore) {
-        let accountID = dataStore.activeAccountID
+        let accountID = auth.userId
         if self.accountID != accountID {
-            sessionGeneration = UUID()
+            if self.accountID != nil {
+                sessionGeneration = UUID()
+                resetFlowForAccountChange()
+            }
         }
         self.accountID = accountID
         authService = auth
         dataService = DataService(auth: auth, expectedAccountID: accountID)
         self.dataStore = dataStore
         // Initialize lastLocationName from the most recent outing
-        if let mostRecent = dataStore.outings
+        lastLocationName = ""
+        if dataStore.activeAccountID == accountID,
+           let mostRecent = dataStore.outings
             .sorted(by: { DateFormatting.sortDate($0.createdAt) > DateFormatting.sortDate($1.createdAt) })
             .first
         {
@@ -192,8 +236,10 @@ final class AddPhotosViewModel {
         }
     }
 
-    func cancelSession() {
+    func cancelSession() async {
         sessionGeneration = UUID()
+        await releaseIncomingShare()
+        cleanupPhotoFiles()
         accountID = nil
         authService = nil
         dataService = nil
@@ -203,6 +249,13 @@ final class AddPhotosViewModel {
     func stopShareQueueAfterDismissal() {
         continuesShareQueueAfterDismissal = false
         stoppedShareQueueAfterDismissal = true
+    }
+
+    func discardSession() async {
+        await finalizeDiscardedShare()
+        error = nil
+        errorRecovery = nil
+        currentStep = .selectPhotos
     }
 
     // MARK: - Convenience
@@ -229,21 +282,31 @@ final class AddPhotosViewModel {
     }
 
     func importIncomingShareIfAvailable() async -> IncomingShareImportResult {
-        guard currentStep == .selectPhotos,
-              !isProcessing,
-              !showDuplicateConfirm,
-              pendingNewPhotos.isEmpty,
-              pendingDuplicatePhotos.isEmpty,
-              incomingShareID == nil
-        else { return .busy }
+        guard canStartIncomingShareImport else { return .busy }
         do {
             guard let snapshot = try await IncomingShareStore.oldestPendingShare() else {
                 return .empty
             }
-            incomingShareID = snapshot.id
-            incomingSharedPhotos = snapshot.photos
+            guard canStartIncomingShareImport else { return .busy }
+            guard let claimed = try await IncomingShareStore.claim(id: snapshot.id) else {
+                throw IncomingShareError.noLongerPending
+            }
+            guard canStartIncomingShareImport else {
+                do {
+                    try await IncomingShareStore.returnClaim(id: claimed.id)
+                } catch {
+                    incomingShareID = claimed.id
+                    incomingSharedPhotos = claimed.photos
+                    log.error(
+                        "Could not return busy incoming share \(claimed.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+                return .busy
+            }
+            incomingShareID = claimed.id
+            incomingSharedPhotos = claimed.photos
             await processSelectedPhotos()
-            if incomingShareID == nil {
+            if currentStep == .outingReview || showDuplicateConfirm {
                 continuesShareQueueAfterDismissal = true
                 return .accepted
             }
@@ -255,11 +318,24 @@ final class AddPhotosViewModel {
             // nothing the person shared and nothing to report. Unsigned builds,
             // which the simulator test job produces, always land here.
             return .empty
-        } catch {
-            self.error = AppError.map(error, fallback: "Could not import the shared photos. Try again.")
+        } catch let importError {
+            log.error("Could not import incoming shared photos: \(importError.localizedDescription, privacy: .public)")
+            self.error = AppError.map(importError, fallback: "Could not import the shared photos. Try again.")
             errorRecovery = .incomingShareImport
             return .failed
         }
+    }
+
+    private var canStartIncomingShareImport: Bool {
+        currentStep == .selectPhotos
+            && !isProcessing
+            && !showDuplicateConfirm
+            && selectedItems.isEmpty
+            && cameraPhotos.isEmpty
+            && pendingNewPhotos.isEmpty
+            && pendingDuplicatePhotos.isEmpty
+            && incomingShareID == nil
+            && incomingSharedPhotos.isEmpty
     }
 
     // MARK: - Step 1: Process Selected Photos
@@ -275,6 +351,7 @@ final class AddPhotosViewModel {
         processedCount = 0
         extractionProgress = 0
         processingMessage = "Preparing photos..."
+        let extractionGeneration = sessionGeneration
         async let preparedSession = prepareCurrentSession()
 
         // Reset accumulated stats for this upload session
@@ -294,8 +371,16 @@ final class AddPhotosViewModel {
         } catch is CancellationError {
             cancelExtractionForSessionChange()
             return
+        } catch let error as IncomingShareError {
+            await releaseIncomingShare()
+            self.error = .message(error.localizedDescription)
+            currentStep = .selectPhotos
+            isProcessing = false
+            return
         } catch {
+            await releaseIncomingShare()
             self.error = AppError.map(error, fallback: "Could not prepare the selected photos. Try again.")
+            currentStep = .selectPhotos
             isProcessing = false
             return
         }
@@ -308,47 +393,44 @@ final class AddPhotosViewModel {
             }
         }
 
+        let preparedBytes = candidatePhotos.reduce(0) { $0 + $1.byteCount }
+        guard preparedBytes <= IncomingShareStore.maximumTotalBytes else {
+            PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+            await releaseIncomingShare()
+            self.error = .message(IncomingShareError.shareTooLarge.localizedDescription)
+            currentStep = .selectPhotos
+            isProcessing = false
+            return
+        }
+
         processingMessage = "Preparing your WingDex..."
         let sessionID: UUID
         do {
             sessionID = try await preparedSession
         } catch {
+            PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
             self.error = AppError.map(error, fallback: "Could not start a WingDex session. Try again.")
             errorRecovery = .sessionPreparation
             isProcessing = false
             return
         }
-        guard isCurrentSession(sessionID) else {
+        guard sessionGeneration == extractionGeneration else {
+            PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
             cancelExtractionForSessionChange()
             return
         }
-        for photo in candidatePhotos {
-            appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+        guard isCurrentSession(sessionID) else {
+            PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+            cancelExtractionForSessionChange()
+            return
         }
-        if let unreadableShareID = incomingShareID, newPhotos.isEmpty, duplicatePhotos.isEmpty {
+        if incomingShareID != nil, candidatePhotos.isEmpty {
             // Every photo in the batch failed to decode. The staged files are
             // immutable, so a retry reads the same bytes and fails again, and
             // leaving the batch pending blocks every newer batch behind it in
             // the FIFO queue. Accept it to drop it from the queue, and ask for
             // a fresh share instead of offering a retry that cannot succeed.
-            do {
-                guard try await IncomingShareStore.accept(id: unreadableShareID) else {
-                    throw IncomingShareError.noLongerPending
-                }
-            } catch {
-                // The batch is still at the head of the queue, so it will be
-                // rescanned. Report a retryable queue failure rather than
-                // claiming the unreadable batch was cleared.
-                self.error = AppError.map(
-                    error,
-                    fallback: "Could not finish importing the shared photos. Try again."
-                )
-                errorRecovery = .sessionPreparation
-                isProcessing = false
-                return
-            }
-            incomingShareID = nil
-            incomingSharedPhotos = []
+            await releaseIncomingShare()
             error = .message("No shared photos could be read. Share them again in a supported image format.")
             errorRecovery = nil
             isProcessing = false
@@ -359,36 +441,6 @@ final class AddPhotosViewModel {
             continuesShareQueueAfterDismissal = true
             return
         }
-        // Acceptance is the commit point for the batch: it removes the only
-        // durable copy, so nothing can replay it afterwards. Check the session
-        // immediately before accepting, which keeps the batch pending for the
-        // common case where the session changed earlier during extraction.
-        if let incomingShareID {
-            guard isCurrentSession(sessionID) else {
-                cancelExtractionForSessionChange()
-                return
-            }
-            do {
-                guard try await IncomingShareStore.accept(id: incomingShareID) else {
-                    throw IncomingShareError.noLongerPending
-                }
-            } catch {
-                self.error = AppError.map(
-                    error,
-                    fallback: "Could not finish importing the shared photos. Try again."
-                )
-                errorRecovery = .sessionPreparation
-                isProcessing = false
-                return
-            }
-        }
-        // A session can still change while `accept` is suspended. The batch is
-        // consumed by then, so clear the id here rather than leave the view model
-        // holding one the queue no longer knows about. Dropping the photos is
-        // deliberate: writing them into a switched account would move one
-        // account's photos into another, which is worse than losing a share.
-        incomingShareID = nil
-        incomingSharedPhotos = []
         guard isCurrentSession(sessionID) else {
             cancelExtractionForSessionChange()
             return
@@ -396,28 +448,73 @@ final class AddPhotosViewModel {
 
         // Process camera-captured photos (no EXIF GPS; use the device location
         // captured at shot time, and the processing time as the timestamp).
+        var totalPreparedBytes = candidatePhotos.reduce(0) { $0 + $1.byteCount }
         for camera in cameraPhotos {
             let uiImage = camera.image
             let id = UUID().uuidString
             let compressed = PhotoService.compressImage(uiImage, quality: 0.7) ?? Data()
-            let thumbnail = PhotoService.generateThumbnail(from: compressed) ?? compressed
-            let fileHash = PhotoService.fileHash(for: compressed)
-
-            let photo = ProcessedPhoto(
-                id: id,
-                image: compressed,
-                thumbnail: thumbnail,
-                exifTime: Date(),
-                gpsLat: camera.lat,
-                gpsLon: camera.lon,
-                fileHash: fileHash,
-                fileName: "camera_\(id).jpg"
-            )
-            newPhotos.append(photo)
+            do {
+                let fileURL = try PhotoFlowStore.writeCameraData(compressed)
+                guard let prepared = PhotoService.preparePhoto(at: fileURL) else {
+                    PhotoFlowStore.remove([fileURL])
+                    continue
+                }
+                candidatePhotos.append(ProcessedPhoto(
+                    id: id,
+                    originalURL: fileURL,
+                    cleanupOriginal: true,
+                    thumbnail: prepared.thumbnail,
+                    exifTime: Date(),
+                    gpsLat: camera.lat,
+                    gpsLon: camera.lon,
+                    fileHash: prepared.fileHash,
+                    fileName: "camera_\(id).jpg",
+                    byteCount: prepared.byteCount
+                ))
+                guard prepared.byteCount <= IncomingShareStore.maximumTotalBytes - totalPreparedBytes else {
+                    PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+                    await releaseIncomingShare()
+                    cameraPhotos = []
+                    error = .message(IncomingShareError.shareTooLarge.localizedDescription)
+                    currentStep = .selectPhotos
+                    isProcessing = false
+                    return
+                }
+                totalPreparedBytes += prepared.byteCount
+            } catch {
+                PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+                await releaseIncomingShare()
+                cameraPhotos = []
+                self.error = if let error = error as? IncomingShareError {
+                    .message(error.localizedDescription)
+                } else {
+                    AppError.map(error, fallback: "Could not prepare the captured photo.")
+                }
+                currentStep = .selectPhotos
+                isProcessing = false
+                return
+            }
             processedCount += 1
             extractionProgress = Double(processedCount) / Double(totalCount) * 100
         }
         cameraPhotos = []
+        guard isCurrentSession(sessionID) else {
+            PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+            cancelExtractionForSessionChange()
+            return
+        }
+
+        guard totalPreparedBytes <= IncomingShareStore.maximumTotalBytes else {
+            PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+            await releaseIncomingShare()
+            error = .message(IncomingShareError.shareTooLarge.localizedDescription)
+            currentStep = .selectPhotos
+            isProcessing = false
+            return
+        }
+        for photo in candidatePhotos {
+            appendByDuplicateStatus(photo, newPhotos: &newPhotos, duplicatePhotos: &duplicatePhotos)
+        }
 
         if newPhotos.isEmpty && duplicatePhotos.isEmpty {
             error = .message("No photos to process.")
@@ -451,66 +548,106 @@ final class AddPhotosViewModel {
     private func preparePhotos(_ inputs: [PhotoPreparationInput]) async throws -> [PhotoPreparationOutcome] {
         guard !inputs.isEmpty else { return [] }
         let concurrencyLimit = min(4, inputs.count)
+        let batch = PhotoPreparationBatch()
 
-        return try await withThrowingTaskGroup(
-            of: PhotoPreparationOutcome.self,
-            returning: [PhotoPreparationOutcome].self
-        ) { group in
-            for index in 0..<concurrencyLimit {
-                let input = inputs[index]
-                group.addTask {
-                    try await Self.preparePhoto(input, index: index)
-                }
-            }
-
-            var nextIndex = concurrencyLimit
-            var ordered = Array<PhotoPreparationOutcome?>(repeating: nil, count: inputs.count)
-            while let outcome = try await group.next() {
-                ordered[outcome.index] = outcome
-                processedCount += 1
-                extractionProgress = Double(processedCount) / Double(totalCount) * 100
-
-                if nextIndex < inputs.count {
-                    try Task.checkCancellation()
-                    let index = nextIndex
+        do {
+            let outcomes = try await withThrowingTaskGroup(
+                of: PhotoPreparationOutcome.self,
+                returning: [PhotoPreparationOutcome].self
+            ) { group in
+                for index in 0..<concurrencyLimit {
                     let input = inputs[index]
                     group.addTask {
-                        try await Self.preparePhoto(input, index: index)
+                        try await Self.preparePhoto(input, index: index, batch: batch)
                     }
-                    nextIndex += 1
                 }
+
+                var nextIndex = concurrencyLimit
+                var ordered = Array<PhotoPreparationOutcome?>(repeating: nil, count: inputs.count)
+                while let outcome = try await group.next() {
+                    ordered[outcome.index] = outcome
+                    processedCount += 1
+                    extractionProgress = Double(processedCount) / Double(totalCount) * 100
+
+                    if nextIndex < inputs.count {
+                        try Task.checkCancellation()
+                        let index = nextIndex
+                        let input = inputs[index]
+                        group.addTask {
+                            try await Self.preparePhoto(input, index: index, batch: batch)
+                        }
+                        nextIndex += 1
+                    }
+                }
+                return ordered.compactMap { $0 }
             }
-            return ordered.compactMap { $0 }
+            batch.relinquishOwnedFiles()
+            return outcomes
+        } catch {
+            batch.cleanupOwnedFiles()
+            throw error
         }
     }
 
     private nonisolated static func preparePhoto(
         _ input: PhotoPreparationInput,
-        index: Int
+        index: Int,
+        batch: PhotoPreparationBatch
     ) async throws -> PhotoPreparationOutcome {
         try Task.checkCancellation()
         switch input {
         case let .picker(item):
+            var importedURL: URL?
             do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
+                guard let imported = try await item.loadTransferable(type: ImportedPhotoFile.self) else {
                     return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
                 }
+                importedURL = imported.url
+                batch.registerOwned(imported.url)
                 try Task.checkCancellation()
+                guard let photo = makeProcessedPhoto(
+                    fileURL: imported.url,
+                    fileName: nil,
+                    cleanupOriginal: true
+                ) else {
+                    PhotoFlowStore.remove([imported.url])
+                    batch.unregisterOwned(imported.url)
+                    return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
+                }
+                guard batch.reserve(photo.byteCount) else {
+                    throw IncomingShareError.shareTooLarge
+                }
                 return PhotoPreparationOutcome(
                     index: index,
-                    photo: makeProcessedPhoto(data: data, fileName: nil),
+                    photo: photo,
                     rejectedSharedFileName: nil
                 )
             } catch is CancellationError {
+                if let importedURL {
+                    PhotoFlowStore.remove([importedURL])
+                    batch.unregisterOwned(importedURL)
+                }
                 throw CancellationError()
+            } catch IncomingShareError.shareTooLarge {
+                throw IncomingShareError.shareTooLarge
+            } catch let error as IncomingShareError {
+                throw error
             } catch {
+                if let importedURL {
+                    PhotoFlowStore.remove([importedURL])
+                    batch.unregisterOwned(importedURL)
+                }
                 log.error("Failed to load a selected photo")
                 return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
             }
         case let .shared(sharedPhoto):
             do {
-                let data = try await readSharedPhotoData(from: sharedPhoto.fileURL)
-                guard let photo = makeProcessedPhoto(data: data, fileName: sharedPhoto.fileName) else {
+                try Task.checkCancellation()
+                guard let photo = makeProcessedPhoto(
+                    fileURL: sharedPhoto.fileURL,
+                    fileName: sharedPhoto.fileName,
+                    cleanupOriginal: false
+                ) else {
                     log.error("Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
                     return PhotoPreparationOutcome(
                         index: index,
@@ -518,9 +655,14 @@ final class AddPhotosViewModel {
                         rejectedSharedFileName: sharedPhoto.fileName
                     )
                 }
+                guard batch.reserve(photo.byteCount) else {
+                    throw IncomingShareError.shareTooLarge
+                }
                 return PhotoPreparationOutcome(index: index, photo: photo, rejectedSharedFileName: nil)
             } catch is CancellationError {
                 throw CancellationError()
+            } catch IncomingShareError.shareTooLarge {
+                throw IncomingShareError.shareTooLarge
             } catch {
                 log.error("Shared photo read failed after retry: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
                 return PhotoPreparationOutcome(
@@ -532,28 +674,8 @@ final class AddPhotosViewModel {
         }
     }
 
-    private nonisolated static func readSharedPhotoData(from fileURL: URL) async throws -> Data {
-        do {
-            return try await readSharedPhotoDataOnce(from: fileURL, options: .mappedIfSafe)
-        } catch {
-            try Task.checkCancellation()
-            try await Task.sleep(for: .milliseconds(100))
-            return try await readSharedPhotoDataOnce(from: fileURL, options: [])
-        }
-    }
-
-    private nonisolated static func readSharedPhotoDataOnce(
-        from fileURL: URL,
-        options: Data.ReadingOptions
-    ) async throws -> Data {
-        try Task.checkCancellation()
-        let data = try Data(contentsOf: fileURL, options: options)
-        guard !data.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
-        try Task.checkCancellation()
-        return data
-    }
-
     private func cancelExtractionForSessionChange() {
+        cleanupPhotoFiles()
         isProcessing = false
         currentStep = .selectPhotos
         processingMessage = ""
@@ -563,20 +685,23 @@ final class AddPhotosViewModel {
     }
 
     private nonisolated static func makeProcessedPhoto(
-        data: Data,
-        fileName: String?
+        fileURL: URL,
+        fileName: String?,
+        cleanupOriginal: Bool
     ) -> ProcessedPhoto? {
-        guard let prepared = PhotoService.preparePhoto(from: data) else { return nil }
+        guard let prepared = PhotoService.preparePhoto(at: fileURL) else { return nil }
         let id = UUID().uuidString
         return ProcessedPhoto(
             id: id,
-            image: prepared.image,
+            originalURL: fileURL,
+            cleanupOriginal: cleanupOriginal,
             thumbnail: prepared.thumbnail,
             exifTime: prepared.exifTime,
             gpsLat: prepared.gpsLat,
             gpsLon: prepared.gpsLon,
             fileHash: prepared.fileHash,
-            fileName: fileName ?? "photo_\(id).jpg"
+            fileName: fileName ?? fileURL.lastPathComponent,
+            byteCount: prepared.byteCount
         )
     }
 
@@ -594,8 +719,11 @@ final class AddPhotosViewModel {
     }
 
     /// Called after duplicate resolution - finalize extraction with the chosen photos.
-    func handleDuplicateChoice(reimport: Bool) {
+    func handleDuplicateChoice(reimport: Bool) async {
         showDuplicateConfirm = false
+        if !reimport {
+            PhotoFlowStore.remove(pendingDuplicatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
+        }
         let finalPhotos = reimport
             ? pendingNewPhotos + pendingDuplicatePhotos
             : pendingNewPhotos
@@ -606,6 +734,7 @@ final class AddPhotosViewModel {
 
         if finalPhotos.isEmpty {
             selectedItems = []
+            await finalizeDiscardedShare()
             currentStep = .selectPhotos
             if rejectedSharedPhotoCount > 0 {
                 error = .message(
@@ -748,8 +877,32 @@ final class AddPhotosViewModel {
         currentStep = .photoProcessing
 
         let isCropped = croppedImageData != nil || photo.croppedImage != nil
-        let imageToSend = croppedImageData ?? photo.croppedImage ?? photo.image
         processingMessage = "Photo \(photoIndex + 1)/\(photos.count): Identifying species..."
+
+        let originalImageData: Data
+        do {
+            if activeImagePhotoID == photo.id, let activeImageData {
+                originalImageData = activeImageData
+            } else {
+                originalImageData = try await Task.detached(priority: .userInitiated) {
+                    try Data(contentsOf: photo.originalURL, options: .mappedIfSafe)
+                }.value
+                guard isCurrentSession(sessionID), currentPhotoIndex == photoIndex else { return }
+                activeImageData = originalImageData
+                activeImagePhotoID = photo.id
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard isCurrentSession(sessionID), currentPhotoIndex == photoIndex else { return }
+            self.error = .message("Could not read this photo. Try again or skip it.")
+            errorRecovery = .speciesIdentification(photoIndex: photoIndex, croppedImageData: croppedImageData)
+            currentCandidates = []
+            rangeAdjusted = false
+            currentStep = .perPhotoConfirm
+            return
+        }
+        let imageToSend = croppedImageData ?? photo.croppedImage ?? originalImageData
 
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
@@ -922,8 +1075,11 @@ final class AddPhotosViewModel {
     }
 
     /// Remove a photo before identification and keep the cluster state valid.
-    func removePhotoFromCurrentCluster(id: String) {
+    func removePhotoFromCurrentCluster(id: String) async {
         guard currentClusterIndex < clusters.count else { return }
+        if let photo = processedPhotos.first(where: { $0.id == id }), photo.cleanupOriginal {
+            PhotoFlowStore.remove([photo.originalURL])
+        }
         clusters[currentClusterIndex].photos.removeAll { $0.id == id }
         processedPhotos.removeAll { $0.id == id }
 
@@ -932,6 +1088,7 @@ final class AddPhotosViewModel {
             if clusters.isEmpty {
                 currentClusterIndex = 0
                 selectedItems = []
+                await finalizeDiscardedShare()
                 currentStep = .selectPhotos
                 flowDismissalRequestID = UUID()
             } else if currentClusterIndex >= clusters.count {
@@ -956,6 +1113,8 @@ final class AddPhotosViewModel {
 
     /// Move to the next photo or save when all photos in the cluster are done.
     private func advanceToNextPhoto() {
+        activeImageData = nil
+        activeImagePhotoID = nil
         let nextIdx = currentPhotoIndex + 1
         if nextIdx < clusterPhotos.count {
             currentCandidates = []
@@ -1084,7 +1243,7 @@ final class AddPhotosViewModel {
             } else {
                 await store.loadAll()
                 preparedObservations = nil
-                currentStep = .done
+                await finishCompletedFlow()
             }
         } catch is CancellationError {
             return
@@ -1175,6 +1334,83 @@ final class AddPhotosViewModel {
         }
     }
 
+    private func cleanupPhotoFiles() {
+        let photos = processedPhotos
+            + pendingNewPhotos
+            + pendingDuplicatePhotos
+            + clusters.flatMap(\.photos)
+        PhotoFlowStore.remove(photos.filter(\.cleanupOriginal).map(\.originalURL))
+        activeImageData = nil
+        activeImagePhotoID = nil
+        incomingSharedPhotos = []
+    }
+
+    private func finalizeDiscardedShare() async {
+        sessionGeneration = UUID()
+        await releaseIncomingShare()
+        cleanupPhotoFiles()
+    }
+
+    private func resetFlowForAccountChange() {
+        cleanupPhotoFiles()
+        selectedItems = []
+        processedPhotos = []
+        cameraPhotos = []
+        clusters = []
+        currentClusterIndex = 0
+        currentPhotoIndex = 0
+        currentCandidates = []
+        photoResults = []
+        currentOutingId = ""
+        outingInferenceLocation = nil
+        outingOverridesPhotoGPS = false
+        pendingOuting = nil
+        didCreatePhotos = false
+        preparedObservations = nil
+        pendingNewPhotos = []
+        pendingDuplicatePhotos = []
+        pendingRejectedSharedPhotoCount = 0
+        showDuplicateConfirm = false
+        isProcessing = false
+        processingMessage = ""
+        processedCount = 0
+        totalCount = 0
+        extractionProgress = 0
+        error = nil
+        errorRecovery = nil
+        uploadSummary = nil
+        savedOutingCount = 0
+        savedObservationCount = 0
+        newSpeciesCount = 0
+        newSpeciesNames = []
+        continuesShareQueueAfterDismissal = false
+        stoppedShareQueueAfterDismissal = true
+        currentStep = .selectPhotos
+        flowDismissalRequestID = UUID()
+        Task { await releaseIncomingShare() }
+    }
+
+    private func releaseIncomingShare() async {
+        guard let incomingShareID else { return }
+        do {
+            try await IncomingShareStore.releaseClaim(id: incomingShareID)
+            guard self.incomingShareID == incomingShareID else { return }
+            self.incomingShareID = nil
+            incomingSharedPhotos = []
+        } catch {
+            log.error(
+                "Could not clean incoming share \(incomingShareID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    private func finishCompletedFlow() async {
+        await releaseIncomingShare()
+        error = nil
+        errorRecovery = nil
+        currentStep = .done
+    }
+
 }
 
 /// Photos that count as a sighting. A cluster with none of these earned no outing, so it is
@@ -1195,13 +1431,15 @@ private enum ErrorRecovery {
 /// A photo after metadata extraction and thumbnail generation.
 struct ProcessedPhoto: Identifiable, Sendable {
     let id: String
-    let image: Data        // Original bytes, or a single JPEG encode for camera captures
+    let originalURL: URL
+    let cleanupOriginal: Bool
     var thumbnail: Data    // Small thumbnail for display
     let exifTime: Date?
     let gpsLat: Double?
     let gpsLon: Double?
     let fileHash: String
     let fileName: String
+    let byteCount: Int
     /// User-confirmed cropped image used for re-analysis and preview, matching web croppedDataUrl.
     var croppedImage: Data? = nil
 }

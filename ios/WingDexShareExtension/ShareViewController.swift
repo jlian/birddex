@@ -73,9 +73,6 @@ final class ShareViewController: UIViewController {
                 $0.hasItemConformingToTypeIdentifier(UTType.image.identifier)
             }
             guard !providers.isEmpty else { throw IncomingShareError.noPhotos }
-            guard providers.count <= IncomingShareStore.maximumPhotoCount else {
-                throw IncomingShareError.tooManyPhotos
-            }
 
             var temporaryFiles: [URL] = []
             defer {

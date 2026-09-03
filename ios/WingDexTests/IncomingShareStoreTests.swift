@@ -133,14 +133,71 @@ final class IncomingShareStoreTests: XCTestCase {
         let pending = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
         XCTAssertNil(pending)
 
-        let tooMany = (0...IncomingShareStore.maximumPhotoCount).map {
-            fixture.sources.appendingPathComponent("missing-\($0).jpg")
-        }
-        do {
-            try await IncomingShareStore.stage(fileURLs: tooMany, in: fixture.container)
-            XCTFail("Expected the photo count limit")
-        } catch IncomingShareError.tooManyPhotos {
-        }
+    }
+
+    func testClaimsBatchWithoutCopyingAndReleasesIt() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let photo = try fixture.source(name: "photo.jpg", contents: "photo")
+        let id = try await IncomingShareStore.stage(fileURLs: [photo], in: fixture.container)
+
+        let claimedSnapshot = try await IncomingShareStore.claim(id: id, in: fixture.container)
+        let claimed = try XCTUnwrap(claimedSnapshot)
+        let pending = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
+        XCTAssertNil(pending)
+        XCTAssertEqual(try String(decoding: Data(contentsOf: claimed.photos[0].fileURL), as: UTF8.self), "photo")
+
+        try await IncomingShareStore.releaseClaim(id: id, in: fixture.container)
+        let replayed = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: claimed.photos[0].fileURL.path))
+        XCTAssertNil(replayed)
+    }
+
+    func testReturnedClaimBecomesPendingAgain() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let photo = try fixture.source(name: "photo.jpg", contents: "photo")
+        let id = try await IncomingShareStore.stage(fileURLs: [photo], in: fixture.container)
+        let claimed = try await IncomingShareStore.claim(id: id, in: fixture.container)
+
+        try await IncomingShareStore.returnClaim(id: id, in: fixture.container)
+
+        let pending = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
+        XCTAssertNotNil(claimed)
+        XCTAssertEqual(pending?.id, id)
+        XCTAssertEqual(try Data(contentsOf: try XCTUnwrap(pending?.photos.first?.fileURL)), Data("photo".utf8))
+    }
+
+    func testDiscardsClaimedBatchAfterRelaunchWithoutTouchingPending() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let claimedPhoto = try fixture.source(name: "claimed.jpg", contents: "claimed")
+        let pendingPhoto = try fixture.source(name: "pending.jpg", contents: "pending")
+        let claimedID = try await IncomingShareStore.stage(fileURLs: [claimedPhoto], in: fixture.container)
+        let claimedSnapshot = try await IncomingShareStore.claim(id: claimedID, in: fixture.container)
+        let claimed = try XCTUnwrap(claimedSnapshot)
+        let pendingID = try await IncomingShareStore.stage(fileURLs: [pendingPhoto], in: fixture.container)
+
+        try IncomingShareStore.discardAbandonedClaims(in: fixture.container)
+
+        let pending = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
+        XCTAssertEqual(pending?.id, pendingID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: claimed.photos[0].fileURL.path))
+    }
+
+    func testStagesFiveHundredSmallPhotos() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let photo = try fixture.source(name: "photo.jpg", contents: "photo")
+
+        let id = try await IncomingShareStore.stage(
+            fileURLs: Array(repeating: photo, count: 500),
+            in: fixture.container
+        )
+        let pendingSnapshot = try await IncomingShareStore.oldestPendingShare(in: fixture.container)
+        let snapshot = try XCTUnwrap(pendingSnapshot)
+        XCTAssertEqual(snapshot.id, id)
+        XCTAssertEqual(snapshot.photos.count, 500)
     }
 
     func testCancelledStageDoesNotPublishBatch() async throws {

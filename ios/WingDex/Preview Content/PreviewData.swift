@@ -346,10 +346,13 @@ enum PreviewData {
         symbol: String = "bird.fill"
     ) -> ProcessedPhoto {
         let imageData = placeholderImageData(systemName: symbol)
+        let imageURL = (try? PhotoFlowStore.writeCameraData(imageData))
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent("missing-preview.jpg")
         return ProcessedPhoto(
-            id: id, image: imageData, thumbnail: imageData,
+            id: id, originalURL: imageURL, cleanupOriginal: true, thumbnail: imageData,
             exifTime: exifTime, gpsLat: lat, gpsLon: lon,
-            fileHash: "preview_\(id)", fileName: "preview_\(id).jpg"
+            fileHash: "preview_\(id)", fileName: "preview_\(id).jpg",
+            byteCount: imageData.count
         )
     }
 

@@ -32,6 +32,18 @@ struct WingDexApp: App {
     @State private var toasts = ToastCenter()
 
     init() {
+        do {
+            try PhotoFlowStore.purgeAllFiles()
+        } catch {
+            appLog.error("Could not clear abandoned photo flow files: \(error.localizedDescription, privacy: .public)")
+        }
+        do {
+            try IncomingShareStore.discardAbandonedClaimsOnLaunch()
+        } catch IncomingShareError.containerUnavailable {
+            // Unsigned simulator builds do not have access to the app group.
+        } catch {
+            appLog.error("Could not clear an interrupted shared-photo import: \(error.localizedDescription, privacy: .public)")
+        }
         let auth = AuthService.shared
         let cache = try? AccountDataCache()
         #if DEBUG
@@ -521,26 +533,32 @@ struct MainTabView: View {
             let shouldPrompt = auth.identity == .anonymous
                 && addPhotosVM.savedOutingCount > 0
                 && auth.userId.map { !SignupPromptStore.hasPrompted(userID: $0) } == true
-            incomingShareImportTask?.cancel()
+            let sessionViewModel = addPhotosVM
+            let importTask = incomingShareImportTask
+            importTask?.cancel()
             incomingShareImportTask = nil
             incomingShareImportTaskID = nil
-            addPhotosVM.cancelSession()
-            addPhotosVM = AddPhotosViewModel()
-            addPhotosVM.configure(
-                auth: auth,
-                dataStore: store
-            )
-            if explicitlyStoppedShareQueue {
-                incomingShareImportDeferred = false
-            } else if shouldPrompt {
-                incomingShareImportDeferred = shouldContinueShareQueue || incomingShareImportDeferred
-            } else if shouldContinueShareQueue || incomingShareImportDeferred {
-                incomingShareImportDeferred = false
-                scheduleIncomingShareImport()
-            }
-            if shouldPrompt {
-                if let userID = auth.userId { SignupPromptStore.markPrompted(userID: userID) }
-                showingAccount = true
+            Task {
+                await importTask?.value
+                await sessionViewModel.cancelSession()
+                guard addPhotosVM === sessionViewModel else { return }
+                addPhotosVM = AddPhotosViewModel()
+                addPhotosVM.configure(
+                    auth: auth,
+                    dataStore: store
+                )
+                if explicitlyStoppedShareQueue {
+                    incomingShareImportDeferred = false
+                } else if shouldPrompt {
+                    incomingShareImportDeferred = shouldContinueShareQueue || incomingShareImportDeferred
+                } else if shouldContinueShareQueue || incomingShareImportDeferred {
+                    incomingShareImportDeferred = false
+                    scheduleIncomingShareImport()
+                }
+                if shouldPrompt {
+                    if let userID = auth.userId { SignupPromptStore.markPrompted(userID: userID) }
+                    showingAccount = true
+                }
             }
         }) {
             NavigationStack {
@@ -628,10 +646,15 @@ struct MainTabView: View {
         }
         .onDisappear {
             navigation.setMainInterfaceReady(false)
-            incomingShareImportTask?.cancel()
+            let sessionViewModel = addPhotosVM
+            let importTask = incomingShareImportTask
+            importTask?.cancel()
             incomingShareImportTask = nil
             incomingShareImportTaskID = nil
-            addPhotosVM.cancelSession()
+            Task {
+                await importTask?.value
+                await sessionViewModel.cancelSession()
+            }
         }
         .onChange(of: navigation.incomingShareRequestID) {
             scheduleIncomingShareImport()

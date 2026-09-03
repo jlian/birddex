@@ -501,9 +501,11 @@ struct OutingReviewView: View {
 
     /// Remove a photo from the current cluster.
     private func removePhoto(_ photo: ProcessedPhoto) {
-        viewModel.removePhotoFromCurrentCluster(id: photo.id)
-        if viewModel.currentStep == .outingReview {
-            resetClusterState()
+        Task {
+            await viewModel.removePhotoFromCurrentCluster(id: photo.id)
+            if viewModel.currentStep == .outingReview {
+                resetClusterState()
+            }
         }
     }
 
