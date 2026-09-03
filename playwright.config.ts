@@ -20,6 +20,7 @@ const hasCloudflareCredentials =
 
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   timeout: isCI ? 15_000 : isARM ? 30_000 : 10_000,
   retries: isCI ? 1 : 0,
