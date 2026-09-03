@@ -346,6 +346,7 @@ describe('enrichLocalDex', () => {
     ].map(entry => ({
         firstSeenDate: '2024-01-01T00:00:00Z',
         lastSeenDate: '2024-01-01T00:00:00Z',
+        addedDate: '2024-01-01T00:00:00Z',
         totalOutings: 1,
         totalCount: 1,
         ...entry,
@@ -380,6 +381,7 @@ describe('enrichLocalDex', () => {
       taxonCode,
       firstSeenDate: '2024-01-01T00:00:00Z',
       lastSeenDate: '2024-01-01T00:00:00Z',
+      addedDate: '2024-01-01T00:00:00Z',
       totalOutings: 1,
       totalCount: 1,
       notes: '',
