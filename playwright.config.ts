@@ -24,11 +24,10 @@ export default defineConfig({
   fullyParallel: true,
   timeout: isCI ? 15_000 : isARM ? 30_000 : 10_000,
   retries: isCI ? 1 : 0,
-  // Keep local runs deterministic while allowing CI to use the runner's spare
-  // capacity. The suite's database mutations are isolated enough for two
-  // workers, and this cuts the E2E wall-clock time without multiplying the
-  // number of browsers or servers.
-  workers: isCI ? 2 : 1,
+  // The tests share one development server and local D1 database. A single
+  // worker avoids contention and is faster in CI as well as deterministic
+  // locally.
+  workers: 1,
   reporter: isCI ? 'line' : 'list',
   use: {
     baseURL: testBaseURL,
