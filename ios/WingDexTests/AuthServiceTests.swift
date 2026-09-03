@@ -230,6 +230,42 @@ final class SessionValidationTests: XCTestCase {
         )))
     }
 
+    func testMultipleMergeResponseUsesLocalQueueSource() {
+        let result = AuthService.resolveLocalAccountMergeSource(
+            AccountMergeResult(
+                sourceUserId: "multiple",
+                targetUserId: "account-user",
+                promoted: false,
+                outings: 2,
+                observations: 15,
+                photos: 3
+            ),
+            localSourceUserID: "anonymous-user"
+        )
+
+        XCTAssertEqual(result.sourceUserId, "anonymous-user")
+        XCTAssertEqual(result.targetUserId, "account-user")
+    }
+
+    func testCompletedMergeTransferMarkerRoundTrips() throws {
+        let result = AccountMergeResult(
+            sourceUserId: "anonymous-user",
+            targetUserId: "account-user",
+            promoted: false,
+            outings: 2,
+            observations: 15,
+            photos: 3
+        )
+
+        let encodedResult = try AuthService.encodePersistedAccountMergeResult(result)
+
+        XCTAssertEqual(AuthService.decodePersistedAccountMergeResult(encodedResult), result)
+    }
+
+    func testMalformedCompletedMergeTransferMarkerDoesNotDecode() {
+        XCTAssertNil(AuthService.decodePersistedAccountMergeResult("not-a-valid-result"))
+    }
+
     func testTokenlessMergeConflictRequiresRecoveryButTokenFinalizationDoesNot() {
         XCTAssertTrue(AuthService.isTokenlessMergeConflict(statusCode: 409, hasMergeToken: false))
         XCTAssertFalse(AuthService.isTokenlessMergeConflict(statusCode: 409, hasMergeToken: true))

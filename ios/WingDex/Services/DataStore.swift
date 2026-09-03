@@ -20,6 +20,11 @@ struct DexUpdate: Codable, Sendable {
     var notes: String?
 }
 
+enum PendingUploadSaveResult: Sendable {
+  case synced
+  case queued
+}
+
 /// Central observable data store for the app.
 ///
 /// Fetches all user data from `GET /api/data/all` and provides computed
@@ -64,15 +69,43 @@ final class DataStore {
     private(set) var cachedAt: Date?
     private(set) var activeAccountID: String?
     private(set) var refreshFailed = false
+  private(set) var pendingUploads: [PendingUploadEntry] = []
+  private(set) var isSyncingPendingUploads = false
+  private(set) var pendingUploadError: AppError?
+  private(set) var hasPendingUploadAccountTransfer = false
+  private(set) var pendingUploadStoreUnavailable = false
     var hasReadableData: Bool { cachedAt != nil || hasLoadedAll }
     /// Stale data is only worth calling out once a refresh has actually failed.
     var isShowingCachedData: Bool { cachedAt != nil && !hasLoadedAll && refreshFailed }
+  var pendingUploadCount: Int { pendingUploads.count }
+  var pendingUploadsNeedAttention: Bool {
+    pendingUploads.contains(where: \.requiresAttention)
+  }
+  var hasAccountDataAtRisk: Bool {
+    !outings.isEmpty || !observations.isEmpty || !pendingUploads.isEmpty
+  }
+  var hasSyncablePendingUploads: Bool {
+    pendingUploads.contains { $0.upload != nil }
+  }
+  var pendingUploadSafetyBlocked: Bool {
+    pendingUploadStoreUnavailable || blocksPendingUploadSync
+  }
+
+  func containsPhoto(fileHash: String) -> Bool {
+    photos.contains { $0.fileHash == fileHash }
+      || pendingUploads.contains { entry in
+        entry.upload?.photos.contains { $0.fileHash == fileHash } == true
+      }
+  }
 
     // MARK: - Dependencies
 
     private var service: (any DataStoreService)?
     private let serviceFactory: ((String) -> any DataStoreService)?
     private let cache: (any AccountDataCaching)?
+  private let pendingUploadStore: (any PendingUploadStoring)?
+  private let requiresPendingUploadStore: Bool
+  private let defaults: UserDefaults
     private var generation = 0
     private var loadRequestID = UUID()
     private var confirmedSnapshot: AllDataResponse?
@@ -83,6 +116,19 @@ final class DataStore {
     private var operationInProgress = false
     private var operationWaiters: [OperationWaiter] = []
     private var outingDeletions: [String: OutingDeletion] = [:]
+  private var pendingSyncTask: Task<Set<String>, Never>?
+  private var pendingSyncID: UUID?
+  private var pendingUploadArrivedDuringSync = false
+  private var pendingUploadInFlightIDs = Set<String>()
+  private var blocksPendingUploadSync = false
+  private static let pendingUploadAccountTransferKey = "pendingUploadAccountTransfer"
+  private static let confirmedAccountDeletionKey = "confirmedAccountDeletion"
+  private static let blockedPendingUploadAccountsKey = "blockedPendingUploadAccounts"
+
+  private struct PendingUploadAccountTransfer: Codable {
+    let sourceAccountID: String
+    let targetAccountID: String
+  }
 
     private struct OperationWaiter {
         let id: UUID
@@ -94,19 +140,36 @@ final class DataStore {
         let task: Task<Void, Error>
     }
 
-    init(service: any DataStoreService, cache: (any AccountDataCaching)? = nil) {
+  init(
+    service: any DataStoreService,
+    cache: (any AccountDataCaching)? = nil,
+    pendingUploadStore: (any PendingUploadStoring)? = nil,
+    requiresPendingUploadStore: Bool = false,
+    defaults: UserDefaults = .standard
+  ) {
         self.service = service
         serviceFactory = nil
         self.cache = cache
+    self.pendingUploadStore = pendingUploadStore
+    self.requiresPendingUploadStore = requiresPendingUploadStore
+    self.defaults = defaults
+    pendingUploadStoreUnavailable = requiresPendingUploadStore && pendingUploadStore == nil
     }
 
     init(
         serviceFactory: @escaping (String) -> any DataStoreService,
-        cache: (any AccountDataCaching)? = nil
+    cache: (any AccountDataCaching)? = nil,
+    pendingUploadStore: (any PendingUploadStoring)? = nil,
+    requiresPendingUploadStore: Bool = false,
+    defaults: UserDefaults = .standard
     ) {
         service = nil
         self.serviceFactory = serviceFactory
         self.cache = cache
+    self.pendingUploadStore = pendingUploadStore
+    self.requiresPendingUploadStore = requiresPendingUploadStore
+    self.defaults = defaults
+    pendingUploadStoreUnavailable = requiresPendingUploadStore && pendingUploadStore == nil
     }
 
     // MARK: - Fetch
@@ -121,7 +184,8 @@ final class DataStore {
         if let initialLoadTask,
            let initialLoadID,
            initialLoadAccountID == accountID,
-           initialLoadGeneration == loadGeneration {
+      initialLoadGeneration == loadGeneration
+    {
             task = initialLoadTask
             taskID = initialLoadID
         } else {
@@ -151,6 +215,11 @@ final class DataStore {
         guard hasLoadedAll else { throw error ?? AuthError.notAuthenticated }
     }
 
+  func ensureReadableData() async throws {
+    if hasReadableData { return }
+    try await ensureLoaded()
+  }
+
     /// Activate one account and hydrate its read-only cache synchronously.
     func activate(accountID: String) {
         guard activeAccountID != accountID else { return }
@@ -159,6 +228,30 @@ final class DataStore {
         if let serviceFactory {
             service = serviceFactory(accountID)
         }
+    do {
+            try finishConfirmedAccountDeletionCleanup(accountID: accountID)
+        } catch {
+            pendingUploadError = .message(
+              "WingDex couldn't finish removing uploads for the deleted account."
+            )
+            log.error("Failed to finish confirmed account deletion cleanup")
+        }
+        do {
+            try finishPendingUploadAccountTransfer(targetAccountID: accountID)
+      try finishPendingUploadReauthentication(targetAccountID: accountID)
+    } catch {
+      pendingUploadError = .message(
+        "WingDex couldn't transfer uploads saved before this account was created."
+      )
+      log.error("Failed to finish pending upload account transfer")
+    }
+    blocksPendingUploadSync = isPendingUploadSyncBlocked(accountID: accountID)
+    reloadPendingUploads(accountID: accountID)
+    if blocksPendingUploadSync, pendingUploadError == nil {
+      pendingUploadError = .message(
+        "Saved uploads are paused because data deletion could not be confirmed."
+      )
+    }
         do {
             guard let snapshot = try cache?.load(accountID: accountID) else { return }
             install(snapshot.response)
@@ -173,21 +266,27 @@ final class DataStore {
 
     /// Load all user data from the API. Called on app launch and pull-to-refresh.
     func loadAll() async {
-        guard let operationContext = try? await acquireOperationContext(requireLoadedSnapshot: false) else { return }
+        _ = await loadAll(syncPendingUploadsAfterLoad: true)
+    }
+
+    private func loadAll(syncPendingUploadsAfterLoad: Bool) async -> Bool {
+    guard let operationContext = try? await acquireOperationContext(requireLoadedSnapshot: false)
+    else { return false }
         defer { releaseOperation(operationContext) }
-        guard let accountID = activeAccountID, let service else { return }
+        guard let accountID = activeAccountID, let service else { return false }
         let loadGeneration = generation
         let requestID = UUID()
         loadRequestID = requestID
         log.info("Loading all data...")
         isLoading = true
         error = nil
+        var didInstallSnapshot = false
         do {
             let response = try await service.fetchAllData()
             guard generation == loadGeneration,
                 activeAccountID == accountID,
                 loadRequestID == requestID
-            else { return }
+            else { return false }
             install(response)
             confirmedSnapshot = response
             hasLoadedAll = true
@@ -198,12 +297,15 @@ final class DataStore {
             } catch {
                 log.error("Failed to persist refreshed account cache")
             }
-            log.info("Loaded \(self.outings.count) outings, \(self.observations.count) observations, \(self.dex.count) dex entries")
+      log.info(
+        "Loaded \(self.outings.count) outings, \(self.observations.count) observations, \(self.dex.count) dex entries"
+      )
+      didInstallSnapshot = true
         } catch {
             guard generation == loadGeneration,
                   activeAccountID == accountID,
                   loadRequestID == requestID
-            else { return }
+            else { return false }
             // A cancellation maps to nil and isn't a refresh failure.
             if let mappedError = AppError.map(error) {
                 self.error = mappedError
@@ -211,11 +313,18 @@ final class DataStore {
                 log.error("Failed to load account data")
             }
         }
+        if syncPendingUploadsAfterLoad, !pendingUploads.isEmpty {
+            Task { @MainActor [weak self] in
+                await self?.syncPendingUploads()
+            }
+        }
         if generation == loadGeneration,
            activeAccountID == accountID,
-           loadRequestID == requestID {
+      loadRequestID == requestID
+    {
             isLoading = false
         }
+    return didInstallSnapshot
     }
 
     /// Clear all account-owned state and invalidate in-flight bulk loads.
@@ -223,6 +332,12 @@ final class DataStore {
         generation += 1
         outingDeletions.values.forEach { $0.task.cancel() }
         outingDeletions.removeAll()
+    pendingSyncTask?.cancel()
+    pendingSyncTask = nil
+    pendingSyncID = nil
+    pendingUploadArrivedDuringSync = false
+    pendingUploadInFlightIDs = []
+    blocksPendingUploadSync = false
         initialLoadTask?.cancel()
         initialLoadTask = nil
         initialLoadID = nil
@@ -240,6 +355,11 @@ final class DataStore {
         hasLoadedAll = false
         cachedAt = nil
         refreshFailed = false
+    pendingUploads = []
+    isSyncingPendingUploads = false
+    pendingUploadError = nil
+    hasPendingUploadAccountTransfer = false
+    pendingUploadStoreUnavailable = requiresPendingUploadStore && pendingUploadStore == nil
         activeAccountID = nil
         confirmedSnapshot = nil
         loadRequestID = UUID()
@@ -265,6 +385,460 @@ final class DataStore {
         }
     }
 
+  // MARK: - Pending uploads
+
+  func savePhotoUpload(_ upload: PendingPhotoUpload) async throws -> PendingUploadSaveResult {
+    guard upload.accountID == activeAccountID else { throw AuthError.notAuthenticated }
+    guard !blocksPendingUploadSync else {
+      throw AppError.message(
+        "WingDex can't save another upload while data deletion is unresolved."
+      )
+    }
+    guard !pendingUploadStoreUnavailable, let pendingUploadStore else {
+      throw AppError.message("WingDex couldn't save this upload on your device.")
+    }
+    let syncWasInProgress = pendingSyncTask != nil
+    do {
+      try pendingUploadStore.enqueue(upload)
+      guard reloadPendingUploads(accountID: upload.accountID) else {
+        throw AppError.message("WingDex couldn't verify the saved upload.")
+      }
+      if syncWasInProgress {
+        pendingUploadArrivedDuringSync = true
+      }
+    } catch {
+      log.error("Failed to persist pending upload")
+      throw AppError.message("WingDex couldn't save this upload on your device.")
+    }
+
+    let syncedIDs = await syncPendingUploads()
+    return syncedIDs.contains(upload.id) ? .synced : .queued
+  }
+
+  @discardableResult
+  func syncPendingUploads(retryAttention: Bool = false) async -> Set<String> {
+    if let pendingSyncTask {
+      return await pendingSyncTask.value
+    }
+    guard let accountID = activeAccountID,
+      !pendingUploads.isEmpty,
+      !blocksPendingUploadSync,
+      !pendingUploadStoreUnavailable
+    else { return [] }
+
+    let syncGeneration = generation
+    let syncID = UUID()
+    let task = Task { @MainActor [weak self] in
+      guard let self else { return Set<String>() }
+      let syncedIDs = await self.performPendingUploadSync(
+        accountID: accountID,
+        syncGeneration: syncGeneration,
+        retryAttention: retryAttention
+      )
+      if self.pendingSyncID == syncID {
+        self.pendingSyncTask = nil
+        self.pendingSyncID = nil
+      }
+      return syncedIDs
+    }
+    pendingSyncTask = task
+    pendingSyncID = syncID
+    return await task.value
+  }
+
+  func discardPendingUpload(id: String) async throws {
+    guard !pendingUploadInFlightIDs.contains(id) else {
+      throw AppError.message("Wait for the current upload attempt to finish before discarding it.")
+    }
+    await stopPendingUploadSync()
+    guard let accountID = activeAccountID else { throw AuthError.notAuthenticated }
+    guard let pendingUploadStore else {
+      throw AppError.message("WingDex couldn't discard this saved upload.")
+    }
+    do {
+      try pendingUploadStore.remove(id: id, accountID: accountID)
+      guard reloadPendingUploads(accountID: accountID) else {
+        throw AppError.message("WingDex couldn't verify the saved upload was discarded.")
+      }
+      if pendingUploads.isEmpty {
+        pendingUploadError = nil
+        setPendingUploadSyncBlocked(false, accountID: accountID)
+        blocksPendingUploadSync = false
+      }
+    } catch {
+      let discardError = AppError.message("WingDex couldn't discard this saved upload.")
+      pendingUploadError = discardError
+      log.error("Failed to discard pending upload")
+      throw discardError
+    }
+  }
+
+  func discardAllPendingUploads() async throws {
+    guard pendingUploadInFlightIDs.isEmpty else {
+      throw AppError.message(
+        "Wait for the current upload attempt to finish before discarding saved uploads."
+      )
+    }
+    await stopPendingUploadSync()
+    guard let accountID = activeAccountID else { return }
+    guard let pendingUploadStore else {
+      if !requiresPendingUploadStore, pendingUploads.isEmpty { return }
+      throw AppError.message("WingDex couldn't discard the saved uploads.")
+    }
+    do {
+      try pendingUploadStore.clear(accountID: accountID)
+      pendingUploads = []
+      pendingUploadError = nil
+      pendingUploadStoreUnavailable = false
+      setPendingUploadSyncBlocked(false, accountID: accountID)
+      blocksPendingUploadSync = false
+    } catch {
+      log.error("Failed to discard pending uploads")
+      throw AppError.message("WingDex couldn't discard the saved uploads.")
+    }
+  }
+
+  func applyAccountMerge(_ result: AccountMergeResult) throws {
+    guard result.sourceUserId != result.targetUserId else { return }
+    guard result.sourceUserId != "multiple" else {
+      throw AppError.message("WingDex couldn't identify uploads from the merged account.")
+    }
+    rememberPendingUploadAccountTransfer(
+      sourceAccountID: result.sourceUserId,
+      targetAccountID: result.targetUserId
+    )
+    try finishPendingUploadAccountTransfer(targetAccountID: result.targetUserId)
+  }
+
+  func rememberPendingUploadsForReauthentication(accountID: String) {
+    guard accountID == activeAccountID,
+      pendingUploadStoreUnavailable || !pendingUploads.isEmpty
+    else { return }
+    defaults.set(accountID, forKey: PendingUploadRecoveryKeys.reauthenticationAccountID)
+  }
+
+  func retryPendingUploadAccountTransfer() throws {
+    guard let activeAccountID else { throw AuthError.notAuthenticated }
+    try finishPendingUploadAccountTransfer(targetAccountID: activeAccountID)
+    try finishPendingUploadReauthentication(targetAccountID: activeAccountID)
+  }
+
+  func stopPendingUploadSync() async {
+    guard let task = pendingSyncTask else { return }
+    task.cancel()
+    _ = await task.value
+  }
+
+  func isPendingUploadInFlight(id: String) -> Bool {
+    pendingUploadInFlightIDs.contains(id)
+  }
+
+  func beginAccountDeletion() async throws {
+    guard !pendingUploadStoreUnavailable else {
+      throw AppError.message("WingDex couldn't open uploads saved on this device.")
+    }
+    guard let accountID = activeAccountID else { throw AuthError.notAuthenticated }
+    guard pendingUploadInFlightIDs.isEmpty else {
+      throw AppError.message(
+        "Wait for the current upload attempt to finish before deleting your account."
+      )
+    }
+    blocksPendingUploadSync = true
+    if !pendingUploads.isEmpty {
+      setPendingUploadSyncBlocked(true, accountID: accountID)
+    }
+    await stopPendingUploadSync()
+  }
+
+  func endAccountDeletion(after failure: Error? = nil) {
+    if let failure,
+      let activeAccountID,
+      !accountDeletionFailureMayHaveCommitted(failure)
+    {
+      setPendingUploadSyncBlocked(false, accountID: activeAccountID)
+    }
+    refreshPendingUploadSyncBlock()
+  }
+
+  func markAccountDeletionConfirmed() throws {
+    guard let activeAccountID else { throw AuthError.notAuthenticated }
+    defaults.set(activeAccountID, forKey: Self.confirmedAccountDeletionKey)
+  }
+
+  func completeAccountDeletionCleanup() {
+    defaults.removeObject(forKey: Self.confirmedAccountDeletionKey)
+  }
+
+  private func rememberPendingUploadAccountTransfer(
+    sourceAccountID: String,
+    targetAccountID: String
+  ) {
+    let transfer = PendingUploadAccountTransfer(
+      sourceAccountID: sourceAccountID,
+      targetAccountID: targetAccountID
+    )
+    if let data = try? JSONEncoder().encode(transfer) {
+      defaults.set(data, forKey: Self.pendingUploadAccountTransferKey)
+    }
+    hasPendingUploadAccountTransfer = true
+  }
+
+  private func finishPendingUploadAccountTransfer(targetAccountID: String) throws {
+    guard
+      let data = defaults.data(forKey: Self.pendingUploadAccountTransferKey),
+      let transfer = try? JSONDecoder().decode(PendingUploadAccountTransfer.self, from: data),
+      transfer.targetAccountID == targetAccountID
+    else {
+      hasPendingUploadAccountTransfer = false
+      return
+    }
+    hasPendingUploadAccountTransfer = true
+    guard let pendingUploadStore else {
+      throw AppError.message("WingDex couldn't open uploads saved on this device.")
+    }
+    if isPendingUploadSyncBlocked(accountID: transfer.sourceAccountID) {
+      setPendingUploadSyncBlocked(true, accountID: transfer.targetAccountID)
+      refreshPendingUploadSyncBlock()
+    }
+    try pendingUploadStore.reassign(
+      from: transfer.sourceAccountID,
+      to: transfer.targetAccountID
+    )
+    setPendingUploadSyncBlocked(false, accountID: transfer.sourceAccountID)
+    refreshPendingUploadSyncBlock()
+    defaults.removeObject(forKey: Self.pendingUploadAccountTransferKey)
+    hasPendingUploadAccountTransfer = false
+    if activeAccountID == transfer.sourceAccountID || activeAccountID == transfer.targetAccountID {
+      reloadPendingUploads(accountID: transfer.targetAccountID)
+    }
+  }
+
+  private func finishPendingUploadReauthentication(targetAccountID: String) throws {
+    guard let sourceAccountID = defaults.string(
+      forKey: PendingUploadRecoveryKeys.reauthenticationAccountID
+    ) else { return }
+    hasPendingUploadAccountTransfer = true
+    guard sourceAccountID != targetAccountID else {
+      defaults.removeObject(forKey: PendingUploadRecoveryKeys.reauthenticationAccountID)
+      hasPendingUploadAccountTransfer =
+        defaults.data(forKey: Self.pendingUploadAccountTransferKey) != nil
+      return
+    }
+    guard let pendingUploadStore else {
+      throw AppError.message("WingDex couldn't open uploads saved on this device.")
+    }
+    if isPendingUploadSyncBlocked(accountID: sourceAccountID) {
+      setPendingUploadSyncBlocked(true, accountID: targetAccountID)
+    }
+    try pendingUploadStore.reassign(
+      from: sourceAccountID,
+      to: targetAccountID
+    )
+    setPendingUploadSyncBlocked(false, accountID: sourceAccountID)
+    if activeAccountID == targetAccountID,
+      !reloadPendingUploads(accountID: targetAccountID)
+    {
+      throw AppError.message("WingDex couldn't verify transferred uploads.")
+    }
+    defaults.removeObject(forKey: PendingUploadRecoveryKeys.reauthenticationAccountID)
+    hasPendingUploadAccountTransfer =
+      defaults.data(forKey: Self.pendingUploadAccountTransferKey) != nil
+  }
+
+  private func finishConfirmedAccountDeletionCleanup(accountID: String) throws {
+    guard defaults.string(forKey: Self.confirmedAccountDeletionKey) == accountID else {
+      return
+    }
+    guard let pendingUploadStore else {
+      throw AppError.message("WingDex couldn't open uploads saved on this device.")
+    }
+    try pendingUploadStore.clear(accountID: accountID)
+    pendingUploads = []
+    pendingUploadInFlightIDs = []
+    setPendingUploadSyncBlocked(false, accountID: accountID)
+    defaults.removeObject(forKey: Self.confirmedAccountDeletionKey)
+  }
+
+  private func refreshPendingUploadSyncBlock() {
+    guard let activeAccountID else {
+      blocksPendingUploadSync = false
+      return
+    }
+    blocksPendingUploadSync = isPendingUploadSyncBlocked(accountID: activeAccountID)
+  }
+
+  private func performPendingUploadSync(
+    accountID: String,
+    syncGeneration: Int,
+    retryAttention: Bool
+  ) async -> Set<String> {
+    guard let service, let pendingUploadStore else { return [] }
+    guard !Task.isCancelled,
+      activeAccountID == accountID,
+      generation == syncGeneration
+    else { return [] }
+    isSyncingPendingUploads = true
+    pendingUploadError = nil
+    defer {
+      if activeAccountID == accountID, generation == syncGeneration {
+        isSyncingPendingUploads = false
+      }
+    }
+
+    var syncedIDs = Set<String>()
+    var seenEntryIDs = Set<String>()
+    repeat {
+      pendingUploadArrivedDuringSync = false
+      let entries = pendingUploads.filter { seenEntryIDs.insert($0.id).inserted }
+      var submittedEntries: [PendingUploadEntry] = []
+      var reconcilableFailures: [(id: String, message: String, requiresAttention: Bool)] = []
+      for entry in entries {
+        guard activeAccountID == accountID, generation == syncGeneration else { break }
+        if entry.requiresAttention, !retryAttention { continue }
+        guard let upload = entry.upload else { continue }
+        let wasAwaitingConfirmation = entry.awaitingReconciliation
+          || pendingUploadInFlightIDs.contains(entry.id)
+        if !wasAwaitingConfirmation {
+          do {
+            try pendingUploadStore.markAwaitingReconciliation(
+              id: entry.id,
+              accountID: accountID
+            )
+          } catch {
+            pendingUploadError = .message("WingDex couldn't update the saved upload.")
+            log.error("Failed to protect pending upload before synchronization")
+            break
+          }
+        }
+        pendingUploadInFlightIDs.insert(entry.id)
+        do {
+          _ = try await service.submitPendingUpload(upload)
+          guard activeAccountID == accountID, generation == syncGeneration else { break }
+          submittedEntries.append(entry)
+        } catch is CancellationError {
+          break
+        } catch {
+          guard activeAccountID == accountID, generation == syncGeneration else { break }
+          let failure = pendingUploadFailure(error)
+          let failureMayHaveCommitted = mutationFailureMayHaveCommitted(error)
+          let awaitingReconciliation = wasAwaitingConfirmation || failureMayHaveCommitted
+          let canReconcileAfterRefresh =
+            (error as? PendingUploadSubmissionError)?.canReconcileAfterRefresh == true
+            || (wasAwaitingConfirmation && !failureMayHaveCommitted)
+          pendingUploadError = failure.error
+          do {
+            try pendingUploadStore.markFailed(
+              id: entry.id,
+              accountID: accountID,
+              message: failure.error.message,
+              requiresAttention: failure.requiresAttention,
+              awaitingReconciliation: awaitingReconciliation
+            )
+            if !awaitingReconciliation {
+              pendingUploadInFlightIDs.remove(entry.id)
+            }
+            if canReconcileAfterRefresh {
+              reconcilableFailures.append((
+                id: entry.id,
+                message: failure.error.message,
+                requiresAttention: failure.requiresAttention
+              ))
+            }
+          } catch {
+            pendingUploadError = .message("WingDex couldn't update the saved upload.")
+            log.error("Failed to persist pending upload failure")
+          }
+          if failure.stopsDrain { break }
+        }
+      }
+
+      guard activeAccountID == accountID, generation == syncGeneration else {
+        return syncedIDs
+      }
+      if (!submittedEntries.isEmpty || !reconcilableFailures.isEmpty),
+         await loadAll(syncPendingUploadsAfterLoad: false)
+      {
+        guard activeAccountID == accountID, generation == syncGeneration else {
+          return syncedIDs
+        }
+        for entry in submittedEntries {
+          do {
+            try pendingUploadStore.remove(id: entry.id, accountID: accountID)
+            pendingUploadInFlightIDs.remove(entry.id)
+            syncedIDs.insert(entry.id)
+          } catch {
+            pendingUploadError = .message("WingDex couldn't update the saved upload.")
+            log.error("Failed to remove synchronized pending upload")
+          }
+        }
+        for failure in reconcilableFailures {
+          do {
+            try pendingUploadStore.markFailed(
+              id: failure.id,
+              accountID: accountID,
+              message: failure.message,
+              requiresAttention: failure.requiresAttention,
+              awaitingReconciliation: false
+            )
+            pendingUploadInFlightIDs.remove(failure.id)
+          } catch {
+            pendingUploadError = .message("WingDex couldn't update the saved upload.")
+            log.error("Failed to reconcile pending upload failure")
+          }
+        }
+      }
+      reloadPendingUploads(accountID: accountID)
+    } while pendingUploadArrivedDuringSync && !Task.isCancelled
+    return syncedIDs
+  }
+
+  @discardableResult
+  private func reloadPendingUploads(accountID: String) -> Bool {
+    guard let pendingUploadStore else {
+      pendingUploads = []
+      if requiresPendingUploadStore {
+        pendingUploadStoreUnavailable = true
+        pendingUploadError = .message("WingDex couldn't open uploads saved on this device.")
+      }
+      return !requiresPendingUploadStore
+    }
+    do {
+      pendingUploads = try pendingUploadStore.load(accountID: accountID)
+      pendingUploadInFlightIDs = Set(
+        pendingUploads.lazy
+          .filter { $0.awaitingReconciliation && $0.upload != nil }
+          .map(\.id)
+      )
+      pendingUploadStoreUnavailable = false
+      return true
+    } catch {
+      pendingUploads = []
+      pendingUploadStoreUnavailable = true
+      pendingUploadError = .message("WingDex couldn't read saved uploads on this device.")
+      log.error("Failed to load pending uploads")
+      return false
+    }
+  }
+
+  private func pendingUploadFailure(
+    _ error: Error
+  ) -> (error: AppError, requiresAttention: Bool, stopsDrain: Bool) {
+    let error = (error as? PendingUploadSubmissionError)?.underlying ?? error
+    let appError =
+      AppError.map(error, fallback: "Could not sync this saved upload.")
+      ?? .message("Could not sync this saved upload.")
+    if let serviceError = error as? DataServiceError,
+      case .http(let status, _, _, _) = serviceError
+    {
+      if status == 401 {
+        return (appError, true, true)
+      }
+      if (400...499).contains(status), status != 408, status != 429 {
+        return (appError, true, false)
+      }
+    }
+    return (appError, false, true)
+  }
     // MARK: - Derived Data
 
     /// Observations for a specific outing, excluding rejected ones.
@@ -348,7 +922,9 @@ final class DataStore {
     }
 
     /// Search the server taxonomy for manual observation entry.
-    func searchSpecies(query: String, limit: Int = 8) async throws -> [DataService.SpeciesSearchResult] {
+  func searchSpecies(query: String, limit: Int = 8) async throws -> [DataService
+    .SpeciesSearchResult]
+  {
         guard let service else { throw AuthError.notAuthenticated }
         return try await service.searchSpecies(query: query, limit: limit)
     }
@@ -525,19 +1101,117 @@ final class DataStore {
 
     /// Clear all user data.
     func clearAll() async throws {
+        guard !pendingUploadStoreUnavailable else {
+            throw AppError.message("WingDex couldn't open uploads saved on this device.")
+        }
+        guard pendingUploadInFlightIDs.isEmpty else {
+            throw AppError.message(
+                "Wait for the current upload attempt to finish before deleting your data."
+            )
+        }
+        let wasAlreadyBlocked = activeAccountID.map {
+            isPendingUploadSyncBlocked(accountID: $0)
+        } ?? blocksPendingUploadSync
+        blocksPendingUploadSync = true
+        await stopPendingUploadSync()
+        var keepPendingUploadSyncBlocked = wasAlreadyBlocked
+        defer {
+            blocksPendingUploadSync = keepPendingUploadSyncBlocked
+        }
         let mutationContext = try await acquireOperationContext(requireLoadedSnapshot: true)
         defer { releaseOperation(mutationContext) }
         guard let service else { throw AuthError.notAuthenticated }
-        let accountID = activeAccountID
-        try await service.clearAllData()
+        guard let accountID = activeAccountID else { throw AuthError.notAuthenticated }
+        keepPendingUploadSyncBlocked = wasAlreadyBlocked || !pendingUploads.isEmpty
+        if !pendingUploads.isEmpty {
+            setPendingUploadSyncBlocked(true, accountID: accountID)
+        }
+        do {
+            try await service.clearAllData()
+        } catch {
+            if !mutationFailureMayHaveCommitted(error), !wasAlreadyBlocked {
+                setPendingUploadSyncBlocked(false, accountID: accountID)
+                keepPendingUploadSyncBlocked = false
+            }
+            throw error
+        }
         guard isCurrentMutation(mutationContext) else { return }
         outings = []
         photos = []
         observations = []
         dex = []
         confirmedSnapshot = AllDataResponse(outings: [], photos: [], observations: [], dex: [])
-        if let accountID {
-            try? cache?.clear(accountID: accountID)
+        try? cache?.clear(accountID: accountID)
+      do {
+        try pendingUploadStore?.clear(accountID: accountID)
+        pendingUploads = []
+        setPendingUploadSyncBlocked(false, accountID: accountID)
+        keepPendingUploadSyncBlocked = false
+      } catch {
+        let cleanupError = AppError.message(
+          "Your server data was deleted, but saved uploads could not be removed from this device."
+        )
+        pendingUploadError = cleanupError
+        log.error("Failed to clear pending uploads after deleting server data")
+        throw cleanupError
+      }
+    }
+
+    private func accountDeletionFailureMayHaveCommitted(_ error: Error) -> Bool {
+        if let serviceError = error as? DataServiceError,
+           case .http(let status, _, _, _) = serviceError,
+           status == 409 || status == 502 || status == 503 {
+            return false
+        }
+        return mutationFailureMayHaveCommitted(error)
+    }
+
+    private func mutationFailureMayHaveCommitted(_ error: Error) -> Bool {
+        if error is PendingUploadSubmissionError {
+            return true
+        }
+        if let serviceError = error as? DataServiceError {
+            switch serviceError {
+            case .network(let urlError):
+                return mutationFailureMayHaveCommitted(urlError)
+            case .invalidResponse:
+                return true
+            case .http(let status, _, _, _):
+                return !(400...499).contains(status)
+            }
+        }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost,
+                 .dnsLookupFailed, .internationalRoamingOff:
+                return false
+            default:
+                return true
+            }
+        }
+        if error is AuthError {
+            return false
+        }
+        return true
+    }
+
+    private func isPendingUploadSyncBlocked(accountID: String) -> Bool {
+        defaults.stringArray(forKey: Self.blockedPendingUploadAccountsKey)?.contains(accountID) == true
+    }
+
+    private func setPendingUploadSyncBlocked(_ blocked: Bool, accountID: String) {
+        var accountIDs = Set(
+            defaults.stringArray(forKey: Self.blockedPendingUploadAccountsKey) ?? []
+        )
+        if blocked {
+            accountIDs.insert(accountID)
+        } else {
+            accountIDs.remove(accountID)
+        }
+        if accountIDs.isEmpty {
+            defaults.removeObject(forKey: Self.blockedPendingUploadAccountsKey)
+        } else {
+            defaults.set(accountIDs.sorted(), forKey: Self.blockedPendingUploadAccountsKey)
         }
     }
 
@@ -552,15 +1226,19 @@ final class DataStore {
         let datedOutings = outings.map { (outing: $0, date: DateFormatting.sortDate($0.startTime)) }
         outingsByID = Dictionary(outings.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         outingDateByID = Dictionary(uniqueKeysWithValues: datedOutings.map { ($0.outing.id, $0.date) })
-        recentOutingsByDate = datedOutings
+    recentOutingsByDate =
+      datedOutings
             .sorted { $0.date > $1.date }
             .map(\.outing)
     }
 
     private func rebuildObservationDerivedData() {
-        outingObservationsByID = Dictionary(grouping: observations.filter { $0.certainty != .rejected }, by: \.outingId)
-        confirmedObservationsByOutingID = Dictionary(grouping: observations.filter { $0.certainty == .confirmed }, by: \.outingId)
-        possibleObservationsByOutingID = Dictionary(grouping: observations.filter { $0.certainty == .possible }, by: \.outingId)
+    outingObservationsByID = Dictionary(
+      grouping: observations.filter { $0.certainty != .rejected }, by: \.outingId)
+    confirmedObservationsByOutingID = Dictionary(
+      grouping: observations.filter { $0.certainty == .confirmed }, by: \.outingId)
+    possibleObservationsByOutingID = Dictionary(
+      grouping: observations.filter { $0.certainty == .possible }, by: \.outingId)
         // Index by the dex grouping key, not the display name. The server
         // combines two spellings of one bird into a single dex entry, so a
         // name-keyed index here would miss the sightings stored under the other
@@ -575,15 +1253,19 @@ final class DataStore {
 
     private func rebuildDexDerivedData() {
         let datedEntries = dex.map { (entry: $0, date: DateFormatting.sortDate($0.firstSeenDate)) }
-        dexEntryBySpeciesName = Dictionary(dex.map { ($0.speciesName, $0) }, uniquingKeysWith: { _, latest in latest })
-        dexEntryBySpeciesKey = Dictionary(dex.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+    dexEntryBySpeciesName = Dictionary(
+      dex.map { ($0.speciesName, $0) }, uniquingKeysWith: { _, latest in latest })
+    dexEntryBySpeciesKey = Dictionary(
+      dex.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         // Keyed by DexEntry.id, not speciesName. DEX_QUERY can legitimately
         // return a coded and an uncoded group carrying the same MIN(speciesName),
         // and Dictionary(uniqueKeysWithValues:) TRAPS on a duplicate key, so
         // keying by name crashed the app on a valid rollout state.
-        dexDateBySpeciesKey = Dictionary(datedEntries.map { ($0.entry.id, $0.date) },
+    dexDateBySpeciesKey = Dictionary(
+      datedEntries.map { ($0.entry.id, $0.date) },
                                          uniquingKeysWith: { _, latest in latest })
-        recentSpeciesByDate = datedEntries
+    recentSpeciesByDate =
+      datedEntries
             .sorted { $0.date > $1.date }
             .map(\.entry)
     }

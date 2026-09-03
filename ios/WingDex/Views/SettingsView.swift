@@ -68,6 +68,8 @@ struct SettingsView: View {
     @State private var isExporting = false
     @State private var exportError: AppError?
     @State private var exportItem: ExportFileItem?
+  @State private var showingPendingLogoutConfirmation = false
+  @State private var logoutError: AppError?
     @FocusState private var isNameFieldFocused: Bool
     @State private var editedName = ""
     @State private var celebration: LiferCelebration?
@@ -98,6 +100,23 @@ struct SettingsView: View {
             editor?.syncToAuth()
         }
         .celebration($celebration)
+    .alert("Discard saved uploads and log out?", isPresented: $showingPendingLogoutConfirmation) {
+      Button("Cancel", role: .cancel) {}
+      Button("Discard and Log Out", role: .destructive) {
+        Task { await logOut(discardPendingUploads: true) }
+      }
+    } message: {
+      Text(
+        "\(store.pendingUploadCount) upload\(store.pendingUploadCount == 1 ? "" : "s") \(store.pendingUploadCount == 1 ? "has" : "have") not synced. Logging out will permanently discard them."
+      )
+    }
+    .alert(item: $logoutError) { error in
+      Alert(
+        title: Text("Could Not Log Out"),
+        message: Text(error.message),
+        dismissButton: .cancel()
+      )
+    }
     }
 
     private var formContent: some View {
@@ -124,7 +143,8 @@ struct SettingsView: View {
             // Version info
             Section {
                 let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-                let releaseURL = URL(string: "https://github.com/jlian/wingdex/releases/tag/ios-v\(version)")!
+        let releaseURL = URL(
+          string: "https://github.com/jlian/wingdex/releases/tag/ios-v\(version)")!
                 HStack {
                     Spacer()
                     VStack(spacing: 6) {
@@ -215,7 +235,8 @@ struct SettingsView: View {
     }
 
     private var displayNameRow: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
+    let layout =
+      dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
         return layout {
@@ -352,10 +373,12 @@ struct SettingsView: View {
     @ViewBuilder
     private var birdIdSection: some View {
         Section {
-            Toggle(isOn: Binding(
+      Toggle(
+        isOn: Binding(
                 get: { UserDefaults.standard.object(forKey: "useGeoContext") as? Bool ?? true },
                 set: { UserDefaults.standard.set($0, forKey: "useGeoContext") }
-            )) {
+        )
+      ) {
                 Text("Use Location and Time")
             }
         } header: {
@@ -363,7 +386,9 @@ struct SettingsView: View {
                 .font(.headline)
                 .foregroundStyle(Color.foregroundText)
         } footer: {
-            Text("Improves identification using photo location and month. Outing name suggestions are looked up on WingDex servers, not sent to a third party.")
+      Text(
+        "Improves identification using photo location and month. Outing name suggestions are looked up on WingDex servers, not sent to a third party."
+      )
                 .font(.footnote)
                 .foregroundStyle(Color.mutedText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -408,15 +433,37 @@ struct SettingsView: View {
     private var logOutSection: some View {
         Section {
             Button("Log Out", role: .destructive) {
-                Task {
-                    await auth.signOut()
-                    toasts.show("Logged out")
+        if store.pendingUploadStoreUnavailable {
+          logoutError = .message(
+            "WingDex couldn't open saved uploads. Restart WingDex before logging out."
+          )
+        } else if store.pendingUploadCount > 0 {
+          showingPendingLogoutConfirmation = true
+        } else {
+          Task { await logOut(discardPendingUploads: false) }
                 }
             }
         }
     }
 
     // MARK: - Actions
+
+  private func logOut(discardPendingUploads: Bool) async {
+    do {
+      guard !store.pendingUploadStoreUnavailable else {
+        throw AppError.message(
+          "WingDex couldn't open saved uploads. Restart WingDex before logging out."
+        )
+      }
+      if discardPendingUploads {
+        try await store.discardAllPendingUploads()
+      }
+      await auth.signOut()
+      toasts.show("Logged out")
+    } catch {
+      logoutError = AppError.map(error, fallback: "Could not discard saved uploads.")
+    }
+  }
 
     private func exportSightings() async {
         isExporting = true

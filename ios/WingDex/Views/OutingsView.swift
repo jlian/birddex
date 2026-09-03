@@ -104,7 +104,7 @@ struct OutingsView: View {
                             }
                             .accessibilityLabel(auth.isRegisteredAccount ? "Settings" : "Log in")
                             .accessibilityValue(
-                                auth.identity == .anonymous && (!store.outings.isEmpty || !store.observations.isEmpty)
+                                auth.identity == .anonymous && store.hasAccountDataAtRisk
                                     ? "These sightings are only on this device"
                                     : ""
                             )

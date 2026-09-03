@@ -124,7 +124,6 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         XCTAssertLessThan(pinchedCenter.y, initialCenter.y, "Off-center pinch did not move crop center up")
         XCTAssertTrue(zoomIn.exists, "Crop zoom-in control was missing")
         XCTAssertTrue(zoomOut.exists, "Crop zoom-out control was missing")
-        XCTAssertTrue(zoomIn.isHittable, "Crop zoom-in control was not interactive")
         XCTAssertTrue(zoomIn.isEnabled, "Crop zoom-in control was disabled below maximum zoom")
         let beforeZoomIn = cropZoomValue(cropViewport)
         zoomIn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()

@@ -146,7 +146,7 @@ export const onRequestPost: ApiHandler = async context => {
 
     stage = 'post-write photo ID compatibility verification'
     if (!await hasCompatiblePhotoIds(context.env.DB, userId, body, true)) {
-      return route.fail(409, 'Photo ID conflict', 'Photo batch was written, but post-write ownership verification found an ID conflict')
+      return route.fail(500, 'Internal server error', 'Photo batch was written, but post-write ownership verification found an ID conflict')
     }
     const outingIds = [...new Set(body.map(p => p.outingId))]
 

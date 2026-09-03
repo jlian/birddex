@@ -182,9 +182,9 @@ final class AddPhotosViewModel {
     /// The outing for the current cluster, held here until the cluster turns out to have a
     /// sighting worth saving. Nil when merging into an outing that already exists.
     private var pendingOuting: Outing?
-    private var didCreatePhotos = false
     private var errorRecovery: ErrorRecovery?
     private var preparedObservations: [BirdObservation]?
+  private var preparedUpload: PendingPhotoUpload?
 
     var canRetryError: Bool { errorRecovery != nil }
 
@@ -202,12 +202,17 @@ final class AddPhotosViewModel {
     var savedOutingCount = 0
     var savedObservationCount = 0
     var newSpeciesCount = 0
+  private var sessionQueuedUploadIDs = Set<String>()
+  var queuedUploadCount: Int {
+    guard let dataStore else { return 0 }
+    let pendingIDs = Set(dataStore.pendingUploads.map(\.id))
+    return sessionQueuedUploadIDs.intersection(pendingIDs).count
+  }
     /// Display names of species newly added to the dex during this upload session.
     var newSpeciesNames: [String] = []
 
     // MARK: - Dependencies
 
-    private var dataService: DataService?
     private var dataStore: DataStore?
     private var authService: AuthService?
     private var accountID: String?
@@ -223,13 +228,14 @@ final class AddPhotosViewModel {
         }
         self.accountID = accountID
         authService = auth
-        dataService = DataService(auth: auth, expectedAccountID: accountID)
         self.dataStore = dataStore
         // Initialize lastLocationName from the most recent outing
         lastLocationName = ""
         if dataStore.activeAccountID == accountID,
            let mostRecent = dataStore.outings
-            .sorted(by: { DateFormatting.sortDate($0.createdAt) > DateFormatting.sortDate($1.createdAt) })
+        .sorted(by: {
+          DateFormatting.sortDate($0.createdAt) > DateFormatting.sortDate($1.createdAt)
+        })
             .first
         {
             lastLocationName = mostRecent.locationName
@@ -242,7 +248,6 @@ final class AddPhotosViewModel {
         cleanupPhotoFiles()
         accountID = nil
         authService = nil
-        dataService = nil
         dataStore = nil
     }
 
@@ -319,8 +324,11 @@ final class AddPhotosViewModel {
             // which the simulator test job produces, always land here.
             return .empty
         } catch let importError {
-            log.error("Could not import incoming shared photos: \(importError.localizedDescription, privacy: .public)")
-            self.error = AppError.map(importError, fallback: "Could not import the shared photos. Try again.")
+      log.error(
+        "Could not import incoming shared photos: \(importError.localizedDescription, privacy: .public)"
+      )
+      self.error = AppError.map(
+        importError, fallback: "Could not import the shared photos. Try again.")
             errorRecovery = .incomingShareImport
             return .failed
         }
@@ -342,7 +350,9 @@ final class AddPhotosViewModel {
 
     /// Load photos from the picker and camera, extract EXIF, generate thumbnails, cluster.
     func processSelectedPhotos() async {
-        guard !selectedItems.isEmpty || !cameraPhotos.isEmpty || !incomingSharedPhotos.isEmpty else { return }
+    guard !selectedItems.isEmpty || !cameraPhotos.isEmpty || !incomingSharedPhotos.isEmpty else {
+      return
+    }
         guard !isProcessing else { return }
         isProcessing = true
         error = nil
@@ -363,7 +373,8 @@ final class AddPhotosViewModel {
         var duplicatePhotos: [ProcessedPhoto] = []
         var rejectedSharedFileNames: [String] = []
 
-        let preparationInputs = selectedItems.map(PhotoPreparationInput.picker)
+    let preparationInputs =
+      selectedItems.map(PhotoPreparationInput.picker)
             + incomingSharedPhotos.map(PhotoPreparationInput.shared)
         let preparationOutcomes: [PhotoPreparationOutcome]
         do {
@@ -379,7 +390,8 @@ final class AddPhotosViewModel {
             return
         } catch {
             await releaseIncomingShare()
-            self.error = AppError.map(error, fallback: "Could not prepare the selected photos. Try again.")
+      self.error = AppError.map(
+        error, fallback: "Could not prepare the selected photos. Try again.")
             currentStep = .selectPhotos
             isProcessing = false
             return
@@ -431,7 +443,8 @@ final class AddPhotosViewModel {
             // the FIFO queue. Accept it to drop it from the queue, and ask for
             // a fresh share instead of offering a retry that cannot succeed.
             await releaseIncomingShare()
-            error = .message("No shared photos could be read. Share them again in a supported image format.")
+      error = .message(
+        "No shared photos could be read. Share them again in a supported image format.")
             errorRecovery = nil
             isProcessing = false
             // Close is disabled while the step is `.extracting`, so return to a
@@ -459,7 +472,8 @@ final class AddPhotosViewModel {
                     PhotoFlowStore.remove([fileURL])
                     continue
                 }
-                candidatePhotos.append(ProcessedPhoto(
+        candidatePhotos.append(
+          ProcessedPhoto(
                     id: id,
                     originalURL: fileURL,
                     cleanupOriginal: true,
@@ -485,7 +499,8 @@ final class AddPhotosViewModel {
                 PhotoFlowStore.remove(candidatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
                 await releaseIncomingShare()
                 cameraPhotos = []
-                self.error = if let error = error as? IncomingShareError {
+        self.error =
+          if let error = error as? IncomingShareError {
                     .message(error.localizedDescription)
                 } else {
                     AppError.map(error, fallback: "Could not prepare the captured photo.")
@@ -545,7 +560,9 @@ final class AddPhotosViewModel {
         }
     }
 
-    private func preparePhotos(_ inputs: [PhotoPreparationInput]) async throws -> [PhotoPreparationOutcome] {
+  private func preparePhotos(_ inputs: [PhotoPreparationInput]) async throws
+    -> [PhotoPreparationOutcome]
+  {
         guard !inputs.isEmpty else { return [] }
         let concurrencyLimit = min(4, inputs.count)
         let batch = PhotoPreparationBatch()
@@ -563,7 +580,7 @@ final class AddPhotosViewModel {
                 }
 
                 var nextIndex = concurrencyLimit
-                var ordered = Array<PhotoPreparationOutcome?>(repeating: nil, count: inputs.count)
+        var ordered = [PhotoPreparationOutcome?](repeating: nil, count: inputs.count)
                 while let outcome = try await group.next() {
                     ordered[outcome.index] = outcome
                     processedCount += 1
@@ -596,7 +613,7 @@ final class AddPhotosViewModel {
     ) async throws -> PhotoPreparationOutcome {
         try Task.checkCancellation()
         switch input {
-        case let .picker(item):
+    case .picker(let item):
             var importedURL: URL?
             do {
                 guard let imported = try await item.loadTransferable(type: ImportedPhotoFile.self) else {
@@ -605,11 +622,13 @@ final class AddPhotosViewModel {
                 importedURL = imported.url
                 batch.registerOwned(imported.url)
                 try Task.checkCancellation()
-                guard let photo = makeProcessedPhoto(
+        guard
+          let photo = makeProcessedPhoto(
                     fileURL: imported.url,
                     fileName: nil,
                     cleanupOriginal: true
-                ) else {
+          )
+        else {
                     PhotoFlowStore.remove([imported.url])
                     batch.unregisterOwned(imported.url)
                     return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
@@ -640,15 +659,19 @@ final class AddPhotosViewModel {
                 log.error("Failed to load a selected photo")
                 return PhotoPreparationOutcome(index: index, photo: nil, rejectedSharedFileName: nil)
             }
-        case let .shared(sharedPhoto):
+    case .shared(let sharedPhoto):
             do {
                 try Task.checkCancellation()
-                guard let photo = makeProcessedPhoto(
+        guard
+          let photo = makeProcessedPhoto(
                     fileURL: sharedPhoto.fileURL,
                     fileName: sharedPhoto.fileName,
                     cleanupOriginal: false
-                ) else {
-                    log.error("Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
+          )
+        else {
+          log.error(
+            "Shared photo could not be decoded: \(sharedPhoto.fileName, privacy: .private(mask: .hash))"
+          )
                     return PhotoPreparationOutcome(
                         index: index,
                         photo: nil,
@@ -664,7 +687,9 @@ final class AddPhotosViewModel {
             } catch IncomingShareError.shareTooLarge {
                 throw IncomingShareError.shareTooLarge
             } catch {
-                log.error("Shared photo read failed after retry: \(sharedPhoto.fileName, privacy: .private(mask: .hash))")
+        log.error(
+          "Shared photo read failed after retry: \(sharedPhoto.fileName, privacy: .private(mask: .hash))"
+        )
                 return PhotoPreparationOutcome(
                     index: index,
                     photo: nil,
@@ -710,7 +735,7 @@ final class AddPhotosViewModel {
         newPhotos: inout [ProcessedPhoto],
         duplicatePhotos: inout [ProcessedPhoto]
     ) {
-        let isDuplicate = dataStore?.photos.contains { $0.fileHash == photo.fileHash } ?? false
+        let isDuplicate = dataStore?.containsPhoto(fileHash: photo.fileHash) ?? false
         if isDuplicate {
             duplicatePhotos.append(photo)
         } else {
@@ -724,7 +749,8 @@ final class AddPhotosViewModel {
         if !reimport {
             PhotoFlowStore.remove(pendingDuplicatePhotos.filter(\.cleanupOriginal).map(\.originalURL))
         }
-        let finalPhotos = reimport
+    let finalPhotos =
+      reimport
             ? pendingNewPhotos + pendingDuplicatePhotos
             : pendingNewPhotos
         pendingNewPhotos = []
@@ -766,8 +792,11 @@ final class AddPhotosViewModel {
 
         // Photos without EXIF time go into a single "Unknown Date" cluster
         let noDate = photos.filter { $0.exifTime == nil }
-        if !noDate.isEmpty && !clusters.contains(where: { $0.photos.contains(where: { $0.exifTime == nil }) }) {
-            clusters.append(PhotoCluster(
+    if !noDate.isEmpty
+      && !clusters.contains(where: { $0.photos.contains(where: { $0.exifTime == nil }) })
+    {
+      clusters.append(
+        PhotoCluster(
                 photos: noDate,
                 startTime: Date(),
                 endTime: Date(),
@@ -785,8 +814,8 @@ final class AddPhotosViewModel {
     // MARK: - Step 2: Outing Confirmed -> Start Per-Photo Loop
 
     /// Called when the user confirms the outing in OutingReviewView.
-    /// Creates photo metadata on the server immediately (matching web flow),
-    /// then starts the per-photo AI identification loop.
+    /// Stages the outing and photo metadata, then starts the per-photo AI identification loop.
+    /// Server writes occur only after the prepared upload synchronizes.
     /// Pass `outing` for a new outing, or nil when merging into one that already exists.
     /// Nothing is written until the cluster produces at least one sighting.
     func outingConfirmed(
@@ -804,7 +833,7 @@ final class AddPhotosViewModel {
         outingInferenceLocation = if let lat, let lon { (lat: lat, lon: lon) } else { nil }
         self.outingOverridesPhotoGPS = outingOverridesPhotoGPS
         pendingOuting = outing
-        didCreatePhotos = false
+    preparedUpload = nil
         photoResults = []
         currentCandidates = []
         rangeAdjusted = false
@@ -814,29 +843,9 @@ final class AddPhotosViewModel {
         Task { await runSpeciesId(photoIndex: 0) }
     }
 
-    /// Create the outing and its photo rows, the first time the cluster has something to save.
-    /// Order matters: observation has an FK to photo, and photo has one to outing.
-    private func ensureOutingAndPhotosExist(sessionID: UUID) async throws {
-        guard let service = dataService else { throw AuthError.notAuthenticated }
-        if let outing = pendingOuting {
-            _ = try await service.createOuting(outing)
-            guard isCurrentSession(sessionID) else { throw CancellationError() }
-            pendingOuting = nil
-        }
-        guard !didCreatePhotos else { return }
-        try await createPhotoMetadata(outingId: currentOutingId, sessionID: sessionID)
-        didCreatePhotos = true
-    }
-
-    /// Persist photo metadata for the current cluster to the server.
-    /// Must be called before creating observations (FK constraint on representativePhotoId).
-    private func createPhotoMetadata(outingId: String, sessionID: UUID) async throws {
-        guard let service = dataService else {
-            throw AppError.message("Photo service isn't available.")
-        }
-        let photos = clusterPhotos
+  private func photoMetadata(outingId: String) -> [DataService.PhotoPayload] {
         let formatter = ISO8601DateFormatter()
-        let payloads = photos.map { photo in
+    return clusterPhotos.map { photo in
             DataService.PhotoPayload(
                 id: photo.id,
                 outingId: outingId,
@@ -848,9 +857,6 @@ final class AddPhotosViewModel {
                 fileName: photo.fileName
             )
         }
-        try await service.createPhotos(payloads)
-        guard isCurrentSession(sessionID) else { throw CancellationError() }
-        log.info("Saved \(payloads.count) photo metadata records for outing \(outingId)")
     }
 
     // MARK: - Step 3: Species Identification (on-device)
@@ -896,7 +902,8 @@ final class AddPhotosViewModel {
         } catch {
             guard isCurrentSession(sessionID), currentPhotoIndex == photoIndex else { return }
             self.error = .message("Could not read this photo. Try again or skip it.")
-            errorRecovery = .speciesIdentification(photoIndex: photoIndex, croppedImageData: croppedImageData)
+      errorRecovery = .speciesIdentification(
+        photoIndex: photoIndex, croppedImageData: croppedImageData)
             currentCandidates = []
             rangeAdjusted = false
             currentStep = .perPhotoConfirm
@@ -906,7 +913,8 @@ final class AddPhotosViewModel {
 
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        let stubConfidence: Double? = if arguments.contains("--ui-test-stub-low-confidence-identification") {
+      let stubConfidence: Double? =
+        if arguments.contains("--ui-test-stub-low-confidence-identification") {
             0.5
         } else if arguments.contains("--ui-test-stub-identification") {
             0.95
@@ -914,12 +922,14 @@ final class AddPhotosViewModel {
             nil
         }
         if let stubConfidence {
-            currentCandidates = [IdentifiedCandidate(
+        currentCandidates = [
+          IdentifiedCandidate(
                 species: "Great Blue Heron (Ardea herodias)",
                 confidence: stubConfidence,
                 wikiTitle: nil,
                 plumage: nil
-            )]
+          )
+        ]
             rangeAdjusted = false
             if !isCropped, shouldPromptForCrop(currentCandidates) {
                 cropPromptContext = .lowConfidence
@@ -972,7 +982,9 @@ final class AddPhotosViewModel {
             let abstained = pBird.map { $0 < BirdIdEngine.birdProbeThreshold } ?? false
             let candidates = abstained ? [] : mapped
 
-            log.info("Found \(candidates.count) candidates for photo \(photoIndex + 1)\(abstained ? " (abstained on the bird probe)" : "")")
+      log.info(
+        "Found \(candidates.count) candidates for photo \(photoIndex + 1)\(abstained ? " (abstained on the bird probe)" : "")"
+      )
             rangeAdjusted = !abstained && results.contains { $0.logP != nil }
             currentCandidates = candidates
 
@@ -997,7 +1009,8 @@ final class AddPhotosViewModel {
                 error,
                 fallback: "Could not identify this photo. Try again or skip it."
             )
-            errorRecovery = .speciesIdentification(photoIndex: photoIndex, croppedImageData: croppedImageData)
+      errorRecovery = .speciesIdentification(
+        photoIndex: photoIndex, croppedImageData: croppedImageData)
             currentCandidates = []
             rangeAdjusted = false
             currentStep = .perPhotoConfirm
@@ -1035,7 +1048,9 @@ final class AddPhotosViewModel {
     // MARK: - Step 4: Per-Photo Confirmation
 
     /// User confirms species for the current photo with a certainty level.
-    func confirmCurrentPhoto(species: String, confidence: Double, status: ObservationStatus, count: Int) {
+  func confirmCurrentPhoto(
+    species: String, confidence: Double, status: ObservationStatus, count: Int
+  ) {
         let result = PhotoResult(
             photoId: currentPhoto?.id ?? "",
             species: species,
@@ -1134,7 +1149,7 @@ final class AddPhotosViewModel {
     /// then advance to the next cluster or finish.
     private func saveCurrentCluster() async {
         guard let sessionID = try? requireCurrentSession() else { return }
-        guard let service = dataService, let store = dataStore else { return }
+    guard let store = dataStore, let accountID else { return }
         currentStep = .saving
         isProcessing = true
         processingMessage = "Saving..."
@@ -1148,7 +1163,9 @@ final class AddPhotosViewModel {
         let existingSpecies = Set(store.dex.map(\.id))
 
         // Group by species, sum counts
-        var speciesMap: [String: (count: Int, status: ObservationStatus, photoId: String, confidences: [Double])] = [:]
+    var speciesMap:
+      [String: (count: Int, status: ObservationStatus, photoId: String, confidences: [Double])] =
+        [:]
         for r in confirmed {
             if let existing = speciesMap[r.species] {
                 speciesMap[r.species] = (
@@ -1162,7 +1179,9 @@ final class AddPhotosViewModel {
             }
         }
 
-        let observations = preparedObservations ?? speciesMap.map { species, info in
+    let observations =
+      preparedObservations
+      ?? speciesMap.map { species, info in
                 BirdObservation(
                     id: "obs_\(UUID().uuidString)",
                     outingId: currentOutingId,
@@ -1179,12 +1198,24 @@ final class AddPhotosViewModel {
 
         do {
             if !observations.isEmpty {
-                try await ensureOutingAndPhotosExist(sessionID: sessionID)
-                let response = try await service.createObservations(observations)
+        let existingOuting =
+          pendingOuting == nil ? store.outings.first { $0.id == currentOutingId } : nil
+        let upload =
+          preparedUpload
+          ?? PendingPhotoUpload(
+            id: "upload_\(UUID().uuidString)",
+            accountID: accountID,
+            createdAt: .now,
+            locationName: pendingOuting?.locationName ?? existingOuting?.locationName ?? lastLocationName,
+            outing: pendingOuting,
+            outingRecoverySnapshot: existingOuting,
+            photos: photoMetadata(outingId: currentOutingId),
+            observations: observations
+          )
+        preparedUpload = upload
+        let saveResult = try await store.savePhotoUpload(upload)
                 guard isCurrentSession(sessionID) else { return }
-                if let dexUpdates = response.dexUpdates {
-                    store.dex = dexUpdates
-                }
+        pendingOuting = nil
 
                 // Count new species by diffing the recomputed dex against the
                 // snapshot taken before the save. The observations built above
@@ -1192,7 +1223,13 @@ final class AddPhotosViewModel {
                 // while the dex keys as code:<code>, flagging existing species
                 // as new after almost every save. The server resolves codes and
                 // returns the authoritative dex, so a key diff is exact.
-                let newDexEntries = store.dex.filter { !existingSpecies.contains($0.id) }
+        let newDexEntries: [DexEntry] =
+          switch saveResult {
+          case .synced:
+            store.dex.filter { !existingSpecies.contains($0.id) }
+          case .queued:
+            []
+          }
                 let clusterNewSpecies = newDexEntries.count
                 for entry in newDexEntries {
                     newSpeciesNames.append(getDisplayName(entry.speciesName))
@@ -1200,9 +1237,12 @@ final class AddPhotosViewModel {
                 newSpeciesCount += clusterNewSpecies
                 savedOutingCount += 1
                 savedObservationCount += observations.count
+        if case .queued = saveResult {
+          sessionQueuedUploadIDs.insert(upload.id)
+        }
 
                 // Accumulate upload summary
-                let outingName = store.outings.first(where: { $0.id == currentOutingId })?.locationName ?? ""
+        let outingName = upload.locationName
                 let uniqueSpecies = Set(confirmed.map(\.species)).count
                 let totalCount = confirmed.reduce(0) { $0 + $1.count }
                 if var summary = uploadSummary {
@@ -1224,8 +1264,11 @@ final class AddPhotosViewModel {
                     )
                 }
 
-                // Brief "saved" notice before advancing
-                processingMessage = "Outing saved!"
+        processingMessage =
+          switch saveResult {
+          case .synced: "Outing saved!"
+          case .queued: "Saved on this device"
+          }
                 try? await Task.sleep(for: .milliseconds(1200))
                 guard isCurrentSession(sessionID) else { return }
             }
@@ -1233,6 +1276,7 @@ final class AddPhotosViewModel {
             // Move to next cluster or finish
             if currentClusterIndex < clusters.count - 1 {
                 preparedObservations = nil
+        preparedUpload = nil
                 currentClusterIndex += 1
                 currentPhotoIndex = 0
                 photoResults = []
@@ -1241,8 +1285,8 @@ final class AddPhotosViewModel {
                 cropPromptContext = .manualRecrop
                 currentStep = .outingReview
             } else {
-                await store.loadAll()
                 preparedObservations = nil
+        preparedUpload = nil
                 await finishCompletedFlow()
             }
         } catch is CancellationError {
@@ -1276,7 +1320,7 @@ final class AddPhotosViewModel {
     private func requireCurrentSession() throws -> UUID {
         guard let accountID,
               dataStore?.activeAccountID == accountID,
-              dataStore?.hasLoadedAll == true
+      dataStore?.hasReadableData == true
         else {
             throw AuthError.notAuthenticated
         }
@@ -1291,14 +1335,14 @@ final class AddPhotosViewModel {
         if dataStore.activeAccountID != resolvedAccountID {
             dataStore.activate(accountID: resolvedAccountID)
         }
-        try await dataStore.ensureLoaded()
+    try await dataStore.ensureReadableData()
         configure(auth: authService, dataStore: dataStore)
         return try requireCurrentSession()
     }
 
     private func isCurrentSession(_ sessionID: UUID) -> Bool {
         guard sessionGeneration == sessionID, let accountID else { return false }
-        return dataStore?.activeAccountID == accountID && dataStore?.hasLoadedAll == true
+    return dataStore?.activeAccountID == accountID && dataStore?.hasReadableData == true
     }
 
     // MARK: - Helpers
@@ -1335,7 +1379,8 @@ final class AddPhotosViewModel {
     }
 
     private func cleanupPhotoFiles() {
-        let photos = processedPhotos
+    let photos =
+      processedPhotos
             + pendingNewPhotos
             + pendingDuplicatePhotos
             + clusters.flatMap(\.photos)
@@ -1365,8 +1410,8 @@ final class AddPhotosViewModel {
         outingInferenceLocation = nil
         outingOverridesPhotoGPS = false
         pendingOuting = nil
-        didCreatePhotos = false
         preparedObservations = nil
+    preparedUpload = nil
         pendingNewPhotos = []
         pendingDuplicatePhotos = []
         pendingRejectedSharedPhotoCount = 0
@@ -1382,6 +1427,7 @@ final class AddPhotosViewModel {
         savedOutingCount = 0
         savedObservationCount = 0
         newSpeciesCount = 0
+    sessionQueuedUploadIDs.removeAll()
         newSpeciesNames = []
         continuesShareQueueAfterDismissal = false
         stoppedShareQueueAfterDismissal = true

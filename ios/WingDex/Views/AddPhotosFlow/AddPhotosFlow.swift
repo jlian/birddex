@@ -91,9 +91,12 @@ struct AddPhotosFlow: View {
             let dupCount = viewModel.pendingDuplicatePhotos.count
             let newCount = viewModel.pendingNewPhotos.count
             if newCount > 0 {
-                Text("\(dupCount) of \(dupCount + newCount) photos have already been imported. Re-importing will add duplicate sightings.")
+        Text(
+          "\(dupCount) of \(dupCount + newCount) photos have already been imported. Re-importing will add duplicate sightings."
+        )
             } else {
-                Text(dupCount == 1
+        Text(
+          dupCount == 1
                      ? "This photo has already been imported."
                      : "All \(dupCount) photos have already been imported.")
             }
@@ -182,7 +185,8 @@ struct AddPhotosFlow: View {
             }
             return "Review Outing"
         case .photoProcessing:
-            return "Identifying photo \(viewModel.currentPhotoIndex + 1) of \(viewModel.clusterPhotos.count)..."
+      return
+        "Identifying photo \(viewModel.currentPhotoIndex + 1) of \(viewModel.clusterPhotos.count)..."
         case .perPhotoConfirm:
             return "Photo \(viewModel.currentPhotoIndex + 1) of \(viewModel.clusterPhotos.count)"
         case .manualCrop:
@@ -228,7 +232,9 @@ struct AddPhotosFlow: View {
 
             // Show the full current image aspect-fit, not a square crop.
             if let photo = viewModel.currentPhoto,
-               let uiImage = UIImage(data: photo.croppedImage ?? viewModel.activeImageData ?? photo.thumbnail) {
+        let uiImage = UIImage(
+          data: photo.croppedImage ?? viewModel.activeImageData ?? photo.thumbnail)
+      {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
@@ -261,7 +267,8 @@ struct AddPhotosFlow: View {
     @ViewBuilder
     private var manualCropDestination: some View {
         if viewModel.currentPhoto != nil,
-           let imageData = viewModel.activeImageData {
+      let imageData = viewModel.activeImageData
+    {
             CropView(
                 imageData: imageData,
                 // Nil seeds CropView's centred default. The local classifier
@@ -338,13 +345,22 @@ struct AddPhotosFlow: View {
                     Text("\(summary.outings) \(summary.outings == 1 ? "outing" : "outings") saved")
                         .font(.subheadline)
                         .foregroundStyle(Color.mutedText)
+          if viewModel.queuedUploadCount > 0 {
+            Label(
+              "\(viewModel.queuedUploadCount) saved on this device and waiting to sync",
+              systemImage: "icloud.and.arrow.up"
+            )
+            .font(.footnote)
+            .foregroundStyle(Color.mutedText)
+          }
                 }
 
                 // Stats cards
                 HStack(spacing: 12) {
                     summaryCard(value: summary.totalSpecies, label: "Species confirmed")
                     summaryCard(value: summary.totalCount, label: "Total sightings")
-                    summaryCard(value: summary.newSpecies, label: "New to WingDex", highlight: summary.newSpecies > 0)
+          summaryCard(
+            value: summary.newSpecies, label: "New to WingDex", highlight: summary.newSpecies > 0)
                 }
                 .padding(.horizontal)
             } else {
@@ -352,7 +368,9 @@ struct AddPhotosFlow: View {
                     Text("Upload Complete!")
                         .font(.system(size: 22, weight: .semibold, design: .serif))
                         .foregroundStyle(Color.foregroundText)
-                    Text("\(viewModel.savedOutingCount) outing\(viewModel.savedOutingCount == 1 ? "" : "s") created")
+          Text(
+            "\(viewModel.savedOutingCount) outing\(viewModel.savedOutingCount == 1 ? "" : "s") created"
+          )
                         .font(.subheadline)
                         .foregroundStyle(Color.mutedText)
                     if viewModel.newSpeciesCount > 0 {
@@ -360,6 +378,11 @@ struct AddPhotosFlow: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(Color.accentColor)
                     }
+          if viewModel.queuedUploadCount > 0 {
+            Text("\(viewModel.queuedUploadCount) waiting to sync")
+              .font(.subheadline)
+              .foregroundStyle(Color.mutedText)
+          }
                 }
             }
 

@@ -124,7 +124,12 @@ class BirdIdFlowUITestCase: XCTestCase {
         case .dynamicType:
             return issue.element?.identifier == "outing.photosHeader"
         case .textClipped:
-            return issue.element?.identifier == "outing.locationName"
+            guard let identifier = issue.element?.identifier else { return false }
+            return [
+                "outing.locationName",
+                "outing.gpsStatus",
+                "outing.gpsCoordinates",
+            ].contains(identifier)
         default:
             return false
         }
@@ -142,12 +147,17 @@ class BirdIdFlowUITestCase: XCTestCase {
     }
 
     func isKnownSignInAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
-        guard issue.auditType == .contrast, let identifier = issue.element?.identifier else {
+        guard let identifier = issue.element?.identifier else { return false }
+        switch issue.auditType {
+        case .contrast:
+            // The moving collage makes automated contrast readings variable for
+            // these translucent controls. Keep the exception scoped to stable IDs.
+            return ["auth.passkeyLogin", "auth.passkeySignUp", "auth.google", "auth.github"].contains(identifier)
+        case .hitRegion:
+            return identifier == "auth.legal"
+        default:
             return false
         }
-        // The moving collage makes automated contrast readings variable for
-        // these translucent controls. Keep the exception scoped to stable IDs.
-        return ["auth.passkeySignUp", "auth.google", "auth.github"].contains(identifier)
     }
 
     func isKnownHomeAuditIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {

@@ -47,7 +47,7 @@ struct SignInView: View {
 
     private var hasAnonymousData: Bool {
         auth.identity == .anonymous
-            && (!store.hasLoadedAll || !store.outings.isEmpty || !store.observations.isEmpty)
+            && (!store.hasLoadedAll || store.hasAccountDataAtRisk)
     }
 
     var body: some View {
@@ -272,6 +272,7 @@ struct SignInView: View {
                     .foregroundStyle(.white.opacity(0.65))
                     .tint(.white.opacity(0.8))
                     .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("auth.legal")
                     .padding(.horizontal, 28)
                     .padding(.top, 4)
                     .padding(.bottom, 8)

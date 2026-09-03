@@ -311,7 +311,7 @@ describe('non-auth durable observability', () => {
 
     const response = await createObservations(routeContext(jsonRequest(observations), db, log) as never)
 
-    expect(response.status).toBe(409)
+    expect(response.status).toBe(500)
     expect(events).toHaveLength(1)
     expect(events[0].fields?.resultType).toBe('Failed')
     expect(events[0].fields?.resultDescription).toBe(
