@@ -1,6 +1,8 @@
 # Xcode
 *.xcuserdata
 *.xcworkspace
+# Generated from project.yml; Xcode rewrites these files when schemes are used.
+WingDex.xcodeproj/xcshareddata/xcschemes/
 !WingDex.xcodeproj/project.xcworkspace/
 WingDex.xcodeproj/project.xcworkspace/*
 !WingDex.xcodeproj/project.xcworkspace/xcshareddata/
