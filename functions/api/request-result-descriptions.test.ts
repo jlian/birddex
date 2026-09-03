@@ -30,6 +30,7 @@ vi.mock('../lib/taxonomy', () => ({
 
 import { onRequestGet as readLinkedProviders } from './auth/linked-providers'
 import { onRequestGet as readAllData } from './data/all'
+import { onRequestPost as persistObservations } from './data/observations'
 import { onRequestPatch as patchOuting } from './data/outings/[id]'
 import { onRequestPost as persistPhotos } from './data/photos'
 import { onRequestGet as exportDex } from './export/dex'
@@ -167,6 +168,138 @@ describe('request result descriptions', () => {
     expect(description(response)).toBe('Photo persistence failed during photo database batch write for 1 record')
     expect(description(response)).not.toContain(privateOutingId)
     expect(description(response)).not.toContain(privatePhotoId)
+  })
+
+  it('distinguishes a post-write photo conflict from a pre-write rejection', async () => {
+    const outingId = 'outing-id'
+    const db = {
+      prepare: vi.fn((sql: string) => {
+        if (sql.includes('SELECT id FROM outing')) {
+          return statement({ all: vi.fn(async () => ({ results: [{ id: outingId }] })) })
+        }
+        if (sql.includes('SELECT id, userId, outingId FROM photo')) {
+          return statement({ all: vi.fn(async () => ({ results: [] })) })
+        }
+        return statement()
+      }),
+      batch: vi.fn(async () => []),
+    } as unknown as D1Database
+
+    const response = await persistPhotos(context('https://wingdex.test/api/data/photos', {
+      db,
+      method: 'POST',
+      body: [{
+        id: 'photo-id',
+        outingId,
+        fileHash: 'hash',
+        fileName: 'photo.jpg',
+      }],
+    }) as never) as Response
+
+    expect(response.status).toBe(500)
+    expect(description(response)).toBe('Photo batch was written, but post-write ownership verification found an ID conflict')
+  })
+
+  it('keeps an incompatible existing photo ID as a pre-write conflict', async () => {
+    const outingId = 'outing-id'
+    const batch = vi.fn(async () => [])
+    const db = {
+      prepare: vi.fn((sql: string) => {
+        if (sql.includes('SELECT id FROM outing')) {
+          return statement({ all: vi.fn(async () => ({ results: [{ id: outingId }] })) })
+        }
+        if (sql.includes('SELECT id, userId, outingId FROM photo')) {
+          return statement({
+            all: vi.fn(async () => ({
+              results: [{ id: 'photo-id', userId: 'another-user', outingId }],
+            })),
+          })
+        }
+        return statement()
+      }),
+      batch,
+    } as unknown as D1Database
+
+    const response = await persistPhotos(context('https://wingdex.test/api/data/photos', {
+      db,
+      method: 'POST',
+      body: [{
+        id: 'photo-id',
+        outingId,
+        fileHash: 'hash',
+        fileName: 'photo.jpg',
+      }],
+    }) as never) as Response
+
+    expect(response.status).toBe(409)
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes a post-write observation conflict from a pre-write rejection', async () => {
+    const outingId = 'outing-id'
+    const db = {
+      prepare: vi.fn((sql: string) => {
+        if (sql.includes('SELECT id FROM outing')) {
+          return statement({ all: vi.fn(async () => ({ results: [{ id: outingId }] })) })
+        }
+        if (sql.includes('SELECT id, userId, outingId FROM observation')) {
+          return statement({ all: vi.fn(async () => ({ results: [] })) })
+        }
+        return statement()
+      }),
+      batch: vi.fn(async () => []),
+    } as unknown as D1Database
+
+    const response = await persistObservations(context('https://wingdex.test/api/data/observations', {
+      db,
+      method: 'POST',
+      body: [{
+        id: 'observation-id',
+        outingId,
+        speciesName: 'American Crow',
+        count: 1,
+        certainty: 'confirmed',
+      }],
+    }) as never) as Response
+
+    expect(response.status).toBe(500)
+    expect(description(response)).toBe('Observation batch was written, but post-write ownership verification found an ID conflict')
+  })
+
+  it('keeps an incompatible existing observation ID as a pre-write conflict', async () => {
+    const outingId = 'outing-id'
+    const batch = vi.fn(async () => [])
+    const db = {
+      prepare: vi.fn((sql: string) => {
+        if (sql.includes('SELECT id FROM outing')) {
+          return statement({ all: vi.fn(async () => ({ results: [{ id: outingId }] })) })
+        }
+        if (sql.includes('SELECT id, userId, outingId FROM observation')) {
+          return statement({
+            all: vi.fn(async () => ({
+              results: [{ id: 'observation-id', userId: 'another-user', outingId }],
+            })),
+          })
+        }
+        return statement()
+      }),
+      batch,
+    } as unknown as D1Database
+
+    const response = await persistObservations(context('https://wingdex.test/api/data/observations', {
+      db,
+      method: 'POST',
+      body: [{
+        id: 'observation-id',
+        outingId,
+        speciesName: 'American Crow',
+        count: 1,
+        certainty: 'confirmed',
+      }],
+    }) as never) as Response
+
+    expect(response.status).toBe(409)
+    expect(batch).not.toHaveBeenCalled()
   })
 
   it('states that an outing patch committed before readback failed', async () => {

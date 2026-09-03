@@ -335,7 +335,7 @@ export const onRequestPost: ApiHandler = async context => {
       if (body.length > 1) {
         route.failed(`Committed ${body.length}-record observation batch, but post-commit ownership verification failed`)
       }
-      return route.fail(409, 'Observation ID conflict', 'One or more observation IDs were concurrently claimed by another account or outing', { count: body.length })
+      return route.fail(500, 'Internal server error', 'Observation batch was written, but post-write ownership verification found an ID conflict', { count: body.length })
     }
     observationBatchVerified = true
     if (body.length > 1) {

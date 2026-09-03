@@ -35,17 +35,29 @@ struct WingDexApp: App {
         do {
             try PhotoFlowStore.purgeAllFiles()
         } catch {
-            appLog.error("Could not clear abandoned photo flow files: \(error.localizedDescription, privacy: .public)")
+      appLog.error(
+        "Could not clear abandoned photo flow files: \(error.localizedDescription, privacy: .public)"
+      )
         }
         do {
             try IncomingShareStore.discardAbandonedClaimsOnLaunch()
         } catch IncomingShareError.containerUnavailable {
             // Unsigned simulator builds do not have access to the app group.
         } catch {
-            appLog.error("Could not clear an interrupted shared-photo import: \(error.localizedDescription, privacy: .public)")
+      appLog.error(
+        "Could not clear an interrupted shared-photo import: \(error.localizedDescription, privacy: .public)"
+      )
         }
         let auth = AuthService.shared
         let cache = try? AccountDataCache()
+    let pendingUploads: PendingUploadStore?
+    do {
+      pendingUploads = try PendingUploadStore()
+    } catch {
+      pendingUploads = nil
+      appLog.error(
+        "Could not open the pending upload store: \(error.localizedDescription, privacy: .public)")
+    }
         #if DEBUG
         let uiTestDataMode = UITestDataService.Mode(arguments: ProcessInfo.processInfo.arguments)
         if uiTestDataMode != nil {
@@ -61,7 +73,9 @@ struct WingDexApp: App {
                 #endif
                 return DataService(auth: auth, expectedAccountID: accountID)
             },
-            cache: cache
+      cache: cache,
+      pendingUploadStore: pendingUploads,
+      requiresPendingUploadStore: true
         )
         if auth.hasSession, let accountID = auth.userId {
             store.activate(accountID: accountID)
@@ -109,11 +123,12 @@ struct ContentView: View {
     @State private var pendingRecoveredMergeAccountID: String?
 
     private var blocksForAccountMerge: Bool {
-        auth.isRegisteredAccount
-            && (auth.hasPendingAccountMergeForCurrentAccount
+        store.hasPendingUploadAccountTransfer
+            || (auth.isRegisteredAccount
+                && (auth.hasPendingAccountMergeForCurrentAccount
                 || auth.accountMergeState != .none
                 || accountMergeRefreshInProgress
-                || accountMergeRefreshFailed)
+                || accountMergeRefreshFailed))
     }
 
     /// True only when sightings are actually moving between accounts. A plain interactive
@@ -123,6 +138,7 @@ struct ContentView: View {
         auth.hasPendingAccountMerge
             || auth.accountMergeState == .pending
             || pendingRecoveredMergeResult != nil
+            || store.hasPendingUploadAccountTransfer
     }
 
     var body: some View {
@@ -140,12 +156,20 @@ struct ContentView: View {
                         AccountMergeRecoveryView(
                             refreshFailed: accountMergeRefreshFailed,
                             isRetrying: accountMergeRefreshInProgress,
-                            isMergingAccounts: isMergingAccounts
+                            isMergingAccounts: isMergingAccounts,
+                            hasPendingUploadTransfer: store.hasPendingUploadAccountTransfer
                         ) {
                             guard let accountID = auth.userId else { return }
-                            Task { await recoverPendingAccountMerge(accountID: accountID) }
+                            Task {
+                                if store.hasPendingUploadAccountTransfer {
+                                    await retryPendingUploadMergeTransfer(accountID: accountID)
+                                } else {
+                                    await recoverPendingAccountMerge(accountID: accountID)
+                                }
+                            }
                         }
-                        .transition(.asymmetric(
+            .transition(
+              .asymmetric(
                             insertion: .opacity.animation(.smooth(duration: 0.4)),
                             removal: .opacity.animation(.smooth(duration: 0.3))
                         ))
@@ -162,10 +186,13 @@ struct ContentView: View {
                     accountMergeRefreshFailed = false
                     pendingRecoveredMergeResult = nil
                     pendingRecoveredMergeAccountID = nil
-                    store.clearActiveAccount()
+                    if let accountID = auth.consumeExpiredAnonymousAccountID() {
+                        store.rememberPendingUploadsForReauthentication(accountID: accountID)
+                    }
                     if let accountID = auth.consumeDiscardedAccountID() {
                         store.clearCachedAccount(accountID: accountID)
                     }
+                    store.clearActiveAccount()
                 }
             }
             .onChange(of: auth.userId) { _, accountID in
@@ -174,7 +201,8 @@ struct ContentView: View {
                     pendingRecoveredMergeAccountID = nil
                 }
                 if let refreshAccountID = accountMergeRefreshAccountID,
-                   refreshAccountID != accountID {
+          refreshAccountID != accountID
+        {
                     clearAccountMergeRefresh(accountID: refreshAccountID)
                 }
                 guard auth.hasSession, !blocksForAccountMerge, let accountID else { return }
@@ -190,6 +218,7 @@ struct ContentView: View {
                 store.activate(accountID: accountID)
                 if previousState == .finalizing {
                     if let result = auth.consumeCompletedAccountMergeResult() {
+                        guard handleCompletedAccountMerge(result) else { return }
                         if !result.promoted {
                             rememberRecoveredMerge(result, accountID: accountID)
                         }
@@ -197,7 +226,8 @@ struct ContentView: View {
                     let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
                     Task {
                         await store.loadAll()
-                        guard ownsAccountMergeRefresh(
+            guard
+              ownsAccountMergeRefresh(
                             accountID: accountID,
                             attemptID: refreshAttemptID
                         ), auth.userId == accountID,
@@ -232,7 +262,8 @@ struct ContentView: View {
                     await auth.signOut()
                 }
                 if ProcessInfo.processInfo.arguments.contains("--auto-sign-in"),
-                   !auth.hasSession {
+            !auth.hasSession
+          {
                     try? await auth.ensureAnonymousSession()
                 }
                 #endif
@@ -242,7 +273,8 @@ struct ContentView: View {
                 if auth.hasSession, let accountID = auth.userId {
                     let validation = await auth.validateSession()
                     if validation != .rejected,
-                       auth.userId == accountID {
+            auth.userId == accountID
+          {
                         store.activate(accountID: accountID)
                         if auth.isRegisteredAccount {
                             if auth.hasPendingAccountMergeForCurrentAccount {
@@ -255,17 +287,21 @@ struct ContentView: View {
                                 else { return }
                                 if case .completed(let result) = outcome {
                                     _ = auth.consumeCompletedAccountMergeResult()
+                                    guard handleCompletedAccountMerge(result) else { return }
                                     if !result.promoted {
                                         rememberRecoveredMerge(result, accountID: accountID)
                                     }
                                     let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
                                     await initialLoad
-                                    guard ownsAccountMergeRefresh(
+                  guard
+                    ownsAccountMergeRefresh(
                                         accountID: accountID,
                                         attemptID: refreshAttemptID
-                                    ) else { return }
+                    )
+                  else { return }
                                     await store.loadAll()
-                                    guard ownsAccountMergeRefresh(
+                  guard
+                    ownsAccountMergeRefresh(
                                         accountID: accountID,
                                         attemptID: refreshAttemptID
                                     ), auth.userId == accountID,
@@ -295,6 +331,43 @@ struct ContentView: View {
     private func rememberRecoveredMerge(_ result: AccountMergeResult, accountID: String) {
         pendingRecoveredMergeResult = result
         pendingRecoveredMergeAccountID = accountID
+    }
+
+    @discardableResult
+    private func handleCompletedAccountMerge(_ result: AccountMergeResult) -> Bool {
+        do {
+            try store.applyAccountMerge(result)
+            auth.completePendingAccountMergeTransfer()
+            return true
+        } catch {
+            accountMergeRefreshInProgress = false
+            accountMergeRefreshAccountID = nil
+            accountMergeRefreshAttemptID = nil
+            accountMergeRefreshFailed = true
+            appLog.error("Could not transfer saved uploads to the merged account")
+            return false
+        }
+    }
+
+    private func retryPendingUploadMergeTransfer(
+        accountID: String
+    ) async {
+        do {
+            try store.retryPendingUploadAccountTransfer()
+            auth.completePendingAccountMergeTransfer()
+        } catch {
+            accountMergeRefreshFailed = true
+            return
+        }
+        let refreshAttemptID = beginAccountMergeRefresh(accountID: accountID)
+        store.activate(accountID: accountID)
+        await store.loadAll()
+        guard auth.userId == accountID, store.activeAccountID == accountID else { return }
+        finishAccountMergeRefresh(
+            accountID: accountID,
+            attemptID: refreshAttemptID,
+            failed: !store.hasLoadedAll || store.refreshFailed
+        )
     }
 
     private func beginAccountMergeRefresh(accountID: String) -> UUID {
@@ -347,6 +420,7 @@ struct ContentView: View {
         if outcome != .failed {
             if case .completed(let result) = outcome {
                 _ = auth.consumeCompletedAccountMergeResult()
+                guard handleCompletedAccountMerge(result) else { return }
                 if !result.promoted {
                     rememberRecoveredMerge(result, accountID: accountID)
                 }
@@ -378,13 +452,18 @@ struct ContentView: View {
 
 private struct AccountMergeRecoveryView: View {
     @Environment(AuthService.self) private var auth
+  @Environment(DataStore.self) private var store
+  @State private var showingPendingLogoutConfirmation = false
+  @State private var logoutError: AppError?
     let refreshFailed: Bool
     let isRetrying: Bool
     let isMergingAccounts: Bool
+    let hasPendingUploadTransfer: Bool
     let onRetry: () -> Void
 
     private var hasFailed: Bool {
-        !isRetrying && (auth.accountMergeState == .failed || refreshFailed)
+        !isRetrying
+            && (auth.accountMergeState == .failed || refreshFailed || hasPendingUploadTransfer)
     }
 
     var body: some View {
@@ -410,13 +489,19 @@ private struct AccountMergeRecoveryView: View {
     private var failureCard: some View {
         VStack(spacing: 16) {
             ContentUnavailableView {
-                Label(isMergingAccounts ? "Sightings not moved yet" : "Couldn't finish signing in",
+        Label(
+          hasPendingUploadTransfer
+            ? "Saved uploads not moved yet"
+            : isMergingAccounts ? "Sightings not moved yet" : "Couldn't finish signing in",
                       systemImage: "exclamationmark.triangle")
             } description: {
-                Text(accountMergeRecoveryMessage(
-                    refreshFailed: refreshFailed,
-                    isMergingAccounts: isMergingAccounts
-                ))
+        Text(
+          hasPendingUploadTransfer
+            ? "WingDex couldn't transfer uploads saved on this device. Retry to keep them with this account."
+            : accountMergeRecoveryMessage(
+              refreshFailed: refreshFailed,
+              isMergingAccounts: isMergingAccounts
+            ))
             }
 
             VStack(spacing: 10) {
@@ -424,14 +509,51 @@ private struct AccountMergeRecoveryView: View {
                     .buttonStyle(.glassProminent)
                     .buttonSizing(.flexible)
                 Button("Sign out") {
+          if store.pendingUploadStoreUnavailable || hasPendingUploadTransfer {
+            logoutError = .message(
+              "WingDex couldn't access all saved uploads. Retry or restart WingDex before signing out."
+            )
+          } else if store.pendingUploadCount > 0 {
+            showingPendingLogoutConfirmation = true
+          } else {
                     Task { await auth.signOut() }
                 }
+        }
                 .buttonStyle(.glass)
                 .buttonSizing(.flexible)
             }
         }
         .padding(28)
         .frame(maxWidth: 360)
+    .alert("Discard saved uploads and sign out?", isPresented: $showingPendingLogoutConfirmation) {
+      Button("Cancel", role: .cancel) {}
+      Button("Discard and Sign Out", role: .destructive) {
+        Task {
+          do {
+            guard !store.pendingUploadStoreUnavailable, !hasPendingUploadTransfer else {
+              throw AppError.message(
+                "WingDex couldn't access all saved uploads. Retry or restart WingDex before signing out."
+              )
+            }
+            try await store.discardAllPendingUploads()
+            await auth.signOut()
+          } catch {
+            logoutError = AppError.map(error, fallback: "Could not discard saved uploads.")
+          }
+        }
+      }
+    } message: {
+      Text(
+        "\(store.pendingUploadCount) upload\(store.pendingUploadCount == 1 ? "" : "s") \(store.pendingUploadCount == 1 ? "has" : "have") not synced. Signing out will permanently discard them."
+      )
+    }
+    .alert(item: $logoutError) { error in
+      Alert(
+        title: Text("Could Not Sign Out"),
+        message: Text(error.message),
+        dismissButton: .cancel()
+      )
+    }
     }
 }
 
@@ -465,9 +587,12 @@ struct MainTabView: View {
     @State private var incomingShareImportTask: Task<Void, Never>?
     @State private var incomingShareImportTaskID: UUID?
     #if DEBUG
-    private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains("--ui-test-open-settings")
-    private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains("--ui-test-ignore-shares")
-    private let uiTestObservesShareQueue = ProcessInfo.processInfo.arguments.contains("--ui-test-observe-share-queue")
+    private let uiTestForcesSettings = ProcessInfo.processInfo.arguments.contains(
+      "--ui-test-open-settings")
+    private let uiTestIgnoresPendingShare = ProcessInfo.processInfo.arguments.contains(
+      "--ui-test-ignore-shares")
+    private let uiTestObservesShareQueue = ProcessInfo.processInfo.arguments.contains(
+      "--ui-test-observe-share-queue")
     @State private var uiTestDataSetupIdentifier = "ui-test.dataSetupPending"
     @State private var uiTestGeocodingCancellationAcknowledged = false
     #else
@@ -527,10 +652,13 @@ struct MainTabView: View {
                 showingWizard = true
             }
         }
-        .fullScreenCover(isPresented: $showingWizard, onDismiss: {
+    .fullScreenCover(
+      isPresented: $showingWizard,
+      onDismiss: {
             let shouldContinueShareQueue = addPhotosVM.continuesShareQueueAfterDismissal
             let explicitlyStoppedShareQueue = addPhotosVM.stoppedShareQueueAfterDismissal
-            let shouldPrompt = auth.identity == .anonymous
+        let shouldPrompt =
+          auth.identity == .anonymous
                 && addPhotosVM.savedOutingCount > 0
                 && auth.userId.map { !SignupPromptStore.hasPrompted(userID: $0) } == true
             let sessionViewModel = addPhotosVM
@@ -560,7 +688,8 @@ struct MainTabView: View {
                     showingAccount = true
                 }
             }
-        }) {
+      }
+    ) {
             NavigationStack {
                 AddPhotosFlow(
                     viewModel: addPhotosVM,
@@ -643,6 +772,7 @@ struct MainTabView: View {
                   phase == .active
             else { return }
             scheduleIncomingShareImport()
+      Task { await store.syncPendingUploads() }
         }
         .onDisappear {
             navigation.setMainInterfaceReady(false)
@@ -682,7 +812,8 @@ struct MainTabView: View {
     #if DEBUG
     private func prepareUITestData(arguments: [String]) async throws {
         let fixtureMode = UITestDataService.Mode(arguments: arguments)
-        let needsAccount = arguments.contains("--ui-test-clear-data")
+      let needsAccount =
+        arguments.contains("--ui-test-clear-data")
             || arguments.contains("--ui-test-seed-csv")
             || arguments.contains("--ui-test-open-settings")
             || fixtureMode != nil
@@ -706,13 +837,15 @@ struct MainTabView: View {
                 try await store.ensureLoaded()
 
                 if arguments.contains("--ui-test-clear-data")
-                    || arguments.contains("--ui-test-seed-csv") {
+            || arguments.contains("--ui-test-seed-csv")
+          {
                     stage = "account data clear"
                     try await store.clearAll()
                 }
 
                 if let seedFlag = arguments.firstIndex(of: "--ui-test-seed-csv"),
-                   arguments.index(after: seedFlag) < arguments.endIndex {
+            arguments.index(after: seedFlag) < arguments.endIndex
+          {
                     stage = "seed outing write"
                     let service = DataService(auth: auth, expectedAccountID: accountID)
                     let outingID = "ui-test-seeded-outing-\(accountID)"
@@ -720,7 +853,8 @@ struct MainTabView: View {
                     // outing without them renders no rarity mark at all. This
                     // fixture had none, which quietly made every seeded screen
                     // untestable for that feature.
-                    _ = try await service.createOuting(Outing(
+            _ = try await service.createOuting(
+              Outing(
                         id: outingID,
                         userId: accountID,
                         startTime: "2026-02-12T06:58:00-03:00",
@@ -757,7 +891,8 @@ struct MainTabView: View {
                     // against the shipped asset; change one and that check fails.
                     stage = "seed rarity outing write"
                     let rarityOutingID = "ui-test-seeded-rarity-outing-\(accountID)"
-                    _ = try await service.createOuting(Outing(
+            _ = try await service.createOuting(
+              Outing(
                         id: rarityOutingID,
                         userId: accountID,
                         startTime: "2026-01-18T08:30:00-08:00",
@@ -775,7 +910,8 @@ struct MainTabView: View {
                         ("tundra-swan", "Tundra Swan (Cygnus columbianus)"),
                         ("cardinal", "Northern Cardinal (Cardinalis cardinalis)"),
                     ]
-                    _ = try await service.createObservations(rarities.map { slug, name in
+            _ = try await service.createObservations(
+              rarities.map { slug, name in
                         BirdObservation(
                             id: "ui-test-\(slug)-\(accountID)",
                             outingId: rarityOutingID,
@@ -792,7 +928,8 @@ struct MainTabView: View {
                 return
             } catch {
                 lastError = error
-                appLog.warning("UI test data setup failed during \(stage, privacy: .public), attempt \(attempt)")
+          appLog.warning(
+            "UI test data setup failed during \(stage, privacy: .public), attempt \(attempt)")
                 if attempt < 3 { try? await Task.sleep(for: .seconds(attempt)) }
             }
         }
@@ -942,7 +1079,8 @@ struct AvatarView: View {
 
     private var emojiInfo: (emoji: String, color: Color)? {
         guard let url = imageURL,
-              url.hasPrefix("data:image/svg+xml") else { return nil }
+      url.hasPrefix("data:image/svg+xml")
+    else { return nil }
         let decoded = url.removingPercentEncoding ?? url
         let emojiMap: [(String, Color)] = [
             ("🐦", Color(red: 0.88, green: 0.95, blue: 1.0)),
@@ -976,7 +1114,8 @@ struct AvatarView: View {
                 .background(info.color)
                 .clipShape(Circle())
         } else if let image = imageURL, !image.isEmpty,
-                  let url = URL(string: image) {
+      let url = URL(string: image)
+    {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img):
@@ -1020,7 +1159,7 @@ struct AccountAvatarView: View {
 
     private var hasAnonymousData: Bool {
         auth.identity == .anonymous
-            && (!store.outings.isEmpty || !store.observations.isEmpty)
+            && store.hasAccountDataAtRisk
     }
 
     var body: some View {

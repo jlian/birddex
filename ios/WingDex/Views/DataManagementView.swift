@@ -24,7 +24,9 @@ struct DataManagementView: View {
                 }
                 .foregroundStyle(Color.foregroundText)
             } footer: {
-                Text("Removes all your outings, observations, and species data. Your account and login credentials are kept.")
+        Text(
+          "Removes all your outings, observations, and species data. Your account and login credentials are kept."
+        )
                     .font(.footnote)
                     .foregroundStyle(Color.mutedText)
             }
@@ -46,7 +48,9 @@ struct DataManagementView: View {
                             showingDeleteAccountStep2 = true
                         }
                     } message: {
-                        Text("This is permanent and irreversible. The following will be deleted immediately:\n\n- All your outings and observations\n- Your entire WingDex species list\n- Your passkeys and login credentials\n- Your account and profile\n\nThere is no way to recover your data after this.")
+            Text(
+              "This is permanent and irreversible. The following will be deleted immediately:\n\n- All your outings and observations\n- Your entire WingDex species list\n- Your passkeys and login credentials\n- Your account and profile\n\nThere is no way to recover your data after this."
+            )
                     }
                     .alert(
                         "Are you absolutely sure?",
@@ -57,7 +61,9 @@ struct DataManagementView: View {
                             Task { await deleteAccount() }
                         }
                     } message: {
-                        Text("This will permanently delete your account and all associated data. You will be signed out immediately. This cannot be undone.")
+            Text(
+              "This will permanently delete your account and all associated data. You will be signed out immediately. This cannot be undone."
+            )
                     }
 
                     if isDeleting {
@@ -74,7 +80,9 @@ struct DataManagementView: View {
                             .foregroundStyle(.red)
                     }
                 } footer: {
-                    Text("Permanently deletes your account, login credentials, passkeys, and all data. You will be signed out immediately.")
+          Text(
+            "Permanently deletes your account, login credentials, passkeys, and all data. You will be signed out immediately."
+          )
                         .font(.footnote)
                         .foregroundStyle(Color.mutedText)
                 }
@@ -100,12 +108,16 @@ struct DataManagementView: View {
                 }
             }
         } message: {
-            Text("This will permanently delete all your outings, observations, and WingDex entries. This cannot be undone.")
+      Text(
+        "This will permanently delete all your outings, observations, and WingDex entries, including uploads saved on this device that have not synchronized. This cannot be undone."
+      )
         }
         .alert("One more Apple step", isPresented: $showingManualAppleRevocation) {
             Button("OK") { Task { await auth.signOut() } }
         } message: {
-            Text("Your WingDex account was deleted. Remove WingDex from Sign in with Apple in your Apple Account settings to revoke the remaining Apple access.")
+      Text(
+        "Your WingDex account was deleted. Remove WingDex from Sign in with Apple in your Apple Account settings to revoke the remaining Apple access."
+      )
         }
     }
 
@@ -113,7 +125,18 @@ struct DataManagementView: View {
         isDeleting = true
         deleteError = nil
         do {
-            let needsManualAppleRevocation = try await auth.deleteAccount()
+            try await store.beginAccountDeletion()
+            let needsManualAppleRevocation: Bool
+            do {
+                needsManualAppleRevocation = try await auth.deleteAccount()
+                try store.markAccountDeletionConfirmed()
+                try await store.discardAllPendingUploads()
+                store.completeAccountDeletionCleanup()
+                store.endAccountDeletion()
+            } catch {
+                store.endAccountDeletion(after: error)
+                throw error
+            }
             isDeleting = false
             if needsManualAppleRevocation {
                 showingManualAppleRevocation = true

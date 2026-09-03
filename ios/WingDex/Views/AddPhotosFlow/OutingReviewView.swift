@@ -209,6 +209,7 @@ struct OutingReviewView: View {
                 Label {
                     HStack(spacing: 4) {
                         Text("GPS detected")
+                            .accessibilityIdentifier("outing.gpsStatus")
                         // effectiveLat/Lon, NOT cluster.centerLat/Lon. Choosing a
                         // search result moves the outing's coordinates, and the
                         // save at `lat: effectiveLat` uses the moved ones. Showing
@@ -217,6 +218,7 @@ struct OutingReviewView: View {
                         if let lat = effectiveLat, let lon = effectiveLon {
                             Text("(\(lat, specifier: "%.4f"), \(lon, specifier: "%.4f"))")
                                 .foregroundStyle(Color.foregroundText)
+                                .accessibilityIdentifier("outing.gpsCoordinates")
                         }
                     }
                 } icon: {

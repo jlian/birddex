@@ -27,7 +27,7 @@ enum AccountMergeState: Sendable {
     case failed
 }
 
-struct AccountMergeResult: Decodable, Equatable, Sendable {
+struct AccountMergeResult: Codable, Equatable, Sendable {
     let sourceUserId: String
     let targetUserId: String
     let promoted: Bool
@@ -70,14 +70,24 @@ final class AuthService: @unchecked Sendable {
     var userImage: String?
     var signInMessage: String?
     private(set) var discardedAccountID: String?
+    private(set) var expiredAnonymousAccountID: String?
     private(set) var accountMergeState: AccountMergeState = .none
     private var completedAccountMergeResult: AccountMergeResult?
-    var hasPendingAccountMerge: Bool { keychain[Self.accountMergeTokenKey] != nil }
+    var hasPendingAccountMerge: Bool {
+        keychain[Self.accountMergeTokenKey] != nil
+            || keychain[Self.completedAccountMergeKey] != nil
+    }
     var hasPendingAccountMergeForCurrentAccount: Bool {
         guard identity == .registered,
-              hasPendingAccountMerge,
               let currentUserID = userId
         else { return false }
+        if let encodedResult = keychain[Self.completedAccountMergeKey] {
+            guard let result = Self.decodePersistedAccountMergeResult(encodedResult) else {
+                return true
+            }
+            return result.targetUserId == currentUserID
+        }
+        guard hasPendingAccountMerge else { return false }
         guard let targetUserID = keychain[Self.accountMergeTargetKey] else { return true }
         return targetUserID == currentUserID
     }
@@ -100,6 +110,7 @@ final class AuthService: @unchecked Sendable {
     #endif
     private let keychain = Keychain(service: Config.bundleID)
         .accessibility(.whenUnlockedThisDeviceOnly)
+    private let defaults: UserDefaults
 
     /// Ephemeral session that never sends or stores cookies.
     /// Prevents stale cookies from conflicting with Bearer token auth.
@@ -120,6 +131,8 @@ final class AuthService: @unchecked Sendable {
     private static let identityKey = "session_identity"
     private static let accountMergeTokenKey = "account_merge_token"
     private static let accountMergeTargetKey = "account_merge_target"
+    private static let accountMergeSourceKey = "account_merge_source"
+    private static let completedAccountMergeKey = "completed_account_merge"
 
     private static func referenceSuffix(for error: Error) -> String {
         let traceID: String?
@@ -133,7 +146,8 @@ final class AuthService: @unchecked Sendable {
         return AuthenticatedRequest.referenceSuffix(traceID: traceID)
     }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         restoreSession()
         if hasPendingAccountMergeForCurrentAccount {
             accountMergeState = .pending
@@ -142,7 +156,10 @@ final class AuthService: @unchecked Sendable {
     }
 
     #if DEBUG
-    func installUITestAnonymousIdentity() {
+    func installUITestAnonymousIdentity(
+        userID: String = "ui-test-account",
+        sessionToken: String? = nil
+    ) {
         authenticationGeneration += 1
         resetSessionValidation()
         sessionEnrichmentTask?.cancel()
@@ -151,12 +168,12 @@ final class AuthService: @unchecked Sendable {
         anonymousSessionTask?.cancel()
         anonymousSessionTask = nil
         anonymousSessionTaskID = nil
-        sessionToken = nil
+        self.sessionToken = sessionToken
         signedSessionToken = nil
         sessionExpiry = nil
         usesUITestIdentity = true
         identity = .anonymous
-        userId = "ui-test-account"
+        userId = userID
         userName = "Swift Sparrow"
         userEmail = nil
         userImage = nil
@@ -565,7 +582,8 @@ final class AuthService: @unchecked Sendable {
     func signOut() async {
         log.info("Signing out")
         signInMessage = nil
-        if keychain[Self.accountMergeTargetKey] == nil {
+        if keychain[Self.accountMergeTargetKey] == nil,
+           keychain[Self.completedAccountMergeKey] == nil {
             discardPendingAccountMerge()
         }
         guard let token = sessionToken else {
@@ -607,6 +625,13 @@ final class AuthService: @unchecked Sendable {
         let reference = AuthenticatedRequest.referenceSuffix(traceID: traceID)
         log.warning("Session invalidated\(reference, privacy: .public)")
         signInMessage = "Your session expired. Please sign in again."
+        if identity == .anonymous, let userId {
+            defaults.set(
+                userId,
+                forKey: PendingUploadRecoveryKeys.reauthenticationAccountID
+            )
+            expiredAnonymousAccountID = userId
+        }
         clearSession()
         return true
     }
@@ -625,9 +650,18 @@ final class AuthService: @unchecked Sendable {
         return discardedAccountID
     }
 
+    func consumeExpiredAnonymousAccountID() -> String? {
+        defer { expiredAnonymousAccountID = nil }
+        return expiredAnonymousAccountID
+    }
+
     func consumeCompletedAccountMergeResult() -> AccountMergeResult? {
         defer { completedAccountMergeResult = nil }
         return completedAccountMergeResult
+    }
+
+    func completePendingAccountMergeTransfer() {
+        keychain[Self.completedAccountMergeKey] = nil
     }
 
     private func clearSession() {
@@ -739,8 +773,10 @@ final class AuthService: @unchecked Sendable {
             if statusCode == 401 {
                 invalidateSession(rejectedToken: token, traceID: traceID)
             }
-            throw AuthError.oauthFailed(
-                "Account deletion failed (HTTP \(statusCode))",
+            throw DataServiceError.http(
+                status: statusCode,
+                message: "Account deletion failed",
+                retryAfter: nil,
                 traceID: traceID
             )
         }
@@ -987,6 +1023,7 @@ final class AuthService: @unchecked Sendable {
     @discardableResult
     private func prepareAccountMerge(authMethod: String) async throws -> String? {
         guard identity == .anonymous else { return nil }
+        guard let sourceUserID = userId else { throw AuthError.notAuthenticated }
         let token = try validToken()
         let body = try JSONSerialization.data(withJSONObject: ["authMethod": authMethod])
         let request = AuthenticatedRequest.withBearer(
@@ -1014,6 +1051,7 @@ final class AuthService: @unchecked Sendable {
         else { throw AuthError.oauthFailed("Invalid account merge response") }
         keychain[Self.accountMergeTokenKey] = mergeToken
         keychain[Self.accountMergeTargetKey] = nil
+        keychain[Self.accountMergeSourceKey] = sourceUserID
         return mergeToken
     }
 
@@ -1021,6 +1059,22 @@ final class AuthService: @unchecked Sendable {
         let mergeToken = keychain[Self.accountMergeTokenKey]
         let wasRetryingTokenlessConflict = mergeToken == nil && accountMergeState == .failed
         guard identity == .registered, let currentUserID = userId else { return .failed }
+        if mergeToken == nil, let encodedResult = keychain[Self.completedAccountMergeKey] {
+            guard let result = Self.decodePersistedAccountMergeResult(encodedResult) else {
+                keychain[Self.completedAccountMergeKey] = nil
+                completedAccountMergeResult = nil
+                accountMergeState = .none
+                log.error("Discarded unreadable completed account merge marker")
+                return .none
+            }
+            guard result.targetUserId == currentUserID else {
+                accountMergeState = .failed
+                return .failed
+            }
+            completedAccountMergeResult = result
+            accountMergeState = .none
+            return .completed(result)
+        }
         let generation = authenticationGeneration
         let token: String
         do {
@@ -1079,13 +1133,21 @@ final class AuthService: @unchecked Sendable {
                 context: "Could not finalize account merge",
                 logger: log
             )
-            let outcome = try Self.decodeAccountMergeResponse(data)
+            var outcome = try Self.decodeAccountMergeResponse(data)
             if case .completed(let result) = outcome {
-                completedAccountMergeResult = result
+                let resolvedResult = Self.resolveLocalAccountMergeSource(
+                    result,
+                    localSourceUserID: keychain[Self.accountMergeSourceKey]
+                )
+                outcome = .completed(resolvedResult)
+                keychain[Self.completedAccountMergeKey] =
+                    try Self.encodePersistedAccountMergeResult(resolvedResult)
+                completedAccountMergeResult = resolvedResult
             }
             if mergeToken != nil {
                 keychain[Self.accountMergeTokenKey] = nil
                 keychain[Self.accountMergeTargetKey] = nil
+                keychain[Self.accountMergeSourceKey] = nil
             }
             accountMergeState = .none
             return outcome
@@ -1120,6 +1182,36 @@ final class AuthService: @unchecked Sendable {
         return .completed(try decoder.decode(AccountMergeResult.self, from: data))
     }
 
+    nonisolated static func resolveLocalAccountMergeSource(
+        _ result: AccountMergeResult,
+        localSourceUserID: String?
+    ) -> AccountMergeResult {
+        guard result.sourceUserId == "multiple", let localSourceUserID else { return result }
+        return AccountMergeResult(
+            sourceUserId: localSourceUserID,
+            targetUserId: result.targetUserId,
+            promoted: result.promoted,
+            outings: result.outings,
+            observations: result.observations,
+            photos: result.photos
+        )
+    }
+
+    nonisolated static func encodePersistedAccountMergeResult(
+        _ result: AccountMergeResult
+    ) throws -> String {
+        String(decoding: try JSONEncoder().encode(result), as: UTF8.self)
+    }
+
+    nonisolated static func decodePersistedAccountMergeResult(
+        _ encodedResult: String
+    ) -> AccountMergeResult? {
+        try? JSONDecoder().decode(
+            AccountMergeResult.self,
+            from: Data(encodedResult.utf8)
+        )
+    }
+
     nonisolated static func isTokenlessMergeConflict(
         statusCode: Int,
         hasMergeToken: Bool
@@ -1137,6 +1229,8 @@ final class AuthService: @unchecked Sendable {
     private func discardPendingAccountMerge() {
         keychain[Self.accountMergeTokenKey] = nil
         keychain[Self.accountMergeTargetKey] = nil
+        keychain[Self.accountMergeSourceKey] = nil
+        keychain[Self.completedAccountMergeKey] = nil
         accountMergeState = .none
     }
 

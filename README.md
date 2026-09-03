@@ -70,7 +70,9 @@ npm run db:migrate
 npm run dev
 ```
 
-`npm run dev` serves the React app and native Worker API together on `:5000` through the Cloudflare Vite plugin, with HMR for both sides. It creates `.dev.vars` from the example on first run. `npm stop` clears the local server. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
+`npm run dev` serves the React app and native Worker API together on `:5000` through the Cloudflare Vite plugin, with HMR for both sides. It binds to all interfaces so the iOS `Localhost` scheme can reach it through the LAN reverse proxy; set `VITE_SERVER_HOST=false` to restrict it to loopback. It creates `.dev.vars` from the example on first run. `npm stop` clears the local server. Local D1 state lives in `~/.cache/wingdex/wrangler-state`.
+
+The `Localhost` iOS scheme expects `localhost.wingdex.app` to resolve from the simulator or device to a LAN HTTPS reverse proxy with a trusted certificate. Configure that proxy to preserve the Host header and forward HTTP and WebSocket traffic to the development Mac on port 5000. After `npm run dev`, verify the path with `dig +short localhost.wingdex.app` and `curl --fail https://localhost.wingdex.app/api/auth/get-session`.
 
 Reverse geocoding reads the private production place archive through a remote
 R2 binding while the Worker and D1 stay local. Run `npx wrangler login` before

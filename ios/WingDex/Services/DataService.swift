@@ -5,15 +5,27 @@ private let log = Logger(subsystem: Config.bundleID, category: "DataService")
 
 protocol DataStoreService: Sendable {
     func fetchAllData() async throws -> AllDataResponse
+  func submitPendingUpload(_ upload: PendingPhotoUpload) async throws
+    -> DataService.ObservationsResponse
     func deleteOuting(id: String) async throws -> DexUpdateResponse
     func updateOuting(id: String, fields: OutingUpdate) async throws -> Outing
     func updateDexEntry(fields: DexUpdate) async throws -> [DexEntry]
     func rejectObservations(ids: [String]) async throws -> DataService.ObservationsResponse
     func searchSpecies(query: String, limit: Int) async throws -> [DataService.SpeciesSearchResult]
-    func createObservations(_ observations: [BirdObservation]) async throws -> DataService.ObservationsResponse
+  func createObservations(_ observations: [BirdObservation]) async throws
+    -> DataService.ObservationsResponse
     func exportOutingCSV(outingId: String) async throws -> Data
-    func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws -> DataService.ImportResponse
+  func importEBirdCSV(_ csvData: Data, profileTimezone: String?) async throws
+    -> DataService.ImportResponse
     func clearAllData() async throws
+}
+
+extension DataStoreService {
+  func submitPendingUpload(_ upload: PendingPhotoUpload) async throws
+    -> DataService.ObservationsResponse
+  {
+    throw URLError(.unsupportedURL)
+  }
 }
 
 /// Handles all REST API communication with the WingDex backend.
@@ -71,7 +83,10 @@ final class DataService: DataStoreService, Sendable {
 
     func rejectObservations(ids: [String]) async throws -> ObservationsResponse {
         struct Patch: Codable { let certainty: String }
-        struct Update: Codable { let ids: [String]; let patch: Patch }
+    struct Update: Codable {
+      let ids: [String]
+      let patch: Patch
+    }
         let data = try JSONEncoder().encode(Update(ids: ids, patch: Patch(certainty: "rejected")))
         let responseData = try await patch("api/data/observations", body: data)
         return try JSONDecoder().decode(ObservationsResponse.self, from: responseData)
@@ -109,7 +124,9 @@ final class DataService: DataStoreService, Sendable {
 
         let start = Date()
         let (data, response) = try await Self.bearerSession.data(for: request)
-        try await validate(response, data: data, rejectedToken: token, path: "api/species/search", method: "GET", start: start, byteCount: data.count)
+    try await validate(
+      response, data: data, rejectedToken: token, path: "api/species/search", method: "GET",
+      start: start, byteCount: data.count)
         return try JSONDecoder().decode(SpeciesSearchResponse.self, from: data).results
     }
 
@@ -131,7 +148,7 @@ final class DataService: DataStoreService, Sendable {
         return try JSONDecoder().decode(Outing.self, from: responseData)
     }
 
-    struct PhotoPayload: Codable {
+  struct PhotoPayload: Codable, Sendable {
         let id: String
         let outingId: String
         let exifTime: String?
@@ -139,7 +156,7 @@ final class DataService: DataStoreService, Sendable {
         let fileHash: String
         let fileName: String
 
-        struct PhotoGPS: Codable {
+    struct PhotoGPS: Codable, Sendable {
             let lat: Double
             let lon: Double
         }
@@ -160,6 +177,42 @@ final class DataService: DataStoreService, Sendable {
         let responseData = try await post("api/data/observations", body: data)
         return try JSONDecoder().decode(ObservationsResponse.self, from: responseData)
     }
+
+  func submitPendingUpload(_ upload: PendingPhotoUpload) async throws -> ObservationsResponse {
+    var committedEarlierStage = false
+    if let outing = upload.outing {
+      _ = try await createOuting(outing)
+      committedEarlierStage = true
+    }
+
+    do {
+      try await createPhotos(upload.photos)
+    } catch {
+      guard committedEarlierStage else { throw error }
+      throw PendingUploadSubmissionError(
+        underlying: error,
+        canReconcileAfterRefresh: failureWasDefinitelyRejected(error)
+      )
+    }
+    committedEarlierStage = committedEarlierStage || !upload.photos.isEmpty
+
+    do {
+      return try await createObservations(upload.observations)
+    } catch {
+      guard committedEarlierStage else { throw error }
+      throw PendingUploadSubmissionError(
+        underlying: error,
+        canReconcileAfterRefresh: failureWasDefinitelyRejected(error)
+      )
+    }
+  }
+
+  private func failureWasDefinitelyRejected(_ error: Error) -> Bool {
+    guard let serviceError = error as? DataServiceError,
+      case .http(let status, _, _, _) = serviceError
+    else { return false }
+    return (400...499).contains(status) && status != 408 && status != 429
+  }
 
     // MARK: - Exports
 
@@ -205,14 +258,17 @@ final class DataService: DataStoreService, Sendable {
         let boundary = UUID().uuidString
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"import.csv\"\r\n".data(using: .utf8)!)
+    body.append(
+      "Content-Disposition: form-data; name=\"file\"; filename=\"import.csv\"\r\n".data(
+        using: .utf8)!)
         body.append("Content-Type: text/csv\r\n\r\n".data(using: .utf8)!)
         body.append(csvData)
         body.append("\r\n".data(using: .utf8)!)
 
         if let tz = profileTimezone, tz != "observation-local" {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"profileTimezone\"\r\n\r\n".data(using: .utf8)!)
+      body.append(
+        "Content-Disposition: form-data; name=\"profileTimezone\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(tz)\r\n".data(using: .utf8)!)
         }
 
@@ -221,13 +277,16 @@ final class DataService: DataStoreService, Sendable {
         let url = Config.apiBaseURL.appendingPathComponent("api/import/ebird-csv")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+    request.setValue(
+      "multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         let token = try await attachAuth(&request)
 
         let start = Date()
         let (responseData, response) = try await Self.bearerSession.data(for: request)
-        try await validate(response, data: responseData, rejectedToken: token, path: "api/import/ebird-csv", method: "POST", start: start, byteCount: responseData.count)
+    try await validate(
+      response, data: responseData, rejectedToken: token, path: "api/import/ebird-csv",
+      method: "POST", start: start, byteCount: responseData.count)
 
         return try JSONDecoder().decode(ImportResponse.self, from: responseData)
     }
@@ -252,7 +311,9 @@ final class DataService: DataStoreService, Sendable {
 
         let start = Date()
         let (data, response) = try await Self.bearerSession.data(for: request)
-        try await validate(response, data: data, rejectedToken: token, path: path, method: "GET", start: start, byteCount: data.count)
+    try await validate(
+      response, data: data, rejectedToken: token, path: path, method: "GET", start: start,
+      byteCount: data.count)
         return data
     }
 
@@ -267,7 +328,9 @@ final class DataService: DataStoreService, Sendable {
 
         let start = Date()
         let (responseData, response) = try await Self.bearerSession.data(for: request)
-        try await validate(response, data: responseData, rejectedToken: token, path: path, method: "POST", start: start, byteCount: responseData.count)
+    try await validate(
+      response, data: responseData, rejectedToken: token, path: path, method: "POST", start: start,
+      byteCount: responseData.count)
         return responseData
     }
 
@@ -282,7 +345,9 @@ final class DataService: DataStoreService, Sendable {
 
         let start = Date()
         let (responseData, response) = try await Self.bearerSession.data(for: request)
-        try await validate(response, data: responseData, rejectedToken: token, path: path, method: "PATCH", start: start, byteCount: responseData.count)
+    try await validate(
+      response, data: responseData, rejectedToken: token, path: path, method: "PATCH", start: start,
+      byteCount: responseData.count)
         return responseData
     }
 
@@ -295,7 +360,9 @@ final class DataService: DataStoreService, Sendable {
 
         let start = Date()
         let (data, response) = try await Self.bearerSession.data(for: request)
-        try await validate(response, data: data, rejectedToken: token, path: path, method: "DELETE", start: start, byteCount: data.count)
+    try await validate(
+      response, data: data, rejectedToken: token, path: path, method: "DELETE", start: start,
+      byteCount: data.count)
         return data
     }
 
@@ -310,7 +377,10 @@ final class DataService: DataStoreService, Sendable {
         return token
     }
 
-    private func validate(_ response: URLResponse, data: Data, rejectedToken: String, path: String = "?", method: String = "?", start: Date? = nil, byteCount: Int? = nil) async throws {
+  private func validate(
+    _ response: URLResponse, data: Data, rejectedToken: String, path: String = "?",
+    method: String = "?", start: Date? = nil, byteCount: Int? = nil
+  ) async throws {
         guard let http = response as? HTTPURLResponse else {
             throw DataServiceError.invalidResponse
         }
@@ -322,9 +392,13 @@ final class DataService: DataStoreService, Sendable {
             let traceID = AuthenticatedRequest.traceID(from: http)
             let reference = AuthenticatedRequest.referenceSuffix(traceID: traceID)
             if (400...499).contains(status) {
-                log.warning("\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)\(reference, privacy: .public)")
+        log.warning(
+          "\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)\(reference, privacy: .public)"
+        )
             } else {
-                log.error("\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)\(reference, privacy: .public)")
+        log.error(
+          "\(method) \(path) -> HTTP \(status)\(durationFragment)\(bytesFragment)\(reference, privacy: .public)"
+        )
             }
             // Server rejected the session - clear stale local auth state
             // so the UI shows the sign-in screen instead of a broken homepage.
@@ -363,5 +437,19 @@ enum DataServiceError: LocalizedError {
         case .invalidResponse: "Invalid response"
         case .http(let status, let message, _, _): message ?? "HTTP \(status)"
         }
+    }
+}
+
+struct PendingUploadSubmissionError: LocalizedError {
+    let underlying: Error
+    let canReconcileAfterRefresh: Bool
+
+    init(underlying: Error, canReconcileAfterRefresh: Bool = false) {
+        self.underlying = underlying
+        self.canReconcileAfterRefresh = canReconcileAfterRefresh
+    }
+
+    var errorDescription: String? {
+        underlying.localizedDescription
     }
 }

@@ -47,6 +47,13 @@ function serveGzipFilesAsRawBytes(): Plugin {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, '')
+  const configuredHost = env.VITE_SERVER_HOST
+  const serverHost = configuredHost === 'false'
+    ? false
+    : configuredHost === 'true'
+      ? true
+      : configuredHost || '0.0.0.0'
+
   return {
     define: {
       APP_VERSION: JSON.stringify(packageJson.version),
@@ -63,8 +70,12 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     server: {
-      host: !!env.VITE_SERVER_HOST,
-      allowedHosts: env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean) ?? [],
+      // The iOS Localhost scheme reaches this server through the LAN reverse proxy.
+      host: serverHost,
+      allowedHosts: [
+        'localhost.wingdex.app',
+        ...(env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean) ?? []),
+      ],
       forwardConsole: true,
       watch: {
         // ml/ is the research tree: 148 GB across 455k files on tomahawk, and
