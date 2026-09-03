@@ -82,10 +82,10 @@ struct AddPhotosFlow: View {
         // Duplicate photo detection alert
         .alert("Duplicate photos found", isPresented: $viewModel.showDuplicateConfirm) {
             Button("Skip duplicates") {
-                viewModel.handleDuplicateChoice(reimport: false)
+                Task { await viewModel.handleDuplicateChoice(reimport: false) }
             }
             Button("Re-import") {
-                viewModel.handleDuplicateChoice(reimport: true)
+                Task { await viewModel.handleDuplicateChoice(reimport: true) }
             }
         } message: {
             let dupCount = viewModel.pendingDuplicatePhotos.count
@@ -157,6 +157,11 @@ struct AddPhotosFlow: View {
     private func dismissWizard(stopShareQueue: Bool) {
         if stopShareQueue {
             viewModel.stopShareQueueAfterDismissal()
+            Task {
+                await viewModel.discardSession()
+                dismiss()
+            }
+            return
         }
         viewModel.currentStep = .selectPhotos
         dismiss()
@@ -223,7 +228,7 @@ struct AddPhotosFlow: View {
 
             // Show the full current image aspect-fit, not a square crop.
             if let photo = viewModel.currentPhoto,
-               let uiImage = UIImage(data: photo.croppedImage ?? photo.image) {
+               let uiImage = UIImage(data: photo.croppedImage ?? viewModel.activeImageData ?? photo.thumbnail) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
@@ -255,9 +260,10 @@ struct AddPhotosFlow: View {
     /// Displays a context-specific reason (multi-bird, no detection, or manual re-crop).
     @ViewBuilder
     private var manualCropDestination: some View {
-        if let photo = viewModel.currentPhoto {
+        if viewModel.currentPhoto != nil,
+           let imageData = viewModel.activeImageData {
             CropView(
-                imageData: photo.image,
+                imageData: imageData,
                 // Nil seeds CropView's centred default. The local classifier
                 // localises nothing, so there is never a suggestion to seed it.
                 initialCropBox: nil,
@@ -270,7 +276,7 @@ struct AddPhotosFlow: View {
                 },
                 onApply: { cropResult in
                     // Generate cropped image data from the crop box
-                    if let croppedData = generateCroppedImageData(from: photo.image, cropBox: cropResult) {
+                    if let croppedData = generateCroppedImageData(from: imageData, cropBox: cropResult) {
                         viewModel.handleCropComplete(croppedImageData: croppedData)
                     } else {
                         viewModel.cancelCrop()
@@ -442,4 +448,3 @@ struct AddPhotosFlow: View {
     }
 }
 #endif
-

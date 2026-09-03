@@ -48,11 +48,11 @@ final class PhotoServiceTests: XCTestCase {
         )
     }
 
-    func testPreparationPreservesOriginalBytesAndDownsamplesThumbnail() throws {
+    func testPreparationRecordsOriginalSizeAndDownsamplesThumbnail() throws {
         let original = try makeImageData(width: 1_200, height: 600)
         let prepared = try XCTUnwrap(PhotoService.preparePhoto(from: original))
 
-        XCTAssertEqual(prepared.image, original)
+        XCTAssertEqual(prepared.byteCount, original.count)
         let thumbnailSize = try imageDimensions(prepared.thumbnail)
         XCTAssertEqual(
             max(thumbnailSize.width, thumbnailSize.height),
@@ -95,6 +95,46 @@ final class PhotoServiceTests: XCTestCase {
         XCTAssertNotNil(prepared.exifTime)
         XCTAssertEqual(try XCTUnwrap(prepared.gpsLat), 47.61, accuracy: 0.000_001)
         XCTAssertEqual(try XCTUnwrap(prepared.gpsLon), -122.33, accuracy: 0.000_001)
+    }
+
+    func testFilePreparationPreservesMetadataAndIdentity() throws {
+        let original = try makeImageData(
+            width: 1_200,
+            height: 600,
+            properties: [
+                kCGImagePropertyExifDictionary: [
+                    kCGImagePropertyExifDateTimeOriginal: "2026:08:30 12:34:56",
+                ],
+                kCGImagePropertyGPSDictionary: [
+                    kCGImagePropertyGPSLatitude: 47.61,
+                    kCGImagePropertyGPSLatitudeRef: "N",
+                    kCGImagePropertyGPSLongitude: 122.33,
+                    kCGImagePropertyGPSLongitudeRef: "W",
+                ],
+            ]
+        )
+        let fileURL = try PhotoFlowStore.writeCameraData(original)
+        defer { PhotoFlowStore.remove([fileURL]) }
+
+        let prepared = try XCTUnwrap(PhotoService.preparePhoto(at: fileURL))
+
+        XCTAssertEqual(prepared.byteCount, original.count)
+        XCTAssertEqual(prepared.fileHash, PhotoService.fileHash(for: original))
+        XCTAssertNotNil(prepared.exifTime)
+        XCTAssertEqual(try XCTUnwrap(prepared.gpsLat), 47.61, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(prepared.gpsLon), -122.33, accuracy: 0.000_001)
+        let thumbnailSize = try imageDimensions(prepared.thumbnail)
+        XCTAssertEqual(
+            max(thumbnailSize.width, thumbnailSize.height),
+            PhotoService.displayThumbnailDimension
+        )
+    }
+
+    func testFilePreparationRejectsInvalidImage() throws {
+        let fileURL = try PhotoFlowStore.writeCameraData(Data("not an image".utf8))
+        defer { PhotoFlowStore.remove([fileURL]) }
+
+        XCTAssertNil(PhotoService.preparePhoto(at: fileURL))
     }
 
     func testFileHashUsesPrefixAndFileSize() {

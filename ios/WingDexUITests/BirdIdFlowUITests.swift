@@ -198,7 +198,7 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         )
     }
 
-    func testAcceptedShareDoesNotReappearAfterRelaunch() {
+    func testIncompleteShareIsDiscardedAfterRelaunch() {
         let app = application()
         app.launchArguments = [
             "--ui-test-sign-out",
@@ -221,17 +221,11 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(app.buttons["Home"].existsOrWait(timeout: 30))
         XCTAssertTrue(
             app.descendants(matching: .any)["ui-test.shareQueueChecked"].existsOrWait(timeout: 30),
-            "The incoming-share queue was not checked after relaunch"
+            "The share queue was not checked after relaunch"
         )
-        XCTAssertFalse(
-            app.buttons["Continue"].exists,
-            "The accepted share was imported again after relaunch"
-        )
-        XCTAssertTrue(app.buttons["Log in"].exists)
-        XCTAssertFalse(app.buttons["Settings"].exists)
+        XCTAssertFalse(app.buttons["Continue"].exists, "The interrupted shared-photo flow reappeared")
     }
 
     func testAlreadyLoadedSessionlessAppReceivesStagedShare() {
@@ -269,6 +263,21 @@ final class BirdIdFlowUITests: BirdIdFlowUITestCase {
         alert.buttons["Close Upload"].tap()
         XCTAssertTrue(alert.disappearsOrWait(timeout: 10))
         XCTAssertFalse(app.buttons["Continue"].exists, "Explicit close immediately reopened the queued share")
+
+        app.terminate()
+        app.launchEnvironment["API_BASE_URL"] = apiBaseURL.absoluteString
+        app.launchArguments = [
+            "--ui-test-sign-out",
+            "--ui-test-share-store",
+            "--ui-test-observe-share-queue",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["ui-test.shareQueueChecked"].existsOrWait(timeout: 30),
+            "The discarded shared-photo batch remained queued after relaunch"
+        )
+        XCTAssertFalse(app.buttons["Continue"].exists, "The discarded shared-photo batch reappeared")
     }
 
     func testAccessibilityAuditTimeoutClassification() {

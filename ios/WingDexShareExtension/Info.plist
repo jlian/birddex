@@ -29,11 +29,11 @@
 				<key>NSExtensionActivationDictionaryVersion</key>
 				<integer>2</integer>
 				<key>NSExtensionActivationSupportsAttachmentsWithMaxCount</key>
-				<integer>50</integer>
+				<integer>10000</integer>
 				<key>NSExtensionActivationSupportsAttachmentsWithMinCount</key>
 				<integer>1</integer>
 				<key>NSExtensionActivationSupportsImageWithMaxCount</key>
-				<integer>50</integer>
+				<integer>10000</integer>
 				<key>NSExtensionActivationUsesStrictMatching</key>
 				<true/>
 			</dict>

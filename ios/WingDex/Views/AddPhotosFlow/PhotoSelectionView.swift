@@ -171,7 +171,6 @@ struct PhotoSelectionView: View {
         .photosPicker(
             isPresented: $showLibrary,
             selection: $viewModel.selectedItems,
-            maxSelectionCount: 50,
             matching: .images
         )
         .task(id: navigation.addPhotosLaunchRequest?.id) {

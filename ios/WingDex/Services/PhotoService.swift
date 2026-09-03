@@ -6,12 +6,12 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct PreparedPhotoData: Sendable {
-    let image: Data
     let thumbnail: Data
     let exifTime: Date?
     let gpsLat: Double?
     let gpsLon: Double?
     let fileHash: String
+    let byteCount: Int
 }
 
 /// Handles EXIF extraction, image compression, and outing clustering.
@@ -55,12 +55,35 @@ enum PhotoService {
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
         let exif = extractEXIF(from: properties)
         return PreparedPhotoData(
-            image: imageData,
             thumbnail: thumbnail,
             exifTime: exif.date,
             gpsLat: exif.lat,
             gpsLon: exif.lon,
-            fileHash: fileHash(for: imageData)
+            fileHash: fileHash(for: imageData),
+            byteCount: imageData.count
+        )
+    }
+
+    static func preparePhoto(
+        at fileURL: URL,
+        thumbnailDimension: CGFloat = displayThumbnailDimension
+    ) -> PreparedPhotoData? {
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+              CGImageSourceGetCount(source) > 0,
+              let thumbnail = generateThumbnail(from: source, maxDimension: thumbnailDimension),
+              let byteCount = try? PhotoFlowStore.fileSize(fileURL),
+              let fileHash = fileHash(forFileAt: fileURL, byteCount: byteCount)
+        else { return nil }
+
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
+        let exif = extractEXIF(from: properties)
+        return PreparedPhotoData(
+            thumbnail: thumbnail,
+            exifTime: exif.date,
+            gpsLat: exif.lat,
+            gpsLon: exif.lon,
+            fileHash: fileHash,
+            byteCount: byteCount
         )
     }
 
@@ -156,6 +179,21 @@ enum PhotoService {
         var hasher = SHA256()
         hasher.update(data: data.prefix(65_536))
         withUnsafeBytes(of: data.count) { hasher.update(bufferPointer: $0) }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func fileHash(forFileAt url: URL, byteCount: Int) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        let prefix: Data
+        do {
+            prefix = try handle.read(upToCount: 65_536) ?? Data()
+        } catch {
+            return nil
+        }
+        var hasher = SHA256()
+        hasher.update(data: prefix)
+        withUnsafeBytes(of: byteCount) { hasher.update(bufferPointer: $0) }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 

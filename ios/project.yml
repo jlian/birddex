@@ -173,8 +173,8 @@ targets:
               NSExtensionActivationDictionaryVersion: 2
               NSExtensionActivationUsesStrictMatching: true
               NSExtensionActivationSupportsAttachmentsWithMinCount: 1
-              NSExtensionActivationSupportsAttachmentsWithMaxCount: 50
-              NSExtensionActivationSupportsImageWithMaxCount: 50
+              NSExtensionActivationSupportsAttachmentsWithMaxCount: 10000
+              NSExtensionActivationSupportsImageWithMaxCount: 10000
 
   WingDexTests:
     type: bundle.unit-test
