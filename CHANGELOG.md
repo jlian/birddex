@@ -1,3 +1,10 @@
+# [1.29.0](https://github.com/jlian/wingdex/compare/v1.28.1...v1.29.0) (2026-09-03)
+
+
+### Features
+
+* **Photos:** support large photo batches ([0a8592c](https://github.com/jlian/wingdex/commit/0a8592c97c3466d37677b54d0a841ebef6685a71))
+
 ## [1.28.1](https://github.com/jlian/wingdex/compare/v1.28.0...v1.28.1) (2026-09-02)
 
 
