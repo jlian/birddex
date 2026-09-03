@@ -65,13 +65,13 @@ async function registerVirtualPasskey(page: Page) {
  */
 export async function loadApp(page: Page, { promote = true } = {}) {
   try {
-    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.goto('/', { waitUntil: 'commit' })
   } catch (error) {
     const message = String(error)
     if (!message.includes('frame was detached') && !message.includes('ERR_ABORTED')) {
       throw error
     }
-    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.goto('/', { waitUntil: 'commit' })
   }
   // AppContent renders the header before the session check finishes. Wait for
   // both independently so their timeout budgets do not consume the entire
