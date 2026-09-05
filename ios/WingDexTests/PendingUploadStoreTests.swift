@@ -4,6 +4,28 @@ import XCTest
 
 @MainActor
 final class PendingUploadStoreTests: XCTestCase {
+  func testDeviceCoordinatesAndRegionCodesSurvivePendingUploadEncoding() throws {
+    let queue = try PendingUploadStore(isStoredInMemoryOnly: true)
+    let fixture = fixtureUpload(id: "current-location", accountID: "account-a")
+    var outing = try XCTUnwrap(fixture.outing)
+    outing.lat = 47.7115123
+    outing.lon = -122.3717456
+    outing.stateProvince = "US-WA"
+    outing.countryCode = "US"
+    try queue.enqueue(PendingPhotoUpload(
+      id: fixture.id, accountID: fixture.accountID, createdAt: fixture.createdAt,
+      locationName: fixture.locationName, outing: outing, outingRecoverySnapshot: nil,
+      photos: fixture.photos, observations: fixture.observations
+    ))
+
+    let saved = try XCTUnwrap(queue.load(accountID: "account-a").first?.upload)
+    XCTAssertEqual(saved.outing?.lat, 47.7115123)
+    XCTAssertEqual(saved.outing?.lon, -122.3717456)
+    XCTAssertEqual(saved.outing?.stateProvince, "US-WA")
+    XCTAssertEqual(saved.outing?.countryCode, "US")
+    XCTAssertNil(saved.photos.first?.gps)
+  }
+
   func testQueuePersistsInFIFOOrderAcrossStoreRecreation() throws {
     let directory = FileManager.default.temporaryDirectory
       .appending(path: "pending-upload-tests-\(UUID().uuidString)", directoryHint: .isDirectory)

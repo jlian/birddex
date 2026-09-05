@@ -1036,8 +1036,25 @@ struct MainTabView: View {
         if args.contains("--ui-test-clear-last-location") {
             addPhotosVM.lastLocationName = ""
         }
+        if let name = launchArgument("--ui-test-last-location", in: args) {
+            addPhotosVM.lastLocationName = name
+        }
+        addPhotosVM.useGeoContext = !args.contains("--ui-test-disable-geo-context")
         addPhotosVM.addCameraPhoto(image, lat: latitude, lon: longitude)
         await addPhotosVM.processSelectedPhotos()
+        if args.contains("--ui-test-match-outing"), let outing = store.outings.first,
+           !addPhotosVM.clusters.isEmpty {
+            addPhotosVM.clusters[0].startTime = DateFormatting.sortDate(outing.startTime)
+            addPhotosVM.clusters[0].endTime = DateFormatting.sortDate(outing.endTime)
+        }
+        if args.contains("--ui-test-two-clusters"), let first = addPhotosVM.clusters.first {
+            addPhotosVM.clusters.append(PhotoCluster(
+                photos: first.photos,
+                startTime: first.startTime.addingTimeInterval(86_400),
+                endTime: first.endTime.addingTimeInterval(86_400),
+                centerLat: nil, centerLon: nil
+            ))
+        }
     }
 
     private func launchArgument(_ name: String, in arguments: [String]) -> String? {

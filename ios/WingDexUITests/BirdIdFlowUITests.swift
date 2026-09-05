@@ -5,6 +5,263 @@ import XCTest
 /// flow wires the engine up and renders the result it produces.
 @MainActor
 final class BirdIdFlowUITests: BirdIdFlowUITestCase {
+    private func launchCurrentLocationReview(_ arguments: [String] = []) -> XCUIApplication {
+        launchApp(photoGPS: false, extraArguments: [
+            "--ui-test-fixture-populated",
+            "--ui-test-last-location", "Unrelated Old Outing",
+            "--ui-test-stub-identification",
+        ] + arguments)
+    }
+
+    private func waitForLocation(_ value: String, in app: XCUIApplication) -> Bool {
+        app.textFields.matching(NSPredicate(
+            format: "identifier == 'outing.locationName' AND value == %@", value
+        )).firstMatch.existsOrWait(timeout: 5)
+    }
+
+    private func captureLocationScreen(_ name: String, in app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func focusCurrentLocation(in app: XCUIApplication) -> XCUIElement {
+        let field = app.textFields["outing.locationName"]
+        XCTAssertTrue(scrollUntilVisible(field, in: app))
+        field.tap()
+        let button = app.buttons["outing.useCurrentLocation"]
+        XCTAssertTrue(button.existsOrWait(timeout: 5))
+        return button
+    }
+
+    func testMissingGPSStartsEmptyAndRequestsLocationOnlyAfterTap() {
+        let app = launchCurrentLocationReview([
+            "--ui-test-current-location-success", "--ui-test-geocoding-success",
+            "--ui-test-disable-geo-context",
+        ])
+        _ = waitForOutingReview(in: app)
+        let name = app.textFields["outing.locationName"]
+        XCTAssertEqual(locationValue(name), "Location name")
+        XCTAssertFalse(app.staticTexts["Current location"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        captureLocationScreen("Missing GPS", in: app)
+        let currentLocation = focusCurrentLocation(in: app)
+        XCTAssertTrue(app.keyboards.firstMatch.existsOrWait(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Getting current location..."].exists)
+        XCTAssertFalse(app.staticTexts["Current location"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        captureLocationScreen("Focused missing GPS", in: app)
+        currentLocation.tap()
+        XCTAssertTrue(waitForLocation("Carkeek Park", in: app))
+        XCTAssertTrue(app.staticTexts["Current location"].exists)
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertTrue(app.staticTexts["(47.7115, -122.3717)"].exists)
+        XCTAssertFalse(app.staticTexts["(47.7120, -122.3720)"].exists)
+        captureLocationScreen("Current location resolved", in: app)
+    }
+
+    func testCurrentLocationDenialKeepsManualEntryUsable() {
+        let app = launchCurrentLocationReview(["--ui-test-current-location-denied"])
+        let continueButton = waitForOutingReview(in: app)
+        focusCurrentLocation(in: app).tap()
+        XCTAssertTrue(app.staticTexts["outing.currentLocationError"].existsOrWait(timeout: 5))
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        captureLocationScreen("Current location denied", in: app)
+        let name = app.textFields["outing.locationName"]
+        XCTAssertTrue(focusCurrentLocation(in: app).isEnabled)
+        XCTAssertTrue(app.staticTexts["outing.currentLocationError"].exists)
+        name.typeText("Manual Park")
+        XCTAssertEqual(locationValue(name), "Manual Park")
+        XCTAssertTrue(continueButton.isEnabled)
+        continueButton.tap()
+        XCTAssertTrue(app.staticTexts["confirm.speciesName"].existsOrWait(timeout: 10))
+    }
+
+    func testCurrentLocationOptionTracksFocusWithoutRequestingLocation() {
+        let app = launchCurrentLocationReview([
+            "--ui-test-current-location-denied", "--ui-test-place-search-result",
+        ])
+        _ = waitForOutingReview(in: app)
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertTrue(focusCurrentLocation(in: app).isEnabled)
+        XCTAssertFalse(app.staticTexts["outing.currentLocationError"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+
+        app.textFields["outing.locationName"].typeText("Manual name\n")
+        XCTAssertTrue(app.buttons.matching(identifier: "outing.locationResult").firstMatch.existsOrWait(timeout: 5))
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        app.navigationBars["Your Outing"].tap()
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertFalse(app.staticTexts["outing.currentLocationError"].exists)
+        XCTAssertTrue(focusCurrentLocation(in: app).isEnabled)
+        XCTAssertEqual(locationValue(app.textFields["outing.locationName"]), "Manual name")
+        XCTAssertFalse(app.staticTexts["outing.currentLocationError"].exists)
+    }
+
+    func testCurrentLocationRestoreAndNearbySelectionKeepDeviceCoordinates() {
+        let app = launchCurrentLocationReview([
+            "--ui-test-current-location-success", "--ui-test-geocoding-success",
+            "--ui-test-place-search-result",
+        ])
+        _ = waitForOutingReview(in: app)
+        focusCurrentLocation(in: app).tap()
+        let name = app.textFields["outing.locationName"]
+        XCTAssertTrue(waitForLocation("Carkeek Park", in: app))
+        name.tap()
+        app.buttons["outing.locationClear"].tap()
+        name.typeText("Discovery\n")
+        let result = app.buttons.matching(identifier: "outing.locationResult").firstMatch
+        XCTAssertTrue(result.existsOrWait(timeout: 5))
+        result.tap()
+        XCTAssertEqual(locationValue(name), "Discovery Park")
+        XCTAssertTrue(app.staticTexts["Location set from search"].exists)
+        let restore = app.buttons["outing.locationRestore"]
+        XCTAssertTrue(restore.label.hasPrefix("Use current location:"))
+        restore.tap()
+        XCTAssertEqual(locationValue(name), "Carkeek Park")
+        XCTAssertTrue(app.staticTexts["(47.7115, -122.3717)"].exists)
+        name.tap()
+        app.buttons["outing.locationClear"].tap()
+        app.buttons["outing.locationSearchSubmit"].tap()
+        XCTAssertTrue(app.staticTexts["Near your current location"].existsOrWait(timeout: 5), app.debugDescription)
+        app.buttons.matching(identifier: "outing.locationResult").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["(47.7115, -122.3717)"].exists)
+        XCTAssertTrue(app.staticTexts["Current location"].exists)
+        name.tap()
+        app.buttons["outing.locationClear"].tap()
+        name.typeText("My Birding Spot")
+        XCTAssertEqual(locationValue(name), "My Birding Spot")
+        XCTAssertTrue(app.staticTexts["(47.7115, -122.3717)"].exists)
+        XCTAssertTrue(app.staticTexts["Current location"].exists)
+    }
+
+    func testCurrentLocationEmptyAndErrorRetainCoordinatesWithoutOldName() {
+        for outcome in ["empty", "failure"] {
+            let app = launchCurrentLocationReview([
+                "--ui-test-current-location-success", "--ui-test-geocoding-\(outcome)",
+            ])
+            _ = waitForOutingReview(in: app)
+            focusCurrentLocation(in: app).tap()
+            let name = app.textFields["outing.locationName"]
+            XCTAssertTrue(waitForLocation("47.712deg, -122.372deg", in: app))
+            XCTAssertTrue(app.staticTexts["(47.7115, -122.3717)"].exists)
+            if outcome == "failure" {
+                let retry = app.buttons["outing.locationRetry"]
+                XCTAssertTrue(retry.existsOrWait(timeout: 5))
+                retry.tap()
+                XCTAssertTrue(retry.existsOrWait(timeout: 5))
+                XCTAssertEqual(locationValue(name), "47.712deg, -122.372deg")
+                XCTAssertTrue(app.staticTexts["(47.7115, -122.3717)"].exists)
+            } else {
+                XCTAssertTrue(app.staticTexts["outing.locationLookupEmpty"].exists)
+                XCTAssertFalse(app.buttons["outing.locationRetry"].exists)
+            }
+            app.terminate()
+        }
+    }
+
+    func testManualEntryCancelsCurrentLocationAndReverseLookup() {
+        for delay in ["--ui-test-current-location-delay", "--ui-test-geocoding-delay"] {
+            let app = launchCurrentLocationReview([
+                "--ui-test-current-location-success", "--ui-test-geocoding-success", delay,
+            ])
+            _ = waitForOutingReview(in: app)
+            focusCurrentLocation(in: app).tap()
+            XCTAssertTrue(app.buttons["outing.locationCancel"].existsOrWait(timeout: 5))
+            let name = app.textFields["outing.locationName"]
+            name.tap()
+            if app.buttons["outing.locationClear"].exists {
+                app.buttons["outing.locationClear"].tap()
+            }
+            name.typeText("Manual Park")
+            XCTAssertEqual(locationValue(name), "Manual Park")
+            XCTAssertFalse(app.buttons["outing.locationCancel"].exists)
+            XCTAssertTrue(app.buttons["outing.continue"].isEnabled)
+            let overwritten = NSPredicate { _, _ in
+                self.locationValue(name) != "Manual Park"
+            }
+            let remainsManual = XCTNSPredicateExpectation(predicate: overwritten, object: nil)
+            remainsManual.isInverted = true
+            wait(for: [remainsManual], timeout: 11)
+            app.terminate()
+        }
+    }
+
+    func testMatchedOutingInheritsInsteadOfOfferingCurrentLocation() {
+        let app = launchCurrentLocationReview(["--ui-test-match-outing"])
+        _ = waitForOutingReview(in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["outing.inheritedLocationName"].exists)
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        startNewOuting(in: app)
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertEqual(locationValue(app.textFields["outing.locationName"]), "Location name")
+        XCTAssertTrue(focusCurrentLocation(in: app).isEnabled)
+    }
+
+    func testGPSLookupFailureDoesNotReuseLastConfirmedName() {
+        let app = launchApp(extraArguments: [
+            "--ui-test-fixture-populated", "--ui-test-last-location", "Unrelated Old Outing",
+            "--ui-test-geocoding-failure",
+        ])
+        _ = waitForOutingReview(in: app)
+        XCTAssertEqual(locationValue(app.textFields["outing.locationName"]), "47.712deg, -122.372deg")
+        app.textFields["outing.locationName"].tap()
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertTrue(app.buttons["outing.locationRetry"].exists)
+    }
+
+    func testCancelAndDismissCurrentLocationRequest() {
+        let app = launchCurrentLocationReview([
+            "--ui-test-current-location-success", "--ui-test-current-location-delay",
+        ])
+        _ = waitForOutingReview(in: app)
+        focusCurrentLocation(in: app).tap()
+        app.buttons["outing.locationCancel"].tap()
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertFalse(app.buttons["outing.locationCancel"].exists)
+        focusCurrentLocation(in: app).tap()
+        app.buttons["Close"].tap()
+        XCTAssertTrue(app.alerts["Discard progress?"].existsOrWait(timeout: 5))
+        app.alerts["Discard progress?"].buttons["Discard"].tap()
+        XCTAssertTrue(app.buttons["outing.useCurrentLocation"].disappearsOrWait(timeout: 5))
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+    }
+
+    func testNextClusterDoesNotInheritCurrentLocation() {
+        let app = launchCurrentLocationReview([
+            "--ui-test-current-location-success", "--ui-test-current-location-delay",
+            "--ui-test-two-clusters",
+        ])
+        let next = waitForOutingReview(in: app)
+        focusCurrentLocation(in: app).tap()
+        next.tap()
+        XCTAssertTrue(app.staticTexts["confirm.speciesName"].existsOrWait(timeout: 10))
+        app.buttons.matching(NSPredicate(format: "label IN %@", ["More", "ellipsis"])).firstMatch.tap()
+        app.buttons["Skip Photo"].tap()
+        XCTAssertTrue(app.navigationBars["Outing 2 of 2"].existsOrWait(timeout: 5))
+        XCTAssertFalse(app.buttons["outing.useCurrentLocation"].exists)
+        XCTAssertEqual(locationValue(app.textFields["outing.locationName"]), "Location name")
+        XCTAssertFalse(app.staticTexts["Current location"].exists)
+        XCTAssertTrue(focusCurrentLocation(in: app).isEnabled)
+    }
+
+    func testCurrentLocationControlsAtAccessibilityTextSize() {
+        let app = launchCurrentLocationReview([
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            "--ui-test-current-location-denied",
+        ])
+        _ = waitForOutingReview(in: app)
+        let button = focusCurrentLocation(in: app)
+        XCTAssertTrue(scrollUntilVisible(button, in: app))
+        captureLocationScreen("Missing GPS accessibility text size", in: app)
+        button.tap()
+        XCTAssertTrue(scrollUntilVisible(app.staticTexts["outing.currentLocationError"], in: app))
+        captureLocationScreen("Denied accessibility text size", in: app)
+    }
 
     func testKnownPhotoReachesConfirmStepWithTheRightSpecies() {
         XCTAssertTrue(

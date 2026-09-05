@@ -132,7 +132,7 @@ final class AddPhotosViewModel {
 
     // MARK: - Outing Review State
 
-    /// Location name from the most recent outing - used as default for new outings.
+    /// Last confirmed name, retained for pending-upload recovery only.
     var lastLocationName = ""
 
     /// The outing ID that the current cluster is being saved into.
@@ -229,17 +229,7 @@ final class AddPhotosViewModel {
         self.accountID = accountID
         authService = auth
         self.dataStore = dataStore
-        // Initialize lastLocationName from the most recent outing
         lastLocationName = ""
-        if dataStore.activeAccountID == accountID,
-           let mostRecent = dataStore.outings
-        .sorted(by: {
-          DateFormatting.sortDate($0.createdAt) > DateFormatting.sortDate($1.createdAt)
-        })
-            .first
-        {
-            lastLocationName = mostRecent.locationName
-        }
     }
 
     func cancelSession() async {

@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { CalendarBlank, CheckCircle, XCircle, PencilSimple, MagnifyingGlass } from '@phosphor-icons/react'
+import { CalendarBlank, CheckCircle, XCircle, PencilSimple, MagnifyingGlass, NavigationArrow } from '@phosphor-icons/react'
 import { Switch } from '@/components/ui/switch'
 import { findMatchingOuting } from '@/lib/clustering'
 import { dateToLocalISOWithOffset, toLocalISOWithOffset, formatStoredDate, formatStoredTimeWithTZ } from '@/lib/timezone'
 import type { WingDexDataStore } from '@/hooks/use-wingdex-data'
 import type { Outing } from '@/lib/types'
 import { reverseGeocode, searchPlaces, type GeocodingResult } from '@/lib/geocoding'
+import { getCurrentLocation } from '@/lib/current-location'
 import { toast } from 'sonner'
 
 interface PhotoCluster {
@@ -21,12 +22,22 @@ interface PhotoCluster {
   centerLon?: number
 }
 
+type LocationSource = 'gps' | 'current'
+type LookupState = 'ok' | 'empty' | 'error'
+interface LocationSuggestion {
+  name: string
+  lat: number
+  lon: number
+  source: LocationSource
+  state: LookupState
+  stateProvince?: string
+  countryCode?: string
+}
+
 interface OutingReviewProps {
   cluster: PhotoCluster
   data: WingDexDataStore
   userId: string
-  /** Pre-fill location from a previous outing (user can override) */
-  defaultLocationName?: string
   /** Automatically look up location name from GPS when available */
   autoLookupGps?: boolean
   ensureSessionReady?: () => Promise<boolean>
@@ -44,19 +55,18 @@ export default function OutingReview({
   cluster,
   data,
   userId,
-  defaultLocationName = '',
   autoLookupGps = false,
   ensureSessionReady = async () => true,
   onConfirm
 }: OutingReviewProps) {
   const hasGps = cluster.centerLat !== undefined && cluster.centerLon !== undefined
-  const [locationName, setLocationName] = useState(defaultLocationName)
+  const [locationName, setLocationName] = useState('')
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const locationRequestRef = useRef<AbortController | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
-  const defaultLocationNameRef = useRef(defaultLocationName)
-  const [suggestedLocation, setSuggestedLocation] = useState(defaultLocationName)
-  const [suggestedStateProvince, setSuggestedStateProvince] = useState<string | undefined>(undefined)
-  const [suggestedCountryCode, setSuggestedCountryCode] = useState<string | undefined>(undefined)
+  const [suggestion, setSuggestion] = useState<LocationSuggestion | null>(null)
   const [inferredStateProvince, setInferredStateProvince] = useState<string | undefined>(undefined)
   const [inferredCountryCode, setInferredCountryCode] = useState<string | undefined>(undefined)
   /**
@@ -71,7 +81,7 @@ export default function OutingReview({
    * that is guaranteed to return the same nothing, so offering a Retry button
    * invites the user to click something that cannot help them.
    */
-  const [lookupState, setLookupState] = useState<'ok' | 'empty' | 'error'>('ok')
+  const [lookupState, setLookupState] = useState<LookupState>('ok')
 
   // Compute observation-local ISO string for display and manual editing.
   // cluster.startTime is a UTC-correct Date (exifTime is offset-aware),
@@ -92,7 +102,9 @@ export default function OutingReview({
   // Place search (#13)
   const [placeResults, setPlaceResults] = useState<GeocodingResult[]>([])
   const [isSearchingPlace, setIsSearchingPlace] = useState(false)
-  const [overriddenCoords, setOverriddenCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [overriddenCoords, setOverriddenCoords] = useState<{
+    lat: number; lon: number; source: 'search' | 'current'
+  } | null>(null)
   const [isEditingLocation, setIsEditingLocation] = useState(false)
   const [locationSearchQuery, setLocationSearchQuery] = useState('')
   const [placeSearchFailed, setPlaceSearchFailed] = useState(false)
@@ -110,80 +122,74 @@ export default function OutingReview({
   const [matchingOuting] = useState(() => findMatchingOuting(cluster, data.outings))
   const [useExistingOuting, setUseExistingOuting] = useState(!!matchingOuting)
 
-  const fetchLocationName = useCallback(async (lat: number, lon: number) => {
+  const cancelLocationRequest = useCallback(() => {
+    locationRequestRef.current?.abort()
+    locationRequestRef.current = null
+    setIsLocating(false)
+    setIsLoadingLocation(false)
+  }, [])
+
+  const fetchLocationName = useCallback(async (
+    lat: number,
+    lon: number,
+    source: LocationSource = 'gps',
+    controller = new AbortController(),
+  ) => {
+    if (locationRequestRef.current !== controller) locationRequestRef.current?.abort()
+    locationRequestRef.current = controller
     setIsLoadingLocation(true)
     setLookupState('ok')
 
-    // Used for both unhappy endings: the coordinate string is a usable name and
-    // the field stays editable, so the user is never blocked either way.
-    //
-    // NOT named `useFallback`: the `use` prefix makes ESLint's
-    // react-hooks/rules-of-hooks treat a plain closure as a Hook, so calling it
-    // inside a callback fails lint.
-    //
-    // `regionCodes` is carried even on the empty path: a coordinate can have an
-    // ISO state/country code with no named place (offshore, unmapped land), and
-    // the eBird export still wants those. They are independent of the name, so
-    // an 'empty' lookup can still infer a region while showing no place name.
-    const applyFallback = (
-      state: 'empty' | 'error',
+    const applyLocation = (
+      name: string,
+      state: LookupState,
       regionCodes: { stateProvince?: string; countryCode?: string } = {},
     ) => {
-      // A successful empty lookup proves that the previous outing's name does
-      // not describe these coordinates. Reuse that name only when a transient
-      // error prevented us from learning the result.
-      const coordinates = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
-      const fallback = state === 'error' ? defaultLocationNameRef.current || coordinates : coordinates
-      setSuggestedLocation(fallback)
-      setLocationName(fallback)
-      setSuggestedStateProvince(regionCodes.stateProvince)
-      setSuggestedCountryCode(regionCodes.countryCode)
+      setSuggestion({ name, lat, lon, source, state, ...regionCodes })
+      setLocationName(name)
       setInferredStateProvince(regionCodes.stateProvince)
       setInferredCountryCode(regionCodes.countryCode)
       setLookupState(state)
     }
+    // A prior outing's name is not evidence about this coordinate, even on error.
+    const coordinates = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`
+    applyLocation(coordinates, 'ok')
 
     try {
       debug('geocoding', 'Starting reverse geocoding')
-      const { result, regionCodes } = await reverseGeocode(lat, lon)
+      const { result, regionCodes } = await reverseGeocode(lat, lon, controller.signal)
+      if (controller.signal.aborted) return
       if (!result) {
-        // A successful lookup with no nearby named place. Not an error. Region
-        // codes may still be present, so carry them through.
         debug('geocoding', 'No named place near this coordinate')
-        applyFallback('empty', regionCodes)
+        applyLocation(coordinates, 'empty', regionCodes)
         return
       }
 
       debug('geocoding', 'Location identified')
-      setSuggestedLocation(result.label)
-      setLocationName(result.label)
-      setSuggestedStateProvince(result.stateProvince)
-      setSuggestedCountryCode(result.countryCode)
-      setInferredStateProvince(result.stateProvince)
-      setInferredCountryCode(result.countryCode)
+      applyLocation(result.label, 'ok', { stateProvince: result.stateProvince, countryCode: result.countryCode })
     } catch {
+      if (controller.signal.aborted) return
       debug('geocoding', 'Reverse geocoding request failed')
-      applyFallback('error')
+      applyLocation(coordinates, 'error')
     } finally {
-      setIsLoadingLocation(false)
+      if (locationRequestRef.current === controller) {
+        locationRequestRef.current = null
+        setIsLoadingLocation(false)
+      }
     }
   }, [])
 
-  // Automatically look up location name from GPS when enabled
   useEffect(() => {
-    if (autoLookupGps && hasGps && !matchingOuting) {
+    if (autoLookupGps && hasGps && !useExistingOuting) {
       void fetchLocationName(cluster.centerLat!, cluster.centerLon!)
     }
-  }, [autoLookupGps, hasGps, matchingOuting, fetchLocationName, cluster.centerLat, cluster.centerLon])
-
-  useEffect(() => {
-    if (autoLookupGps && hasGps && matchingOuting && !useExistingOuting) {
-      void fetchLocationName(cluster.centerLat!, cluster.centerLon!)
-    }
-  }, [autoLookupGps, hasGps, matchingOuting, useExistingOuting, cluster.centerLat, cluster.centerLon, fetchLocationName])
+    return cancelLocationRequest
+  }, [autoLookupGps, hasGps, useExistingOuting, cluster.centerLat, cluster.centerLon, fetchLocationName, cancelLocationRequest])
 
   const doConfirm = async (name: string) => {
     if (isConfirming) return
+    cancelLocationRequest()
+    cancelPlaceSearch()
     setIsConfirming(true)
     try {
       if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
@@ -284,8 +290,40 @@ export default function OutingReview({
     setIsSearchingPlace(false)
   }, [])
 
+  useEffect(() => () => searchAbortRef.current?.abort(), [])
+
+  const requestCurrentLocation = async () => {
+    cancelLocationRequest()
+    cancelPlaceSearch()
+    const controller = new AbortController()
+    locationRequestRef.current = controller
+    setLocationError(null)
+    setIsLocating(true)
+    setPlaceResults([])
+    setPlaceSearchFailed(false)
+    try {
+      const coordinates = await getCurrentLocation(controller.signal)
+      if (controller.signal.aborted) return
+      setOverriddenCoords({ ...coordinates, source: 'current' })
+      setIsLocating(false)
+      setIsEditingLocation(false)
+      setLocationSearchQuery('')
+      await fetchLocationName(coordinates.lat, coordinates.lon, 'current', controller)
+    } catch (error) {
+      if (controller.signal.aborted) return
+      debug('geolocation', 'Current location request failed', error)
+      setLocationError(error instanceof Error ? error.message : 'Could not get your location. Try again or search for a place.')
+    } finally {
+      if (locationRequestRef.current === controller) {
+        locationRequestRef.current = null
+        setIsLocating(false)
+      }
+    }
+  }
+
   const searchPlace = useCallback(async (query: string) => {
     if (!query.trim()) return
+    cancelLocationRequest()
     searchAbortRef.current?.abort()
     const controller = new AbortController()
     searchAbortRef.current = controller
@@ -304,11 +342,13 @@ export default function OutingReview({
         setIsSearchingPlace(false)
       }
     }
-  }, [])
+  }, [cancelLocationRequest])
 
   const selectPlace = (place: GeocodingResult) => {
+    cancelLocationRequest()
     cancelPlaceSearch()
-    setOverriddenCoords({ lat: place.lat, lon: place.lon })
+    setLocationError(null)
+    setOverriddenCoords({ lat: place.lat, lon: place.lon, source: 'search' })
     setLocationName(place.label)
     setInferredStateProvince(place.stateProvince)
     setInferredCountryCode(place.countryCode)
@@ -325,11 +365,15 @@ export default function OutingReview({
   const useEnteredLocation = () => {
     const name = locationSearchQuery.trim()
     if (!name) return
+    cancelLocationRequest()
     cancelPlaceSearch()
+    setLocationError(null)
     setLocationName(name)
-    setOverriddenCoords(null)
-    setInferredStateProvince(undefined)
-    setInferredCountryCode(undefined)
+    if (overriddenCoords?.source !== 'current') {
+      setOverriddenCoords(null)
+      setInferredStateProvince(undefined)
+      setInferredCountryCode(undefined)
+    }
     setIsEditingLocation(false)
     setLocationSearchQuery('')
     setPlaceResults([])
@@ -415,7 +459,9 @@ export default function OutingReview({
           // have coordinates now. Saying "No GPS data" here would be false.
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle size={18} weight="fill" className="text-green-500" />
-            <span className="text-green-600 dark:text-green-400 font-medium">Location set from search</span>
+            <span className="text-green-600 dark:text-green-400 font-medium">
+              {overriddenCoords.source === 'current' ? 'Current location' : 'Location set from search'}
+            </span>
             <span className="text-muted-foreground">
               ({overriddenCoords.lat.toFixed(4)}, {overriddenCoords.lon.toFixed(4)})
             </span>
@@ -442,7 +488,11 @@ export default function OutingReview({
             </div>
             <Switch
               checked={useExistingOuting}
-              onCheckedChange={setUseExistingOuting}
+              onCheckedChange={value => {
+                cancelLocationRequest()
+                cancelPlaceSearch()
+                setUseExistingOuting(value)
+              }}
               aria-label="Add to existing outing?"
             />
           </div>
@@ -457,7 +507,7 @@ export default function OutingReview({
             {isLoadingLocation ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
                 <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <span>Identifying location from GPS...</span>
+                <span>{suggestion?.source === 'current' ? 'Finding a name for your location...' : 'Identifying location from GPS...'}</span>
               </div>
             ) : isEditingLocation ? (
               <div className="relative space-y-2">
@@ -474,6 +524,7 @@ export default function OutingReview({
                     placeholder="Search for a place..."
                     value={locationSearchQuery}
                     onChange={e => {
+                      cancelLocationRequest()
                       cancelPlaceSearch()
                       setPlaceSearchFailed(false)
                       setLocationSearchQuery(e.target.value)
@@ -481,6 +532,7 @@ export default function OutingReview({
                     }}
                     onKeyDown={e => {
                       if (e.key === 'Escape') {
+                        cancelLocationRequest()
                         cancelPlaceSearch()
                         setIsEditingLocation(false)
                         setLocationSearchQuery('')
@@ -499,6 +551,18 @@ export default function OutingReview({
                     <MagnifyingGlass size={18} />
                   </Button>
                 </form>
+                {!hasGps && !overriddenCoords && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => void requestCurrentLocation()}
+                    disabled={isLocating || isConfirming}
+                  >
+                    <NavigationArrow size={18} />
+                    {isLocating ? 'Getting current location...' : 'Use current location'}
+                  </Button>
+                )}
                 {(placeResults.length > 0 || isSearchingPlace) && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-md border bg-popover shadow-md max-h-40 overflow-y-auto">
                     {isSearchingPlace && (
@@ -534,22 +598,29 @@ export default function OutingReview({
                     </button>
                   </p>
                 )}
-                {suggestedLocation && locationSearchQuery && suggestedLocation !== locationName && (
+                {suggestion && locationSearchQuery && (
+                  suggestion.name !== locationName || suggestion.lat !== effectiveLat || suggestion.lon !== effectiveLon
+                ) && (
                   <button
                     type="button"
                     className="text-xs text-primary hover:underline"
                     onClick={() => {
+                      cancelLocationRequest()
                       cancelPlaceSearch()
-                      setLocationName(suggestedLocation)
-                      setOverriddenCoords(null)
-                      setInferredStateProvince(suggestedStateProvince)
-                      setInferredCountryCode(suggestedCountryCode)
+                      setLocationError(null)
+                      setLocationName(suggestion.name)
+                      setOverriddenCoords(suggestion.source === 'current'
+                        ? { lat: suggestion.lat, lon: suggestion.lon, source: 'current' }
+                        : null)
+                      setInferredStateProvince(suggestion.stateProvince)
+                      setInferredCountryCode(suggestion.countryCode)
+                      setLookupState(suggestion.state)
                       setIsEditingLocation(false)
                       setLocationSearchQuery('')
                       setPlaceResults([])
                     }}
                   >
-                    Use GPS: {suggestedLocation}
+                    {suggestion.source === 'current' ? 'Use current location' : 'Use GPS'}: {suggestion.name}
                   </button>
                 )}
                 {locationSearchQuery.trim() && (
@@ -567,6 +638,7 @@ export default function OutingReview({
                 type="button"
                 className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent/50 transition-colors text-left"
                 onClick={() => {
+                  cancelLocationRequest()
                   setIsEditingLocation(true)
                   setLocationSearchQuery(locationName)
                 }}
@@ -577,19 +649,25 @@ export default function OutingReview({
                 <PencilSimple size={14} className="text-muted-foreground shrink-0" />
               </button>
             )}
-            {lookupState === 'error' && hasGps && (
+            {(isLocating || isLoadingLocation) && (
+              <Button type="button" variant="ghost" size="sm" onClick={cancelLocationRequest}>
+                Cancel location lookup
+              </Button>
+            )}
+            {locationError && <p role="alert" className="text-xs text-destructive">{locationError}</p>}
+            {lookupState === 'error' && suggestion && (
               <p className="text-xs text-destructive">
                 Location lookup failed.{' '}
                 <button
                   type="button"
                   className="font-medium underline underline-offset-2"
-                  onClick={() => void fetchLocationName(cluster.centerLat!, cluster.centerLon!)}
+                  onClick={() => void fetchLocationName(suggestion.lat, suggestion.lon, suggestion.source)}
                 >
                   Retry
                 </button>
               </p>
             )}
-            {lookupState === 'empty' && hasGps && (
+            {lookupState === 'empty' && suggestion && (
               // Deliberately no Retry: the lookup worked, and the answer is that
               // nothing named is nearby, so a retry returns the same result.
               <p className="text-xs text-muted-foreground">
@@ -628,10 +706,10 @@ export default function OutingReview({
 
           <Button
             onClick={handleConfirm}
-            disabled={isLoadingLocation || isConfirming}
+            disabled={isLocating || isLoadingLocation || isConfirming}
             className="w-full bg-primary text-primary-foreground"
           >
-            {isLoadingLocation || isConfirming ? 'Loading...' : 'Continue to Species Identification'}
+            {isLocating || isLoadingLocation || isConfirming ? 'Loading...' : 'Continue to Species Identification'}
           </Button>
         </>
     </div>
