@@ -77,11 +77,61 @@ class BirdIdFlowUITestCase: XCTestCase {
     func scrollUntilVisible(
         _ element: XCUIElement,
         in app: XCUIApplication,
-        maximumSwipes: Int = 3
+        maximumSwipes: Int = 5
     ) -> Bool {
+        if element.exists && element.isHittable { return true }
+
+        let container = app.collectionViews.firstMatch.exists
+            ? app.collectionViews.firstMatch
+            : (app.scrollViews.firstMatch.exists ? app.scrollViews.firstMatch : app)
+
         for _ in 0..<maximumSwipes {
             if element.exists && element.isHittable { return true }
-            app.swipeUp()
+
+            let keyboard = app.keyboards.firstMatch
+            let topNav = app.navigationBars.firstMatch
+
+            let visibleTop = topNav.exists ? topNav.frame.maxY : container.frame.minY
+            let visibleBottom = keyboard.exists && keyboard.frame.minY > visibleTop + 60
+                ? keyboard.frame.minY
+                : container.frame.maxY
+            let visibleHeight = visibleBottom - visibleTop
+
+            guard visibleHeight > 60 else {
+                app.swipeUp()
+                continue
+            }
+
+            let isAbove: Bool
+            if element.exists {
+                if element.frame.maxY <= visibleTop + 10 {
+                    isAbove = true
+                } else if element.frame.minY >= visibleBottom - 10 {
+                    isAbove = false
+                } else {
+                    isAbove = element.frame.minY < visibleTop
+                }
+            } else {
+                isAbove = false
+            }
+
+            let startY: CGFloat
+            let endY: CGFloat
+            if isAbove {
+                startY = visibleTop + visibleHeight * 0.25
+                endY = visibleTop + visibleHeight * 0.75
+            } else {
+                startY = visibleTop + visibleHeight * 0.75
+                endY = visibleTop + visibleHeight * 0.25
+            }
+
+            let centerX = container.frame.midX
+            let startCoord = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: centerX, dy: startY))
+            let endCoord = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: centerX, dy: endY))
+
+            startCoord.press(forDuration: 0.05, thenDragTo: endCoord)
         }
         return element.exists && element.isHittable
     }
