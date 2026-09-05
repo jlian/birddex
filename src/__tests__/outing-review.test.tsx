@@ -35,6 +35,16 @@ function createDataStore(): WingDexDataStore {
   }
 }
 
+const previousOuting: Outing = {
+  id: 'previous-outing',
+  userId: 'user-1',
+  locationName: 'Previous Seattle outing',
+  startTime: '2025-01-01T12:00:00Z',
+  endTime: '2025-01-01T13:00:00Z',
+  notes: '',
+  createdAt: '2026-08-01T12:00:00Z',
+}
+
 describe('OutingReview', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -57,7 +67,6 @@ describe('OutingReview', () => {
         }}
         data={data}
         userId="anonymous-user"
-        defaultLocationName="Discovery Park"
         ensureSessionReady={ensureSessionReady}
         onConfirm={onConfirm}
       />,
@@ -94,7 +103,6 @@ describe('OutingReview', () => {
         cluster={cluster}
         data={data}
         userId="user-1"
-        defaultLocationName="Discovery Park"
         onConfirm={onConfirm}
       />,
     )
@@ -107,7 +115,6 @@ describe('OutingReview', () => {
         cluster={cluster}
         data={data}
         userId="user-1"
-        defaultLocationName="Discovery Park"
         onConfirm={onConfirm}
       />,
     )
@@ -117,7 +124,7 @@ describe('OutingReview', () => {
     await act(async () => finishConfirmation())
   })
 
-  it('does not restart GPS lookup when the default location changes while confirming', async () => {
+  it('does not restart GPS lookup when rerendering while confirming', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -152,7 +159,6 @@ describe('OutingReview', () => {
         cluster={cluster}
         data={data}
         userId="user-1"
-        defaultLocationName="Previous location"
         autoLookupGps
         onConfirm={onConfirm}
       />,
@@ -169,7 +175,6 @@ describe('OutingReview', () => {
         cluster={cluster}
         data={data}
         userId="user-1"
-        defaultLocationName="Discovery Park, Seattle"
         autoLookupGps
         onConfirm={onConfirm}
       />,
@@ -198,12 +203,11 @@ describe('OutingReview', () => {
         }}
         data={createDataStore()}
         userId="user-1"
-        defaultLocationName="Discovery Park"
         onConfirm={vi.fn(async () => undefined)}
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Discovery Park/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to set location' }))
     const searchInput = screen.getByPlaceholderText('Search for a place...')
     fireEvent.change(searchInput, { target: { value: 'Green Lake' } })
 
@@ -243,12 +247,11 @@ describe('OutingReview', () => {
         }}
         data={createDataStore()}
         userId="user-1"
-        defaultLocationName="Discovery Park"
         onConfirm={vi.fn(async () => undefined)}
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Discovery Park/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to set location' }))
     const searchInput = screen.getByPlaceholderText('Search for a place...')
     fireEvent.change(searchInput, { target: { value: 'Green Lake' } })
     fireEvent.submit(searchInput.closest('form')!)
@@ -373,12 +376,11 @@ describe('OutingReview', () => {
         }}
         data={createDataStore()}
         userId="user-1"
-        defaultLocationName="Discovery Park"
         onConfirm={vi.fn(async () => undefined)}
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Discovery Park/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to set location' }))
     const searchInput = screen.getByPlaceholderText('Search for a place...')
     fireEvent.change(searchInput, { target: { value: 'Green Lake' } })
     fireEvent.submit(searchInput.closest('form')!)
@@ -425,14 +427,12 @@ describe('OutingReview reverse geocoding outcomes', () => {
   const renderWithGps = (
     data: WingDexDataStore,
     onConfirm = vi.fn(async () => undefined),
-    defaultLocationName = '',
   ) => {
     render(
       <OutingReview
         cluster={gpsCluster}
         data={data}
         userId="user-1"
-        defaultLocationName={defaultLocationName}
         autoLookupGps
         onConfirm={onConfirm}
       />,
@@ -502,7 +502,9 @@ describe('OutingReview reverse geocoding outcomes', () => {
 
   it('does not reuse an unrelated previous outing name after a successful empty lookup', async () => {
     stubReverse({ result: null, nearby: [], regionCodes: {} })
-    renderWithGps(createDataStore(), undefined, 'Previous Seattle outing')
+    const data = createDataStore()
+    data.outings = [previousOuting]
+    renderWithGps(data)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /48\.9801.*-122\.7887/ })).toBeInTheDocument()
@@ -519,12 +521,256 @@ describe('OutingReview reverse geocoding outcomes', () => {
       }
       return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
     }))
-    renderWithGps(createDataStore())
+    const data = createDataStore()
+    data.outings = [previousOuting]
+    renderWithGps(data)
 
     await waitFor(() => {
       expect(screen.getByText(/Location lookup failed/i)).toBeInTheDocument()
     })
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.queryByText(previousOuting.locationName)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /48\.9801.*-122\.7887/ })).toBeInTheDocument()
+  })
+})
+
+describe('OutingReview current location', () => {
+  const noGpsCluster = {
+    photos: [],
+    startTime: new Date('2026-08-07T12:00:00Z'),
+    endTime: new Date('2026-08-07T13:00:00Z'),
+  }
+  const devicePosition = {
+    coords: { latitude: 47.612345, longitude: -122.312345, accuracy: 5000 },
+    timestamp: Date.now(),
+  }
+  const namedPlace = {
+    label: 'Device park', lat: 47.61, lon: -122.31, stateProvince: 'US-WA', countryCode: 'US',
+  }
+  const response = (body: unknown) => new Response(JSON.stringify(body), {
+    status: 200, headers: { 'Content-Type': 'application/json' },
+  })
+  const setup = (data = createDataStore()) => {
+    const getCurrentPosition = vi.fn()
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } })
+    const fetchMock = vi.fn().mockImplementation(async () => response({ result: namedPlace }))
+    vi.stubGlobal('fetch', fetchMock)
+    const onConfirm = vi.fn(async () => undefined)
+    const view = render(<OutingReview cluster={noGpsCluster} data={data} userId="user-1" onConfirm={onConfirm} />)
+    const grant = async () => {
+      await act(async () => getCurrentPosition.mock.calls.at(-1)![0](devicePosition))
+    }
+    return { ...view, getCurrentPosition, fetchMock, onConfirm, grant }
+  }
+  const requestLocation = () => {
+    const nameField = screen.queryByRole('button', { name: 'Tap to set location' })
+    if (nameField) fireEvent.click(nameField)
+    fireEvent.click(screen.getByRole('button', { name: 'Use current location' }))
+  }
+  const continueReview = () => fireEvent.click(screen.getByRole('button', { name: 'Continue to Species Identification' }))
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('starts blank with no automatic location request or reuse of an unrelated outing', async () => {
+    const data = createDataStore()
+    data.outings = [previousOuting]
+    const { getCurrentPosition, fetchMock, onConfirm } = setup(data)
+    expect(screen.getByRole('button', { name: 'Tap to set location' })).toBeInTheDocument()
+    expect(screen.queryByText(previousOuting.locationName)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use current location' })).not.toBeInTheDocument()
+    expect(getCurrentPosition).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    continueReview()
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ locationName: 'Unknown Location', lat: undefined, lon: undefined }),
+      expect.any(String), 'Unknown Location', undefined, undefined, false,
+    ))
+  })
+
+  it('reveals current location only while editing without requesting permission on focus', () => {
+    const { getCurrentPosition, fetchMock } = setup()
+    expect(screen.queryByRole('button', { name: 'Use current location' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to set location' }))
+    expect(screen.getByPlaceholderText('Search for a place...')).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Use current location' })).toBeInTheDocument()
+    expect(getCurrentPosition).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByPlaceholderText('Search for a place...'), { key: 'Escape' })
+    expect(screen.queryByRole('button', { name: 'Use current location' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tap to set location' })).toBeInTheDocument()
+  })
+
+  it('uses exact device coordinates, not a named feature centroid, even with automatic geo lookup off', async () => {
+    const { getCurrentPosition, fetchMock, onConfirm, grant } = setup()
+    requestLocation()
+    expect(screen.getByRole('button', { name: 'Getting current location...' })).toBeDisabled()
+    expect(getCurrentPosition).toHaveBeenCalledOnce()
+    await grant()
+    expect(screen.getByText('Current location')).toBeInTheDocument()
+    expect(screen.queryByText('Location set from search')).not.toBeInTheDocument()
+    expect(screen.getByText('(47.6123, -122.3123)')).toBeInTheDocument()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ lat: 47.612345, lon: -122.312345 })
+    continueReview()
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lat: 47.612345, lon: -122.312345, locationName: 'Device park',
+        defaultLocationName: 'Device park', stateProvince: 'US-WA', countryCode: 'US',
+      }),
+      expect.any(String), 'Device park', 47.612345, -122.312345, true,
+    ))
+  })
+
+  it.each([
+    [1, /access was denied/i],
+    [2, /location is unavailable/i],
+    [3, /timed out/i],
+  ])('explains location error %s and allows retry or manual naming', async (code, message) => {
+    const { getCurrentPosition, fetchMock, onConfirm } = setup()
+    requestLocation()
+    await act(async () => getCurrentPosition.mock.calls[0][1]({ code }))
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('button', { name: 'Use current location' })).toBeEnabled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByPlaceholderText('Search for a place...'), { target: { value: 'My park' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    continueReview()
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ locationName: 'My park', lat: undefined }),
+      expect.any(String), 'My park', undefined, undefined, false,
+    ))
+  })
+
+  it('keeps an empty geocode result and its region codes without suggesting a lookup retry', async () => {
+    const { fetchMock, onConfirm, grant } = setup()
+    fetchMock.mockResolvedValueOnce(response({ result: null, regionCodes: { countryCode: 'US', stateProvince: 'US-WA' } }))
+    requestLocation()
+    await grant()
+    expect(screen.getByText(/No named place found nearby/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    continueReview()
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 47.612345, lon: -122.312345, countryCode: 'US', stateProvince: 'US-WA' }),
+      expect.any(String), expect.stringContaining('47.6123'), 47.612345, -122.312345, true,
+    ))
+  })
+
+  it('retries failed reverse geocoding at the same device coordinates without acquiring location again', async () => {
+    const { fetchMock, getCurrentPosition, grant } = setup()
+    fetchMock.mockRejectedValueOnce(new Error('Offline'))
+    requestLocation()
+    await grant()
+    expect(screen.getByText(/Location lookup failed/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByText('Device park')
+    expect(getCurrentPosition).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ lat: 47.612345, lon: -122.312345 })
+  })
+
+  it('retains device coordinates when renaming, searching elsewhere, and restoring the suggestion', async () => {
+    const { fetchMock, onConfirm, grant } = setup()
+    requestLocation()
+    await grant()
+    fireEvent.click(screen.getByRole('button', { name: 'Device park' }))
+    fireEvent.change(screen.getByPlaceholderText('Search for a place...'), { target: { value: 'Custom park' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
+    expect(screen.getByText('(47.6123, -122.3123)')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Custom park' }))
+    fetchMock.mockResolvedValueOnce(response({ results: [{ label: 'Other park', lat: 10, lon: 20 }] }))
+    fireEvent.click(screen.getByRole('button', { name: 'Search locations' }))
+    fireEvent.click(await screen.findByText('Other park'))
+    expect(screen.getByText('Location set from search')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Other park' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use current location: Device park' }))
+    expect(screen.getByText('Current location')).toBeInTheDocument()
+    continueReview()
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 47.612345, lon: -122.312345, countryCode: 'US' }),
+      expect.any(String), 'Device park', 47.612345, -122.312345, true,
+    ))
+  })
+
+  it('ignores a location callback after cancellation and preserves a newer request', async () => {
+    const { getCurrentPosition, fetchMock, grant } = setup()
+    requestLocation()
+    const obsolete = getCurrentPosition.mock.calls[0][0]
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel location lookup' }))
+    requestLocation()
+    await act(async () => obsolete(devicePosition))
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Getting current location...' })).toBeDisabled()
+    await grant()
+    expect(screen.getByText('Device park')).toBeInTheDocument()
+  })
+
+  it('ignores an in-flight device lookup when the user starts editing', async () => {
+    const { fetchMock, grant } = setup()
+    requestLocation()
+    fireEvent.change(screen.getByPlaceholderText('Search for a place...'), { target: { value: 'Chosen manually' } })
+    await grant()
+    expect(screen.getByDisplayValue('Chosen manually')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('aborts reverse geocoding and ignores its late result after cancellation and a rename', async () => {
+    const { fetchMock, grant } = setup()
+    let finishLookup: (value: Response) => void = () => undefined
+    fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finishLookup = resolve }))
+    requestLocation()
+    await grant()
+    const signal: AbortSignal = fetchMock.mock.calls[0][1].signal
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel location lookup' }))
+    fireEvent.click(screen.getByRole('button', { name: /47\.6123.*-122\.3123/ }))
+    fireEvent.change(screen.getByPlaceholderText('Search for a place...'), { target: { value: 'Custom park' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use entered name without searching' }))
+    await act(async () => finishLookup(response({ result: namedPlace })))
+    expect(signal.aborted).toBe(true)
+    expect(screen.queryByText('Device park')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Custom park' })).toBeInTheDocument()
+  })
+
+  it('does not geocode a device result arriving after dismissal', async () => {
+    const { unmount, fetchMock, grant } = setup()
+    requestLocation()
+    unmount()
+    await grant()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not apply a previous cluster request to the next keyed review', async () => {
+    const { rerender, fetchMock, grant } = setup()
+    requestLocation()
+    rerender(<OutingReview
+      key="next-cluster"
+      cluster={{ ...noGpsCluster, startTime: new Date('2026-08-08T12:00:00Z') }}
+      data={createDataStore()}
+      userId="user-1"
+      onConfirm={vi.fn(async () => undefined)}
+    />)
+    await grant()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Tap to set location' })).toBeInTheDocument()
+  })
+
+  it('preserves matched-outing inheritance and offers current location only after declining the match', async () => {
+    const data = createDataStore()
+    data.outings = [{ ...previousOuting, startTime: noGpsCluster.startTime.toISOString(), endTime: noGpsCluster.endTime.toISOString(), lat: 10, lon: 20 }]
+    const { onConfirm, getCurrentPosition } = setup(data)
+    expect(screen.queryByRole('button', { name: 'Use current location' })).not.toBeInTheDocument()
+    const toggle = screen.getByRole('switch', { name: 'Add to existing outing?' })
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Tap to set location' })).toBeInTheDocument()
+    requestLocation()
+    fireEvent.click(toggle)
+    continueReview()
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(null, previousOuting.id, previousOuting.locationName, 10, 20, false))
+    await act(async () => getCurrentPosition.mock.calls[0][0](devicePosition))
+    expect(onConfirm).toHaveBeenCalledOnce()
   })
 })
 

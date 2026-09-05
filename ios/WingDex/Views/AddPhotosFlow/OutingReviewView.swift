@@ -25,6 +25,14 @@ struct OutingReviewView: View {
     @State private var suggestedLocation = ""
     @State private var suggestedStateProvince: String?
     @State private var suggestedCountryCode: String?
+    @State private var suggestedCoords: CLLocationCoordinate2D?
+    @State private var suggestedSource: LocationSource = .gps
+    @State private var overriddenSource: LocationSource = .search
+    @State private var currentLocationService = CurrentLocationService()
+    @State private var currentLocationTask: Task<Void, Never>?
+    @State private var isLocating = false
+    @State private var currentLocationError: String?
+    @State private var locationRequestGeneration = 0
 
     /// Extracted ISO 3166-2 state/province code from geocoding.
     @State private var inferredStateProvince: String?
@@ -45,7 +53,7 @@ struct OutingReviewView: View {
     /// The query behind `placeResults`, so an empty result set can name what was searched.
     @State private var searchedQuery: String?
     @State private var isShowingPlaceResults = false
-    /// Other named places around the photo coordinates, kept from the reverse lookup.
+    /// Other named places around the source coordinates, kept from the reverse lookup.
     @State private var nearbyPlaces: [GeocodingResult] = []
 
     /// Whether to add photos to an existing matching outing
@@ -59,6 +67,12 @@ struct OutingReviewView: View {
         case ok
         case empty
         case error
+    }
+
+    private enum LocationSource {
+        case gps
+        case current
+        case search
     }
 
     // MARK: - Computed
@@ -167,12 +181,17 @@ struct OutingReviewView: View {
             clearSearchResults()
         }
         .onChange(of: useExistingOuting) { _, usesExisting in
+            if usesExisting {
+                cancelLocationWork()
+                dismissLocationSearch()
+                return
+            }
             guard !usesExisting, viewModel.useGeoContext else { return }
             startReverseGeocodeIfPossible()
         }
         .onDisappear {
-            reverseGeocodingTask?.cancel()
-            placeSearchTask?.cancel()
+            cancelLocationWork()
+            dismissLocationSearch()
         }
     }
 
@@ -205,16 +224,11 @@ struct OutingReviewView: View {
 
     private var gpsStatusSection: some View {
         HStack {
-            if hasGps {
+            if overriddenCoords == nil && hasGps {
                 Label {
                     HStack(spacing: 4) {
                         Text("GPS detected")
                             .accessibilityIdentifier("outing.gpsStatus")
-                        // effectiveLat/Lon, NOT cluster.centerLat/Lon. Choosing a
-                        // search result moves the outing's coordinates, and the
-                        // save at `lat: effectiveLat` uses the moved ones. Showing
-                        // the originals here made the override look like it had
-                        // not taken effect.
                         if let lat = effectiveLat, let lon = effectiveLon {
                             Text("(\(lat, specifier: "%.4f"), \(lon, specifier: "%.4f"))")
                                 .foregroundStyle(Color.foregroundText)
@@ -227,14 +241,13 @@ struct OutingReviewView: View {
                 }
                 .font(.subheadline)
             } else if let coords = overriddenCoords {
-                // No EXIF GPS, but a search has given the outing coordinates.
-                // Still claiming "No GPS data" would be false, and the eBird
-                // export uses these.
                 Label {
                     HStack(spacing: 4) {
-                        Text("Location set from search")
+                        Text(overriddenSource == .current ? "Current location" : "Location set from search")
+                            .accessibilityIdentifier("outing.gpsStatus")
                         Text("(\(coords.latitude, specifier: "%.4f"), \(coords.longitude, specifier: "%.4f"))")
                             .foregroundStyle(Color.foregroundText)
+                            .accessibilityIdentifier("outing.gpsCoordinates")
                     }
                 } icon: {
                     Image(systemName: "location.fill")
@@ -269,104 +282,129 @@ struct OutingReviewView: View {
 
     @ViewBuilder
     private var locationSection: some View {
-        if isLoadingLocation {
+        if isLoadingLocation || isLocating {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Identifying location from GPS...")
+                Text(isLocating
+                    ? "Getting current location..."
+                    : suggestedSource == .current
+                        ? "Identifying current location..."
+                        : "Identifying location from GPS...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                Spacer()
+                Button("Cancel", action: cancelLocationWork)
+                    .accessibilityIdentifier("outing.locationCancel")
             }
-            // Matches the 44pt search button that replaces it, so the row does not grow when
-            // the lookup finishes.
             .frame(minHeight: 44)
-        } else {
-            // The field is the outing name. Typing renames the outing; submitting
-            // looks the name up so a matching place can also supply coordinates.
-            HStack(spacing: 0) {
-                TextField("Location name", text: $locationName)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .focused($isLocationFieldFocused)
-                    .onSubmit(submitPlaceSearch)
-                    .accessibilityIdentifier("outing.locationName")
-
-                if isLocationFieldFocused && !locationName.isEmpty {
-                    Button {
-                        locationName = ""
-                        isLocationFieldFocused = true
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.secondary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Clear location name")
-                    .accessibilityIdentifier("outing.locationClear")
+        }
+        // The field is the outing name. Typing renames the outing; submitting
+        // looks the name up so a matching place can also supply coordinates.
+        HStack(spacing: 0) {
+            TextField("Location name", text: Binding(
+                get: { locationName },
+                set: {
+                    guard locationName != $0 else { return }
+                    cancelLocationWork()
+                    cancelPlaceSearch()
+                    locationName = $0
                 }
+            ))
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isLocationFieldFocused)
+                .onSubmit(submitPlaceSearch)
+                .accessibilityIdentifier("outing.locationName")
 
-                Button(action: submitPlaceSearchOrShowNearby) {
-                    Image(systemName: "magnifyingglass")
+            if isLocationFieldFocused && !locationName.isEmpty {
+                Button {
+                    cancelLocationWork()
+                    dismissLocationSearch()
+                    locationName = ""
+                    isLocationFieldFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Color.secondary)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .disabled(isSearchingPlace || (trimmedLocationName.isEmpty && nearbyPlaces.isEmpty))
-                .accessibilityLabel(trimmedLocationName.isEmpty ? "Show places near your photos" : "Search for this place")
-                .accessibilityIdentifier("outing.locationSearchSubmit")
-            }
-            .popover(
-                isPresented: $isShowingPlaceResults,
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: .top
-            ) {
-                placeResultsDropdown
+                .accessibilityLabel("Clear location name")
+                .accessibilityIdentifier("outing.locationClear")
             }
 
-            // Escape hatch back to the original location suggestion after the user
-            // has typed or picked something else. The suggestion is not always a
-            // reverse-geocoded name: applyCoordinateFallback substitutes the last
-            // used location, or raw coordinates, when the lookup fails. Both halves
-            // of the condition matter, since an empty suggestion means nothing was
-            // resolved and an equal one means this button would do nothing. The name
-            // field doubles as the rename control, so without this there is no way
-            // back.
-            if !suggestedLocation.isEmpty && suggestedLocation != locationName {
-                Button("Use GPS: \(suggestedLocation)") {
-                    restoreSuggestedLocation()
-                }
-                .font(.subheadline)
+            Button(action: submitPlaceSearchOrShowNearby) {
+                Image(systemName: "magnifyingglass")
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.borderless)
+            .disabled(isSearchingPlace || (trimmedLocationName.isEmpty && nearbyPlaces.isEmpty))
+            .accessibilityLabel(trimmedLocationName.isEmpty
+                ? suggestedSource == .current ? "Show places near your current location" : "Show places near your photos"
+                : "Search for this place")
+            .accessibilityIdentifier("outing.locationSearchSubmit")
+        }
+        .popover(
+            isPresented: $isShowingPlaceResults,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .top
+        ) {
+            placeResultsDropdown
+        }
 
-            if locationName == suggestedLocation {
-                switch locationLookupState {
-                case .error:
-                    HStack(spacing: 4) {
-                        Text("Location lookup failed.")
-                            // System red nearly misses contrast against this
-                            // screen's dark card background. The explicit error
-                            // wording carries the state without relying on color.
-                            .foregroundStyle(Color.primary)
-                            .accessibilityIdentifier("outing.locationLookupError")
-                        Button("Retry") {
-                            retryReverseGeocoding()
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                        .accessibilityIdentifier("outing.locationRetry")
+        if !suggestedLocation.isEmpty && (suggestedLocation != locationName
+            || effectiveLat != suggestedCoords?.latitude || effectiveLon != suggestedCoords?.longitude) {
+            Button(suggestedSource == .current
+                ? "Use current location: \(suggestedLocation)"
+                : "Use GPS: \(suggestedLocation)") {
+                restoreSuggestedLocation()
+            }
+            .font(.subheadline)
+            .accessibilityIdentifier("outing.locationRestore")
+        }
+
+        if !isLoadingLocation && locationName == suggestedLocation {
+            switch locationLookupState {
+            case .error:
+                HStack(spacing: 4) {
+                    Text("Location lookup failed.")
+                        // System red nearly misses contrast against this
+                        // screen's dark card background. The explicit error
+                        // wording carries the state without relying on color.
+                        .foregroundStyle(Color.primary)
+                        .accessibilityIdentifier("outing.locationLookupError")
+                    Button("Retry") {
+                        retryReverseGeocoding()
                     }
-                    .font(.footnote)
-                case .empty:
-                    Text("No named place found nearby. Tap above to name this outing.")
-                        .font(.footnote)
-                        .foregroundStyle(Color.mutedText)
-                        .accessibilityIdentifier("outing.locationLookupEmpty")
-                case .ok:
-                    EmptyView()
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("outing.locationRetry")
                 }
+                .font(.footnote)
+            case .empty:
+                Text("No named place found nearby. Tap above to name this outing.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.mutedText)
+                    .accessibilityIdentifier("outing.locationLookupEmpty")
+            case .ok:
+                EmptyView()
             }
+        }
+        if isLocationFieldFocused && (effectiveLat == nil || effectiveLon == nil) {
+            Button(action: useCurrentLocation) {
+                Label("Use current location", systemImage: "location")
+            }
+            .disabled(isLocating)
+            .accessibilityIdentifier("outing.useCurrentLocation")
+        }
+        if let currentLocationError {
+            Text(currentLocationError)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("outing.currentLocationError")
         }
     }
 
@@ -406,7 +444,7 @@ struct OutingReviewView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         if isShowingNearby {
-                            Text("Near your photos")
+                            Text(suggestedSource == .current ? "Near your current location" : "Near your photos")
                                 .font(.footnote)
                                 .foregroundStyle(Color.mutedText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -417,7 +455,7 @@ struct OutingReviewView: View {
                         ForEach(dropdownPlaces) { item in
                             Button {
                                 // A nearby result only changes the outing's name;
-                                // it still describes the original photo location.
+                                // it still describes the suggestion's source coordinate.
                                 // A submitted search is an explicit coordinate
                                 // correction and therefore overrides photo EXIF GPS.
                                 selectPlace(item, overridesPhotoGPS: !isShowingNearby)
@@ -478,9 +516,15 @@ struct OutingReviewView: View {
     }
 
     private func dismissLocationSearch() {
-        placeSearchTask?.cancel()
-        isSearchingPlace = false
+        cancelPlaceSearch()
         isLocationFieldFocused = false
+    }
+
+    private func cancelPlaceSearch() {
+        placeSearchTask?.cancel()
+        placeSearchTask = nil
+        placeSearchGeneration += 1
+        isSearchingPlace = false
         isShowingPlaceResults = false
         clearSearchResults()
     }
@@ -503,10 +547,13 @@ struct OutingReviewView: View {
 
     /// Remove a photo from the current cluster.
     private func removePhoto(_ photo: ProcessedPhoto) {
+        cancelLocationWork()
+        dismissLocationSearch()
         Task {
             await viewModel.removePhotoFromCurrentCluster(id: photo.id)
             if viewModel.currentStep == .outingReview {
                 resetClusterState()
+                initializeIfNeeded()
             }
         }
     }
@@ -515,15 +562,17 @@ struct OutingReviewView: View {
 
     /// Reset per-cluster state so each cluster re-initializes correctly.
     private func resetClusterState() {
-        reverseGeocodingTask?.cancel()
-        placeSearchTask?.cancel()
-        reverseGeocodingTask = nil
-        placeSearchTask = nil
+        cancelLocationWork()
+        dismissLocationSearch()
         didInitialize = false
         locationName = ""
         suggestedLocation = ""
         suggestedStateProvince = nil
         suggestedCountryCode = nil
+        suggestedCoords = nil
+        suggestedSource = .gps
+        overriddenSource = .search
+        currentLocationError = nil
         inferredStateProvince = nil
         inferredCountryCode = nil
         overriddenStartTime = nil
@@ -545,9 +594,6 @@ struct OutingReviewView: View {
         guard !didInitialize else { return }
         didInitialize = true
 
-        // Pre-fill location name from last outing default
-        locationName = viewModel.lastLocationName
-
         // Find matching existing outing
         if let c = cluster {
             matchingOuting = findMatchingOuting(cluster: c, outings: store.outings)
@@ -561,23 +607,95 @@ struct OutingReviewView: View {
 
     /// Also runs when the user declines the matched outing, since they then need a suggestion.
     private func startReverseGeocodeIfPossible() {
-        guard reverseGeocodingTask == nil,
+        guard reverseGeocodingTask == nil, overriddenCoords == nil, suggestedCoords == nil,
               let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon
         else { return }
-        let clusterID = cluster.id
-        reverseGeocodingTask = Task {
-            await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
+        startReverseGeocode(latitude: lat, longitude: lon, source: .gps)
+    }
+
+    private func cancelLocationWork() {
+        locationRequestGeneration += 1
+        reverseGeocodingTask?.cancel()
+        reverseGeocodingTask = nil
+        currentLocationTask?.cancel()
+        currentLocationTask = nil
+        currentLocationService.cancel()
+        isLoadingLocation = false
+        isLocating = false
+    }
+
+    private func useCurrentLocation() {
+        guard !isLocating, !useExistingOuting, let clusterID = cluster?.id else { return }
+        cancelLocationWork()
+        dismissLocationSearch()
+        currentLocationError = nil
+        isLocating = true
+        let generation = locationRequestGeneration
+        currentLocationTask = Task {
+            defer {
+                if locationRequestGeneration == generation {
+                    isLocating = false
+                    currentLocationTask = nil
+                }
+            }
+            do {
+                let coordinate: CLLocationCoordinate2D
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--ui-test-current-location-denied") {
+                    throw CurrentLocationError.denied
+                } else if ProcessInfo.processInfo.arguments.contains("--ui-test-current-location-success") {
+                    if ProcessInfo.processInfo.arguments.contains("--ui-test-current-location-delay") {
+                        try await Task.sleep(for: .seconds(10))
+                    }
+                    coordinate = CLLocationCoordinate2D(latitude: 47.7115123, longitude: -122.3717456)
+                } else {
+                    coordinate = try await currentLocationService.request()
+                }
+                #else
+                coordinate = try await currentLocationService.request()
+                #endif
+                try Task.checkCancellation()
+                guard locationRequestGeneration == generation, cluster?.id == clusterID,
+                      !useExistingOuting else { return }
+                overriddenCoords = coordinate
+                overriddenSource = .current
+                currentLocationTask = nil
+                isLocating = false
+                startReverseGeocode(latitude: coordinate.latitude, longitude: coordinate.longitude, source: .current)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard locationRequestGeneration == generation, cluster?.id == clusterID,
+                      !useExistingOuting, !Task.isCancelled else { return }
+                currentLocationError = error.localizedDescription
+            }
         }
     }
 
-    private func reverseGeocode(clusterID: UUID, latitude: Double, longitude: Double) async {
+    private func startReverseGeocode(latitude: Double, longitude: Double, source: LocationSource) {
+        guard let clusterID = cluster?.id, !useExistingOuting else { return }
+        cancelLocationWork()
+        let generation = locationRequestGeneration
+        suggestedCoords = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        suggestedSource = source
+        nearbyPlaces = []
+        applyCoordinateFallback(latitude: latitude, longitude: longitude, state: .ok)
+        isLoadingLocation = true
+        reverseGeocodingTask = Task {
+            await reverseGeocode(
+                clusterID: clusterID, generation: generation, latitude: latitude, longitude: longitude
+            )
+        }
+    }
+
+    private func reverseGeocode(clusterID: UUID, generation: Int, latitude: Double, longitude: Double) async {
+        guard locationRequestGeneration == generation, cluster?.id == clusterID, !Task.isCancelled else { return }
         let roundedLat = (latitude * 1000).rounded() / 1000
         let roundedLon = (longitude * 1000).rounded() / 1000
-        isLoadingLocation = true
-        locationLookupState = .ok
         defer {
-            if cluster?.id == clusterID {
+            if locationRequestGeneration == generation, cluster?.id == clusterID {
                 isLoadingLocation = false
+                reverseGeocodingTask = nil
             }
         }
 
@@ -592,12 +710,25 @@ struct OutingReviewView: View {
                 return
             }
         }
+        guard locationRequestGeneration == generation, cluster?.id == clusterID, !Task.isCancelled else { return }
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-failure") {
             applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .error)
             return
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-empty") {
-            applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .empty)
+            applyCoordinateFallback(
+                latitude: roundedLat, longitude: roundedLon,
+                regionCodes: .init(stateProvince: "US-WA", countryCode: "US"), state: .empty
+            )
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-geocoding-success") {
+            let result = GeocodingResult(
+                label: "Carkeek Park", context: "Seattle, Washington",
+                latitude: 47.712, longitude: -122.372, stateProvince: "US-WA", countryCode: "US"
+            )
+            nearbyPlaces = [result]
+            applyGeocodedPlace(result)
             return
         }
         #endif
@@ -608,15 +739,10 @@ struct OutingReviewView: View {
             // across a park or administrative boundary.
             let lookup = try await GeocodingService(auth: auth).reverse(latitude: latitude, longitude: longitude)
             try Task.checkCancellation()
-            guard cluster?.id == clusterID else { return }
+            guard locationRequestGeneration == generation, cluster?.id == clusterID, !useExistingOuting else { return }
             nearbyPlaces = lookup.nearby
             if let result = lookup.result {
-                locationName = result.label
-                suggestedLocation = result.label
-                suggestedStateProvince = result.stateProvince
-                suggestedCountryCode = result.countryCode
-                inferredStateProvince = result.stateProvince
-                inferredCountryCode = result.countryCode
+                applyGeocodedPlace(result)
             } else {
                 // No NAMED place, but the jurisdiction is a separate question
                 // and often still answerable offshore or on unmapped land.
@@ -631,21 +757,26 @@ struct OutingReviewView: View {
         } catch is CancellationError {
             return
         } catch {
-            // The name field is editable and pre-filled with a usable fallback, so a
-            // failed suggestion never blocks the user or needs its own error row.
             log.error("Reverse geocoding failed")
-            guard cluster?.id == clusterID else { return }
+            guard locationRequestGeneration == generation, cluster?.id == clusterID,
+                  !useExistingOuting, !Task.isCancelled else { return }
             applyCoordinateFallback(latitude: roundedLat, longitude: roundedLon, state: .error)
         }
     }
 
     private func retryReverseGeocoding() {
-        guard let cluster, let lat = cluster.centerLat, let lon = cluster.centerLon else { return }
-        reverseGeocodingTask?.cancel()
-        let clusterID = cluster.id
-        reverseGeocodingTask = Task {
-            await reverseGeocode(clusterID: clusterID, latitude: lat, longitude: lon)
-        }
+        guard let coordinate = suggestedCoords else { return }
+        restoreSuggestedLocation()
+        startReverseGeocode(latitude: coordinate.latitude, longitude: coordinate.longitude, source: suggestedSource)
+    }
+
+    private func applyGeocodedPlace(_ result: GeocodingResult) {
+        locationName = result.label
+        suggestedLocation = result.label
+        suggestedStateProvince = result.stateProvince
+        suggestedCountryCode = result.countryCode
+        inferredStateProvince = result.stateProvince
+        inferredCountryCode = result.countryCode
     }
 
     /// Fall back to a coordinate string as the outing name.
@@ -659,13 +790,9 @@ struct OutingReviewView: View {
         regionCodes: GeocodingService.RegionCodes? = nil,
         state: LocationLookupState
     ) {
-        let coordinates = "\(latitude)deg, \(longitude)deg"
-        // A successful empty lookup proves that the previous outing's name
-        // does not describe this coordinate. Preserve it only when a transient
-        // error prevented the lookup from answering.
-        let fallback = state == .error && !viewModel.lastLocationName.isEmpty
-            ? viewModel.lastLocationName
-            : coordinates
+        let roundedLat = (latitude * 1000).rounded() / 1000
+        let roundedLon = (longitude * 1000).rounded() / 1000
+        let fallback = "\(roundedLat)deg, \(roundedLon)deg"
         locationName = fallback
         suggestedLocation = fallback
         suggestedStateProvince = regionCodes?.stateProvince
@@ -678,6 +805,7 @@ struct OutingReviewView: View {
     private func submitPlaceSearch() {
         let query = trimmedLocationName
         guard !query.isEmpty, let clusterID = cluster?.id else { return }
+        cancelLocationWork()
         placeSearchTask?.cancel()
         placeSearchGeneration += 1
         let generation = placeSearchGeneration
@@ -731,11 +859,15 @@ struct OutingReviewView: View {
     }
 
     private func selectPlace(_ result: GeocodingResult, overridesPhotoGPS: Bool) {
+        cancelLocationWork()
+        currentLocationError = nil
         let coordinate = CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude)
         if overridesPhotoGPS, CLLocationCoordinate2DIsValid(coordinate) {
             overriddenCoords = coordinate
+            overriddenSource = .search
         } else {
-            overriddenCoords = nil
+            overriddenCoords = suggestedSource == .current ? suggestedCoords : nil
+            overriddenSource = suggestedSource
         }
         locationName = result.label
         inferredCountryCode = result.countryCode
@@ -744,15 +876,20 @@ struct OutingReviewView: View {
     }
 
     private func restoreSuggestedLocation() {
+        cancelLocationWork()
+        currentLocationError = nil
         locationName = suggestedLocation
         inferredStateProvince = suggestedStateProvince
         inferredCountryCode = suggestedCountryCode
-        overriddenCoords = nil
+        overriddenCoords = suggestedSource == .current ? suggestedCoords : nil
+        overriddenSource = suggestedSource
         dismissLocationSearch()
     }
 
     /// Confirm the outing and proceed to species identification.
     private func handleConfirm() {
+        cancelLocationWork()
+        dismissLocationSearch()
         if useExistingOuting, let existing = matchingOuting {
             // Merge into existing outing
             viewModel.outingConfirmed(

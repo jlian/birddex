@@ -33,7 +33,6 @@ import {
   filterConfirmedResults,
   clusterHasSightings,
   groupResultsBySpecies,
-  normalizeLocationName,
   resolveInferenceCoordinates,
 } from '@/lib/add-photos-helpers'
 import type { FlowStep, PhotoResult } from '@/lib/add-photos-helpers'
@@ -102,14 +101,6 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
     { species: string; confidence: number; plumage?: string }[]
   >([])
   const [rangeAdjusted, setRangeAdjusted] = useState(false)
-
-  const [lastLocationName, setLastLocationName] = useState(() => {
-    const sorted = [...data.outings].sort(
-      (a, b) =>
-        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-    )
-    return sorted[0]?.locationName || ''
-  })
 
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false)
@@ -544,14 +535,12 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
   const handleOutingConfirmed = async (
     pendingOuting: Outing | null,
     outingId: string,
-    locationName: string,
+    _locationName: string,
     lat?: number,
     lon?: number,
     outingOverridesPhotoGps = false,
   ) => {
     if (!await ensureSessionReady()) throw new Error('Anonymous session is not ready')
-    const normalizedLocationName = normalizeLocationName(locationName)
-    setLastLocationName(normalizedLocationName)
     setCurrentOutingId(outingId)
     outingInferenceContext.current = {
       coordinates: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
@@ -751,10 +740,10 @@ export default function AddPhotosFlow({ data, onClose, onOutingSaved, ensureSess
           {/* Outing Review */}
           {step === 'review' && clusters[currentClusterIndex] && (
             <OutingReview
+              key={currentClusterIndex}
               cluster={clusters[currentClusterIndex]}
               data={data}
               userId={userId}
-              defaultLocationName={lastLocationName}
               autoLookupGps={useGeoContext}
               ensureSessionReady={ensureSessionReady}
               onConfirm={handleOutingConfirmed}

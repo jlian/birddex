@@ -265,15 +265,17 @@ class BirdIdFlowUITestCase: XCTestCase {
 
     func launchApp(
         autoSignIn: Bool = true,
+        photoGPS: Bool = true,
         extraArguments: [String] = []
     ) -> XCUIApplication {
         let app = application()
         app.launchArguments = [
             "--ui-test-reset-signup-prompt",
             "--ui-test-photo", Self.photoPath,
-            "--ui-test-lat", "47.7115",
-            "--ui-test-lon", "-122.3717",
         ] + extraArguments
+        if photoGPS {
+            app.launchArguments += ["--ui-test-lat", "47.7115", "--ui-test-lon", "-122.3717"]
+        }
         if autoSignIn {
             let usesLocalFixture = extraArguments.contains("--ui-test-fixture-empty")
                 || extraArguments.contains("--ui-test-fixture-populated")

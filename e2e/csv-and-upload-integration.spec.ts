@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import path from 'path'
 import { readFileSync } from 'fs'
+import sharp from 'sharp'
 import { loadApp } from './helpers'
 
 // ── Fixture helpers ──────────────────────────────────────────────
@@ -325,6 +326,64 @@ test.describe('CSV import + photo upload integration', () => {
     expect(searchRequestCount).toBe(1)
     await expect(dialog.getByRole('link', { name: 'Geoapify' })).toBeVisible()
     await expect(dialog.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible()
+  })
+
+  test('current location for a photo without GPS persists through sighting confirmation', async ({ page, context }) => {
+    test.slow()
+    await context.grantPermissions(['geolocation'])
+    await context.setGeolocation({ latitude: 47.612345, longitude: -122.312345, accuracy: 5000 })
+    await mockGeocoding(page, 'Current location park')
+    await mockWikimedia(page)
+    await loadApp(page, { promote: false })
+    const image = await sharp('src/assets/images/Chukar_partridge_near_Haleakala_summit_Maui.jpg').jpeg().toBuffer()
+    await page.getByRole('button', { name: 'Upload & Identify' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'no-gps.jpg', mimeType: 'image/jpeg', buffer: image })
+    await expect(dialog.getByText('No GPS data in photo')).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Tap to set location' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Use current location', exact: true })).not.toBeVisible()
+    await dialog.getByRole('button', { name: 'Tap to set location' }).click()
+    await expect(dialog.getByPlaceholder('Search for a place...')).toBeFocused()
+
+    const reverseRequest = page.waitForRequest('**/api/geocoding/reverse')
+    await dialog.getByRole('button', { name: 'Use current location', exact: true }).click()
+    expect((await reverseRequest).postDataJSON()).toEqual({ lat: 47.612345, lon: -122.312345 })
+    await expect(dialog.getByText('Current location', { exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Current location park' })).toBeVisible()
+    await dialog.getByRole('button', { name: /Continue to Species/i }).click()
+    await passModelGate(page)
+    const confirm = dialog.getByRole('button', { name: 'Confirm', exact: true }).first()
+    await expect(confirm).toBeVisible({ timeout: 120_000 })
+    await confirm.click()
+    await expect(dialog.getByRole('button', { name: 'Done' })).toBeVisible({ timeout: 15_000 })
+
+    const saved = await page.request.get('/api/data/all')
+    expect(saved.ok()).toBe(true)
+    const data = await saved.json()
+    expect(data.outings).toEqual([expect.objectContaining({
+      locationName: 'Current location park', defaultLocationName: 'Current location park',
+      lat: 47.612345, lon: -122.312345, stateProvince: 'US-WA', countryCode: 'US',
+    })])
+    expect(data.observations).toHaveLength(1)
+    expect(data.photos).toHaveLength(1)
+    expect(data.photos[0].gps).toBeUndefined()
+  })
+
+  test('denied current location keeps manual location entry available', async ({ page, context }) => {
+    // Grant an unrelated permission to explicitly deny geolocation in Chromium.
+    await context.grantPermissions(['notifications'])
+    await loadApp(page, { promote: false })
+    const image = await sharp('src/assets/images/Chukar_partridge_near_Haleakala_summit_Maui.jpg').jpeg().toBuffer()
+    await page.getByRole('button', { name: 'Upload & Identify' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'no-gps.jpg', mimeType: 'image/jpeg', buffer: image })
+    await dialog.getByRole('button', { name: 'Tap to set location' }).click()
+    await dialog.getByRole('button', { name: 'Use current location', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toContainText('Location access was denied')
+    await dialog.getByPlaceholder('Search for a place...').fill('My park')
+    await dialog.getByRole('button', { name: 'Use entered name without searching' }).click()
+    await expect(dialog.getByRole('button', { name: 'My park', exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /Continue to Species/i })).toBeEnabled()
   })
 
   // @live: asserts CONVERGENCE onto a named species, which needs a known
