@@ -1,3 +1,10 @@
+# [1.31.0](https://github.com/jlian/wingdex/compare/v1.30.0...v1.31.0) (2026-09-06)
+
+
+### Features
+
+* **Outings:** add current location action and remove stale prefill ([366d4e0](https://github.com/jlian/wingdex/commit/366d4e0d43e8777ace79eaf000495ae8e6f77cef)), closes [#405](https://github.com/jlian/wingdex/issues/405)
+
 # [1.30.0](https://github.com/jlian/wingdex/compare/v1.29.0...v1.30.0) (2026-09-03)
 
 
